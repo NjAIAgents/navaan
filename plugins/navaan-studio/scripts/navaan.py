@@ -161,8 +161,9 @@ def run(slug, step=None, dry=False, retries=2):
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
-        rf = "short.mp4" if os.path.exists(os.path.join(D, "short.mp4")) else ("final_reel_cap.mp4" if cfg("captions.enabled", False) else "final_reel_sync.mp4")
-        if not os.path.exists(os.path.join(D, rf)): print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
+        cands = (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]  # the tuned reel first, the YouTube Studio clip as fallback
+        rf = next((c for c in cands if os.path.exists(os.path.join(D, c))), None)
+        if not rf: print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
         cap = os.path.join(D, "publish"); os.makedirs(cap, exist_ok=True)
         s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, rf))}) && '
                       f'{shlex.quote(PY)} {shlex.quote(os.path.join(HERE, "publish_instagram.py"))} publish {shlex.quote(slug)} --video-url "$U" --caption-file instagram.txt --yes']]
