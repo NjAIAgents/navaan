@@ -21,7 +21,16 @@
     "2026-10-12T03:55:28Z step visuals attempt 3 did not finish",
     "2026-10-12T04:16:06Z step visuals attempt 1 did not finish",
     "2026-10-12T04:28:21Z step visuals attempt 1 did not finish",
-    "2026-10-12T04:34:06Z step visuals: Flow account switched by user to nishant.navjyot@gmail.com (250 credits, tab /u/1/, new project cac2f2a8-dc23-43b6-a1b1-04efca9021bd). Budget 10 (navaan.config.json missing, defaults: budget 10, 1 clip). Model Veo 3.1 Lite 720p 8s x1 = 10 credits as shown in Flow. Generating c1_diya (prompt in scenes/prompt.txt) under the recorded credits approval"
+    "2026-10-12T04:34:06Z step visuals: Flow account switched by user to nishant.navjyot@gmail.com (250 credits, tab /u/1/, new project cac2f2a8-dc23-43b6-a1b1-04efca9021bd). Budget 10 (navaan.config.json missing, defaults: budget 10, 1 clip). Model Veo 3.1 Lite 720p 8s x1 = 10 credits as shown in Flow. Generating c1_diya (prompt in scenes/prompt.txt) under the recorded credits approval",
+    "2026-10-12T04:36:14Z step visuals done: clips/c1_diya.mp4 (Veo 3.1 Lite 720p 8s, 10 credits, total spent 10 of budget 10, account nishant.navjyot@gmail.com 250 -> 240). Cover frame cover_flow.jpg plus cover_1x1.png, cover_16x9.png and thumb_16x9.jpg with the Devanagari title. Only 1 clip (navaan.config.json missing, default scene_count 1 and budget 10); scene briefs c2 to c5 not generated. No upgrade, no regenerate, nothing published. needs_you.txt removed. Next: user reviews media",
+    "2026-10-12T04:36:21Z step visuals done (attempt 1)",
+    "2026-10-12T04:36:45Z step captions attempt 1 blocked: caption-sync setup is not in place and the skill requires asking the user before downloading. Missing: python packages onnxruntime, librosa, scipy, numpy (onnxruntime import fails); UVR MDX Voc FT onnx model and sherpa-onnx Whisper small int8 package not found; NAVAAN_WORK, NAVAAN_VOC_MODEL and NAVAAN_WHISPER_DIR unset. Also final_16x9.mp4 and final_reel_sync.mp4 do not exist yet (video-build has not run), so the render step cannot run. Nothing downloaded, installed, rendered or published; no caption_cues.json written. Needs user: approve the one-time download (PyPI plus GitHub releases, about hundreds of MB) or point to existing models, then re-run captions",
+    "2026-10-12T04:36:57Z step captions attempt 1 did not finish",
+    "2026-10-12T04:37:42Z step captions attempt 2 blocked: caption-sync setup still not in place (onnxruntime import fails; UVR MDX Voc FT and sherpa-onnx Whisper small int8 models not found; NAVAAN_* env unset) and final_16x9.mp4 / final_reel_sync.mp4 still missing (video-build not run). The skill requires asking the user before downloading and meta.json records no download approval, so nothing was downloaded, installed, rendered or published. Needs user: approve the one-time PyPI + GitHub releases download or point to existing models, and run video-build, then re-run captions",
+    "2026-10-12T04:37:42Z step captions attempt 2 did not finish",
+    "2026-10-12T04:37:51Z step captions attempt 2 did not finish",
+    "2026-10-12T04:38:30Z step captions attempt 3 blocked: nothing changed since attempt 2. songs/song-003 still has no final_16x9.mp4 or final_reel_sync.mp4 (video-build not run) and meta.json records no approval for the one-time model and package download that the caption-sync skill requires asking for. Nothing downloaded, installed, rendered or published; no caption_cues.json written. Needs user: say yes to the one-time download (PyPI onnxruntime/librosa/scipy/numpy, UVR MDX Voc FT onnx and sherpa-onnx Whisper small int8 from GitHub releases) or point to existing models and set NAVAAN_WORK, NAVAAN_VOC_MODEL and NAVAAN_WHISPER_DIR, and run video-build, then re-run captions",
+    "2026-10-12T04:38:32Z step captions attempt 3 did not finish"
   ],
   "published": {
     "youtube": "",
@@ -44,5 +53,26 @@
       "at": "2026-10-12T03:52:28Z",
       "via": "ui"
     }
+  },
+  "visuals": {
+    "model": "Veo 3.1 Lite",
+    "resolution": "720p",
+    "seconds": 8,
+    "clips": [
+      "clips/c1_diya.mp4"
+    ],
+    "credits_per_clip": 10,
+    "credits_spent": 10,
+    "budget": 10,
+    "remaining_budget": 0,
+    "flow_account": "nishant.navjyot@gmail.com",
+    "flow_balance_after": 240,
+    "flow_project": "https://flow.google.com/u/1/project/cac2f2a8-dc23-43b6-a1b1-04efca9021bd",
+    "covers": [
+      "cover_flow.jpg",
+      "cover_1x1.png",
+      "cover_16x9.png",
+      "thumb_16x9.jpg"
+    ]
   }
 }

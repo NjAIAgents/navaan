@@ -9,6 +9,9 @@ Estimated timing is always wrong. Measure it.
 
 Pipeline: separate vocals, transcribe windows, align lyric lines, render.
 
+The orchestrator now runs the measuring step as a script, with no agent: `python scripts/captions_run.py <slug>` writes `caption_cues.json` and `reel_start.json`. The one time install is `python scripts/setup_captions.py --yes`, and it runs only after the human approves the `captions_setup` gate (about 700 MB from GitHub releases and PyPI, kept in `~/.cache/navaan`, outside the plugin and the repo). `setup_captions.py --check` says what is missing. Do not download anything yourself. Rendering the captions onto the videos belongs to the video step. The manual steps below are for tuning a song by hand, for example to pin a line.
+
+
 1. Setup once (needs network to GitHub releases and PyPI): `pip install onnxruntime librosa scipy numpy`. Get the UVR MDX Voc FT onnx model from the TRvlvr model repo release and the sherpa-onnx Whisper small int8 package from the k2-fsa release. Hugging Face may be blocked, so do not depend on it. Ask the user before downloading.
 2. Make a mono copy of `final.mp3` and run `python scripts/sep.py <tag> <audio>`. It writes `<tag>_voc.npy`.
 3. Hindi ASR: `python scripts/asr.py <tag> small hi <WORK>/<tag>_hi.json`. Use the small model, because medium is about six times slower with little gain. Use the custom decoder in this script. The stock sherpa decoder drops partial UTF-8 byte tokens for Hindi.

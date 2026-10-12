@@ -14,13 +14,14 @@
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
 Steps: lyrics, suno (or suno_import for an imported song), visuals, captions, video, publish_youtube, archive, publish_instagram.
-Gates (human only): lyrics, listen, credits, media, publish_youtube, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
+Gates (human only): lyrics, listen, credits, captions_setup, media, publish_youtube, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
 NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts steps run the tools in this folder.
 """
 import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import setup_captions
 from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -50,7 +51,8 @@ def steps(slug, D):
     return head + [
         dict(id="visuals", label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, before="credits",
              done=lambda m: len(files(D, "clips/*.mp4")) > 0 and has(D, "cover_1x1.png")),
-        dict(id="captions", label="Measure lyric timing", kind="claude", skill="caption-sync", chrome=False,
+        dict(id="captions", label="Measure lyric timing", kind="script", before=(None if setup_captions.ready() else "captions_setup"),
+             cmds=([sc("setup_captions.py", "--yes")] if not setup_captions.ready() else []) + [sc("captions_run.py", slug)],
              done=lambda m: has(D, "caption_cues.json", "reel_start.json")),
         dict(id="video", label="Render videos, captions, tags", kind="script", sets_after="media_ready",
              cmds=[sc("clipvideo.py", slug, "16x9"), sc("clipvideo.py", slug, "reel"), sc("caption_clips.py", slug, "16x9"),
