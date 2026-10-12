@@ -59,12 +59,13 @@ if(r.gate_before&&!r.done)h+=gnode(r.gate_before,(nx.type==="gate"&&nx.gate===r.
 const logt=d.logs[r.id]||"";const open=OPEN[r.id]!==undefined?OPEN[r.id]:(st==="running"||st==="failed");
 const icon=st==="done"?"&#10003;":st==="running"?'<div class="spin"></div>':st==="failed"?"&#10005;":st==="waiting"?"!":"&#9679;";
 const lab={done:"done",running:"running"+(R.attempts>1&&R.attempt?" (try "+R.attempt+" of "+R.attempts+")":"")+(R.elapsed!=null?" · "+fmt(R.elapsed):""),failed:"failed",waiting:"waiting",pending:"not started"}[st];
-h+=`<div class="node ${st}"><div class="dot">${icon}</div><div class="nb"><div class="nt" onclick="tog('${r.id}',${!open})"><b>${esc(r.label)}</b><span class="chip ${st==="done"?"done":st==="running"?"running":st==="failed"?"failed":st==="waiting"?"waiting":""}">${lab}</span>${r.kind==="claude"?'<span class="sub">agent</span>':""}</div>`;
+h+=`<div class="node ${st}"><div class="dot">${icon}</div><div class="nb"><div class="nt" onclick="tog('${r.id}',${!open})"><b>${esc(r.label)}</b><span class="chip ${st==="done"?"done":st==="running"?"running":st==="failed"?"failed":st==="waiting"?"waiting":""}">${lab}</span>${r.kind==="claude"?'<span class="sub">agent</span>':""}${(st==="done"||st==="failed")&&r.redo&&!busy?`<button style="padding:2px 10px;font-size:12px;margin-left:auto" onclick="event.stopPropagation();redoStep('${r.id}',${r.spends})">Redo</button>`:""}</div>`;
 if(open&&logt)h+=`<pre>${esc(logt)}</pre>`;else if(open&&st!=="pending")h+=`<div class="sub">no log yet</div>`;
 if(st==="failed")h+=`<div class="sub" style="margin:4px 0">Log above. Fix the cause, then click Retry and continue.</div>`;
 h+=`</div></div>`;
 if(r.gate_after&&r.done)h+=gnode(r.gate_after,(nx.type==="gate"&&nx.gate===r.gate_after)?"waiting":"pending",d)}
 return h+`</div></div>`}
+async function redoStep(id,sp){if(!confirm('Redo this step? Its current files are moved to the _prev folder inside the song (nothing is deleted).'+(sp?' It spends credits, so you will need to approve the credits gate again.':'')))return;const r=await api('/api/redo',{slug:cur,step:id});if(r.error)return alert(r.error);OPEN[id]=true;render()}
 function tog(id,v){OPEN[id]=v;render()}
 let IMP=false;const lab=g=>g==='credits'&&IMP?'I approve spending Flow credits for visuals (the Suno song is already made, nothing more is spent on Suno)':(GL[g]||g);
 async function loadList(){const l=await api("/api/songs");document.getElementById("list").innerHTML=l.map(s=>`<div class="song ${s.slug===cur?"on":""}" onclick="openSong('${s.slug}')">${esc(s.slug)}<small>${esc(s.title||"untitled")} · ${esc(s.state||"")}</small></div>`).join("")||'<p class="mut">No songs yet.</p>'}

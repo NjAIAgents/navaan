@@ -31,3 +31,8 @@ Tested here: profile setup (interactive and from file), orchestrator planning an
 ## Song already made on Suno
 
 `python scripts/navaan.py import <suno-link> [slug]` brings in a song you already generated: title, lyrics, style, model, audio and cover are read from the Suno page with Claude in Chrome (no credits spent), saved in the song folder, and the pipeline continues from the listen gate. In the web UI paste the link in the Import box. In chat use the import-suno command.
+
+
+## Redo a step
+
+Use the Redo button on any finished or failed step in the web UI, or run `navaan.py redo <slug> <step> [--run]`. Old files go to `_prev/` in the song folder. Approvals around the step are revoked. Publish, archive and Instagram steps cannot be redone from here.

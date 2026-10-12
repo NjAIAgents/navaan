@@ -39,3 +39,8 @@ Layout: `<workspace>/navaan.config.json`, `<workspace>/style-notes.md` (generate
 ## Browser tab rule
 
 Reuse the tab the user already has open for a site (Suno, Flow). Never open a second tab for the same site to continue work, and never navigate back to the site's home address, because the account chosen in that tab is part of its address and a fresh tab can fall back to the default account. Read the tab list first, keep the current address, reload in place.
+
+
+## Redo a finished step
+
+Any finished or failed step except the publish, archive and Instagram steps can be run again. Use the Redo button on the step in the web UI, or `navaan.py redo <slug> <step> [--run]`. The step's current output files are moved to `<song>/_prev/<timestamp>/` and nothing is deleted. The approvals before and after that step are revoked, so a step that spends credits (visuals) needs a fresh credits approval. Steps that touch an outside service (YouTube, cloud archive, Instagram) are refused on purpose.

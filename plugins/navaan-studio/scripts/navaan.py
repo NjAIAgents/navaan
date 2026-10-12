@@ -9,6 +9,7 @@
   navaan.py import <suno-url-or-id> [slug]  bring in a song already made on Suno (title, lyrics, style, audio, cover), then run the pipeline from there
   navaan.py pipeline <slug> [--wait] [--poll 10] [--until STEP] [--timeout SEC]   run every step in order; stop at a gate, or with --wait keep waiting until you approve
   navaan.py run <slug> [--step ID] [--dry]   run only the next ready step (retries, logs, state)
+  navaan.py redo <slug> <step> [--run]  redo a finished step: its files go to _prev/ (nothing deleted), its gates are revoked, then it runs again with --run
   navaan.py approve <slug> <gate>     record a human approval (asks you to type yes)
   navaan.py revoke <slug> <gate>
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
@@ -40,30 +41,30 @@ def steps(slug, D):
     reel_meta = ["--meta", "tags.json"]
     imported = load_json(os.path.join(D, "meta.json"), default={}).get("source") == "suno_import"
     head = [
-        dict(id="suno_import", label="Import the song from Suno", kind="claude", skill="suno-import", chrome=True, state="draft",
+        dict(id="suno_import", outputs=['final.mp3', 'lyrics.txt', 'style.txt', 'title.txt', 'takes/imported.*'], label="Import the song from Suno", kind="claude", skill="suno-import", chrome=True, state="draft",
              done=lambda m: has(D, "lyrics.txt", "style.txt", "title.txt", "final.mp3"), after="listen", sets="accepted"),
     ] if imported else [
-        dict(id="lyrics", label="Write lyrics and style", kind="claude", skill="lyrics", chrome=False, state="draft",
+        dict(id="lyrics", outputs=['lyrics.txt', 'style.txt', 'title.txt'], label="Write lyrics and style", kind="claude", skill="lyrics", chrome=False, state="draft",
              done=lambda m: has(D, "lyrics.txt", "style.txt", "title.txt"), after="lyrics", sets="lyrics_ok"),
-        dict(id="suno", label="Generate the song on Suno", kind="claude", skill="suno-generate", chrome=True, before="credits", state="lyrics_ok",
+        dict(id="suno", outputs=['final.mp3'], label="Generate the song on Suno", kind="claude", skill="suno-generate", chrome=True, before="credits", state="lyrics_ok",
              done=lambda m: has(D, "final.mp3"), after="listen", sets="accepted"),
     ]
     return head + [
-        dict(id="visuals", label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, before="credits",
+        dict(id="visuals", outputs=['clips/*.mp4', 'cover_1x1.png', 'cover_16x9.png', 'cover_flow.jpg', 'thumb_16x9.jpg', 'scenes/*.txt'], label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, before="credits",
              done=lambda m: len(files(D, "clips/*.mp4")) > 0 and has(D, "cover_1x1.png")),
-        dict(id="captions", label="Measure lyric timing", kind="script", before=(None if setup_captions.ready() else "captions_setup"),
+        dict(id="captions", outputs=['caption_cues.json', 'reel_start.json', '.cache'], label="Measure lyric timing", kind="script", before=(None if setup_captions.ready() else "captions_setup"),
              cmds=([sc("setup_captions.py", "--yes")] if not setup_captions.ready() else []) + [sc("captions_run.py", slug)],
              done=lambda m: has(D, "caption_cues.json", "reel_start.json")),
-        dict(id="video", label="Render videos, captions, tags", kind="script", sets_after="media_ready",
+        dict(id="video", outputs=['final_16x9*.mp4', 'final_reel*.mp4', 'final_tagged.mp3'], label="Render videos, captions, tags", kind="script", sets_after="media_ready",
              cmds=[sc("clipvideo.py", slug, "16x9"), sc("clipvideo.py", slug, "reel"), sc("caption_clips.py", slug, "16x9"),
                    sc("caption_clips.py", slug, "reel"), sc("tag_mp3.py", slug)],
              done=lambda m: has(D, "final_16x9_cap.mp4", "final_reel_cap.mp4", "final_tagged.mp3"), after="media", sets="approved"),
-        dict(id="publish_youtube", label="Upload to YouTube (API)", kind="script", before="publish_youtube",
+        dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
              cmds=[sc("publish_youtube.py", "upload", slug, "--file", "final_reel_cap.mp4", "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
-        dict(id="archive", label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
+        dict(id="archive", outputs=[], redo=False, label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
              cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at"))),
-        dict(id="publish_instagram", label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
+        dict(id="publish_instagram", outputs=[], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
              cmds=None, done=lambda m: ig_done(m)),
     ]
 
@@ -89,7 +90,7 @@ def plan(slug):
         if s.get("optional_cloud") and cfg("storage.cloud_provider", "none") in ("none", None, ""):
             continue
         d = s["done"](m) or (legacy and s["id"] != "archive")
-        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "gate_before": s.get("before"), "gate_after": s.get("after")}
+        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
         if d:
             row["status"] = "waiting for approval" if (ga and not ap.get(ga)) else "done"
@@ -221,6 +222,31 @@ def import_suno(src, slug=None):
     return pipeline(slug, wait=True)
 
 
+def redo(slug, sid):
+    """Redo a finished step. Its output files are moved to <song>/_prev/<time>/ (nothing is deleted) and the gates around it are
+    revoked, so a step that spends credits needs a fresh approval. Publishing and archiving steps cannot be redone this way."""
+    import shutil
+    D = song_dir(slug); st = next((x for x in steps(slug, D) if x["id"] == sid), None)
+    if not st: sys.exit(f"navaan: no such step for this song: {sid}")
+    if st.get("redo", True) is False: sys.exit(f"navaan: {sid} touches an outside service and cannot be redone from here. Delete or re-upload there on purpose.")
+    dest = os.path.join(D, "_prev", now().replace(":", "")); moved = 0
+    for pat in st.get("outputs", []):
+        for src in glob.glob(os.path.join(D, pat)):
+            rel = os.path.relpath(src, D); tgt = os.path.join(dest, rel); os.makedirs(os.path.dirname(tgt), exist_ok=True)
+            shutil.move(src, tgt); moved += 1
+    m = meta(slug); ap = m.setdefault("approvals", {})
+    for g in (st.get("before"), st.get("after")):
+        if g and g in ap: ap.pop(g)
+    if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
+    log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}"); save_meta(slug, m)
+    RUN.pop(slug, None)
+    for nm in ("needs_you.txt",):
+        pth = os.path.join(D, nm)
+        if os.path.exists(pth): os.remove(pth)
+    print(f"redo {sid}: {moved} file(s) moved to {dest if moved else '(nothing to move)'}")
+    return moved
+
+
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
     m = meta(slug); ap = m.setdefault("approvals", {})
@@ -255,6 +281,10 @@ def main(argv):
     if c == "status": status(a[0] if a else None); return 0
     if c == "next":
         _, n = plan(a[0]); print(json.dumps(n)); return 0
+    if c == "redo":
+        if len(a) < 2: sys.exit("usage: navaan.py redo <slug> <step> [--run]")
+        redo(a[0], a[1])
+        return run(a[0], step=a[1]) if "--run" in a else 0
     if c == "run":
         return run(a[0], step=(a[a.index("--step") + 1] if "--step" in a else None), dry="--dry" in a)
     if c in ("approve", "revoke"):
