@@ -1,0 +1,22 @@
+{
+  "slug": "song-003",
+  "state": "draft",
+  "lyrics_loops": 0,
+  "style_loops": 0,
+  "suno_url": "https://suno.com/song/a5d98935-ef34-4c38-abdd-5e68c5487892",
+  "history": [
+    "2026-10-12T03:30:13Z import started from Suno a5d98935-ef34-4c38-abdd-5e68c5487892",
+    "2026-10-12T03:30:44Z step suno_import attempt 1 did not finish",
+    "2026-10-12T03:31:21Z step suno_import attempt 2 did not finish",
+    "2026-10-12T03:31:59Z step suno_import attempt 3 did not finish"
+  ],
+  "published": {
+    "youtube": "",
+    "instagram": ""
+  },
+  "suno_model": "v6",
+  "source": "suno_import",
+  "suno": {
+    "id": "a5d98935-ef34-4c38-abdd-5e68c5487892"
+  }
+}
