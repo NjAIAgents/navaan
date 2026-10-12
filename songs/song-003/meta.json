@@ -1,6 +1,6 @@
 {
   "slug": "song-003",
-  "state": "accepted",
+  "state": "media_ready",
   "lyrics_loops": 0,
   "style_loops": 0,
   "suno_url": "https://suno.com/song/a5d98935-ef34-4c38-abdd-5e68c5487892",
@@ -30,11 +30,44 @@
     "2026-10-12T04:37:42Z step captions attempt 2 did not finish",
     "2026-10-12T04:37:51Z step captions attempt 2 did not finish",
     "2026-10-12T04:38:30Z step captions attempt 3 blocked: nothing changed since attempt 2. songs/song-003 still has no final_16x9.mp4 or final_reel_sync.mp4 (video-build not run) and meta.json records no approval for the one-time model and package download that the caption-sync skill requires asking for. Nothing downloaded, installed, rendered or published; no caption_cues.json written. Needs user: say yes to the one-time download (PyPI onnxruntime/librosa/scipy/numpy, UVR MDX Voc FT onnx and sherpa-onnx Whisper small int8 from GitHub releases) or point to existing models and set NAVAAN_WORK, NAVAAN_VOC_MODEL and NAVAAN_WHISPER_DIR, and run video-build, then re-run captions",
-    "2026-10-12T04:38:32Z step captions attempt 3 did not finish"
+    "2026-10-12T04:38:32Z step captions attempt 3 did not finish",
+    "2026-10-12T04:43:13Z gate captions_setup approved via ui",
+    "2026-10-12T04:53:58Z step captions done (attempt 1)",
+    "2026-10-12T05:12:35Z step video done (attempt 1)",
+    "2026-10-12T05:21:30Z step visuals redo: 5 file(s) moved to _prev/2026-10-12T052130Z",
+    "2026-10-12T05:21:38Z gate credits approved via ui",
+    "2026-10-12T05:45:00Z step visuals redo done: new modern scene c1_train (empty train window at dusk, grey-blue city blur blooming into amber and rose bokeh; lyric 'जैसे रंग भर गए, सूनी सी धुन में'; avoided diya, moon, rain, hands, candle). clips/c1_train.mp4 (Veo 3.1 Lite 720p 8s, 10 credits, within the recorded credits approval and budget 10). Account nishant.navjyot@gmail.com 240 -> 230. New cover_flow.jpg, cover_1x1.png, cover_16x9.png, thumb_16x9.jpg with the Devanagari title. navaan.config.json still missing (defaults: budget 10, 1 clip). No regenerate, no upgrade, nothing published. Old files are in _prev/2026-10-12T052130Z. Later steps (video, captions) were not re-run, so final videos still use the old c1_diya clip until video is redone. Next: user reviews media",
+    "2026-10-12T05:33:54Z step visuals done (attempt 1)",
+    "2026-10-12T05:36:34Z gate media approved via ui",
+    "2026-10-12T05:42:21Z step video done (attempt 1)",
+    "2026-10-12T05:45:09Z gate publish_youtube approved via ui",
+    "2026-10-12T05:45:17Z step publish_youtube attempt 1 did not finish",
+    "2026-10-12T05:45:22Z step publish_youtube attempt 2 did not finish",
+    "2026-10-12T05:45:32Z step publish_youtube attempt 3 did not finish",
+    "2026-10-12T05:53:24Z youtube upload via Studio: https://youtu.be/jzbBw_Mf74s (private, final_16x9.mp4)",
+    "2026-10-12T05:54:33Z youtube https://youtu.be/jzbBw_Mf74s made public in Studio on explicit user yes",
+    "2026-10-12T05:58:59Z youtube Short uploaded via Studio: https://youtube.com/shorts/TvQQFRjdGGg (private, final_reel_sync.mp4)",
+    "2026-10-12T06:00:49Z youtube Short https://youtube.com/shorts/TvQQFRjdGGg made public in Studio on explicit user yes"
   ],
   "published": {
     "youtube": "",
-    "instagram": ""
+    "instagram": "",
+    "youtube_items": [
+      {
+        "id": "jzbBw_Mf74s",
+        "url": "https://youtu.be/jzbBw_Mf74s",
+        "privacy": "public",
+        "file": "final_16x9.mp4",
+        "via": "studio"
+      },
+      {
+        "id": "TvQQFRjdGGg",
+        "url": "https://youtube.com/shorts/TvQQFRjdGGg",
+        "privacy": "public",
+        "file": "final_reel_sync.mp4",
+        "via": "studio"
+      }
+    ]
   },
   "suno_model": "v6-mini",
   "source": "suno_import",
@@ -49,8 +82,20 @@
       "at": "2026-10-12T03:49:11Z",
       "via": "ui"
     },
+    "captions_setup": {
+      "at": "2026-10-12T04:43:13Z",
+      "via": "ui"
+    },
     "credits": {
-      "at": "2026-10-12T03:52:28Z",
+      "at": "2026-10-12T05:21:38Z",
+      "via": "ui"
+    },
+    "media": {
+      "at": "2026-10-12T05:36:34Z",
+      "via": "ui"
+    },
+    "publish_youtube": {
+      "at": "2026-10-12T05:45:09Z",
       "via": "ui"
     }
   },
@@ -59,14 +104,14 @@
     "resolution": "720p",
     "seconds": 8,
     "clips": [
-      "clips/c1_diya.mp4"
+      "clips/c1_train.mp4"
     ],
     "credits_per_clip": 10,
     "credits_spent": 10,
     "budget": 10,
     "remaining_budget": 0,
     "flow_account": "nishant.navjyot@gmail.com",
-    "flow_balance_after": 240,
+    "flow_balance_after": 230,
     "flow_project": "https://flow.google.com/u/1/project/cac2f2a8-dc23-43b6-a1b1-04efca9021bd",
     "covers": [
       "cover_flow.jpg",
