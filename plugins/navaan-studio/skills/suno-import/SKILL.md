@@ -9,8 +9,10 @@ Use this when the song was already generated on Suno. It spends no credits and s
 
 ## Start
 
-1. Get the Suno song link or id from the user. A link looks like `https://suno.com/song/<id>`. If they only say "my latest song", open their Suno library and ask which one.
+1. Get the Suno song link or id from the user. A link looks like `https://suno.com/song/<id>` or a short share link `https://suno.com/s/<code>`. If they only say "my latest song", open their Suno library and ask which one.
 2. Run `python scripts/suno_import.py init <link-or-id> [slug]`. The last line printed is the slug. It creates the song folder in the profile's local folder and marks the song as an import. Or run `python scripts/navaan.py import <link-or-id> [slug]`, which does this and then runs the whole pipeline.
+
+A short share link is resolved to the song id when Suno allows it. If `meta.json` has no `suno.id`, open the link in the browser, read the song id from the address it lands on (`/song/<id>`), and pass it to ingest with `--suno-id`.
 
 ## Collect from Suno (browser, user's own logged in account)
 

@@ -2,7 +2,7 @@
 """suno_import.py  bring a song that already exists on Suno into the NAVAAN pipeline. Standard library plus ffmpeg.
 
   suno_import.py init <suno-url-or-id> [slug]     create the song folder (slug defaults to the next song-NNN), record the Suno link, mark it as an import
-  suno_import.py ingest <slug> --audio FILE [--title T] [--lyrics-file F] [--style-file F] [--model v5] [--cover FILE] [--duration SEC]
+  suno_import.py ingest <slug> --audio FILE [--title T] [--lyrics-file F] [--style-file F] [--model v5] [--cover FILE] [--suno-id ID]
                                                   copy the browser-collected pieces into the song folder; audio is converted to final.mp3
 
 The browser part (opening the Suno song page, reading title, lyrics, style prompt and model, downloading audio and cover) is done by the
@@ -17,13 +17,35 @@ UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-
 now = lambda: datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def parse_id(text):
-    m = UUID.search(text or "")
+SHORT = re.compile(r"^https?://(www\.)?suno\.(com|ai)/s/([A-Za-z0-9_-]{6,40})/?(\?.*)?$")
+LONG = re.compile(r"^https?://(www\.)?suno\.(com|ai)/song/")
+
+
+def resolve_short(url):
+    """Best effort: follow the share link redirect and read the song id from the final address. Returns None if Suno blocks it."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            m = UUID.search(r.geturl())
+            return m.group(0).lower() if m else None
+    except Exception:
+        return None
+
+
+def parse_ref(text):
+    """Return (song_id or None, canonical_url). Accepts /song/<id> links, a bare id, or a short /s/<code> share link."""
+    text = (text or "").strip()
+    if SHORT.match(text):
+        sid = resolve_short(text.split("?")[0])
+        return sid, (f"https://suno.com/song/{sid}" if sid else text.split("?")[0])
+    m = UUID.search(text)
     if not m:
-        sys.exit("navaan: no Suno song id found. Pass a link like https://suno.com/song/<id> or the id itself.")
-    if "/" in text and not re.search(r"(^|//)(www\.)?suno\.(com|ai)/", text):
-        sys.exit("navaan: that link is not on suno.com")
-    return m.group(0).lower()
+        sys.exit("navaan: no Suno song found. Pass a link like https://suno.com/song/<id> or https://suno.com/s/<code>, or the id itself.")
+    if "/" in text and not LONG.match(text):
+        sys.exit("navaan: that link is not a suno.com song link")
+    sid = m.group(0).lower()
+    return sid, f"https://suno.com/song/{sid}"
 
 
 def next_slug():
@@ -39,14 +61,14 @@ def save(path, obj):
 
 
 def init(src, slug=None):
-    sid = parse_id(src); slug = slug or next_slug()
+    sid, url = parse_ref(src); slug = slug or next_slug()
     if not os.path.isdir(os.path.join(songs_root(), slug)):
         rc = subprocess.call([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "new_song.py"), slug])
         if rc: sys.exit(rc)
     D = song_dir(slug); mp = os.path.join(D, "meta.json"); m = load_json(mp, default={})
-    m.update({"source": "suno_import", "suno_url": f"https://suno.com/song/{sid}", "state": m.get("state") or "draft"})
-    m.setdefault("suno", {})["id"] = sid
-    m.setdefault("history", []).append(f"{now()} import started from Suno song {sid}")
+    m.update({"source": "suno_import", "suno_url": url, "state": m.get("state") or "draft"})
+    if sid: m.setdefault("suno", {})["id"] = sid
+    m.setdefault("history", []).append(f"{now()} import started from Suno {sid or url}")
     save(mp, m)
     print(slug)  # last line is the slug so callers can capture it
     return slug
@@ -75,6 +97,8 @@ def ingest(slug, a):
             open(os.path.join(D, need), "w", encoding="utf-8").write("")
             print(f"warning: {need} was not collected, it is empty. Fill it in before captions and publishing.")
     if a.model: m["suno_model"] = a.model
+    if a.suno_id:
+        m["suno_url"] = f"https://suno.com/song/{parse_ref(a.suno_id)[0]}"; m.setdefault("suno", {})["id"] = parse_ref(a.suno_id)[0]
     m.setdefault("suno", {}).update({"duration": round(dur, 1), "imported_at": now()})
     m["sung_lyrics"] = "lyrics.txt"; m["state"] = "generated"
     m.setdefault("history", []).append(f"{now()} imported from Suno: final.mp3 {dur:.1f}s")
@@ -86,7 +110,7 @@ def main(argv):
     if len(argv) < 2 or argv[0] not in ("init", "ingest"): print(__doc__); return 2
     if argv[0] == "init": init(argv[1], argv[2] if len(argv) > 2 else None); return 0
     p = argparse.ArgumentParser(); p.add_argument("slug"); p.add_argument("--audio", required=True)
-    for k in ("title", "lyrics-file", "style-file", "model", "cover"): p.add_argument("--" + k)
+    for k in ("title", "lyrics-file", "style-file", "model", "cover", "suno-id"): p.add_argument("--" + k)
     ingest(argv[1], p.parse_args(argv[1:])); return 0
 
 
