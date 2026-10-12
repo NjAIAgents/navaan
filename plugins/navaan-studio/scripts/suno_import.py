@@ -3,6 +3,7 @@
 
   suno_import.py init <suno-url-or-id> [slug]     create the song folder (slug defaults to the next song-NNN), record the Suno link, mark it as an import
   suno_import.py ingest <slug> --audio FILE [--title T] [--lyrics-file F] [--style-file F] [--model v5] [--cover FILE] [--suno-id ID]
+         [--theme T] [--mood M] [--genre G] [--language L]   (fill brief.md)
                                                   copy the browser-collected pieces into the song folder; audio is converted to final.mp3
 
 The browser part (opening the Suno song page, reading title, lyrics, style prompt and model, downloading audio and cover) is done by the
@@ -11,7 +12,7 @@ Importing spends no Suno credits. The orchestrator then continues with visuals, 
 """
 import os, re, sys, json, shutil, subprocess, datetime, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import songs_root, song_dir, tool, duration, load_json
+from navaan_common import songs_root, song_dir, tool, duration, load_json, cfg
 
 UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 now = lambda: datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -74,6 +75,52 @@ def init(src, slug=None):
     return slug
 
 
+def script_language(text):
+    """Best effort language guess from the script of the lyrics, used only when the agent did not pass --language."""
+    dev = sum(1 for c in text if "\u0900" <= c <= "\u097f"); lat = sum(1 for c in text if c.isascii() and c.isalpha())
+    if dev > lat: return "Devanagari script (Hindi, Maithili or similar), confirm which"
+    return "English" if lat else ""
+
+
+def write_brief(D, m, a):
+    """Fill brief.md from what was collected. A brief the user already wrote by hand is left alone."""
+    bp = os.path.join(D, "brief.md"); old = open(bp, encoding="utf-8").read() if os.path.exists(bp) else ""
+    filled = [l for l in old.splitlines() if ":" in l and l.split(":", 1)[1].strip() and "options:" not in l.split(":", 1)[1] and l.lstrip("- ").split(":")[0] != "Suno model"]
+    if filled: return
+    rd = lambda n: open(os.path.join(D, n), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, n)) else ""
+    lyrics, style = rd("lyrics.txt"), rd("style.txt")
+    model = m.get("suno_model") or ""
+    lines = ["# Brief", "", "Imported from Suno, collected automatically." + (f" Source: {m['suno_url']}" if m.get("suno_url") else ""), "",
+             f"- Theme or story: {a.theme or ''}", f"- Mood: {a.mood or ''}", f"- Genre: {a.genre or style}",
+             f"- Language: {a.language or script_language(lyrics)}", "- References (style only, no copying): ", f"- Suno model: {model}"]
+    open(bp, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    if not (a.theme and a.mood): print("note: brief.md has no theme or mood. Add them with --theme and --mood, read from the lyrics, and run ingest again.")
+
+
+def short_language(text):
+    """One word language for the ID3 tag, or empty when unknown."""
+    t = (text or "").split("(")[0].split(",")[0].strip()
+    return t if t and len(t) < 20 and "confirm" not in t.lower() else ""
+
+
+def write_tags(D, a):
+    """Fill the blank fields of tags.json from the imported song and the artist profile. Values already set are kept."""
+    import datetime
+    tp = os.path.join(D, "tags.json"); t = load_json(tp, default={}) if os.path.exists(tp) else {}
+    rd = lambda n: open(os.path.join(D, n), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, n)) else ""
+    title = rd("title.txt").splitlines()[0] if rd("title.txt") else ""
+    artist = cfg("artist.name") or "NAVAAN"
+    genre = a.genre or rd("style.txt").split(",")[0].strip()[:60]
+    lang = short_language(a.language) or short_language(script_language(rd("lyrics.txt")))
+    want = {"title": title, "artist": artist, "album": title, "album_artist": cfg("artist.album_artist") or artist, "track": "1/1",
+            "genre": genre, "label": cfg("artist.label") or "", "year": str(datetime.date.today().year), "language": lang,
+            "copyright": cfg("artist.copyright_owner") or "", "comment": cfg("publish.credit_text") or "AI-generated music"}
+    for k in ("composer", "lyricist", "isrc"): want.setdefault(k, "")
+    for k, v in want.items():
+        if not t.get(k): t[k] = v
+    json.dump(t, open(tp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
+
 def ingest(slug, a):
     D = song_dir(slug); mp = os.path.join(D, "meta.json"); m = load_json(mp)
     if m.get("source") != "suno_import":
@@ -97,6 +144,7 @@ def ingest(slug, a):
             open(os.path.join(D, need), "w", encoding="utf-8").write("")
             print(f"warning: {need} was not collected, it is empty. Fill it in before captions and publishing.")
     if a.model: m["suno_model"] = a.model
+    write_brief(D, m, a); write_tags(D, a)
     if a.suno_id:
         m["suno_url"] = f"https://suno.com/song/{parse_ref(a.suno_id)[0]}"; m.setdefault("suno", {})["id"] = parse_ref(a.suno_id)[0]
     m.setdefault("suno", {}).update({"duration": round(dur, 1), "imported_at": now()})
@@ -110,7 +158,7 @@ def main(argv):
     if len(argv) < 2 or argv[0] not in ("init", "ingest"): print(__doc__); return 2
     if argv[0] == "init": init(argv[1], argv[2] if len(argv) > 2 else None); return 0
     p = argparse.ArgumentParser(); p.add_argument("slug"); p.add_argument("--audio", required=True)
-    for k in ("title", "lyrics-file", "style-file", "model", "cover", "suno-id"): p.add_argument("--" + k)
+    for k in ("title", "lyrics-file", "style-file", "model", "cover", "suno-id", "theme", "mood", "genre", "language"): p.add_argument("--" + k)
     ingest(argv[1], p.parse_args(argv[1:])); return 0
 
 

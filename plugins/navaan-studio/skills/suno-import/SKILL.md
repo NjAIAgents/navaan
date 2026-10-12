@@ -28,7 +28,7 @@ Collect, in a scratch folder outside the song folder:
 
 ## Ingest
 
-Run `python scripts/suno_import.py ingest <slug> --audio <file> --title "<title>" --lyrics-file <lyrics.txt> --style-file <style.txt> --model <vX> [--cover <image>]`. It converts the audio to `final.mp3`, keeps the original in `takes/`, writes the text files and updates `meta.json`. It rejects audio shorter than 10 seconds. If it prints a warning about an empty file, collect that piece and run ingest again.
+Run `python scripts/suno_import.py ingest <slug> --audio <file> --title "<title>" --lyrics-file <lyrics.txt> --style-file <style.txt> --model <vX> --theme "<one line story or theme>" --mood "<mood>" --genre "<genre>" --language "<language>" [--cover <image>]`. Read the theme, mood and language from the lyrics and the style prompt, in your own short words, and do not invent anything the lyrics do not say. It fills `brief.md` and the blank fields of `tags.json` (title, artist, album, genre, year, language and so on) from these and from the artist profile; values already there are kept. It converts the audio to `final.mp3`, keeps the original in `takes/`, writes the text files and updates `meta.json`. It rejects audio shorter than 10 seconds. If it prints a warning about an empty file, collect that piece and run ingest again.
 
 ## Then
 
