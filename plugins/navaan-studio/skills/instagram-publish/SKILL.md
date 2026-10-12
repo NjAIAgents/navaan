@@ -16,7 +16,23 @@ Official route: the Instagram Graph API content publishing flow in `scripts/publ
 
 ## Every reel
 
-1. Write `songs/<slug>/instagram.txt`. Only the first 125 characters show before "more", so the first line is the hook: a specific question fans can answer ("Who is your <song title>? Tag them."), or one honest line about the song. Then one sentence on the song, "Full song on YouTube, link in bio.", and at most five specific hashtags including #NAVAAN (no generic #Reels). Keep the whole caption 100 to 300 characters. No AI or tool credit line, Instagram does not require one. Reels are 9:16 and up to 90 seconds, so use `final_reel_sync.mp4` (the tuned reel) when it exists, otherwise `short.mp4` (the Short downloaded from YouTube Studio). Keep any on-screen text in the band 500 to 1400 px from the bottom of a 1080x1920 frame.
+1. Write `songs/<slug>/instagram.txt` with this fixed pattern, filled in from the song itself. Only the first 125 characters show before "more", so line 1 is the hook.
+
+   ```
+   Who is your <signature lyric phrase>? Tag them.
+
+   A <language> <mood or genre> song by NAVAAN. Full song on YouTube, link in bio.
+
+   #NAVAAN #<Language>Song #<Language><Mood> #NewMusic #OriginalMusic
+   ```
+
+   - `<signature lyric phrase>` is the most repeated or most quotable phrase from the lyrics, in the song's own script (for example "तेरे होने से"). Take it from `lyrics.txt`, never invent it. If the phrase does not fit "Who is your ...?", write one other honest question or line about the song that a fan can answer in the comments, and keep "Tag them." or an equally short call to action.
+   - Line 2 is one plain sentence about the song and always ends with "Full song on YouTube, link in bio."
+   - Hashtags: five, specific, always starting with #NAVAAN. No generic #Reels or #fyp.
+   - Whole caption 100 to 300 characters. No AI or tool credit line, Instagram does not require one.
+   - Example (song-003): `Who is your तेरे होने से? Tag them.` then `A Hindi romantic song by NAVAAN. Full song on YouTube, link in bio.` then `#NAVAAN #HindiSong #HindiRomantic #NewMusic #OriginalMusic`.
+
+   Reels are 9:16 and up to 90 seconds, so use `final_reel_sync.mp4` (the tuned reel) when it exists, otherwise `short.mp4` (the Short downloaded from YouTube Studio). Keep any on-screen text in the band 500 to 1400 px from the bottom of a 1080x1920 frame. The API cannot edit a caption after publishing, so get the caption right before `--yes`.
 2. Dry run: `python scripts/publish_instagram.py publish <slug> --video-url <https url> --caption-file instagram.txt`. Show the plan to the user.
 3. After the gate and the explicit yes: add `--yes`. The script creates the container, polls its status, publishes, and records the permalink in `meta.json`.
 4. Delete the temporary public object and the pre-authenticated link afterwards.
