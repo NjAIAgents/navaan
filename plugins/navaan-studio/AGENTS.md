@@ -49,3 +49,8 @@ Any finished or failed step except the publish, archive and Instagram steps can 
 ## Captions are off by default
 
 Lyric captions over the video are switched off. The pipeline skips the Measure lyric timing step and the caption burn, and the video step only renders `final_16x9.mp4`, `final_reel_sync.mp4` and the tagged mp3. YouTube uploads `final_reel_sync.mp4`. To turn captions back on, set `captions.enabled` to true in the profile (the tools need a one time download and the render is slow).
+
+
+## No captions, no separate Short by default
+
+YouTube makes its own captions from the audio and can cut a Short from the full video in its editor, so the pipeline does neither. The video step renders only the full 16:9 video and the tagged mp3, and the YouTube step uploads that full video. To also render a vertical reel (needed for Instagram), set `video.make_reel` to true in the profile. To burn lyrics into the video, set `captions.enabled` to true.
