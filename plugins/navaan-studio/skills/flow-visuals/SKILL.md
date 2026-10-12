@@ -59,7 +59,16 @@ How to design the scene from the lyrics:
    - Nature in motion: birds, sunrise or sunset light, clouds, mist, water, leaves, grass, dust in light.
    - Time of day and palette: from the mood and `visual.palette`.
 3. Motion must survive a loop that plays forward then backward. Use gentle ambient motion (swaying, drifting, flowing, flickering, a slow camera push or drift). Avoid actions that look wrong in reverse: walking, driving, pouring, speaking, anything with text or a countdown.
-4. Prompt formula: subject and appearance, pose, place, nature in motion, camera movement (slow, one direction), light and time of day, palette, mood. One consistent look. End with the avoid list: no text, no captions, no logos, no watermark, no lip-sync, no cuts, no fast motion, no crowds, natural anatomy.
+4. Write each clip prompt in these blocks, in this order (adapted from a public Flow tutorial's master prompt, trimmed for a wallpaper with no dialogue):
+   1. Scene type: one line, for example "slow cinematic living wallpaper, no cuts".
+   2. Subject and appearance: the person described once in fixed words (age, hair, skin tone, clothing, pose). Reuse the same words in clip 2.
+   3. Setting and light: place, time of day, weather, palette, one light source named.
+   4. Action: only slow ambient motion (wind, birds, mist, water, leaves, a slow breath or head turn). Give the motion a start and an end state that look alike so it loops.
+   5. Camera: exactly one primary camera idea, such as a slow push in, a slow lateral drift or a locked frame with parallax. Movement must serve the mood.
+   6. Mood: two or three words.
+   7. Audio: say "no dialogue, no music, ambient only". The song replaces the audio and the builder drops the clip's sound.
+   8. Negatives and continuity: no text, no captions, no logos, no watermark, no lip-sync, no cuts, no fast motion, no crowds, natural anatomy, and for clip 2 the same person, clothing and place as clip 1.
+   Scene changes only on a real shift (place, time of day, emotion). The two clips are one such shift, never a timer.
 5. Keep the channel varied. Read other songs' `scenes/` folders and `meta.json` and list the person, place and nature already used. Choose a different combination. Clichés (candle, flame, moon, rain on a window, hands) only if the lyrics are literally about them. Profile `visual.motifs` are optional hints, use at most one.
 6. Before generating, show the user the scene, the lyric line behind it and the plan in chat. Save the prompt or prompts in `scenes/prompt.txt`.
 
