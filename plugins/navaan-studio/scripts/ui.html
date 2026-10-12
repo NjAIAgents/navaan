@@ -50,9 +50,9 @@ if(busy)h+=`<span class="chip running">${esc(d.status_text||"running")}${R.elaps
 else if(R.failed)h+=`<span class="chip failed">step ${esc(R.failed)} failed</span>`;
 else if(nx.type==="gate")h+=`<span class="chip waiting">waiting for your approval: ${esc(nx.gate)}</span>`;else if(nx.type==="done")h+=`<span class="chip done">all done</span>`;
 h+=`</div><div class="bar"><i style="width:${total?Math.round(100*done/total):0}%"></i></div>`;
-if(nx.type!=="done"&&nx.type!=="gate")h+=`<p style="margin:8px 0 0"><button class="p" onclick="runIt(true)" ${busy?"disabled":""}>${busy?"Running...":R.failed?"Retry and continue":"Run end to end"}</button> <button onclick="runIt(false)" ${busy?"disabled":""}>Run this step only</button></p>`;
+if(nx.type!=="done"&&nx.type!=="gate")h+=`<p style="margin:8px 0 0"><button class="p" onclick="runIt(true)" ${busy?"disabled":""}>${busy?"Running...":"Run from here to the end"}</button> <button onclick="runIt(false)" ${busy?"disabled":""}>Run only: ${esc((rows.find(r=>r.id===nx.step)||{}).label||nx.step)}</button> <span class="sub">from here = the next unfinished step, then each one after it, pausing at approvals. Only = just that one step.</span></p>`;
 else if(nx.type==="gate"&&busy)h+=`<p class="sub" style="margin:8px 0 0">The workflow is paused here and continues by itself right after you approve.</p>`;
-else if(nx.type==="gate")h+=`<p style="margin:8px 0 0"><button class="p" onclick="runIt(true)">Run end to end</button> <span class="sub">starts the workflow and waits at each gate</span></p>`;
+else if(nx.type==="gate")h+=`<p style="margin:8px 0 0"><button class="p" onclick="runIt(true)">Run from here to the end</button> <span class="sub">continues from the next unfinished step and waits at each approval</span></p>`;
 h+=`</div></div><div class="card"><div class="wf">`;
 for(const r of rows){let st=r.done?"done":R.step===r.id?"running":R.failed===r.id?"failed":(nx.type==="gate"&&nx.step===r.id)?"waiting":"pending";
 if(r.gate_before&&!r.done)h+=gnode(r.gate_before,(nx.type==="gate"&&nx.gate===r.gate_before)?"waiting":"pending",d);
