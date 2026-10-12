@@ -11,7 +11,14 @@
     "2026-10-12T03:31:59Z step suno_import attempt 3 did not finish",
     "2026-10-12T03:43:05Z imported from Suno: final.mp3 328.0s",
     "2026-10-12T03:43:15Z step suno_import done (attempt 1)",
-    "2026-10-12T03:49:11Z gate listen approved via ui"
+    "2026-10-12T03:49:11Z gate listen approved via ui",
+    "2026-10-12T03:52:28Z gate credits approved via ui",
+    "2026-10-12T03:53:46Z step visuals attempt 1 blocked: scene briefs written to scenes/ (c1_diya, c2_moon, c3_rain, c4_hands, c5_dawn); Flow shows 'out of Google Flow credits' on a new empty project (a0b993bf-daaf-49d8-ac4c-45c4bb11c33d), so no clips generated, nothing spent, no upgrade attempted. Wait for the credits to refresh or top up, then re-run visuals. navaan.config.json is missing, so palette and motifs came from lyrics and style only",
+    "2026-10-12T03:53:58Z step visuals attempt 1 did not finish",
+    "2026-10-12T03:54:37Z step visuals attempt 2 blocked: Flow still shows 'out of Google Flow credits' (project a0b993bf-daaf-49d8-ac4c-45c4bb11c33d), no clips generated, nothing spent, no upgrade attempted. Scene briefs in scenes/ are ready. Re-run after credits refresh or top-up",
+    "2026-10-12T03:54:43Z step visuals attempt 2 did not finish",
+    "2026-10-12T03:55:22Z step visuals attempt 3 blocked: Flow still shows 'You are out of Google Flow credits' (project a0b993bf-daaf-49d8-ac4c-45c4bb11c33d, checked via Claude in Chrome). No clips or cover generated, nothing spent, no upgrade attempted. Scene briefs in scenes/ (00_look, c1_diya..c5_dawn) are ready; navaan.config.json is still missing. Re-run visuals after credits refresh or top-up",
+    "2026-10-12T03:55:28Z step visuals attempt 3 did not finish"
   ],
   "published": {
     "youtube": "",
@@ -28,6 +35,10 @@
   "approvals": {
     "listen": {
       "at": "2026-10-12T03:49:11Z",
+      "via": "ui"
+    },
+    "credits": {
+      "at": "2026-10-12T03:52:28Z",
       "via": "ui"
     }
   }

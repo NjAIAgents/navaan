@@ -1,16 +1,37 @@
 ---
 name: flow-visuals
-description: Create cover art and short visual clips for a NAVAAN song in Google Flow through the browser. Use after the song is accepted.
+description: Create cover art and a short, modern visual loop for a NAVAAN song in Google Flow that matches the lyrics, within a credit budget. Use after the song is accepted.
 ---
 
 # Cover art and Flow clips
 
 Videos are built only from Flow clips. Do not use the default Suno cover unless the user asks.
 
-0. Read `navaan.config.json` (languages, genres, moods, voice, things to avoid, palette, motifs, Suno model, credit policy) and follow it. Run artist-setup if it is missing.
-1. Read the lyrics and `style.txt`. Write a visual brief: five scenes (for example a diya, a moon over a river, hands, a window, a field) with one consistent look. Save it as `scenes/` text files.
-2. Open Flow in the browser. Generating spends credits: only do it when the credits gate is approved and the user said yes in chat, then generate the five clips. Name them `c1_<word>.mp4` to `c5_<word>.mp4` in `songs/<slug>/clips/`.
-3. Cover art: take one strong frame from a clip (`cover_flow.jpg`), then make `cover_1x1.png`, `cover_16x9.png` and `thumb_16x9.jpg`. Keep the song title large and legible in the native script.
-4. Show previews to the user and record approval in `meta.json`.
+## What Flow TV is, and what it is not
+
+Flow TV is Google's free viewing channel of clips made with Veo. You cannot generate there, but each clip shows the exact prompt that made it. Use it only for look inspiration: browse it, note the visual style and prompt wording the user likes, and write your own prompt for this song. Do not copy a clip's prompt or imitate a specific creator's work. Generation happens in the Flow studio, and it spends credits.
+
+## Budget first
+
+1. Read `navaan.config.json`: `visual.look` (default modern, cinematic), `visual.palette`, `visual.motifs`, `visual.flow_model` (lite, fast or quality), `visual.flow_credit_budget` (default 10), `visual.scene_count` (default 1), plus things to avoid. Run artist-setup if the file is missing.
+2. Open Flow, pick the model and read the credit cost Flow shows on the Generate button. Do not trust a remembered number: prices change. As of late 2026, public sources list Veo 3.1 Lite at 10 credits for a 4, 6 or 8 second clip, Fast at 20 and Quality at 100 (about half on Ultra plans). Pass these as a hint only.
+3. Work out how many generations fit: `floor(budget / cost shown)`. If that is zero, stop and tell the user the budget is too low for the chosen model, with the cost you saw. Never go over the budget. Each regenerate also counts.
+4. Tell the user the plan in chat: model, cost per clip, number of clips, total credits. The credits gate and an explicit yes in chat are both needed before you press Generate.
+
+## The look
+
+1. Read the lyrics and `style.txt`. Pick the single image or motion that carries the song, such as a diya flame, rain on a window or a moon on water. Keep it modern, not stock footage: slow camera move, shallow depth of field, controlled palette from the profile, soft light, no text, no faces unless the profile allows it.
+2. Write the prompt in plain language: subject, motion, camera, light, palette, mood, and what to avoid. Save the prompt in `scenes/prompt.txt`. If several clips fit the budget, write one prompt per clip with one consistent look and save each.
+3. Prefer a seamless loop: ask for a gentle repeating motion that starts and ends in a similar state. The video builder also boomerangs each clip (plays it forward then backward) and cross fades, so even one 8 second clip fills a whole song.
+
+## Generate
+
+1. Generate only after the credits gate is approved and the user said yes in chat. Name the results `c1_<word>.mp4`, `c2_<word>.mp4` in `songs/<slug>/clips/`.
+2. Record in `meta.json`: model, credits spent per clip, total spent and remaining budget. Show the clip to the user.
+3. If the first result is poor, offer one regenerate only if the remaining budget covers it, and ask first.
+
+## Cover art
+
+Take one strong frame from the best clip (`cover_flow.jpg`), then make `cover_1x1.png`, `cover_16x9.png` and `thumb_16x9.jpg`. Keep the song title large and legible in the native script. Show previews to the user.
 
 Large files fail the sandbox bridge above about 1.5 MB, so do all file work on the user's computer and only send small previews to chat.
