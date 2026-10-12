@@ -71,14 +71,19 @@ async function importSuno(){const v=document.getElementById("iu").value.trim();i
 async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";await loadList();openSong(v)}
 let fast=false;
 async function openSong(s){cur=s;await loadList();await render();clearTimeout(timer);const tick=async()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")await render();timer=setTimeout(tick,fast?1500:4000)};timer=setTimeout(tick,1500)}
-async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);return}
-fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}`;let h=`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`;
-h+=wf(d);
-h+=`<div class="card"><h2>Approvals</h2>`+d.gates.map(g=>{const a=d.approvals[g];return `<div class="step"><b>${esc(g)}</b><span class="chip ${a?"done":""}">${a?"approved "+esc(a.at):"not approved"}</span>${a?`<button onclick="revoke('${g}')">Revoke</button>`:`<button onclick="gate('${g}')">Approve</button>`}</div>`}).join("")+`<p class="mut">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div>`;
-const vids=["final_reel_cap.mp4","final_16x9_cap.mp4"].filter(n=>f[n]);if(f["final.mp3"])h+=`<div class="card"><h2>Song</h2><audio controls src="${m("final.mp3")}" style="width:100%"></audio></div>`;
-if(vids.length)h+=`<div class="card"><h2>Review videos</h2><div class="row">${vids.map(n=>`<div><div class="mut">${n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div></div>`;
-for(const n of Object.keys(d.text))h+=`<div class="card"><h2>${esc(n)}</h2><textarea id="t_${n}">${esc(d.text[n])}</textarea><p><button onclick="save('${n}')">Save</button></p></div>`;
-document.getElementById("main").innerHTML=h;loadList()}
+let shown=null;
+function setSec(id,html){const main=document.getElementById("main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){el.innerHTML=html;el.dataset.h=html}}
+async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);shown=null;return}
+if(shown!==cur){document.getElementById("main").innerHTML="";shown=cur}
+fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}`;
+setSec("s_top",`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`+wf(d));
+let md="";const vids=["final_reel_cap.mp4","final_16x9_cap.mp4"].filter(n=>f[n]);if(f["final.mp3"])md+=`<div class="card"><h2>Song</h2><audio controls preload="metadata" src="${m("final.mp3")}" style="width:100%"></audio></div>`;
+if(vids.length)md+=`<div class="card"><h2>Review videos</h2><div class="row">${vids.map(n=>`<div><div class="mut">${n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div></div>`;
+setSec("s_media",md);
+setSec("s_appr",`<div class="card"><h2>Approvals</h2>`+d.gates.map(g=>{const a=d.approvals[g];return `<div class="step"><b>${esc(g)}</b><span class="chip ${a?"done":""}">${a?"approved "+esc(a.at):"not approved"}</span>${a?`<button onclick="revoke('${g}')">Revoke</button>`:`<button onclick="gate('${g}')">Approve</button>`}</div>`}).join("")+`<p class="mut">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div>`);
+let tx="";for(const n of Object.keys(d.text))tx+=`<div class="card"><h2>${esc(n)}</h2><textarea id="t_${n}">${esc(d.text[n])}</textarea><p><button onclick="save('${n}')">Save</button></p></div>`;
+if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")setSec("s_text",tx);
+loadList()}
 async function gate(g){if(!confirm("Approve: "+(GL[g]||g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
 async function revoke(g){await api("/api/revoke",{slug:cur,gate:g});render()}
 async function runIt(all){await api("/api/run",{slug:cur,all:!!all});render()}
