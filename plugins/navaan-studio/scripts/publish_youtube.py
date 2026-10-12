@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""publish_youtube.py  upload to YouTube with the official Data API v3.
+
+  upload <slug> --file final_reel_cap.mp4 [--meta tags.json] [--privacy private|unlisted|public]
+         [--thumbnail thumb_16x9.jpg] [--playlist "Name"] [--yes]
+  privacy <slug> <videoId> <private|unlisted|public> --yes
+  stats <videoId> [<videoId> ...]
+
+Safety: a real send needs --yes AND a human approval gate (navaan.py approve <slug> publish_youtube). Without --yes nothing is sent, the script only prints what it would do. Default privacy is private,
+so an upload can be checked before it goes public. Making a video public always needs --yes, and an agent may only
+pass --yes after the user gave an explicit yes in chat for that exact video.
+
+Setup (one time, by the user): create an OAuth client of type Desktop app in Google Cloud, enable YouTube Data API v3,
+save the client JSON as ~/.config/navaan/youtube_client_secret.json (or set NAVAAN_YT_CLIENT_SECRETS). The first run opens
+a browser for consent and stores a token in ~/.config/navaan/youtube_token.json (mode 600). Credentials are never put in the project.
+Install: pip install google-api-python-client google-auth-oauthlib
+
+Meta JSON keys: title, description, tags (list), language (BCP-47 such as hi or en), playlist (optional).
+Shorts need no special flag: a vertical video of 60 seconds or less is treated as a Short, so keep #Shorts in the title.
+"""
+import os, sys, json, argparse, datetime
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from navaan_common import song_dir, cfg, load_json, require_approval
+
+CONF = os.path.expanduser("~/.config/navaan")
+SECRET = os.environ.get("NAVAAN_YT_CLIENT_SECRETS", f"{CONF}/youtube_client_secret.json")
+TOKEN = os.environ.get("NAVAAN_YT_TOKEN", f"{CONF}/youtube_token.json")
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube"]
+LANG = {"hindi": "hi", "maithili": "mai", "english": "en", "hinglish": "hi", "bhojpuri": "bho", "urdu": "ur", "punjabi": "pa"}
+
+
+def service():
+    try:
+        from googleapiclient.discovery import build
+        from google_auth_oauthlib.flow import InstalledAppFlow
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+    except ImportError:
+        sys.exit("navaan: pip install google-api-python-client google-auth-oauthlib")
+    creds = Credentials.from_authorized_user_file(TOKEN, SCOPES) if os.path.exists(TOKEN) else None
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            if not os.path.exists(SECRET):
+                sys.exit(f"navaan: client secret not found at {SECRET}. See --help for setup.")
+            creds = InstalledAppFlow.from_client_secrets_file(SECRET, SCOPES).run_local_server(port=0)
+        os.makedirs(CONF, exist_ok=True)
+        with open(TOKEN, "w") as f: f.write(creds.to_json())
+        os.chmod(TOKEN, 0o600)
+    return build("youtube", "v3", credentials=creds)
+
+
+def body_from(meta, privacy):
+    lang = meta.get("language", "")
+    lang = LANG.get(lang.lower(), lang) if lang else ""
+    sn = {"title": meta["title"][:100], "description": meta.get("description", ""), "tags": meta.get("tags", []), "categoryId": "10"}
+    if lang:
+        sn["defaultLanguage"] = lang; sn["defaultAudioLanguage"] = lang
+    st = {"privacyStatus": privacy, "selfDeclaredMadeForKids": bool(cfg("publish.made_for_kids", False)),
+          "containsSyntheticMedia": bool(cfg("publish.ai_disclosure", True))}
+    return {"snippet": sn, "status": st}
+
+
+def find_playlist(yt, name):
+    tok = None
+    while True:
+        r = yt.playlists().list(part="snippet", mine=True, maxResults=50, pageToken=tok).execute()
+        for p in r.get("items", []):
+            if p["snippet"]["title"].strip().lower() == name.strip().lower(): return p["id"]
+        tok = r.get("nextPageToken")
+        if not tok: return None
+
+
+def upload(a):
+    D = song_dir(a.slug); meta = load_json(os.path.join(D, a.meta) if not os.path.isabs(a.meta) else a.meta)
+    f = a.file if os.path.isabs(a.file) else os.path.join(D, a.file)
+    if not os.path.exists(f): sys.exit(f"navaan: missing {f}")
+    if "_cap" not in os.path.basename(f) and cfg("captions.enabled", True):
+        print("warning: file name has no _cap, captions may be missing. Check before publishing.")
+    body = body_from(meta, a.privacy)
+    if a.publish_at:
+        if a.privacy != "private": sys.exit("navaan: --publish-at needs --privacy private (YouTube schedules private videos)")
+        body["status"]["publishAt"] = a.publish_at
+    print(json.dumps({"file": f, "size_mb": round(os.path.getsize(f) / 1e6, 1), "body": body, "playlist": a.playlist or meta.get("playlist"),
+                      "thumbnail": a.thumbnail}, ensure_ascii=False, indent=2))
+    if not a.yes:
+        print("\nDRY RUN. Nothing sent. Re-run with --yes after the user approves this exact upload."); return
+    require_approval(a.slug, "publish_youtube")
+    from googleapiclient.http import MediaFileUpload
+    yt = service()
+    req = yt.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(f, chunksize=8 * 1024 * 1024, resumable=True))
+    resp = None
+    while resp is None:
+        st, resp = req.next_chunk()
+        if st: print(f"uploaded {int(st.progress() * 100)}%", flush=True)
+    vid = resp["id"]
+    pl = a.playlist or meta.get("playlist")
+    if a.thumbnail:
+        tp = a.thumbnail if os.path.isabs(a.thumbnail) else os.path.join(D, a.thumbnail)
+        yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(tp)).execute()
+    if pl:
+        pid = find_playlist(yt, pl)
+        if pid: yt.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": vid}}}).execute()
+        else: print(f"warning: playlist not found: {pl}")
+    short = "/shorts/" if "#shorts" in meta["title"].lower() else "/watch?v="
+    url = f"https://youtube.com{short}{vid}" if short == "/shorts/" else f"https://youtu.be/{vid}"
+    print("uploaded", vid, a.privacy, url)
+    mp = os.path.join(D, "meta.json")
+    if os.path.exists(mp):
+        m = json.load(open(mp, encoding="utf-8")); m.setdefault("published", {}).setdefault("youtube_items", []).append({"id": vid, "url": url, "privacy": a.privacy, "file": os.path.basename(f)})
+        m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_upload {vid} {a.privacy}")
+        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+
+
+def privacy(a):
+    print(f"set {a.video_id} to {a.status}")
+    if not a.yes: print("DRY RUN. Re-run with --yes after explicit user approval."); return
+    require_approval(a.slug, "publish_youtube")
+    yt = service()
+    yt.videos().update(part="status", body={"id": a.video_id, "status": {"privacyStatus": a.status, "selfDeclaredMadeForKids": bool(cfg("publish.made_for_kids", False)),
+                                                                          "containsSyntheticMedia": bool(cfg("publish.ai_disclosure", True))}}).execute()
+    print("done")
+
+
+def stats(a):
+    yt = service()
+    r = yt.videos().list(part="statistics,snippet,status", id=",".join(a.video_ids)).execute()
+    for v in r.get("items", []):
+        s = v["statistics"]; print(v["id"], v["snippet"]["title"], v["status"]["privacyStatus"], {k: s.get(k) for k in ("viewCount", "likeCount", "commentCount")})
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter); sp = ap.add_subparsers(dest="cmd", required=True)
+    u = sp.add_parser("upload"); u.add_argument("slug"); u.add_argument("--file", required=True); u.add_argument("--meta", default="tags.json")
+    u.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"]); u.add_argument("--thumbnail"); u.add_argument("--playlist"); u.add_argument("--publish-at", help="RFC 3339 time such as 2026-10-20T15:00:00Z, schedules a private upload"); u.add_argument("--yes", action="store_true"); u.set_defaults(fn=upload)
+    p = sp.add_parser("privacy"); p.add_argument("slug"); p.add_argument("video_id"); p.add_argument("status", choices=["private", "unlisted", "public"]); p.add_argument("--yes", action="store_true"); p.set_defaults(fn=privacy)
+    s = sp.add_parser("stats"); s.add_argument("video_ids", nargs="+"); s.set_defaults(fn=stats)
+    a = ap.parse_args(); a.fn(a)

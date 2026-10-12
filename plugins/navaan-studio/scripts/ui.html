@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NAVAAN Studio</title>
+<style>
+:root{--bg:#faf8f4;--fg:#1d1b18;--mut:#6f6a62;--card:#fff;--line:#e4dfd6;--acc:#b4531a;--ok:#2b7a4b;--warn:#a86a00}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#f0ece4;--mut:#a29b8e;--card:#201d19;--line:#35302a;--acc:#e0884f;--ok:#5fc58a;--warn:#e0a53c}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}h1{font-size:18px;margin:0;letter-spacing:.14em}
+main{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 54px)}
+aside{border-right:1px solid var(--line);padding:14px}section{padding:20px;max-width:980px}
+.song{padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px}.song:hover,.song.on{background:var(--card);outline:1px solid var(--line)}
+.song small{display:block;color:var(--mut)}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:6px 12px;border-radius:8px;cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}button:disabled{opacity:.5;cursor:default}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.step{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}.step:last-child{border:0}.step b{flex:1}
+.chip{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}.chip.done{color:var(--ok);border-color:var(--ok)}.chip.waiting{color:var(--warn);border-color:var(--warn)}.chip.ready{color:var(--acc);border-color:var(--acc)}
+textarea,input{width:100%;font:13px/1.5 ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px}textarea{min-height:160px}
+video{max-width:100%;max-height:420px;border-radius:10px;background:#000}.row{display:flex;gap:14px;flex-wrap:wrap}pre{white-space:pre-wrap;font-size:12px;color:var(--mut);max-height:200px;overflow:auto}
+h2{font-size:15px;margin:0 0 8px}.mut{color:var(--mut)}
+@media(max-width:700px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
+</style></head><body>
+<header><h1>NAVAAN STUDIO</h1><span class="mut">local, nothing leaves this computer except what you approve</span></header>
+<main><aside><div style="display:flex;gap:6px;margin-bottom:10px"><input id="ns" placeholder="new slug, e.g. song-003"><button onclick="newSong()">Add</button></div><div id="list"></div></aside>
+<section id="main"><p class="mut">Pick a song or add one.</p></section></main>
+<script>
+const T="__TOKEN__";let cur=null,timer=null;
+const api=(p,b)=>fetch(p,b?{method:"POST",headers:{"Content-Type":"application/json","X-Navaan-Token":T},body:JSON.stringify(b)}:{}).then(r=>r.json());
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const GL={lyrics:"I approve these lyrics",listen:"I listened and accept this song",credits:"I approve spending Suno and Flow credits",media:"I reviewed the videos and approve them",publish_youtube:"Publish to YouTube now",publish_instagram:"Publish to Instagram now",cloud_upload:"Upload this finished song to my cloud bucket"};
+async function loadList(){const l=await api("/api/songs");document.getElementById("list").innerHTML=l.map(s=>`<div class="song ${s.slug===cur?"on":""}" onclick="openSong('${s.slug}')">${esc(s.slug)}<small>${esc(s.title||"untitled")} · ${esc(s.state||"")}</small></div>`).join("")||'<p class="mut">No songs yet.</p>'}
+async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";await loadList();openSong(v)}
+async function openSong(s){cur=s;await loadList();await render();clearInterval(timer);timer=setInterval(()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")render()},4000)}
+async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);return}
+const f=d.files,m=n=>`/media/${cur}/${n}`;let h=`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`;
+const nx=d.next;h+=`<div class="card"><h2>Next</h2>${d.job.running?`<p class="mut">Pipeline running: ${esc(d.status_text||"working")}. It continues by itself after each approval.</p>`:""}`;
+if(nx.type==="gate")h+=`<p>Waiting for you: <b>${esc(GL[nx.gate]||nx.gate)}</b></p><button class="p" onclick="gate('${nx.gate}')">${esc(GL[nx.gate]||"Approve")}</button>`;
+else if(nx.type==="run")h+=`<p>Ready to run: <b>${esc(nx.step)}</b></p><button class="p" onclick="runIt(true)" ${d.job.running?"disabled":""}>${d.job.running?"Running...":"Run end to end"}</button> <button onclick="runIt(false)" ${d.job.running?"disabled":""}>Run this step only</button>`;
+else h+="<p>All steps done.</p>";
+h+=`</div><div class="card"><h2>Steps</h2>`+d.steps.map(s=>{const c=s.status==="done"?"done":s.status.startsWith("waiting")?"waiting":s.status==="ready"?"ready":"";return `<div class="step"><b>${esc(s.label)}</b><span class="chip ${c}">${esc(s.status)}</span></div>`}).join("")+`</div>`;
+h+=`<div class="card"><h2>Approvals</h2>`+d.gates.map(g=>{const a=d.approvals[g];return `<div class="step"><b>${esc(g)}</b><span class="chip ${a?"done":""}">${a?"approved "+esc(a.at):"not approved"}</span>${a?`<button onclick="revoke('${g}')">Revoke</button>`:`<button onclick="gate('${g}')">Approve</button>`}</div>`}).join("")+`<p class="mut">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div>`;
+const vids=["final_reel_cap.mp4","final_16x9_cap.mp4"].filter(n=>f[n]);if(f["final.mp3"])h+=`<div class="card"><h2>Song</h2><audio controls src="${m("final.mp3")}" style="width:100%"></audio></div>`;
+if(vids.length)h+=`<div class="card"><h2>Review videos</h2><div class="row">${vids.map(n=>`<div><div class="mut">${n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div></div>`;
+for(const n of Object.keys(d.text))h+=`<div class="card"><h2>${esc(n)}</h2><textarea id="t_${n}">${esc(d.text[n])}</textarea><p><button onclick="save('${n}')">Save</button></p></div>`;
+if(d.log)h+=`<div class="card"><h2>Latest log</h2><pre>${esc(d.log)}</pre></div>`;
+document.getElementById("main").innerHTML=h;loadList()}
+async function gate(g){if(!confirm("Approve: "+(GL[g]||g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
+async function revoke(g){await api("/api/revoke",{slug:cur,gate:g});render()}
+async function runIt(all){await api("/api/run",{slug:cur,all:!!all});render()}
+async function save(n){const r=await api("/api/save",{slug:cur,file:n,content:document.getElementById("t_"+n).value});alert(r.error||"saved")}
+loadList();
+</script></body></html>

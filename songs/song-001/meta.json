@@ -1,0 +1,63 @@
+{
+  "slug": "song-001",
+  "state": "published",
+  "lyrics_loops": 0,
+  "style_loops": 0,
+  "suno_url": "",
+  "history": [
+    {
+      "at": "2026-10-11T20:18:52Z",
+      "event": "lyrics_approved"
+    },
+    {
+      "at": "2026-10-11T20:24:28Z",
+      "event": "suno_run_1_created",
+      "note": "v6, lyrics with English rap verse"
+    },
+    "suno_run_2_created: maithili v4 lyrics, model v6, takes 4:46 and 4:13; earlier takes kept",
+    "downloaded: maithili final.mp3 (suno /s/6lzvtmUQlNwZAr1Z), hindi final_hindi.mp3 (from m4a); both to be published",
+    "media_ready: tagged mp3, video.mp4, reel.mp4 (30s start, 60s), covers",
+    "2026-10-12T02:38:39Z backfilled published state and approvals for navaan-studio (old full videos still have old captions)"
+  ],
+  "published": {
+    "youtube": "",
+    "instagram": "",
+    "youtube_items": [
+      {
+        "id": "RNYLvANwex4",
+        "url": "https://youtu.be/RNYLvANwex4",
+        "privacy": "public",
+        "file": "final_16x9.mp4"
+      },
+      {
+        "id": "sKwIvcalkSM",
+        "url": "https://youtube.com/shorts/sKwIvcalkSM",
+        "privacy": "public",
+        "file": "final_reel_cap.mp4"
+      }
+    ]
+  },
+  "suno_model": "v6",
+  "approvals": {
+    "lyrics": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "listen": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "credits": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "media": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "publish_youtube": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    }
+  }
+}

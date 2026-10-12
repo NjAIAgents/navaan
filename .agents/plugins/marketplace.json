@@ -1,0 +1,20 @@
+{
+  "name": "navaan",
+  "interface": {
+    "displayName": "NAVAAN"
+  },
+  "plugins": [
+    {
+      "name": "navaan-studio",
+      "source": {
+        "source": "local",
+        "path": "./plugins/navaan-studio"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Creative"
+    }
+  ]
+}

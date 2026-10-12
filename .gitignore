@@ -1,0 +1,24 @@
+# media lives in the OCI bucket
+*.mp3
+*.mp4
+*.wav
+*.png
+songs/*/takes/
+.venv/
+
+# navaan studio
+songs/*/.cache/
+songs/*/logs/
+navaan.config.json
+__pycache__/
+
+# keep media, previews and local files out of git
+*.jpg
+*.jpeg
+*.mov
+*.m4a
+.DS_Store
+review/
+Claude outputs/
+songs/*/scenes/
+songs/*/clips/

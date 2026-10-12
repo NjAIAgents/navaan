@@ -1,0 +1,34 @@
+{
+  "name": "navaan-studio",
+  "version": "0.1.0",
+  "description": "Agentic music studio for the NAVAAN channel: lyrics, Suno song, Flow visuals, synced captions, YouTube and Instagram publish, and an analytics loop. One shared skill core with a multi agent workflow.",
+  "author": {
+    "name": "Navjyot Nishant"
+  },
+  "license": "MIT",
+  "keywords": [
+    "music",
+    "suno",
+    "youtube",
+    "instagram",
+    "lyrics",
+    "captions",
+    "agents"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "NAVAAN Studio",
+    "shortDescription": "Idea to published song, with human gates",
+    "longDescription": "Agentic music studio for the NAVAAN channel: lyrics, Suno song, Flow visuals, synced captions, YouTube and Instagram publish, and an analytics loop. One shared skill core with a multi agent workflow.",
+    "category": "Creative",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Start a new NAVAAN song",
+      "Publish the accepted song",
+      "Review analytics and plan a re-edit"
+    ]
+  }
+}

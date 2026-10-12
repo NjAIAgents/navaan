@@ -1,0 +1,52 @@
+{
+  "slug": "song-002",
+  "state": "published",
+  "lyrics_loops": 0,
+  "style_loops": 0,
+  "suno_url": "",
+  "history": [
+    "created as Hindi version of song-001; media_ready",
+    "2026-10-12T02:38:39Z backfilled published state and approvals for navaan-studio (old full videos still have old captions)"
+  ],
+  "published": {
+    "youtube": "",
+    "instagram": "",
+    "youtube_items": [
+      {
+        "id": "JtNP34Zm1wk",
+        "url": "https://youtu.be/JtNP34Zm1wk",
+        "privacy": "public",
+        "file": "final_16x9.mp4"
+      },
+      {
+        "id": "RfWLzSUqwe8",
+        "url": "https://youtube.com/shorts/RfWLzSUqwe8",
+        "privacy": "public",
+        "file": "final_reel_cap.mp4"
+      }
+    ]
+  },
+  "suno_model": "v6",
+  "approvals": {
+    "lyrics": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "listen": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "credits": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "media": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    },
+    "publish_youtube": {
+      "at": "2026-10-12T02:38:39Z",
+      "via": "legacy backfill"
+    }
+  }
+}

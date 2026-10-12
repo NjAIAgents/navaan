@@ -1,0 +1,6 @@
+---
+description: NAVAAN music pipeline rules
+alwaysApply: true
+---
+
+Follow AGENTS.md in the navaan-studio plugin. Use the navaan-pipeline skill for any song task. Never publish, delete public content or spend credits without an explicit yes in chat.
