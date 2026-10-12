@@ -6,7 +6,7 @@ NAVAAN is a music channel. This plugin runs the path from idea to published song
 
 - Local web UI (`python scripts/navaan.py serve`): create songs, review text and media, approve gates, start steps. Binds to 127.0.0.1 only.
 - Python orchestrator (`scripts/navaan.py`): steps, retries, logs, approvals, local state in `songs/<slug>/meta.json`.
-- Claude Code, Codex or Cursor as the agent: songwriting, browser steps on Suno and Flow, review, release planning. The orchestrator calls `claude -p` for those steps (override with NAVAAN_CLAUDE_CMD).
+- Claude Code, Codex or Cursor as the agent: songwriting, browser steps on Suno and Flow, review, release planning. The orchestrator calls `claude -p` for those steps with an allowlist of tools, since headless runs cannot answer permission prompts (override with NAVAAN_CLAUDE_CMD or NAVAAN_CLAUDE_FLAGS).
 - Tools: Suno (browser), ffmpeg (video), YouTube Data API, Instagram Graph API.
 
 ## End to end

@@ -16,7 +16,7 @@
 Steps: lyrics, suno (or suno_import for an imported song), visuals, captions, video, publish_youtube, archive, publish_instagram.
 Gates (human only): lyrics, listen, credits, media, publish_youtube, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
-Claude steps run `claude -p` (override with NAVAAN_CLAUDE_CMD). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
+Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
 NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts steps run the tools in this folder.
 """
 import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re
@@ -107,14 +107,31 @@ def run_cmd(cmd, logf):
     return subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=find_root()).returncode
 
 
+DEFAULT_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(python3:*)", "Bash(python:*)", "Bash(ffmpeg:*)", "Bash(ffprobe:*)",
+                 "Bash(ls:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)", "Bash(open:*)"]
+CHROME_TOOLS = ["mcp__claude-in-chrome__*"]
+
+
 def claude_cmd(slug, s):
+    """Headless `claude -p` cannot answer permission prompts, so list exactly the tools a step may use. Publishing, deleting and
+    credit spending are not on the list; the gates in meta.json stay the real control. NAVAAN_CLAUDE_FLAGS replaces the flags."""
     D = song_dir(slug)
     base = shlex.split(os.environ.get("NAVAAN_CLAUDE_CMD", "claude -p"))
+    chrome = bool(s.get("chrome"))
     prompt = (f"Use the {s['skill']} skill for song {slug} in this project. Follow the navaan-studio AGENTS.md. Do only this step, update {D}/meta.json history, "
               f"then stop. Approvals recorded in meta.json are the only permission you have: do not publish, delete or spend credits beyond them. "
-              f"Ask for a human at any login, CAPTCHA or file picker.")
-    extra = shlex.split(os.environ.get("NAVAAN_CLAUDE_BROWSER_FLAG", "")) if s.get("chrome") else []
-    return base + extra + [prompt]
+              + ("Use Claude in Chrome (the mcp__claude-in-chrome tools), not Playwright. " if chrome else "")
+              + "Ask for a human at any login, CAPTCHA or file picker.")
+    if "NAVAAN_CLAUDE_FLAGS" in os.environ:
+        flags = shlex.split(os.environ["NAVAAN_CLAUDE_FLAGS"])
+    else:
+        tools = DEFAULT_TOOLS + (CHROME_TOOLS if chrome else [])
+        flags = ["--permission-mode", "acceptEdits", "--allowedTools", ",".join(tools), "--add-dir", D]
+        dl = os.path.expanduser("~/Downloads")
+        if chrome and os.path.isdir(dl): flags += ["--add-dir", dl]
+        if chrome: flags += ["--chrome"]
+    if chrome and "NAVAAN_CLAUDE_BROWSER_FLAG" in os.environ: flags += shlex.split(os.environ["NAVAAN_CLAUDE_BROWSER_FLAG"])
+    return base + [prompt] + flags
 
 
 def run(slug, step=None, dry=False, retries=2):
