@@ -45,7 +45,7 @@ Q = [
  ("suno.model", "Suno model", "Version shown in the Suno model picker.", "text", "v6", None, False),
  ("suno.credit_policy", "Suno credit policy", "ask means confirm before every Create.", "choice", "ask", ["ask", "auto_within_budget"], False),
  ("visual.palette", "Visual palette", "Example: warm amber, deep indigo, soft gold.", "text", "", None, False),
- ("visual.motifs", "Recurring motifs", "Comma separated. Example: diya, moon, river, rain, window.", "list", [], None, False),
+ ("visual.motifs", "Recurring motifs", "Optional recurring hints, comma separated. Each song still picks its own main image from its lyrics.", "list", [], None, False),
  ("visual.scene_count", "Flow clips per song", "Number of scenes to generate. One short clip is enough when it loops.", "int", 1, None, False),
  ("visual.look", "Visual look", "Example: modern, minimal, cinematic, neon, soft film. The clip matches the lyrics in this look.", "text", "modern, cinematic", None, False),
  ("visual.flow_model", "Flow video model", "lite is cheapest (10 credits per clip), fast costs 20, quality costs 100. Checked against Flow before each run.", "choice", "lite", ["lite", "fast", "quality"], False),

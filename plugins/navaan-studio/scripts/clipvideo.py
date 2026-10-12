@@ -6,7 +6,7 @@ Audio comes from songs/<slug>/final.mp3.
   16x9 -> songs/<slug>/final_16x9.mp4   (whole song)
   reel -> songs/<slug>/final_reel_sync.mp4   (9:16, audio window from reel_start.json {"start": s, "dur": d}, default 30 and 60)
 
-Optional songs/<slug>/story.json: {"scenes": [{"clip": "c1_diya.mp4", "at": 0.0, "pan": [0.3, 0.5]}, ...]}
+Optional songs/<slug>/story.json: {"scenes": [{"clip": "c1_scene.mp4", "at": 0.0, "pan": [0.3, 0.5]}, ...]}
   at = fraction of the song where the scene starts (full video only), pan = horizontal crop sweep for the reel.
 Without it, clips are used in name order, evenly spaced.
 """

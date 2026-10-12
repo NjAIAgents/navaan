@@ -20,7 +20,8 @@
     "2026-10-12T03:55:22Z step visuals attempt 3 blocked: Flow still shows 'You are out of Google Flow credits' (project a0b993bf-daaf-49d8-ac4c-45c4bb11c33d, checked via Claude in Chrome). No clips or cover generated, nothing spent, no upgrade attempted. Scene briefs in scenes/ (00_look, c1_diya..c5_dawn) are ready; navaan.config.json is still missing. Re-run visuals after credits refresh or top-up",
     "2026-10-12T03:55:28Z step visuals attempt 3 did not finish",
     "2026-10-12T04:16:06Z step visuals attempt 1 did not finish",
-    "2026-10-12T04:28:21Z step visuals attempt 1 did not finish"
+    "2026-10-12T04:28:21Z step visuals attempt 1 did not finish",
+    "2026-10-12T04:34:06Z step visuals: Flow account switched by user to nishant.navjyot@gmail.com (250 credits, tab /u/1/, new project cac2f2a8-dc23-43b6-a1b1-04efca9021bd). Budget 10 (navaan.config.json missing, defaults: budget 10, 1 clip). Model Veo 3.1 Lite 720p 8s x1 = 10 credits as shown in Flow. Generating c1_diya (prompt in scenes/prompt.txt) under the recorded credits approval"
   ],
   "published": {
     "youtube": "",

@@ -39,8 +39,18 @@ Flow uses whichever Google account the browser is signed in with by default. Bef
 
 ## The look
 
-1. Read the lyrics and `style.txt`. Pick the single image or motion that carries the song, such as a diya flame, rain on a window or a moon on water. Keep it modern, not stock footage: slow camera move, shallow depth of field, controlled palette from the profile, soft light, no text, no faces unless the profile allows it.
-2. Write the prompt in plain language: subject, motion, camera, light, palette, mood, and what to avoid. Save the prompt in `scenes/prompt.txt`. If several clips fit the budget, write one prompt per clip with one consistent look and save each.
+The user's brief is a very modern clip that aligns with the lyrics. Both parts are required, with or without a profile. If `visual.look` is missing, the default look is modern and contemporary, never traditional.
+
+Modern means: current urban or minimal settings and abstract light, such as a rooftop or empty street at night with soft bokeh, glass and reflections, minimal architecture, a long exposure light trail, macro texture, flowing liquid light or smoke, a clean studio with one practical light, a train window at dusk. Treat these as a vocabulary only, and pick what the lyrics call for. Do not use traditional or folk props (diya, clay pots, marigold, temple, incense, rangoli) unless the profile's `visual.look` says so. A palette from the profile or the song's mood still applies.
+
+Old scene files: if `songs/<slug>/scenes/` already holds briefs from an earlier attempt, do not reuse them just because they exist. Check each against these rules and the song's lyrics. Move any that fail into `scenes/_old/` and write new ones before generating.
+
+1. Read this song's own `lyrics.txt`, `title.txt` and `style.txt`. The imagery must come from this song: its title, its strongest lyric lines, its setting and its feeling. Write down the one image or motion that carries it, and quote the lyric line that gave you the idea in `scenes/prompt.txt`.
+   - Do not reuse a stock romantic image by habit. A candle, a flame, the moon, rain on a window and hands are clichés unless the lyrics are literally about them.
+   - Read every other song's `scenes/` folder and `meta.json` in the songs folder and list the motifs they already used. Pick a different subject and a different setting for this song, so the channel does not look the same from song to song.
+   - Profile `visual.motifs` are optional recurring hints, not a checklist. Use at most one, and only if the lyrics support it. The look (palette, camera, light) is what stays consistent across songs, not the subject.
+   - Keep it modern: a specific place or object, a slow camera move, shallow depth of field, a controlled palette, soft light, no text, no faces unless the profile allows it.
+2. Write the prompt in plain language: subject, motion, camera, light, palette, mood, and what to avoid. Before generating, show the user the subject and the lyric line behind it in chat, and name the motifs you avoided because other songs used them. Save the prompt in `scenes/prompt.txt`. If several clips fit the budget, write one prompt per clip with one consistent look and save each.
 3. Prefer a seamless loop: ask for a gentle repeating motion that starts and ends in a similar state. The video builder also boomerangs each clip (plays it forward then backward) and cross fades, so even one 8 second clip fills a whole song.
 
 ## Generate
