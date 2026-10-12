@@ -21,6 +21,7 @@ def detail(slug):
     for f in sorted(os.listdir(D)):
         p = os.path.join(D, f)
         if os.path.isfile(p) and os.path.splitext(f)[1].lower() in MEDIA_EXT: fl[f] = os.path.getsize(p)
+    for cp in sorted(glob.glob(os.path.join(D, "clips", "*.mp4"))): fl["clips~" + os.path.basename(cp)] = os.path.getsize(cp)
     txt = {n: open(os.path.join(D, n), encoding="utf-8").read() for n in EDITABLE if os.path.exists(os.path.join(D, n))}
     lg = ""
     for lp in sorted(glob.glob(os.path.join(D, "logs", "*.log")), key=os.path.getmtime)[-1:]:
@@ -80,7 +81,7 @@ class H(BaseHTTPRequestHandler):
         except SystemExit as e: return self._send(404, {"error": str(e)})
         self._send(404, {"error": "not found"})
     def _media(self, slug, name):
-        D = C.song_dir(slug); f = os.path.join(D, os.path.basename(name))
+        D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else os.path.join(D, os.path.basename(name))
         if os.path.splitext(f)[1].lower() not in MEDIA_EXT or not os.path.isfile(f): return self._send(404, {"error": "no file"})
         size = os.path.getsize(f); ct = mimetypes.guess_type(f)[0] or "application/octet-stream"
         rng = self.headers.get("Range"); start, end = 0, size - 1; code = 200

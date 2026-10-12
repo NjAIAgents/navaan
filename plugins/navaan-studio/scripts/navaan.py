@@ -34,6 +34,10 @@ def files(D, pat): return sorted(glob.glob(os.path.join(D, pat)))
 def has(D, *names): return all(os.path.exists(os.path.join(D, n)) for n in names)
 def yt_done(m): return bool(m.get("published", {}).get("youtube_items"))
 def ig_done(m): return bool(m.get("published", {}).get("instagram"))
+def fresh(D, outs, src):
+    """True when every file in outs exists and is newer than the newest source file, so a new clip makes the videos stale."""
+    ss = [os.path.getmtime(p) for pat in src for p in glob.glob(os.path.join(D, pat))]
+    return all(os.path.exists(os.path.join(D, o)) and (not ss or os.path.getmtime(os.path.join(D, o)) >= max(ss)) for o in outs)
 def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 
 
@@ -62,7 +66,7 @@ def steps(slug, D):
         *cap_steps,
         dict(id="video", outputs=['final_16x9*.mp4', 'final_reel*.mp4', 'final_tagged.mp3'], label=("Render videos, captions, tags" if CAP else "Render videos and tags"), kind="script", sets_after="media_ready",
              cmds=[sc("clipvideo.py", slug, "16x9"), sc("clipvideo.py", slug, "reel")] + ([sc("caption_clips.py", slug, "16x9"), sc("caption_clips.py", slug, "reel")] if CAP else []) + [sc("tag_mp3.py", slug)],
-             done=lambda m: has(D, *(["final_16x9_cap.mp4", "final_reel_cap.mp4"] if CAP else ["final_16x9.mp4", "final_reel_sync.mp4"]), "final_tagged.mp3"), after="media", sets="approved"),
+             done=lambda m: fresh(D, (["final_16x9_cap.mp4", "final_reel_cap.mp4"] if CAP else ["final_16x9.mp4", "final_reel_sync.mp4"]) + ["final_tagged.mp3"], ["clips/*.mp4"]), after="media", sets="approved"),
         dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
              cmds=[sc("publish_youtube.py", "upload", slug, "--file", REEL, "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
