@@ -244,7 +244,8 @@ def redo(slug, sid):
             shutil.move(src, tgt); moved += 1
     m = meta(slug); ap = m.setdefault("approvals", {})
     # Only this step is redone. Later steps and their approvals stay as they are; only a credit gate is asked again.
-    if st.get("before") == "credits" and "credits" in ap: ap.pop("credits")
+    if st.get("before") == "credits":
+        ap.pop("credits", None); m["redo_pending"] = sid  # the UI starts this step as soon as credits are approved again
     if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
     log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}"); save_meta(slug, m)
     RUN.pop(slug, None); st["_dest"] = dest

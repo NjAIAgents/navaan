@@ -116,7 +116,12 @@ class H(BaseHTTPRequestHandler):
                 sl = suno_import.init(body.get("url", ""), slug or None)
                 return self._send(200, {"slug": sl, "started": start_job(sl, True)})
             if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
-            if p == "/api/approve": navaan.set_gate(slug, body["gate"], True, "ui"); return self._send(200, {"ok": True})
+            if p == "/api/approve":
+                navaan.set_gate(slug, body["gate"], True, "ui"); started = False
+                m = navaan.meta(slug); sid = m.get("redo_pending")
+                if sid and body["gate"] == "credits":
+                    m.pop("redo_pending", None); navaan.save_meta(slug, m); started = start_job(slug, False, sid)
+                return self._send(200, {"ok": True, "started": started})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, "ui"); return self._send(200, {"ok": True})
             if p == "/api/redo":
                 if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
