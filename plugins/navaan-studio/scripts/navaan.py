@@ -141,7 +141,11 @@ def run(slug, step=None, dry=False, retries=2):
     D = song_dir(slug); rows, nxt = plan(slug)
     if nxt["type"] == "done": print("all steps done"); return 0
     if nxt["type"] == "gate": print(f"waiting for your approval: gate '{nxt['gate']}' (step {nxt['step']}). Run: navaan.py approve {slug} {nxt['gate']}"); return 3
-    sid = step or nxt["step"]; s = next(x for x in steps(slug, D) if x["id"] == sid)
+    sid = step or nxt["step"]; s = next((x for x in steps(slug, D) if x["id"] == sid), None)
+    if not s: print(f"no such step: {sid}"); return 2
+    bg = s.get("before")
+    if bg and bg not in meta(slug).get("approvals", {}):
+        print(f"waiting for your approval: gate '{bg}' (step {sid}). Run: navaan.py approve {slug} {bg}"); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
@@ -235,16 +239,42 @@ def redo(slug, sid):
             rel = os.path.relpath(src, D); tgt = os.path.join(dest, rel); os.makedirs(os.path.dirname(tgt), exist_ok=True)
             shutil.move(src, tgt); moved += 1
     m = meta(slug); ap = m.setdefault("approvals", {})
-    for g in (st.get("before"), st.get("after")):
-        if g and g in ap: ap.pop(g)
+    # Only this step is redone. Later steps and their approvals stay as they are; only a credit gate is asked again.
+    if st.get("before") == "credits" and "credits" in ap: ap.pop("credits")
     if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
     log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}"); save_meta(slug, m)
-    RUN.pop(slug, None)
+    RUN.pop(slug, None); st["_dest"] = dest
     for nm in ("needs_you.txt",):
         pth = os.path.join(D, nm)
         if os.path.exists(pth): os.remove(pth)
     print(f"redo {sid}: {moved} file(s) moved to {dest if moved else '(nothing to move)'}")
-    return moved
+    return dest if moved else None
+
+
+def restore(slug, dest):
+    """Put the files from a _prev folder back where they were."""
+    import shutil
+    D = song_dir(slug)
+    for root, _, fs in os.walk(dest):
+        for f in fs:
+            src = os.path.join(root, f); tgt = os.path.join(D, os.path.relpath(src, dest))
+            os.makedirs(os.path.dirname(tgt), exist_ok=True); shutil.move(src, tgt)
+
+
+def redo_run(slug, sid):
+    """Redo one step and run only it. Every other step keeps its files and approvals, so the new output simply replaces the old one.
+    If the new run fails, the old files are put back."""
+    st = next((x for x in steps(slug, song_dir(slug)) if x["id"] == sid), {})
+    dest = redo(slug, sid)
+    if st.get("before") == "credits":
+        print(f"redo {sid}: spends credits. Approve the credits gate, then run this step."); return 0
+    rc = run(slug, step=sid)
+    row = next((r for r in plan(slug)[0] if r["id"] == sid), {})
+    if rc != 0 or row.get("status") != "done":
+        if dest and os.path.isdir(dest):
+            restore(slug, dest); __import__('shutil').rmtree(dest, ignore_errors=True); print(f"redo {sid}: failed, previous files put back")
+        return rc or 1
+    return 0
 
 
 def set_gate(slug, gate, on, via):
@@ -283,8 +313,8 @@ def main(argv):
         _, n = plan(a[0]); print(json.dumps(n)); return 0
     if c == "redo":
         if len(a) < 2: sys.exit("usage: navaan.py redo <slug> <step> [--run]")
-        redo(a[0], a[1])
-        return run(a[0], step=a[1]) if "--run" in a else 0
+        if "--run" in a: return redo_run(a[0], a[1])
+        redo(a[0], a[1]); return 0
     if c == "run":
         return run(a[0], step=(a[a.index("--step") + 1] if "--step" in a else None), dry="--dry" in a)
     if c in ("approve", "revoke"):

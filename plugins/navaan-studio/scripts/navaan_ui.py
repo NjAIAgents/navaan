@@ -37,11 +37,11 @@ def detail(slug):
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
 
 
-def start_job(slug, all_steps=False, step=None):
+def start_job(slug, all_steps=False, step=None, redo=False):
     if JOBS.get(slug, {}).get("running"): return False
     JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None)
     def w():
-        try: rc = navaan.pipeline(slug, wait=True) if all_steps else navaan.run(slug, step=step)
+        try: rc = navaan.pipeline(slug, wait=True) if all_steps else (navaan.redo_run(slug, step) if redo else navaan.run(slug, step=step))
         except SystemExit as e: rc = 1
         except Exception: rc = 1
         JOBS[slug] = {"running": False, "rc": rc}
@@ -120,7 +120,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, "ui"); return self._send(200, {"ok": True})
             if p == "/api/redo":
                 if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
-                navaan.redo(slug, body.get("step", "")); return self._send(200, {"started": start_job(slug, False, body.get("step"))})
+                return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
             if p == "/api/save":
                 n = body.get("file")

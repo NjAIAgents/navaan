@@ -65,7 +65,7 @@ if(st==="failed")h+=`<div class="sub" style="margin:4px 0">Log above. Fix the ca
 h+=`</div></div>`;
 if(r.gate_after&&r.done)h+=gnode(r.gate_after,(nx.type==="gate"&&nx.gate===r.gate_after)?"waiting":"pending",d)}
 return h+`</div></div>`}
-async function redoStep(id,sp){if(!confirm('Redo this step? Its current files are moved to the _prev folder inside the song (nothing is deleted).'+(sp?' It spends credits, so you will need to approve the credits gate again.':'')))return;const r=await api('/api/redo',{slug:cur,step:id});if(r.error)return alert(r.error);OPEN[id]=true;render()}
+async function redoStep(id,sp){if(!confirm('Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). Other steps are not touched. If the new run fails, the old files are put back.'+(sp?' It spends credits, so approve the credits gate again first.':'')))return;const r=await api('/api/redo',{slug:cur,step:id});if(r.error)return alert(r.error);OPEN[id]=true;render()}
 function tog(id,v){OPEN[id]=v;render()}
 let IMP=false;const lab=g=>g==='credits'&&IMP?'I approve spending Flow credits for visuals (the Suno song is already made, nothing more is spent on Suno)':(GL[g]||g);
 async function loadList(){const l=await api("/api/songs");document.getElementById("list").innerHTML=l.map(s=>`<div class="song ${s.slug===cur?"on":""}" onclick="openSong('${s.slug}')">${esc(s.slug)}<small>${esc(s.title||"untitled")} · ${esc(s.state||"")}</small></div>`).join("")||'<p class="mut">No songs yet.</p>'}

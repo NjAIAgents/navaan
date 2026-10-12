@@ -35,4 +35,4 @@ Tested here: profile setup (interactive and from file), orchestrator planning an
 
 ## Redo a step
 
-Use the Redo button on any finished or failed step in the web UI, or run `navaan.py redo <slug> <step> [--run]`. Old files go to `_prev/` in the song folder. Approvals around the step are revoked. Publish, archive and Instagram steps cannot be redone from here.
+Use the Redo button on any finished or failed step in the web UI, or run `navaan.py redo <slug> <step> [--run]`. Only that step runs; later steps are untouched. Old files go to `_prev/` in the song folder and come back if the rerun fails. A credit spending step asks for its credits approval again. Publish, archive and Instagram steps cannot be redone from here.
