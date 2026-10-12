@@ -108,7 +108,7 @@ def run_cmd(cmd, logf):
 
 
 DEFAULT_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(python3:*)", "Bash(python:*)", "Bash(ffmpeg:*)", "Bash(ffprobe:*)",
-                 "Bash(ls:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)", "Bash(open:*)"]
+                 "Bash(ls:*)", "Bash(sleep:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)", "Bash(open:*)"]
 CHROME_TOOLS = ["mcp__claude-in-chrome__*"]
 
 

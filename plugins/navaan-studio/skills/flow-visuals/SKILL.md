@@ -25,7 +25,7 @@ The account is tied to the browser tab and its address. Opening a fresh Flow tab
 1. At the start, list the open tabs. If a Flow tab is already open, use that tab. Open a new tab only when there is no Flow tab at all, and then only once.
 2. Do not navigate that tab to a new address. Reload it in place, and for any link you must follow, keep the exact address the tab has now, including any account index such as `/u/1/` or `authuser=1`, and any project path.
 3. After the user switches account, read the account and balance from the same tab. Never close it and never replace it.
-4. Remember the tab's address in `songs/<slug>/flow_tab.txt` (address only, no cookies or tokens) so a retried run can find the same account.
+4. After the account changes, save the tab's full current address in `songs/<slug>/flow_tab.txt` (address only, no cookies or tokens). A retried run is a new session with its own tab group: it must open exactly that address first, not the Flow home page, and then check which account the page shows. If it shows the old account again, write `needs_you.txt` saying the account keeps resetting and suggesting the user sign out of the old Google account in Chrome or use a Chrome profile that only has the account with credits, then wait as above.
 
 ## Account and credits check
 
@@ -33,7 +33,7 @@ Flow uses whichever Google account the browser is signed in with by default. Bef
 
 1. Read the credit balance shown in Flow and the account it belongs to (name or email shown in the account menu). Tell the user in chat which account is active.
 2. If the balance is below the cost of one clip, or below what the plan needs, do not generate and do not sign in or out yourself. Write `songs/<slug>/needs_you.txt` with one plain sentence, for example: `Flow account <email> has 4 credits, a Lite clip needs 10. Switch the Google account in Flow (account menu, top right) to one with credits.` The web UI shows this file as a banner. Say the same in chat.
-3. Wait. Every 30 seconds reload the same tab in place (no new tab, no new address) and re-read the balance and account, for up to 15 minutes. If the user switched accounts, the tab now shows the new one: keep working in it. Passwords, 2 step prompts and CAPTCHAs are the user's job.
+3. Wait inside this same run. This step runs headless: there is no timer and nobody wakes you later, so if you end your turn to wait, the run ends, the orchestrator starts a new session, and Chrome opens a brand new tab group on the default account. That is the bug to avoid. Wait with the Bash tool instead: loop `sleep 30`, then in the same tab reload in place (no new tab, no new address) and re-read the account and balance, for up to 15 minutes (30 loops). Never write "pausing until the timer fires". If the user switched accounts, the tab now shows the new one: keep working in that tab and record its full address, including any account index, in `flow_tab.txt`.
 4. When the balance covers the plan, delete `needs_you.txt`, tell the user which account you are now using, and continue. The credits gate and the budget still apply to the new account.
 5. If 15 minutes pass with no change, leave `needs_you.txt` in place, record the situation in `meta.json` history and stop. The orchestrator will not retry while the file exists.
 
