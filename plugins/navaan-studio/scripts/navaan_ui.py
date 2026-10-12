@@ -25,13 +25,19 @@ def detail(slug):
     lg = ""
     for lp in sorted(glob.glob(os.path.join(D, "logs", "*.log")), key=os.path.getmtime)[-1:]:
         lg = open(lp, encoding="utf-8", errors="ignore").read()[-4000:]
+    logs = {}
+    for lp in glob.glob(os.path.join(D, "logs", "*.log")):
+        logs[os.path.basename(lp)[:-4]] = open(lp, encoding="utf-8", errors="ignore").read()[-2500:]
+    rn = dict(navaan.RUN.get(slug) or {})
+    if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
+    rn.pop("started", None)
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
-            "gates": C.GATES, "approvals": m.get("approvals", {})}
+            "gates": C.GATES, "approvals": m.get("approvals", {}), "logs": logs, "run": rn}
 
 
 def start_job(slug, all_steps=False):
     if JOBS.get(slug, {}).get("running"): return False
-    JOBS[slug] = {"running": True, "rc": None}
+    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None)
     def w():
         try: rc = navaan.pipeline(slug, wait=True) if all_steps else navaan.run(slug)
         except SystemExit as e: rc = 1

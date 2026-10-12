@@ -152,18 +152,21 @@ def run(slug, step=None, dry=False, retries=2):
     os.makedirs(os.path.join(D, "logs"), exist_ok=True)
     lp = os.path.join(D, "logs", f"{sid}.log")
     for attempt in range(1, retries + 2):
+        RUN[slug] = {"step": sid, "attempt": attempt, "attempts": retries + 1, "started": time.time(), "failed": None}
         with open(lp, "a", encoding="utf-8") as lf:
             lf.write(f"\n=== {now()} {sid} attempt {attempt} ===\n")
             ok = all(run_cmd(c, lf) == 0 for c in cmds)
         m = meta(slug)
         if ok and s["done"](m):
             if s.get("sets_after"): m["state"] = s["sets_after"]
-            log_hist(m, f"step {sid} done (attempt {attempt})"); save_meta(slug, m); print("done", sid); return 0
+            log_hist(m, f"step {sid} done (attempt {attempt})"); save_meta(slug, m); RUN.pop(slug, None); print("done", sid); return 0
         log_hist(m, f"step {sid} attempt {attempt} did not finish"); save_meta(slug, m)
         if attempt <= retries: time.sleep(5 * attempt)
+    RUN[slug] = {"step": None, "failed": sid, "log": lp}
     print(f"step {sid} failed after {retries + 1} attempts. See {lp}"); return 1
 
 
+RUN = {}  # slug -> {"step", "attempt", "started", "failed"} live progress for the web UI
 STATUS = {}  # slug -> short text for the web UI ("running lyrics", "waiting for you: gate lyrics")
 
 

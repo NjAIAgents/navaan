@@ -17,6 +17,17 @@ button.p{background:var(--acc);border-color:var(--acc);color:#fff}button:disable
 textarea,input{width:100%;font:13px/1.5 ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px}textarea{min-height:160px}
 video{max-width:100%;max-height:420px;border-radius:10px;background:#000}.row{display:flex;gap:14px;flex-wrap:wrap}pre{white-space:pre-wrap;font-size:12px;color:var(--mut);max-height:200px;overflow:auto}
 h2{font-size:15px;margin:0 0 8px}.mut{color:var(--mut)}
+.wf{position:relative;margin:6px 0 0}.node{display:flex;gap:12px;position:relative;padding-bottom:10px}
+.node:not(:last-child)::before{content:"";position:absolute;left:13px;top:28px;bottom:-2px;width:2px;background:var(--line)}
+.node.done:not(:last-child)::before{background:var(--ok)}
+.dot{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--mut);z-index:1}
+.node.done .dot{background:var(--ok);border-color:var(--ok);color:#fff}.node.running .dot{border-color:var(--acc);color:var(--acc)}.node.waiting .dot{border-color:var(--warn);color:var(--warn);animation:pulse 1.6s infinite}
+.node.failed .dot{background:#b3261e;border-color:#b3261e;color:#fff}.node.gate .dot{width:20px;height:20px;margin:4px;border-radius:5px;font-size:11px}
+.spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(168,106,0,.2)}}
+.nb{flex:1;min-width:0}.nt{display:flex;gap:8px;align-items:center;cursor:pointer;min-height:28px}.nt b{font-weight:600}.node.pending .nt b,.node.gate.pending .nt b{color:var(--mut);font-weight:500}
+.node.gate .nt b{font-weight:500;font-size:14px}.sub{color:var(--mut);font-size:12px}.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 4px}.bar i{display:block;height:100%;background:var(--ok);transition:width .4s}
+.nb pre{overflow-wrap:anywhere;margin:6px 0 0;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:220px}.chip.failed{color:#b3261e;border-color:#b3261e}.chip.running{color:var(--acc);border-color:var(--acc)}
 @media(max-width:700px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
 </style></head><body>
 <header><h1>NAVAAN STUDIO</h1><span class="mut">local, nothing leaves this computer except what you approve</span></header>
@@ -27,22 +38,46 @@ const T="__TOKEN__";let cur=null,timer=null;
 const api=(p,b)=>fetch(p,b?{method:"POST",headers:{"Content-Type":"application/json","X-Navaan-Token":T},body:JSON.stringify(b)}:{}).then(r=>r.json());
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const GL={lyrics:"I approve these lyrics",listen:"I listened and accept this song",credits:"I approve spending Suno and Flow credits",media:"I reviewed the videos and approve them",publish_youtube:"Publish to YouTube now",publish_instagram:"Publish to Instagram now",cloud_upload:"Upload this finished song to my cloud bucket"};
+const OPEN={};
+const fmt=n=>n>=60?Math.floor(n/60)+"m "+(n%60)+"s":n+"s";
+function gnode(g,state,d){const a=d.approvals[g];const t=GL[g]||g;
+if(a)return `<div class="node gate done"><div class="dot">&#10003;</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="sub">approved ${esc(a.at||"")}</span></div></div></div>`;
+if(state==="waiting")return `<div class="node gate waiting"><div class="dot">!</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="chip waiting">needs you</span></div><div style="margin:4px 0"><button class="p" onclick="gate('${g}')">${esc(t)}</button></div></div></div>`;
+return `<div class="node gate pending"><div class="dot">&#9679;</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="sub">${esc(t)}</span></div></div></div>`}
+function wf(d){const R=d.run||{},nx=d.next,rows=d.steps,total=rows.length,done=rows.filter(r=>r.done).length,busy=d.job.running;
+const cur=rows.find(r=>R.step===r.id);let h=`<div class="card"><h2>Workflow</h2><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${done}</b> of ${total} steps done</span>`;
+if(busy)h+=`<span class="chip running">${esc(d.status_text||"running")}${R.elapsed!=null?" · "+fmt(R.elapsed):""}</span>`;
+else if(R.failed)h+=`<span class="chip failed">step ${esc(R.failed)} failed</span>`;
+else if(nx.type==="gate")h+=`<span class="chip waiting">waiting for your approval: ${esc(nx.gate)}</span>`;else if(nx.type==="done")h+=`<span class="chip done">all done</span>`;
+h+=`</div><div class="bar"><i style="width:${total?Math.round(100*done/total):0}%"></i></div>`;
+if(nx.type!=="done"&&nx.type!=="gate")h+=`<p style="margin:8px 0 0"><button class="p" onclick="runIt(true)" ${busy?"disabled":""}>${busy?"Running...":R.failed?"Retry and continue":"Run end to end"}</button> <button onclick="runIt(false)" ${busy?"disabled":""}>Run this step only</button></p>`;
+else if(nx.type==="gate"&&busy)h+=`<p class="sub" style="margin:8px 0 0">The workflow is paused here and continues by itself right after you approve.</p>`;
+else if(nx.type==="gate")h+=`<p style="margin:8px 0 0"><button class="p" onclick="runIt(true)">Run end to end</button> <span class="sub">starts the workflow and waits at each gate</span></p>`;
+h+=`</div></div><div class="card"><div class="wf">`;
+for(const r of rows){let st=r.done?"done":R.step===r.id?"running":R.failed===r.id?"failed":(nx.type==="gate"&&nx.step===r.id)?"waiting":"pending";
+if(r.gate_before&&!r.done)h+=gnode(r.gate_before,(nx.type==="gate"&&nx.gate===r.gate_before)?"waiting":"pending",d);
+const logt=d.logs[r.id]||"";const open=OPEN[r.id]!==undefined?OPEN[r.id]:(st==="running"||st==="failed");
+const icon=st==="done"?"&#10003;":st==="running"?'<div class="spin"></div>':st==="failed"?"&#10005;":st==="waiting"?"!":"&#9679;";
+const lab={done:"done",running:"running"+(R.attempts>1&&R.attempt?" (try "+R.attempt+" of "+R.attempts+")":"")+(R.elapsed!=null?" · "+fmt(R.elapsed):""),failed:"failed",waiting:"waiting",pending:"not started"}[st];
+h+=`<div class="node ${st}"><div class="dot">${icon}</div><div class="nb"><div class="nt" onclick="tog('${r.id}',${!open})"><b>${esc(r.label)}</b><span class="chip ${st==="done"?"done":st==="running"?"running":st==="failed"?"failed":st==="waiting"?"waiting":""}">${lab}</span>${r.kind==="claude"?'<span class="sub">agent</span>':""}</div>`;
+if(open&&logt)h+=`<pre>${esc(logt)}</pre>`;else if(open&&st!=="pending")h+=`<div class="sub">no log yet</div>`;
+if(st==="failed")h+=`<div class="sub" style="margin:4px 0">Log above. Fix the cause, then click Retry and continue.</div>`;
+h+=`</div></div>`;
+if(r.gate_after&&r.done)h+=gnode(r.gate_after,(nx.type==="gate"&&nx.gate===r.gate_after)?"waiting":"pending",d)}
+return h+`</div></div>`}
+function tog(id,v){OPEN[id]=v;render()}
 async function loadList(){const l=await api("/api/songs");document.getElementById("list").innerHTML=l.map(s=>`<div class="song ${s.slug===cur?"on":""}" onclick="openSong('${s.slug}')">${esc(s.slug)}<small>${esc(s.title||"untitled")} · ${esc(s.state||"")}</small></div>`).join("")||'<p class="mut">No songs yet.</p>'}
 async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return alert(r.error);document.getElementById("iu").value="";await loadList();openSong(r.slug)}
 async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";await loadList();openSong(v)}
-async function openSong(s){cur=s;await loadList();await render();clearInterval(timer);timer=setInterval(()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")render()},4000)}
+let fast=false;
+async function openSong(s){cur=s;await loadList();await render();clearTimeout(timer);const tick=async()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")await render();timer=setTimeout(tick,fast?1500:4000)};timer=setTimeout(tick,1500)}
 async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);return}
-const f=d.files,m=n=>`/media/${cur}/${n}`;let h=`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`;
-const nx=d.next;h+=`<div class="card"><h2>Next</h2>${d.job.running?`<p class="mut">Pipeline running: ${esc(d.status_text||"working")}. It continues by itself after each approval.</p>`:""}`;
-if(nx.type==="gate")h+=`<p>Waiting for you: <b>${esc(GL[nx.gate]||nx.gate)}</b></p><button class="p" onclick="gate('${nx.gate}')">${esc(GL[nx.gate]||"Approve")}</button>`;
-else if(nx.type==="run")h+=`<p>Ready to run: <b>${esc(nx.step)}</b></p><button class="p" onclick="runIt(true)" ${d.job.running?"disabled":""}>${d.job.running?"Running...":"Run end to end"}</button> <button onclick="runIt(false)" ${d.job.running?"disabled":""}>Run this step only</button>`;
-else h+="<p>All steps done.</p>";
-h+=`</div><div class="card"><h2>Steps</h2>`+d.steps.map(s=>{const c=s.status==="done"?"done":s.status.startsWith("waiting")?"waiting":s.status==="ready"?"ready":"";return `<div class="step"><b>${esc(s.label)}</b><span class="chip ${c}">${esc(s.status)}</span></div>`}).join("")+`</div>`;
+fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}`;let h=`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`;
+h+=wf(d);
 h+=`<div class="card"><h2>Approvals</h2>`+d.gates.map(g=>{const a=d.approvals[g];return `<div class="step"><b>${esc(g)}</b><span class="chip ${a?"done":""}">${a?"approved "+esc(a.at):"not approved"}</span>${a?`<button onclick="revoke('${g}')">Revoke</button>`:`<button onclick="gate('${g}')">Approve</button>`}</div>`}).join("")+`<p class="mut">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div>`;
 const vids=["final_reel_cap.mp4","final_16x9_cap.mp4"].filter(n=>f[n]);if(f["final.mp3"])h+=`<div class="card"><h2>Song</h2><audio controls src="${m("final.mp3")}" style="width:100%"></audio></div>`;
 if(vids.length)h+=`<div class="card"><h2>Review videos</h2><div class="row">${vids.map(n=>`<div><div class="mut">${n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div></div>`;
 for(const n of Object.keys(d.text))h+=`<div class="card"><h2>${esc(n)}</h2><textarea id="t_${n}">${esc(d.text[n])}</textarea><p><button onclick="save('${n}')">Save</button></p></div>`;
-if(d.log)h+=`<div class="card"><h2>Latest log</h2><pre>${esc(d.log)}</pre></div>`;
 document.getElementById("main").innerHTML=h;loadList()}
 async function gate(g){if(!confirm("Approve: "+(GL[g]||g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
 async function revoke(g){await api("/api/revoke",{slug:cur,gate:g});render()}
