@@ -19,13 +19,23 @@ import os, sys, json, time, argparse, urllib.request, urllib.parse, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import song_dir, load_json, require_approval
 
+def _load_env_file():
+    """Read ~/.config/navaan/instagram.env (KEY=VALUE lines, mode 600) so the token never lives in the project. Real environment variables win."""
+    p = os.environ.get("NAVAAN_IG_ENV", os.path.expanduser("~/.config/navaan/instagram.env"))
+    if os.path.exists(p):
+        for line in open(p, encoding="utf-8"):
+            k, _, v = line.strip().partition("=")
+            if k.startswith("NAVAAN_IG_") and v: os.environ.setdefault(k, v)
+
+
+_load_env_file()
 HOST = os.environ.get("NAVAAN_IG_HOST", "https://graph.facebook.com")
 VER = os.environ.get("NAVAAN_IG_API_VERSION", "v21.0")
 
 
 def env():
     uid, tok = os.environ.get("NAVAAN_IG_USER_ID"), os.environ.get("NAVAAN_IG_TOKEN")
-    if not uid or not tok: sys.exit("navaan: set NAVAAN_IG_USER_ID and NAVAAN_IG_TOKEN in your shell (not in the project, not in chat).")
+    if not uid or not tok: sys.exit("navaan: set NAVAAN_IG_USER_ID and NAVAAN_IG_TOKEN in your shell or in ~/.config/navaan/instagram.env (not in the project, not in chat).")
     return uid, tok
 
 
