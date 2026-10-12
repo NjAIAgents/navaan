@@ -6,13 +6,14 @@
   navaan.py status [slug]             show every song, or the steps of one song
   navaan.py next <slug>               print the next action
   navaan.py start <slug> [idea words]  create the song, then run the whole pipeline end to end, waiting at each gate
+  navaan.py import <suno-url-or-id> [slug]  bring in a song already made on Suno (title, lyrics, style, audio, cover), then run the pipeline from there
   navaan.py pipeline <slug> [--wait] [--poll 10] [--until STEP] [--timeout SEC]   run every step in order; stop at a gate, or with --wait keep waiting until you approve
   navaan.py run <slug> [--step ID] [--dry]   run only the next ready step (retries, logs, state)
   navaan.py approve <slug> <gate>     record a human approval (asks you to type yes)
   navaan.py revoke <slug> <gate>
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
-Steps: lyrics, suno, visuals, captions, video, publish_youtube, archive, publish_instagram.
+Steps: lyrics, suno (or suno_import for an imported song), visuals, captions, video, publish_youtube, archive, publish_instagram.
 Gates (human only): lyrics, listen, credits, media, publish_youtube, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` (override with NAVAAN_CLAUDE_CMD). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
@@ -36,11 +37,17 @@ def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 
 def steps(slug, D):
     reel_meta = ["--meta", "tags.json"]
-    return [
+    imported = load_json(os.path.join(D, "meta.json"), default={}).get("source") == "suno_import"
+    head = [
+        dict(id="suno_import", label="Import the song from Suno", kind="claude", skill="suno-import", chrome=True, state="draft",
+             done=lambda m: has(D, "lyrics.txt", "style.txt", "title.txt", "final.mp3"), after="listen", sets="accepted"),
+    ] if imported else [
         dict(id="lyrics", label="Write lyrics and style", kind="claude", skill="lyrics", chrome=False, state="draft",
              done=lambda m: has(D, "lyrics.txt", "style.txt", "title.txt"), after="lyrics", sets="lyrics_ok"),
         dict(id="suno", label="Generate the song on Suno", kind="claude", skill="suno-generate", chrome=True, before="credits", state="lyrics_ok",
              done=lambda m: has(D, "final.mp3"), after="listen", sets="accepted"),
+    ]
+    return head + [
         dict(id="visuals", label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, before="credits",
              done=lambda m: len(files(D, "clips/*.mp4")) > 0 and has(D, "cover_1x1.png")),
         dict(id="captions", label="Measure lyric timing", kind="claude", skill="caption-sync", chrome=False,
@@ -182,6 +189,13 @@ def start(slug, idea=""):
     return pipeline(slug, wait=True)
 
 
+def import_suno(src, slug=None):
+    """Import an existing Suno song, then run the pipeline and wait at each gate. Importing spends no credits."""
+    import suno_import
+    slug = suno_import.init(src, slug)
+    return pipeline(slug, wait=True)
+
+
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
     m = meta(slug); ap = m.setdefault("approvals", {})
@@ -207,6 +221,9 @@ def main(argv):
     if c == "init": return subprocess.call([PY, os.path.join(HERE, "setup_profile.py")] + a)
     if c == "new": return subprocess.call([PY, os.path.join(HERE, "new_song.py"), a[0]])
     if c == "start": return start(a[0], " ".join(a[1:]))
+    if c == "import":
+        if not a: sys.exit("usage: navaan.py import <suno-url-or-id> [slug]")
+        return import_suno(a[0], a[1] if len(a) > 1 else None)
     if c == "pipeline":
         def opt(n, d=None): return a[a.index(n) + 1] if n in a else d
         return pipeline(a[0], wait="--wait" in a, poll=int(opt("--poll", 10)), until=opt("--until"), timeout=int(opt("--timeout", 0)) or None)

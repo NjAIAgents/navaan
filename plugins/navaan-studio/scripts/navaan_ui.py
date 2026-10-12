@@ -102,6 +102,11 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/new":
                 if not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 rc = subprocess.call([sys.executable, os.path.join(navaan.HERE, "new_song.py"), slug], cwd=C.find_root()); return self._send(200, {"rc": rc})
+            if p == "/api/import":
+                import suno_import
+                if slug and not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
+                sl = suno_import.init(body.get("url", ""), slug or None)
+                return self._send(200, {"slug": sl, "started": start_job(sl, True)})
             if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
             if p == "/api/approve": navaan.set_gate(slug, body["gate"], True, "ui"); return self._send(200, {"ok": True})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, "ui"); return self._send(200, {"ok": True})

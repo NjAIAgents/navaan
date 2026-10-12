@@ -18,7 +18,7 @@ Codex: add the repository as a marketplace (reads `.agents/plugins/marketplace.j
 
 ## Commands (Claude Code and Cursor)
 
-setup, config, verify, new-song, pipeline, status, next, run, lyrics, suno, visuals, captions, video, youtube, instagram, publish, archive, analytics, approve, studio. In Claude Code they are namespaced, for example `/navaan-studio:new-song song-003`. In Codex use the skills by name instead (for example `$navaan-pipeline`).
+setup, config, verify, new-song, import-suno, pipeline, status, next, run, lyrics, suno, visuals, captions, video, youtube, instagram, publish, archive, analytics, approve, studio. In Claude Code they are namespaced, for example `/navaan-studio:new-song song-003`. In Codex use the skills by name instead (for example `$navaan-pipeline`).
 
 ## Scripts
 
@@ -27,3 +27,7 @@ navaan.py (orchestrator and UI), setup_profile.py, storage.py, upload_cloud.py, 
 ## Status
 
 Tested here: profile setup (interactive and from file), orchestrator planning and gates, web UI endpoints and token checks, video and caption rendering on a synthetic song, tagging, caption alignment, vocal separation. Not tested live: YouTube upload, Instagram publish and OCI link creation (they need your credentials), the Cursor and Codex installs, and `claude -p` steps.
+
+## Song already made on Suno
+
+`python scripts/navaan.py import <suno-link> [slug]` brings in a song you already generated: title, lyrics, style, model, audio and cover are read from the Suno page with Claude in Chrome (no credits spent), saved in the song folder, and the pipeline continues from the listen gate. In the web UI paste the link in the Import box. In chat use the import-suno command.

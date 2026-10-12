@@ -24,10 +24,15 @@ When you are the agent in a chat session (no long running process), loop like th
 3. If it says gate, show the user what to review (lyrics text, the take, the videos, the publish payload), name the gate, tell them how to approve it, and stop. When the user says they approved, run `navaan.py next <slug>` again and confirm the approval is really recorded before continuing. Never treat a chat message as the recorded approval.
 4. Stop when next says done, or when a step fails (show the log path).
 
+## Song already on Suno
+
+If the song was already generated on Suno, use the suno-import skill instead of the lyrics and suno steps: `navaan.py import <suno-link> [slug]`. It pulls title, lyrics, style, model, audio and cover from the Suno page, spends no credits, and the pipeline continues from the listen gate.
+
 ## Steps and gates
 
 | step | skill | specialist agent | gate |
 |---|---|---|---|
+| suno_import (instead of lyrics and suno) | suno-import | suno-operator | after: listen (user confirms the imported song) |
 | lyrics | lyrics | lyricist | after: lyrics (user approves the words) |
 | suno | suno-generate | suno-operator | before: credits, after: listen (user accepts the take) |
 | visuals | flow-visuals | visual-director | before: credits |

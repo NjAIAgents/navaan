@@ -20,7 +20,7 @@ h2{font-size:15px;margin:0 0 8px}.mut{color:var(--mut)}
 @media(max-width:700px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
 </style></head><body>
 <header><h1>NAVAAN STUDIO</h1><span class="mut">local, nothing leaves this computer except what you approve</span></header>
-<main><aside><div style="display:flex;gap:6px;margin-bottom:10px"><input id="ns" placeholder="new slug, e.g. song-003"><button onclick="newSong()">Add</button></div><div id="list"></div></aside>
+<main><aside><div style="display:flex;gap:6px;margin-bottom:10px"><input id="ns" placeholder="new slug, e.g. song-003"><button onclick="newSong()">Add</button></div><div style="display:flex;gap:6px;margin-bottom:10px"><input id="iu" placeholder="Suno link to import"><button onclick="importSuno()">Import</button></div><div id="list"></div></aside>
 <section id="main"><p class="mut">Pick a song or add one.</p></section></main>
 <script>
 const T="__TOKEN__";let cur=null,timer=null;
@@ -28,6 +28,7 @@ const api=(p,b)=>fetch(p,b?{method:"POST",headers:{"Content-Type":"application/j
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const GL={lyrics:"I approve these lyrics",listen:"I listened and accept this song",credits:"I approve spending Suno and Flow credits",media:"I reviewed the videos and approve them",publish_youtube:"Publish to YouTube now",publish_instagram:"Publish to Instagram now",cloud_upload:"Upload this finished song to my cloud bucket"};
 async function loadList(){const l=await api("/api/songs");document.getElementById("list").innerHTML=l.map(s=>`<div class="song ${s.slug===cur?"on":""}" onclick="openSong('${s.slug}')">${esc(s.slug)}<small>${esc(s.title||"untitled")} · ${esc(s.state||"")}</small></div>`).join("")||'<p class="mut">No songs yet.</p>'}
+async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return alert(r.error);document.getElementById("iu").value="";await loadList();openSong(r.slug)}
 async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";await loadList();openSong(v)}
 async function openSong(s){cur=s;await loadList();await render();clearInterval(timer);timer=setInterval(()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")render()},4000)}
 async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);return}

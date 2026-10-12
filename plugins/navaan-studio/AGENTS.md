@@ -11,7 +11,7 @@ NAVAAN is a music channel. This plugin runs the path from idea to published song
 
 ## End to end
 
-`python scripts/navaan.py start <slug> <idea>` runs the whole pipeline: lyrics, Suno, visuals, captions, video, YouTube, archive. It pauses at each human gate and continues when you approve. In the web UI the Run end to end button does the same. In chat, the pipeline and new-song commands loop on `navaan.py next` and stop at every gate.
+`python scripts/navaan.py start <slug> <idea>` runs the whole pipeline: lyrics, Suno, visuals, captions, video, YouTube, archive. It pauses at each human gate and continues when you approve. In the web UI the Run end to end button does the same. Song already made on Suno? `python scripts/navaan.py import <suno-link> [slug]` pulls title, lyrics, style, audio and cover from Suno (no credits spent) and continues from the listen gate. In chat, the pipeline and new-song commands loop on `navaan.py next` and stop at every gate.
 
 ## First run
 
