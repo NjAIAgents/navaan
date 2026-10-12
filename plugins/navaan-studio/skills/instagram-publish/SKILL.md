@@ -16,7 +16,7 @@ Official route: the Instagram Graph API content publishing flow in `scripts/publ
 
 ## Every reel
 
-1. Write `songs/<slug>/instagram.txt`: one hook line, the language, credits, five to eight hashtags including #NAVAAN. Reels are 9:16 and up to 90 seconds, so use `final_reel_cap.mp4`.
+1. Write `songs/<slug>/instagram.txt`: one hook line, the language, a short line about the song, five to eight hashtags including #NAVAAN. Do not add an AI or tool credit line, Instagram does not require one. Reels are 9:16 and up to 90 seconds, so use `short.mp4` (the Short downloaded from YouTube Studio) when it exists, otherwise `final_reel_sync.mp4`.
 2. Dry run: `python scripts/publish_instagram.py publish <slug> --video-url <https url> --caption-file instagram.txt`. Show the plan to the user.
 3. After the gate and the explicit yes: add `--yes`. The script creates the container, polls its status, publishes, and records the permalink in `meta.json`.
 4. Delete the temporary public object and the pre-authenticated link afterwards.
