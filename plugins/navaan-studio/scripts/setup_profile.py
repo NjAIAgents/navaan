@@ -46,10 +46,11 @@ Q = [
  ("suno.credit_policy", "Suno credit policy", "ask means confirm before every Create.", "choice", "ask", ["ask", "auto_within_budget"], False),
  ("visual.palette", "Visual palette", "Example: warm amber, deep indigo, soft gold.", "text", "", None, False),
  ("visual.motifs", "Recurring motifs", "Optional recurring hints, comma separated. Each song still picks its own main image from its lyrics.", "list", [], None, False),
- ("visual.scene_count", "Flow clips per song", "Number of scenes to generate. One short clip is enough when it loops.", "int", 1, None, False),
+ ("visual.mode", "Video style", "story = a music video with characters, places and a shot for each part of the lyrics (needs many Flow credits). loop = one or two abstract clips that repeat (cheap).", "choice", "story", ["story", "loop"], False),
+ ("visual.scene_count", "Flow clips per song (loop mode)", "Number of scenes to generate in loop mode. One short clip is enough when it loops. Story mode plans its own shots.", "int", 1, None, False),
  ("visual.look", "Visual look", "Example: modern, minimal, cinematic, neon, soft film. The clip matches the lyrics in this look.", "text", "modern, cinematic", None, False),
  ("visual.flow_model", "Flow video model", "lite is cheapest (10 credits per clip), fast costs 20, quality costs 100. Checked against Flow before each run.", "choice", "lite", ["lite", "fast", "quality"], False),
- ("visual.flow_credit_budget", "Flow credits to spend per song", "Hard cap for one song. 10 buys one short Lite clip that the video loops.", "int", 10, None, False),
+ ("visual.flow_credit_budget", "Flow credits to spend per song", "Hard cap for one song. 10 buys one short Lite clip for a loop. A story video of a 3 minute song needs roughly 300 to 400 Lite credits, less when chorus shots are reused.", "int", 10, None, False),
  ("captions.enabled", "Burn lyric captions into videos", "Off by default. Timing needs a one time 700 MB download and the render is slow.", "bool", False, None, False),
  ("captions.font_path", "Caption font file (optional)", "Leave empty to auto detect a Devanagari capable font.", "text", "", None, False),
  ("publish.youtube_handle", "YouTube channel handle or URL", "Example: @navaan. Used for links, never for login.", "text", "", None, False),
@@ -151,6 +152,7 @@ Generated from navaan.config.json. Edit the config (run setup_profile.py --edit)
 - Words and topics to avoid: {j('music.avoid')}
 - Visual palette: {g('visual.palette')}
 - Motifs: {j('visual.motifs')}
+- Video style: {g('visual.mode')}
 - Credit text: {g('publish.credit_text')}
 """
 

@@ -1,11 +1,15 @@
 ---
 name: flow-visuals
-description: Create cover art and a short, modern visual loop for a NAVAAN song in Google Flow that matches the lyrics, within a credit budget. Use after the song is accepted.
+description: Create cover art and the visuals for a NAVAAN song in Google Flow. Default is a story music video (characters, places, nature, a shot for each part of the lyrics); a short loop is the budget option. Use after the song is accepted.
 ---
 
 # Cover art and Flow clips
 
 Videos are built only from Flow clips. Do not use the default Suno cover unless the user asks.
+
+Two modes, set by `visual.mode` in the profile:
+- `story` (default): a music video. A short film told in shots that follow the lyrics: people, places, nature, time of day, all consistent. Read "The story video" below.
+- `loop`: one or two short abstract clips that the builder boomerangs to fill the song. Read "The loop look" below. Use it only when `visual.mode` is `loop` or the budget cannot pay for a story.
 
 ## What Flow TV is, and what it is not
 
@@ -13,9 +17,9 @@ Flow TV is Google's free viewing channel of clips made with Veo. You cannot gene
 
 ## Budget first
 
-1. Read `navaan.config.json`: `visual.look` (default modern, cinematic), `visual.palette`, `visual.motifs`, `visual.flow_model` (lite, fast or quality), `visual.flow_credit_budget` (default 10), `visual.scene_count` (default 1), plus things to avoid. Run artist-setup if the file is missing.
+1. Read `navaan.config.json`: `visual.mode` (default story), `visual.look`, `visual.palette`, `visual.motifs`, `visual.flow_model` (lite, fast or quality), `visual.flow_credit_budget`, `visual.scene_count` (loop mode only), plus things to avoid. Run artist-setup if the file is missing.
 2. Open Flow, pick the model and read the credit cost Flow shows on the Generate button. Do not trust a remembered number: prices change. As of late 2026, public sources list Veo 3.1 Lite at 10 credits for a 4, 6 or 8 second clip, Fast at 20 and Quality at 100 (about half on Ultra plans). Pass these as a hint only.
-3. Work out how many generations fit: `floor(budget / cost shown)`. If that is zero, stop and tell the user the budget is too low for the chosen model, with the cost you saw. Never go over the budget. Each regenerate also counts.
+3. Work out how many generations fit: `floor(budget / cost shown)`. In story mode the plan also needs the character reference images and a few regenerates, so count them. If that is zero, stop and tell the user the budget is too low for the chosen model, with the cost you saw. Never go over the budget. Each regenerate also counts.
 4. Tell the user the plan in chat: model, cost per clip, number of clips, total credits. The credits gate and an explicit yes in chat are both needed before you press Generate.
 
 ## One tab, never a new one
@@ -37,9 +41,9 @@ Flow uses whichever Google account the browser is signed in with by default. Bef
 4. When the balance covers the plan, delete `needs_you.txt`, tell the user which account you are now using, and continue. The credits gate and the budget still apply to the new account.
 5. If 15 minutes pass with no change, leave `needs_you.txt` in place, record the situation in `meta.json` history and stop. The orchestrator will not retry while the file exists.
 
-## The look
+## The loop look (visual.mode loop)
 
-The user's brief is a very modern clip that aligns with the lyrics. Both parts are required, with or without a profile. If `visual.look` is missing, the default look is modern and contemporary, never traditional.
+The loop brief is a very modern clip that aligns with the lyrics. Both parts are required, with or without a profile. If `visual.look` is missing, the default look is modern and contemporary, never traditional.
 
 Modern means: current urban or minimal settings and abstract light, such as a rooftop or empty street at night with soft bokeh, glass and reflections, minimal architecture, a long exposure light trail, macro texture, flowing liquid light or smoke, a clean studio with one practical light, a train window at dusk. Treat these as a vocabulary only, and pick what the lyrics call for. Do not use traditional or folk props (diya, clay pots, marigold, temple, incense, rangoli) unless the profile's `visual.look` says so. A palette from the profile or the song's mood still applies.
 
@@ -51,9 +55,58 @@ Old scene files: if `songs/<slug>/scenes/` already holds briefs from an earlier 
    - Profile `visual.motifs` are optional recurring hints, not a checklist. Use at most one, and only if the lyrics support it. The look (palette, camera, light) is what stays consistent across songs, not the subject.
    - Keep it modern: a specific place or object, a slow camera move, shallow depth of field, a controlled palette, soft light, no text, no faces unless the profile allows it.
 2. Write the prompt in plain language: subject, motion, camera, light, palette, mood, and what to avoid. Before generating, show the user the subject and the lyric line behind it in chat, and name the motifs you avoided because other songs used them. Save the prompt in `scenes/prompt.txt`. If several clips fit the budget, write one prompt per clip with one consistent look and save each.
-3. Prefer a seamless loop: ask for a gentle repeating motion that starts and ends in a similar state. The video builder also boomerangs each clip (plays it forward then backward) and cross fades, so even one 8 second clip fills a whole song.
+3. Loop mode only: prefer a seamless loop: ask for a gentle repeating motion that starts and ends in a similar state. The video builder also boomerangs each clip (plays it forward then backward) and cross fades, so even one 8 second clip fills a whole song.
 
-## Generate
+## The story video (visual.mode story)
+
+Direct it like a short film, not a montage of nice pictures. The audience should be able to follow what happens between the people, feel it build through the song, and remember the last image.
+
+### 1. Read the song as a director
+
+Read `lyrics.txt`, `title.txt`, `style.txt` and `brief.md`. Work out the song's sections (intro, verses, chorus, bridge, instrumental, outro) from the lyric markers and the audio length (`ffprobe` on `final.mp3`). If `caption_cues.json` exists use its line times, otherwise estimate each section's start from its share of the lyric lines and say that the timing is an estimate. Note the language and culture of the song (Hindi, Maithili, other) and let it ground the world: a Maithili song belongs in Mithila (courtyards, village lanes, ponds, local architecture, local clothing), a Hindi romantic ballad in real Indian places such as a hill station, a city street, a train, a rooftop, a garden. Avoid generic Bollywood imagery.
+
+### 2. Write the treatment: `scenes/treatment.md`
+
+- One line story: who, what changes, how it ends.
+- Emotional arc by section: what the audience should feel in the intro, each verse, the chorus, the climax, the last image.
+- Characters: name each lead (usually two, or one) and fix their look in words you will paste into every prompt: age, face and skin tone, hair, build, signature clothing for each part of the timeline. Few characters, always the same. No crowd scenes unless the lyrics need them.
+- Locations and time of day: a short list taken from the lyrics and the story (a village lane at dawn, a garden in golden light, a mountain road, a city at night, a rooftop at sunset, a river, birds crossing a sky). Move through them with the song, for example sunrise in the intro and sunset in the final chorus. Show nature and weather where the lyrics call for it.
+- Motifs: three to five concrete things that come back (a scarf, a bicycle, a letter, a phone, a bridge) so the video has threads. Quote the lyric line behind each key image. Avoid the clichés the old rule lists (candle, flame, moon, rain on a window, hands) unless the lyrics are literally about them.
+- Look: premium Indian indie film, photorealistic live action, natural light, shallow depth of field, subtle film grain, a controlled palette from `visual.palette` or the song's mood. A profile `visual.look` overrides this.
+- Channel variety: read other songs' `scenes/treatment.md` and `meta.json` and pick a different story, setting and characters for this song.
+
+### 3. Write the shot list: `scenes/shots.json`
+
+One entry per shot, in song order: `{"id": "c01_door", "at": 0.0, "lyric": "the line it illustrates", "section": "intro", "location": "...", "characters": ["name"], "action": "...", "camera": "...", "light": "...", "prompt": "..."}`.
+
+- Pace to the music. The intro establishes the world with a wide or a landscape. Verses reveal the characters and their situation with medium shots and small intimate moments. The chorus is more open and more emotional: bigger places, movement, the best light. Instrumental breaks carry story or landscape (birds, a road, the city, the sky changing). The strongest image goes to the last chorus or climax. End on one memorable final image.
+- Shot length: each Flow clip is 4, 6 or 8 seconds and a shot plays at most as long as its clip. Plan about 4 to 7 seconds per shot, so a 3 minute song needs roughly 30 shots. Slow ballads can use longer shots, fast songs shorter. `at` is the shot's start as a fraction of the song (0 to 1) and the next shot's `at` ends it.
+- Reuse to save credits: choruses repeat, so plan one set of chorus shots and reuse the same clips in later choruses with a different `at`. Visual rhyme between choruses is good filmmaking. Keep fresh shots for verses, the bridge and the ending.
+- Prompt formula for every shot (Google's own guidance: be specific, not vague): subject and character description, action, composition and shot size, camera movement, environment, lighting and time of day, mood. Describe what happens, not a label. "Two people share a quiet glance, look away, then smile when they think the other isn't watching" beats "romantic scene". "Slow tracking shot behind her as she walks a village lane at dawn, mist, warm rim light, shallow depth of field" beats "cinematic". Paste the fixed character description into each prompt.
+- Always add: no text, no captions, no logos, no watermark, no lip-sync, natural restrained expressions, believable anatomy. Do not ask the video model to render lyrics as text, captions are added in editing.
+- Keep faces off extreme close ups for long takes. Prefer medium and wide shots, silhouettes, backs of heads, hands on objects and over the shoulder frames for most shots, and use a few close ups where the emotion needs them. These stay consistent and avoid the uncanny look.
+
+### 4. Cost the plan, then ask
+
+Count: shots to generate (after reuse), character reference images, and a spare 10 to 15 percent for failed shots. Multiply by the credit cost Flow shows. Write the plan in `scenes/plan.md`: model, number of fresh clips, reused shots, total credits, budget. Write all three files (`treatment.md`, `shots.json`, `plan.md`) before you spend anything, so the user can read them, and tell the user the one line story and the plan in chat. The credits gate approval authorizes spending up to `visual.flow_credit_budget` and no more.
+
+- If it fits `visual.flow_credit_budget`, go to the credits gate.
+- If it does not fit, shrink it in this order: reuse more chorus shots, merge neighbouring shots into longer takes, drop spare shots. Re-cost. Do not drop below one shot per section.
+- If it still does not fit, write `needs_you.txt`: `A story video for this song needs about N credits, the budget is B. Raise visual.flow_credit_budget (python3 scripts/setup_profile.py --edit), or set visual.mode to loop.` and stop. Never fall back to a loop silently and never go over the budget.
+
+### 5. Character references first
+
+After the credits gate is approved and the user said yes, make one still image per lead character in Flow (and, if the story needs it, one for the main location), in the chosen look and a neutral light. Save them in `songs/<slug>/refs/` as `name.png`. Check them yourself: the face, age and clothing must match the treatment. Regenerate a reference only within the budget. Use these references as ingredients or frames for every shot that shows the character, so the same person appears throughout, and keep wardrobe changes only where the timeline calls for them.
+
+### 6. Generate the shots
+
+1. Generate shot by shot in song order. Name clips `c01_<word>.mp4`, `c02_<word>.mp4` (zero padded) in `songs/<slug>/clips/`.
+2. After the first two shots, stop and check them yourself against the references: same face, same clothes, no warped hands, no text, right mood. If they drift, fix the prompt wording or the reference use before spending more.
+3. Record each clip's credits in `meta.json` and keep a running total. Stop at the budget.
+4. Save `songs/<slug>/story.json`: `{"story": true, "scenes": [{"clip": "c01_door.mp4", "at": 0.0, "pan": [0.3, 0.5]}, ...]}` in song order, repeating a clip's file name where a shot is reused. Story clips play forward once and are not boomeranged. For the vertical reel, set `pan` per shot to the part of the frame the subject is in (0 left, 1 right).
+5. Show the user a few frames or short previews (small files only). If a shot is poor, offer one regenerate only if the budget covers it, and ask first.
+
+## Generate (loop mode)
 
 1. Generate only after the credits gate is approved and the user said yes in chat. Name the results `c1_<word>.mp4`, `c2_<word>.mp4` in `songs/<slug>/clips/`.
 2. Record in `meta.json`: model, credits spent per clip, total spent and remaining budget. Show the clip to the user.
@@ -61,6 +114,6 @@ Old scene files: if `songs/<slug>/scenes/` already holds briefs from an earlier 
 
 ## Cover art
 
-Take one strong frame from the best clip (`cover_flow.jpg`), then make `cover_1x1.png`, `cover_16x9.png` and `thumb_16x9.jpg`. Keep the song title large and legible in the native script. Show previews to the user.
+Take one strong frame from the best clip (in story mode, a frame with the lead character, `cover_flow.jpg`), then make `cover_1x1.png`, `cover_16x9.png` and `thumb_16x9.jpg`. Keep the song title large and legible in the native script. Show previews to the user.
 
 Large files fail the sandbox bridge above about 1.5 MB, so do all file work on the user's computer and only send small previews to chat.

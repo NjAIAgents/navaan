@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """clipvideo.py <slug> [16x9|reel]
 
-Build a video only from the song's Flow clips (songs/<slug>/clips/*.mp4), boomerang looped and cross faded.
+Build a video only from the song's Flow clips (songs/<slug>/clips/*.mp4), cross faded.
+Loop mode (default): each clip is boomeranged (forward then backward) so one short clip can fill its time.
+Story mode (story.json has "story": true): clips play forward only, like shots in a music video, one after another by lyric timing.
 Audio comes from songs/<slug>/final.mp3.
   16x9 -> songs/<slug>/final_16x9.mp4   (whole song)
   reel -> songs/<slug>/final_reel_sync.mp4   (9:16, audio window from reel_start.json {"start": s, "dur": d}, default 30 and 60)
 
-Optional songs/<slug>/story.json: {"scenes": [{"clip": "c1_scene.mp4", "at": 0.0, "pan": [0.3, 0.5]}, ...]}
-  at = fraction of the song where the scene starts (full video only), pan = horizontal crop sweep for the reel.
-Without it, clips are used in name order, evenly spaced.
+Optional songs/<slug>/story.json: {"story": true, "scenes": [{"clip": "c01_door.mp4", "at": 0.0, "pan": [0.3, 0.5], "loop": false}, ...]}
+  at = fraction of the song where the scene starts, pan = horizontal crop sweep for the reel, loop = boomerang this clip (default true, false in story mode).
+  A clip may appear in several scenes (a chorus shot reused in a later chorus). In story mode the reel keeps the same shots that fall inside its audio window.
+Without story.json, clips are used in name order, evenly spaced.
 """
 import os, sys, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,12 +20,12 @@ from navaan_common import tool, song_dir, duration, run, load_json
 XF, FPS = 1.5, 24
 
 
-def boom(D, mode, f, pan, cache):
+def boom(D, mode, f, pan, cache, loop=True):
     W, H = (1920, 1080) if mode == "16x9" else (1080, 1920)
-    out = f"{cache}/boom_{mode}_{f}"
+    out = f"{cache}/{'boom' if loop else 'fwd'}_{mode}_{f}"
     if os.path.exists(out):
         return out
-    pre = "split[f][r];[r]reverse[rv];[f][rv]concat=n=2:v=1,setpts=PTS*1.25"
+    pre = "split[f][r];[r]reverse[rv];[f][rv]concat=n=2:v=1,setpts=PTS*1.25" if loop else "setpts=PTS"
     if mode == "16x9":
         fc = f"[0:v]fps={FPS},{pre},scale={W}:{H}:flags=lanczos,unsharp=5:5:0.6,setsar=1[o]"
     else:
@@ -37,13 +40,15 @@ def boom(D, mode, f, pan, cache):
 
 
 def scenes(D):
-    story = load_json(f"{D}/story.json", default={}).get("scenes")
-    if story:
-        return [(s["clip"], float(s.get("at", i / len(story))), tuple(s.get("pan", (0.3, 0.5)))) for i, s in enumerate(story)]
+    """Returns (clip, at, pan, loop, story). at is a fraction of the song."""
+    sj = load_json(f"{D}/story.json", default={})
+    story, items = bool(sj.get("story")), sj.get("scenes")
+    if items:
+        return [(x["clip"], float(x.get("at", i / len(items))), tuple(x.get("pan", (0.3, 0.5))), bool(x.get("loop", not story)), story) for i, x in enumerate(items)]
     clips = sorted(f for f in os.listdir(f"{D}/clips") if f.lower().endswith(".mp4"))
     if not clips:
         sys.exit(f"navaan: no clips in {D}/clips")
-    return [(c, i / len(clips), (0.3, 0.5)) for i, c in enumerate(clips)]
+    return [(c, i / len(clips), (0.3, 0.5), True, False) for i, c in enumerate(clips)]
 
 
 def main(slug, mode):
@@ -56,15 +61,29 @@ def main(slug, mode):
     else:
         a0, total = 0.0, song
     sc = scenes(D)
-    if mode == "reel":
-        spans = [(f, k * total / len(sc), (k + 1) * total / len(sc), p) for k, (f, _, p) in enumerate(sc)]
+    story = sc[0][4]
+    if mode == "reel" and story:
+        # keep the shots that fall inside the audio window, cut at the window edges (skip = how far into the clip the window starts)
+        starts = [fr * song for _, fr, *_ in sc] + [song]
+        spans = []
+        for i, (f, _, p, lp, _) in enumerate(sc):
+            lo, hi = max(starts[i], a0), min(starts[i + 1], a0 + total)
+            if hi - lo > 0.4:
+                spans.append((f, lo - a0, hi - a0, p, lp, max(0.0, a0 - starts[i])))
+    elif mode == "reel":
+        spans = [(f, k * total / len(sc), (k + 1) * total / len(sc), p, lp, 0.0) for k, (f, _, p, lp, _) in enumerate(sc)]
     else:
-        spans = [(f, fr * total, (sc[i + 1][1] if i + 1 < len(sc) else 1.0) * total, p) for i, (f, fr, p) in enumerate(sc)]
+        spans = [(f, fr * total, (sc[i + 1][1] if i + 1 < len(sc) else 1.0) * total, p, lp, 0.0) for i, (f, fr, p, lp, _) in enumerate(sc)]
+    if not spans:
+        sys.exit("navaan: no scene falls inside the audio window")
     cache = f"{D}/.cache"; os.makedirs(cache, exist_ok=True)
     inputs, fc, last = [], [], None
-    for i, (f, a, b, p) in enumerate(spans):
+    for i, (f, a, b, p, lp, skip) in enumerate(spans):
         L = (b - a) + (XF if i + 1 < len(spans) else 0)
-        inputs += ["-stream_loop", "-1", "-t", f"{L:.2f}", "-i", boom(D, mode, f, p, cache)]
+        src = boom(D, mode, f, p, cache, lp)
+        if not lp and duration(src) < (b - a) + skip - 0.3:
+            print(f"warning: {f} is {duration(src):.1f}s but its shot needs {(b - a) + skip:.1f}s, so it repeats. Plan shots no longer than the clip.", flush=True)
+        inputs += ["-stream_loop", "-1", *(["-ss", f"{skip:.2f}"] if skip else []), "-t", f"{L:.2f}", "-i", src]
         if i == 0:
             last = "[0:v]"
         else:
@@ -78,7 +97,7 @@ def main(slug, mode):
     run([tool("ffmpeg"), "-y", "-v", "error", *inputs, "-filter_complex", ";".join(fc), "-map", "[v]", "-map", "[a]",
          "-t", f"{total:.2f}", "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out])
-    print("wrote", out, [(f, round(a), round(b)) for f, a, b, _ in spans], flush=True)
+    print("wrote", out, [(f, round(a), round(b)) for f, a, b, *_ in spans], flush=True)
 
 
 if __name__ == "__main__":

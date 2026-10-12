@@ -7,7 +7,7 @@ description: Build the full 16:9 video and the vertical reel from Flow clips and
 
 Run on the user's computer, where ffmpeg lives. The scripts find ffmpeg on PATH, with `/opt/homebrew/bin` as a fallback. Run them from the project folder or set `NAVAAN_ROOT`.
 
-1. Optional `songs/<slug>/story.json` fixes the scene order and pan: `{"scenes": [{"clip": "c1_scene.mp4", "at": 0.0, "pan": [0.3, 0.5]}]}`. Without it the clips are used in name order, evenly spaced.
+1. Optional `songs/<slug>/story.json` fixes the scene order, timing and pan: `{"story": true, "scenes": [{"clip": "c01_door.mp4", "at": 0.0, "pan": [0.3, 0.5]}]}`. `at` is the shot start as a fraction of the song. With `"story": true` clips play forward once (a music video), a clip may appear in several scenes, and the reel keeps the shots that fall inside its audio window. Without `story`, clips are boomeranged and spread evenly. Without the file, clips are used in name order.
 2. Choose the reel window with the caption-aligner (strongest 54 to 60 seconds, usually chorus and rap) and save `reel_start.json` as `{"start": 52.0, "dur": 54.5}`. The default is start 30 and 60 seconds, or the profile's Short length.
 3. `python scripts/clipvideo.py <slug> 16x9` writes `final_16x9.mp4`. `python scripts/clipvideo.py <slug> reel` writes `final_reel_sync.mp4` with the audio window cut from `final.mp3`.
 4. Captions come from the caption-sync skill, then `python scripts/caption_clips.py <slug> 16x9` and `... reel` write `final_16x9_cap.mp4` and `final_reel_cap.mp4`. Only `_cap` files are uploaded.
