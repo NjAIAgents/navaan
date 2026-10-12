@@ -1,6 +1,6 @@
 {
   "slug": "song-003",
-  "state": "generated",
+  "state": "accepted",
   "lyrics_loops": 0,
   "style_loops": 0,
   "suno_url": "https://suno.com/song/a5d98935-ef34-4c38-abdd-5e68c5487892",
@@ -10,7 +10,8 @@
     "2026-10-12T03:31:21Z step suno_import attempt 2 did not finish",
     "2026-10-12T03:31:59Z step suno_import attempt 3 did not finish",
     "2026-10-12T03:43:05Z imported from Suno: final.mp3 328.0s",
-    "2026-10-12T03:43:15Z step suno_import done (attempt 1)"
+    "2026-10-12T03:43:15Z step suno_import done (attempt 1)",
+    "2026-10-12T03:49:11Z gate listen approved via ui"
   ],
   "published": {
     "youtube": "",
@@ -23,5 +24,11 @@
     "duration": 328.0,
     "imported_at": "2026-10-12T03:43:05Z"
   },
-  "sung_lyrics": "lyrics.txt"
+  "sung_lyrics": "lyrics.txt",
+  "approvals": {
+    "listen": {
+      "at": "2026-10-12T03:49:11Z",
+      "via": "ui"
+    }
+  }
 }
