@@ -39,6 +39,7 @@ If the song was already generated on Suno, use the suno-import skill instead of 
 | captions | caption-sync | caption-aligner | none |
 | video | video-build, shorts, tagging | visual-director | after: media (user approves the videos) |
 | publish_youtube | youtube-publish | publisher | before: publish_youtube |
+| youtube_short | youtube-short | publisher | before: publish_short |
 | archive | upload_cloud.py | publisher | before: cloud_upload |
 | publish_instagram | instagram-publish | publisher | before: publish_instagram |
 | later | analytics-loop | analyst | none |

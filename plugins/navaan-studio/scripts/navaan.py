@@ -14,8 +14,8 @@
   navaan.py revoke <slug> <gate>
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
-Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, publish_youtube, archive, publish_instagram.
-Gates (human only): lyrics, listen, credits, captions_setup, media, publish_youtube, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
+Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, publish_youtube, youtube_short, archive, publish_instagram.
+Gates (human only): lyrics, listen, credits, captions_setup, media, publish_youtube, publish_short, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
 NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts steps run the tools in this folder.
@@ -72,6 +72,8 @@ def steps(slug, D):
         dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
              cmds=[sc("publish_youtube.py", "upload", slug, "--file", FULL, "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
+        dict(id="youtube_short", outputs=[], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
+             done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4")),
         dict(id="archive", outputs=[], redo=False, label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
              cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at"))),
         dict(id="publish_instagram", outputs=[], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
@@ -159,10 +161,10 @@ def run(slug, step=None, dry=False, retries=2):
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
-        rf = "final_reel_cap.mp4" if cfg("captions.enabled", False) else "final_reel_sync.mp4"
-        if not os.path.exists(os.path.join(D, rf)): print(f"Instagram needs a vertical reel and {rf} does not exist. Set video.make_reel to true in the profile and redo the video step, or make the reel another way."); return 4
+        rf = "short.mp4" if os.path.exists(os.path.join(D, "short.mp4")) else ("final_reel_cap.mp4" if cfg("captions.enabled", False) else "final_reel_sync.mp4")
+        if not os.path.exists(os.path.join(D, rf)): print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
         cap = os.path.join(D, "publish"); os.makedirs(cap, exist_ok=True)
-        s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, "final_reel_cap.mp4" if cfg("captions.enabled", False) else "final_reel_sync.mp4"))}) && '
+        s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, rf))}) && '
                       f'{shlex.quote(PY)} {shlex.quote(os.path.join(HERE, "publish_instagram.py"))} publish {shlex.quote(slug)} --video-url "$U" --caption-file instagram.txt --yes']]
     cmds = [claude_cmd(slug, s)] if s["kind"] == "claude" else s["cmds"]
     if dry:
