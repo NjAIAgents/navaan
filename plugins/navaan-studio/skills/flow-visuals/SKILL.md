@@ -1,15 +1,16 @@
 ---
 name: flow-visuals
-description: Create cover art and the visuals for a NAVAAN song in Google Flow. Default is a story music video (characters, places, nature, a shot for each part of the lyrics); a short loop is the budget option. Use after the song is accepted.
+description: Create cover art and the visuals for a NAVAAN song in Google Flow within a small credit budget (20 by default). Default is a living scene, a moving wallpaper that shows the song's person, place and nature; an abstract loop and a full story video are the other modes. Use after the song is accepted.
 ---
 
 # Cover art and Flow clips
 
 Videos are built only from Flow clips. Do not use the default Suno cover unless the user asks.
 
-Two modes, set by `visual.mode` in the profile:
-- `story` (default): a music video. A short film told in shots that follow the lyrics: people, places, nature, time of day, all consistent. Read "The story video" below.
-- `loop`: one or two short abstract clips that the builder boomerangs to fill the song. Read "The loop look" below. Use it only when `visual.mode` is `loop` or the budget cannot pay for a story.
+Three modes, set by `visual.mode` in the profile. The credit cap `visual.flow_credit_budget` (20 by default) holds in every mode and is never exceeded.
+- `scene` (default): a living scene, a moving wallpaper. One or two short clips that show what the song is about: a person, a place, nature, a time of day, in slow ambient motion. It is not a plot and it does not follow the song's length shot by shot. The builder loops it to fill the song. Read "The living scene" below.
+- `loop`: one or two short abstract clips (light, texture, reflections), looped. Read "The loop look" below.
+- `story` (opt in only): a full music video, a shot for each part of the lyrics. It needs hundreds of credits, so use it only when the profile sets `visual.mode` to `story` and a budget that pays for it. Read "The story video" below.
 
 ## What Flow TV is, and what it is not
 
@@ -17,7 +18,7 @@ Flow TV is Google's free viewing channel of clips made with Veo. You cannot gene
 
 ## Budget first
 
-1. Read `navaan.config.json`: `visual.mode` (default story), `visual.look`, `visual.palette`, `visual.motifs`, `visual.flow_model` (lite, fast or quality), `visual.flow_credit_budget`, `visual.scene_count` (loop mode only), plus things to avoid. Run artist-setup if the file is missing.
+1. Read `navaan.config.json`: `visual.mode` (default scene), `visual.look`, `visual.palette`, `visual.motifs`, `visual.flow_model` (lite, fast or quality), `visual.flow_credit_budget`, `visual.scene_count` (scene and loop modes), plus things to avoid. Run artist-setup if the file is missing.
 2. Open Flow, pick the model and read the credit cost Flow shows on the Generate button. Do not trust a remembered number: prices change. As of late 2026, public sources list Veo 3.1 Lite at 10 credits for a 4, 6 or 8 second clip, Fast at 20 and Quality at 100 (about half on Ultra plans). Pass these as a hint only.
 3. Work out how many generations fit: `floor(budget / cost shown)`. In story mode the plan also needs the character reference images and a few regenerates, so count them. If that is zero, stop and tell the user the budget is too low for the chosen model, with the cost you saw. Never go over the budget. Each regenerate also counts.
 4. Tell the user the plan in chat: model, cost per clip, number of clips, total credits. The credits gate and an explicit yes in chat are both needed before you press Generate.
@@ -41,6 +42,29 @@ Flow uses whichever Google account the browser is signed in with by default. Bef
 4. When the balance covers the plan, delete `needs_you.txt`, tell the user which account you are now using, and continue. The credits gate and the budget still apply to the new account.
 5. If 15 minutes pass with no change, leave `needs_you.txt` in place, record the situation in `meta.json` history and stop. The orchestrator will not retry while the file exists.
 
+## The living scene (visual.mode scene)
+
+The goal: a moving wallpaper that a viewer reads as this song in two seconds, made with one or two clips. Think of a cinematic still that breathes: wind in a scarf, birds crossing a sunset, mist lifting off a lake, leaves moving over a quiet figure. The full video is the song playing over this scene, so the scene sets the feeling and the lyrics carry the story.
+
+Budget rules (they come first):
+- Count `floor(visual.flow_credit_budget / credit cost shown on the Generate button)`. At Lite (10 credits) and a budget of 20 that is two clips, and no spare for a regenerate or for reference images. At Fast (20) it is one clip. Do not make reference images, extra angles or test clips: every generation counts.
+- Plan the exact number of clips before you open the Generate button, write it in `scenes/plan.md` (model, cost per clip, clips, total, budget) and tell the user. Never go over the budget.
+- Use clip 1 for the hero scene. If budget remains, clip 2 is the same place and person in a changed moment (golden hour to dusk, wide to closer, eyes open to looking away), with the same wording for the person and place so they match. The builder cross fades from clip 1 to clip 2 at the start of the second half or at the first chorus (`at`).
+
+How to design the scene from the lyrics:
+1. Read `lyrics.txt`, `title.txt`, `style.txt` and `brief.md`. Pick the one moment that carries the song and quote the lyric line behind it in `scenes/prompt.txt`.
+2. Choose the elements, each from the lyrics or the song's feeling:
+   - Person (optional): one figure, seen from behind, in profile, in silhouette or at a medium distance, in a still or slow pose (standing at a railing, sitting on steps, holding a scarf, looking at the horizon). Describe age, hair and clothing exactly. Keep faces away from close ups to avoid the uncanny look.
+   - Place: a specific real feeling place that fits the song's language and culture (a Mithila courtyard or village lane for a Maithili song, a hill station, a river ghat, a rooftop over a city, a garden, a mountain road, a train window). Not a generic backdrop.
+   - Nature in motion: birds, sunrise or sunset light, clouds, mist, water, leaves, grass, dust in light.
+   - Time of day and palette: from the mood and `visual.palette`.
+3. Motion must survive a loop that plays forward then backward. Use gentle ambient motion (swaying, drifting, flowing, flickering, a slow camera push or drift). Avoid actions that look wrong in reverse: walking, driving, pouring, speaking, anything with text or a countdown.
+4. Prompt formula: subject and appearance, pose, place, nature in motion, camera movement (slow, one direction), light and time of day, palette, mood. One consistent look. End with the avoid list: no text, no captions, no logos, no watermark, no lip-sync, no cuts, no fast motion, no crowds, natural anatomy.
+5. Keep the channel varied. Read other songs' `scenes/` folders and `meta.json` and list the person, place and nature already used. Choose a different combination. Clichés (candle, flame, moon, rain on a window, hands) only if the lyrics are literally about them. Profile `visual.motifs` are optional hints, use at most one.
+6. Before generating, show the user the scene, the lyric line behind it and the plan in chat. Save the prompt or prompts in `scenes/prompt.txt`.
+
+After generation, write `story.json`: `{"scenes": [{"clip": "c1_<word>.mp4", "at": 0.0}, {"clip": "c2_<word>.mp4", "at": 0.5}]}` (one scene if one clip). Do not set `"story": true`, so the builder boomerangs and cross fades the clips. The cover is a frame taken from clip 1, which costs no credits.
+
 ## The loop look (visual.mode loop)
 
 The loop brief is a very modern clip that aligns with the lyrics. Both parts are required, with or without a profile. If `visual.look` is missing, the default look is modern and contemporary, never traditional.
@@ -55,11 +79,11 @@ Old scene files: if `songs/<slug>/scenes/` already holds briefs from an earlier 
    - Profile `visual.motifs` are optional recurring hints, not a checklist. Use at most one, and only if the lyrics support it. The look (palette, camera, light) is what stays consistent across songs, not the subject.
    - Keep it modern: a specific place or object, a slow camera move, shallow depth of field, a controlled palette, soft light, no text, no faces unless the profile allows it.
 2. Write the prompt in plain language: subject, motion, camera, light, palette, mood, and what to avoid. Before generating, show the user the subject and the lyric line behind it in chat, and name the motifs you avoided because other songs used them. Save the prompt in `scenes/prompt.txt`. If several clips fit the budget, write one prompt per clip with one consistent look and save each.
-3. Loop mode only: prefer a seamless loop: ask for a gentle repeating motion that starts and ends in a similar state. The video builder also boomerangs each clip (plays it forward then backward) and cross fades, so even one 8 second clip fills a whole song.
+3. Scene and loop modes: prefer a seamless loop: ask for a gentle repeating motion that starts and ends in a similar state. The video builder also boomerangs each clip (plays it forward then backward) and cross fades, so even one 8 second clip fills a whole song.
 
 ## The story video (visual.mode story)
 
-Direct it like a short film, not a montage of nice pictures. The audience should be able to follow what happens between the people, feel it build through the song, and remember the last image.
+Opt in only, and only with a budget that pays for it. Direct it like a short film, not a montage of nice pictures. The audience should be able to follow what happens between the people, feel it build through the song, and remember the last image.
 
 ### 1. Read the song as a director
 
@@ -106,7 +130,7 @@ After the credits gate is approved and the user said yes, make one still image p
 4. Save `songs/<slug>/story.json`: `{"story": true, "scenes": [{"clip": "c01_door.mp4", "at": 0.0, "pan": [0.3, 0.5]}, ...]}` in song order, repeating a clip's file name where a shot is reused. Story clips play forward once and are not boomeranged. For the vertical reel, set `pan` per shot to the part of the frame the subject is in (0 left, 1 right).
 5. Show the user a few frames or short previews (small files only). If a shot is poor, offer one regenerate only if the budget covers it, and ask first.
 
-## Generate (loop mode)
+## Generate (scene and loop modes)
 
 1. Generate only after the credits gate is approved and the user said yes in chat. Name the results `c1_<word>.mp4`, `c2_<word>.mp4` in `songs/<slug>/clips/`.
 2. Record in `meta.json`: model, credits spent per clip, total spent and remaining budget. Show the clip to the user.
