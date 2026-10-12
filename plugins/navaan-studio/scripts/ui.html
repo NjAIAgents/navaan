@@ -37,7 +37,7 @@ h2{font-size:15px;margin:0 0 8px}.mut{color:var(--mut)}
 const T="__TOKEN__";let cur=null,timer=null;
 const api=(p,b)=>fetch(p,b?{method:"POST",headers:{"Content-Type":"application/json","X-Navaan-Token":T},body:JSON.stringify(b)}:{}).then(r=>r.json());
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const GL={lyrics:"I approve these lyrics",listen:"I listened and accept this song",credits:"I approve spending Suno and Flow credits",captions_setup:"I approve a one time download of the caption tools (about 700 MB from GitHub and PyPI, saved outside the repo)",media:"I reviewed the videos and approve them",publish_youtube:"Publish to YouTube now",publish_short:"Make the Short in YouTube Studio and publish it now",publish_instagram:"Publish to Instagram now",cloud_upload:"Upload this finished song to my cloud bucket"};
+const GL={lyrics:"I approve these lyrics",listen:"I listened and accept this song",credits:"I approve spending Suno and Flow credits",captions_setup:"I approve a one time download of the caption tools (about 700 MB from GitHub and PyPI, saved outside the repo)",media:"I reviewed the videos and approve them",publish_youtube:"Publish to YouTube now",publish_short:"Make the Short in YouTube Studio and publish it now",instagram_caption:"I approve this Instagram caption (edit it in the instagram.txt box below and Save first)",publish_instagram:"Publish to Instagram now",cloud_upload:"Upload this finished song to my cloud bucket"};
 const OPEN={};
 const fmt=n=>n>=60?Math.floor(n/60)+"m "+(n%60)+"s":n+"s";
 function gnode(g,state,d){const a=d.approvals[g];const t=lab(g);

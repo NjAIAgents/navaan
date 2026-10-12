@@ -12,15 +12,16 @@
   navaan.py redo <slug> <step> [--run]  redo a finished step: its files go to _prev/ (nothing deleted), its gates are revoked, then it runs again with --run
   navaan.py approve <slug> <gate>     record a human approval (asks you to type yes)
   navaan.py revoke <slug> <gate>
+  navaan.py caption <slug> [--set TEXT | --file PATH | --feedback TEXT]   show the Instagram caption awaiting approval, replace it, or have the agent rewrite it
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
-Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, publish_youtube, youtube_short, archive, publish_instagram.
-Gates (human only): lyrics, listen, credits, captions_setup, media, publish_youtube, publish_short, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
+Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, publish_youtube, youtube_short, archive, instagram_caption, publish_instagram.
+Gates (human only): lyrics, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
 NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts steps run the tools in this folder.
 """
-import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re
+import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import setup_captions
 from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root
@@ -34,6 +35,15 @@ def files(D, pat): return sorted(glob.glob(os.path.join(D, pat)))
 def has(D, *names): return all(os.path.exists(os.path.join(D, n)) for n in names)
 def yt_done(m): return bool(m.get("published", {}).get("youtube_items"))
 def ig_done(m): return bool(m.get("published", {}).get("instagram"))
+def caption_sha(D):
+    """Hash of instagram.txt. The caption approval is tied to this hash, so any edit after approval needs a new approval."""
+    p = os.path.join(D, "instagram.txt")
+    return hashlib.sha256(open(p, encoding="utf-8").read().strip().encode("utf-8")).hexdigest() if os.path.exists(p) else None
+def gate_ok(D, ap, g, published=False):
+    if published and g == "instagram_caption": return True  # already posted, nothing left to approve
+    a = ap.get(g)
+    if not a: return False
+    return a.get("sha") == caption_sha(D) if g == "instagram_caption" else True
 def fresh(D, outs, src):
     """True when every file in outs exists and is newer than the newest source file, so a new clip makes the videos stale."""
     ss = [os.path.getmtime(p) for pat in src for p in glob.glob(os.path.join(D, pat))]
@@ -76,6 +86,8 @@ def steps(slug, D):
              done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4")),
         dict(id="archive", outputs=[], redo=False, label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
              cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at"))),
+        dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption from the lyrics (you review and can edit it)", kind="claude", skill="instagram-caption", optional=True, after="instagram_caption",
+             done=lambda m: has(D, "instagram.txt")),
         dict(id="publish_instagram", outputs=[], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
              cmds=None, done=lambda m: ig_done(m)),
     ]
@@ -105,10 +117,10 @@ def plan(slug):
         row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
         if d:
-            row["status"] = "waiting for approval" if (ga and not ap.get(ga)) else "done"
-            row["needs_gate"] = ga if (ga and not ap.get(ga)) else None
+            row["status"] = "waiting for approval" if (ga and not gate_ok(D, ap, ga, ig_done(m))) else "done"
+            row["needs_gate"] = ga if (ga and not gate_ok(D, ap, ga, ig_done(m))) else None
         else:
-            row["needs_gate"] = gb if (gb and not ap.get(gb)) else None
+            row["needs_gate"] = gb if (gb and not gate_ok(D, ap, gb, ig_done(m))) else None
             row["status"] = "waiting for approval" if row["needs_gate"] else ("blocked" if (nxt and nxt["type"] == "gate") else "ready")
         rows.append(row)
         if nxt is None:
@@ -152,18 +164,19 @@ def claude_cmd(slug, s):
 def run(slug, step=None, dry=False, retries=2):
     D = song_dir(slug); rows, nxt = plan(slug)
     if nxt["type"] == "done": print("all steps done"); return 0
-    if nxt["type"] == "gate": print(f"waiting for your approval: gate '{nxt['gate']}' (step {nxt['step']}). Run: navaan.py approve {slug} {nxt['gate']}"); return 3
+    if nxt["type"] == "gate": show_gate(slug, nxt["gate"]); print(f"waiting for your approval: gate '{nxt['gate']}' (step {nxt['step']}). Run: navaan.py approve {slug} {nxt['gate']}"); return 3
     sid = step or nxt["step"]; s = next((x for x in steps(slug, D) if x["id"] == sid), None)
     if not s: print(f"no such step: {sid}"); return 2
     bg = s.get("before")
-    if bg and bg not in meta(slug).get("approvals", {}):
-        print(f"waiting for your approval: gate '{bg}' (step {sid}). Run: navaan.py approve {slug} {bg}"); return 3
+    if bg and not gate_ok(D, meta(slug).get("approvals", {}), bg):
+        show_gate(slug, bg); print(f"waiting for your approval: gate '{bg}' (step {sid}). Run: navaan.py approve {slug} {bg}"); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
         cands = (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]  # the tuned reel first, the YouTube Studio clip as fallback
         rf = next((c for c in cands if os.path.exists(os.path.join(D, c))), None)
         if not rf: print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
+        if not gate_ok(D, meta(slug).get("approvals", {}), "instagram_caption"): show_gate(slug, "instagram_caption"); print("The Instagram caption is missing or changed since you approved it. Approve gate 'instagram_caption' again."); return 3
         cap = os.path.join(D, "publish"); os.makedirs(cap, exist_ok=True)
         s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, rf))}) && '
                       f'{shlex.quote(PY)} {shlex.quote(os.path.join(HERE, "publish_instagram.py"))} publish {shlex.quote(slug)} --video-url "$U" --caption-file instagram.txt --yes']]
@@ -293,10 +306,42 @@ def redo_run(slug, sid):
     return 0
 
 
+def show_gate(slug, gate):
+    """Print what the human is about to approve, so approval is never blind."""
+    if gate != "instagram_caption": return
+    p = os.path.join(song_dir(slug), "instagram.txt")
+    if not os.path.exists(p): return
+    print("\n--- Instagram caption for approval ---\n" + open(p, encoding="utf-8").read().strip() + "\n--------------------------------------")
+    print(f"Change it: navaan.py caption {slug} --set \"new text\"  (or --file path, or edit songs/{slug}/instagram.txt, or use the web UI)")
+    print(f"Ask the agent to rewrite: navaan.py caption {slug} --feedback \"what to change\"")
+
+
+def caption_cmd(slug, a):
+    D = song_dir(slug); p = os.path.join(D, "instagram.txt")
+    def opt(n): return a[a.index(n) + 1] if n in a and a.index(n) + 1 < len(a) else None
+    txt = opt("--set") if "--set" in a else (open(os.path.expanduser(opt("--file")), encoding="utf-8").read() if "--file" in a else None)
+    if txt is not None:
+        open(p, "w", encoding="utf-8").write(txt.strip() + "\n")
+        m = meta(slug); m.get("approvals", {}).pop("instagram_caption", None); log_hist(m, "instagram caption edited by user, approval cleared"); save_meta(slug, m)
+        print("caption saved. Approve gate 'instagram_caption' to continue.")
+    elif "--feedback" in a:
+        fb = opt("--feedback") or ""
+        if not fb.strip(): sys.exit("usage: navaan.py caption <slug> --feedback \"what to change\"")
+        if os.path.exists(p): os.replace(p, os.path.join(D, "instagram.prev.txt"))
+        open(os.path.join(D, "caption_feedback.txt"), "w", encoding="utf-8").write(fb.strip() + "\n")
+        m = meta(slug); m.get("approvals", {}).pop("instagram_caption", None); log_hist(m, "instagram caption rewrite requested"); save_meta(slug, m)
+        rc = run(slug, step="instagram_caption")
+        if rc != 0 and os.path.exists(os.path.join(D, "instagram.prev.txt")) and not os.path.exists(p): os.replace(os.path.join(D, "instagram.prev.txt"), p)
+        if rc == 0: os.path.exists(p) and print("new caption written.")
+    if not os.path.exists(p): print("no caption yet. Run the instagram_caption step."); return 1
+    show_gate(slug, "instagram_caption"); return 0
+
+
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
     m = meta(slug); ap = m.setdefault("approvals", {})
-    if on: ap[gate] = {"at": now(), "via": via}
+    if on and gate == "instagram_caption" and not caption_sha(song_dir(slug)): sys.exit("no instagram.txt to approve yet. Run the instagram_caption step first.")
+    if on: ap[gate] = {"at": now(), "via": via, **({"sha": caption_sha(song_dir(slug))} if gate == "instagram_caption" else {})}
     else: ap.pop(gate, None)
     D = song_dir(slug)
     for s in steps(slug, D):
@@ -324,6 +369,9 @@ def main(argv):
     if c == "pipeline":
         def opt(n, d=None): return a[a.index(n) + 1] if n in a else d
         return pipeline(a[0], wait="--wait" in a, poll=int(opt("--poll", 10)), until=opt("--until"), timeout=int(opt("--timeout", 0)) or None)
+    if c == "caption":
+        if not a: sys.exit("usage: navaan.py caption <slug> [--set TEXT | --file PATH | --feedback TEXT]")
+        return caption_cmd(a[0], a[1:])
     if c == "status": status(a[0] if a else None); return 0
     if c == "next":
         _, n = plan(a[0]); print(json.dumps(n)); return 0
