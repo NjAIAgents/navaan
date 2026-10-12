@@ -40,7 +40,7 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const GL={lyrics:"I approve these lyrics",listen:"I listened and accept this song",credits:"I approve spending Suno and Flow credits",media:"I reviewed the videos and approve them",publish_youtube:"Publish to YouTube now",publish_instagram:"Publish to Instagram now",cloud_upload:"Upload this finished song to my cloud bucket"};
 const OPEN={};
 const fmt=n=>n>=60?Math.floor(n/60)+"m "+(n%60)+"s":n+"s";
-function gnode(g,state,d){const a=d.approvals[g];const t=GL[g]||g;
+function gnode(g,state,d){const a=d.approvals[g];const t=lab(g);
 if(a)return `<div class="node gate done"><div class="dot">&#10003;</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="sub">approved ${esc(a.at||"")}</span></div></div></div>`;
 if(state==="waiting")return `<div class="node gate waiting"><div class="dot">!</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="chip waiting">needs you</span></div><div style="margin:4px 0"><button class="p" onclick="gate('${g}')">${esc(t)}</button></div></div></div>`;
 return `<div class="node gate pending"><div class="dot">&#9679;</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="sub">${esc(t)}</span></div></div></div>`}
@@ -66,6 +66,7 @@ h+=`</div></div>`;
 if(r.gate_after&&r.done)h+=gnode(r.gate_after,(nx.type==="gate"&&nx.gate===r.gate_after)?"waiting":"pending",d)}
 return h+`</div></div>`}
 function tog(id,v){OPEN[id]=v;render()}
+let IMP=false;const lab=g=>g==='credits'&&IMP?'I approve spending Flow credits for visuals (the Suno song is already made, nothing more is spent on Suno)':(GL[g]||g);
 async function loadList(){const l=await api("/api/songs");document.getElementById("list").innerHTML=l.map(s=>`<div class="song ${s.slug===cur?"on":""}" onclick="openSong('${s.slug}')">${esc(s.slug)}<small>${esc(s.title||"untitled")} · ${esc(s.state||"")}</small></div>`).join("")||'<p class="mut">No songs yet.</p>'}
 async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return alert(r.error);document.getElementById("iu").value="";await loadList();openSong(r.slug)}
 async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";await loadList();openSong(v)}
@@ -81,7 +82,7 @@ let shown=null;
 function setSec(id,html){const main=document.getElementById("main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){el.innerHTML=html;el.dataset.h=html}}
 async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);shown=null;return}
 if(shown!==cur){document.getElementById("main").innerHTML="";shown=cur}
-fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}`;
+IMP=d.meta.source==="suno_import";fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}`;
 setSec("s_top",`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`+wf(d));
 let md="";const vids=["final_reel_cap.mp4","final_16x9_cap.mp4"].filter(n=>f[n]);if(f["final.mp3"])md+=`<div class="card"><h2>Song</h2><audio controls preload="metadata" src="${m("final.mp3")}" style="width:100%"></audio></div>`;
 if(vids.length)md+=`<div class="card"><h2>Review videos</h2><div class="row">${vids.map(n=>`<div><div class="mut">${n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div></div>`;
@@ -91,7 +92,7 @@ setSec("s_appr",`<div class="card"><h2>Approvals</h2>`+d.gates.map(g=>{const a=d
 let tx="";for(const n of Object.keys(d.text))tx+=`<div class="card"><h2>${esc(n)}</h2><textarea id="t_${n}">${esc(d.text[n])}</textarea><p><button onclick="save('${n}')">Save</button></p></div>`;
 if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")setSec("s_text",tx);
 loadList()}
-async function gate(g){if(!confirm("Approve: "+(GL[g]||g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
+async function gate(g){if(!confirm("Approve: "+lab(g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
 async function revoke(g){await api("/api/revoke",{slug:cur,gate:g});render()}
 async function runIt(all){await api("/api/run",{slug:cur,all:!!all});render()}
 async function save(n){const r=await api("/api/save",{slug:cur,file:n,content:document.getElementById("t_"+n).value});alert(r.error||"saved")}
