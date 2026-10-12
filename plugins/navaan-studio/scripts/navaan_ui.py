@@ -32,7 +32,8 @@ def detail(slug):
     if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
     rn.pop("started", None)
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
-            "gates": C.GATES, "approvals": m.get("approvals", {}), "logs": logs, "run": rn}
+            "gates": C.GATES, "approvals": m.get("approvals", {}), "logs": logs, "run": rn,
+            "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
 
 
 def start_job(slug, all_steps=False):

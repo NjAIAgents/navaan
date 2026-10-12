@@ -161,6 +161,9 @@ def run(slug, step=None, dry=False, retries=2):
             if s.get("sets_after"): m["state"] = s["sets_after"]
             log_hist(m, f"step {sid} done (attempt {attempt})"); save_meta(slug, m); RUN.pop(slug, None); print("done", sid); return 0
         log_hist(m, f"step {sid} attempt {attempt} did not finish"); save_meta(slug, m)
+        if os.path.exists(os.path.join(D, "needs_you.txt")):
+            RUN[slug] = {"step": None, "failed": sid, "log": lp}
+            print(f"step {sid} is waiting for you: {open(os.path.join(D, 'needs_you.txt'), encoding='utf-8').read().strip()}"); return 5
         if attempt <= retries: time.sleep(5 * attempt)
     RUN[slug] = {"step": None, "failed": sid, "log": lp}
     print(f"step {sid} failed after {retries + 1} attempts. See {lp}"); return 1
@@ -191,7 +194,7 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
         STATUS[slug] = f"running {nxt['step']}"; print(f"running {nxt['step']} ...", flush=True)
         rc = run(slug, step=nxt["step"]); steps_run += 1
         if rc != 0:
-            STATUS[slug] = f"step {nxt['step']} failed, see logs"; return rc
+            STATUS[slug] = f"step {nxt['step']} is waiting for you, see the banner" if rc == 5 else f"step {nxt['step']} failed, see logs"; return rc
     print("stopped: too many steps in one run"); return 1
 
 
