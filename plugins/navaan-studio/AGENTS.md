@@ -44,3 +44,8 @@ Reuse the tab the user already has open for a site (Suno, Flow). Never open a se
 ## Redo a finished step
 
 Any finished or failed step except the publish, archive and Instagram steps can be run again. Use the Redo button on the step in the web UI, or `navaan.py redo <slug> <step> [--run]`. The step's current output files are moved to `<song>/_prev/<timestamp>/` and nothing is deleted. Only that step runs. Later steps keep their files and approvals, and the new output replaces the old one. If the rerun fails, the old files are put back. A step that spends credits (visuals) revokes its credits approval and waits for a fresh one. Steps that touch an outside service (YouTube, cloud archive, Instagram) are refused on purpose.
+
+
+## Captions are off by default
+
+Lyric captions over the video are switched off. The pipeline skips the Measure lyric timing step and the caption burn, and the video step only renders `final_16x9.mp4`, `final_reel_sync.mp4` and the tagged mp3. YouTube uploads `final_reel_sync.mp4`. To turn captions back on, set `captions.enabled` to true in the profile (the tools need a one time download and the render is slow).

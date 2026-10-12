@@ -85,7 +85,7 @@ async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.
 if(shown!==cur){document.getElementById("main").innerHTML="";shown=cur}
 IMP=d.meta.source==="suno_import";fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}`;
 setSec("s_top",`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`+wf(d));
-let md="";const vids=["final_reel_cap.mp4","final_16x9_cap.mp4"].filter(n=>f[n]);if(f["final.mp3"])md+=`<div class="card"><h2>Song</h2><audio controls preload="metadata" src="${m("final.mp3")}" style="width:100%"></audio></div>`;
+let md="";const vids=["final_reel_cap.mp4","final_16x9_cap.mp4","final_reel_sync.mp4","final_16x9.mp4"].filter(n=>f[n]);if(f["final.mp3"])md+=`<div class="card"><h2>Song</h2><audio controls preload="metadata" src="${m("final.mp3")}" style="width:100%"></audio></div>`;
 if(vids.length)md+=`<div class="card"><h2>Review videos</h2><div class="row">${vids.map(n=>`<div><div class="mut">${n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div></div>`;
 setSec("s_vol",md?`<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b>Volume</b><input type="range" min="0" max="200" step="1" value="${Math.round(VOL*100)}" oninput="setVol(this.value)" style="flex:1;min-width:140px;width:auto;padding:0"><span id="vl" style="min-width:48px">${Math.round(VOL*100)}%</span><button id="vm" onclick="toggleMute()">${MUTE?"Unmute":"Mute"}</button><span class="sub">above 100% boosts a quiet song</span></div>`:"");
 setSec("s_media",md);applyVol();

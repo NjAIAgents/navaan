@@ -36,3 +36,8 @@ Tested here: profile setup (interactive and from file), orchestrator planning an
 ## Redo a step
 
 Use the Redo button on any finished or failed step in the web UI, or run `navaan.py redo <slug> <step> [--run]`. Only that step runs; later steps are untouched. Old files go to `_prev/` in the song folder and come back if the rerun fails. A credit spending step asks for its credits approval again. Publish, archive and Instagram steps cannot be redone from here.
+
+
+## Captions are off by default
+
+Lyric captions over the video are switched off. The pipeline skips the Measure lyric timing step and the caption burn, and the video step only renders `final_16x9.mp4`, `final_reel_sync.mp4` and the tagged mp3. YouTube uploads `final_reel_sync.mp4`. To turn captions back on, set `captions.enabled` to true in the profile (the tools need a one time download and the render is slow).

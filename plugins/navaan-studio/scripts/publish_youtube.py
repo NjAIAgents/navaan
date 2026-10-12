@@ -76,7 +76,7 @@ def upload(a):
     D = song_dir(a.slug); meta = load_json(os.path.join(D, a.meta) if not os.path.isabs(a.meta) else a.meta)
     f = a.file if os.path.isabs(a.file) else os.path.join(D, a.file)
     if not os.path.exists(f): sys.exit(f"navaan: missing {f}")
-    if "_cap" not in os.path.basename(f) and cfg("captions.enabled", True):
+    if "_cap" not in os.path.basename(f) and cfg("captions.enabled", False):
         print("warning: file name has no _cap, captions may be missing. Check before publishing.")
     body = body_from(meta, a.privacy)
     if a.publish_at:

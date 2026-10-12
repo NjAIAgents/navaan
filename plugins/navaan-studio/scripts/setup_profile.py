@@ -50,7 +50,7 @@ Q = [
  ("visual.look", "Visual look", "Example: modern, minimal, cinematic, neon, soft film. The clip matches the lyrics in this look.", "text", "modern, cinematic", None, False),
  ("visual.flow_model", "Flow video model", "lite is cheapest (10 credits per clip), fast costs 20, quality costs 100. Checked against Flow before each run.", "choice", "lite", ["lite", "fast", "quality"], False),
  ("visual.flow_credit_budget", "Flow credits to spend per song", "Hard cap for one song. 10 buys one short Lite clip that the video loops.", "int", 10, None, False),
- ("captions.enabled", "Burn lyric captions into videos", "Captions are timed from the audio.", "bool", True, None, False),
+ ("captions.enabled", "Burn lyric captions into videos", "Off by default. Timing needs a one time 700 MB download and the render is slow.", "bool", False, None, False),
  ("captions.font_path", "Caption font file (optional)", "Leave empty to auto detect a Devanagari capable font.", "text", "", None, False),
  ("publish.youtube_handle", "YouTube channel handle or URL", "Example: @navaan. Used for links, never for login.", "text", "", None, False),
  ("publish.instagram_handle", "Instagram handle", "Example: @navaan.music. Used for links, never for login.", "text", "", None, False),

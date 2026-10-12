@@ -14,7 +14,7 @@
   navaan.py revoke <slug> <gate>
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
-Steps: lyrics, suno (or suno_import for an imported song), visuals, captions, video, publish_youtube, archive, publish_instagram.
+Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, publish_youtube, archive, publish_instagram.
 Gates (human only): lyrics, listen, credits, captions_setup, media, publish_youtube, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
@@ -49,18 +49,22 @@ def steps(slug, D):
         dict(id="suno", outputs=['final.mp3'], label="Generate the song on Suno", kind="claude", skill="suno-generate", chrome=True, before="credits", state="lyrics_ok",
              done=lambda m: has(D, "final.mp3"), after="listen", sets="accepted"),
     ]
-    return head + [
-        dict(id="visuals", outputs=['clips/*.mp4', 'cover_1x1.png', 'cover_16x9.png', 'cover_flow.jpg', 'thumb_16x9.jpg', 'scenes/*.txt'], label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, before="credits",
-             done=lambda m: len(files(D, "clips/*.mp4")) > 0 and has(D, "cover_1x1.png")),
+    CAP = bool(cfg("captions.enabled", False))  # lyric captions over the video are off unless the profile turns them on
+    cap_steps = [
         dict(id="captions", outputs=['caption_cues.json', 'reel_start.json', '.cache'], label="Measure lyric timing", kind="script", before=(None if setup_captions.ready() else "captions_setup"),
              cmds=([sc("setup_captions.py", "--yes")] if not setup_captions.ready() else []) + [sc("captions_run.py", slug)],
              done=lambda m: has(D, "caption_cues.json", "reel_start.json")),
-        dict(id="video", outputs=['final_16x9*.mp4', 'final_reel*.mp4', 'final_tagged.mp3'], label="Render videos, captions, tags", kind="script", sets_after="media_ready",
-             cmds=[sc("clipvideo.py", slug, "16x9"), sc("clipvideo.py", slug, "reel"), sc("caption_clips.py", slug, "16x9"),
-                   sc("caption_clips.py", slug, "reel"), sc("tag_mp3.py", slug)],
-             done=lambda m: has(D, "final_16x9_cap.mp4", "final_reel_cap.mp4", "final_tagged.mp3"), after="media", sets="approved"),
+    ] if CAP else []
+    REEL = "final_reel_cap.mp4" if CAP else "final_reel_sync.mp4"
+    return head + [
+        dict(id="visuals", outputs=['clips/*.mp4', 'cover_1x1.png', 'cover_16x9.png', 'cover_flow.jpg', 'thumb_16x9.jpg', 'scenes/*.txt'], label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, before="credits",
+             done=lambda m: len(files(D, "clips/*.mp4")) > 0 and has(D, "cover_1x1.png")),
+        *cap_steps,
+        dict(id="video", outputs=['final_16x9*.mp4', 'final_reel*.mp4', 'final_tagged.mp3'], label=("Render videos, captions, tags" if CAP else "Render videos and tags"), kind="script", sets_after="media_ready",
+             cmds=[sc("clipvideo.py", slug, "16x9"), sc("clipvideo.py", slug, "reel")] + ([sc("caption_clips.py", slug, "16x9"), sc("caption_clips.py", slug, "reel")] if CAP else []) + [sc("tag_mp3.py", slug)],
+             done=lambda m: has(D, *(["final_16x9_cap.mp4", "final_reel_cap.mp4"] if CAP else ["final_16x9.mp4", "final_reel_sync.mp4"]), "final_tagged.mp3"), after="media", sets="approved"),
         dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
-             cmds=[sc("publish_youtube.py", "upload", slug, "--file", "final_reel_cap.mp4", "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
+             cmds=[sc("publish_youtube.py", "upload", slug, "--file", REEL, "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
         dict(id="archive", outputs=[], redo=False, label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
              cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at"))),
@@ -150,7 +154,7 @@ def run(slug, step=None, dry=False, retries=2):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
         cap = os.path.join(D, "publish"); os.makedirs(cap, exist_ok=True)
-        s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, "final_reel_cap.mp4"))}) && '
+        s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, "final_reel_cap.mp4" if cfg("captions.enabled", False) else "final_reel_sync.mp4"))}) && '
                       f'{shlex.quote(PY)} {shlex.quote(os.path.join(HERE, "publish_instagram.py"))} publish {shlex.quote(slug)} --video-url "$U" --caption-file instagram.txt --yes']]
     cmds = [claude_cmd(slug, s)] if s["kind"] == "claude" else s["cmds"]
     if dry:
