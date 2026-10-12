@@ -35,3 +35,7 @@ lyricist, suno-operator, visual-director, caption-aligner, publisher, analyst. I
 Storage: the profile asks for a local folder and a cloud location and verifies both. Songs are created and exported in the local folder (`storage.local_dir`), which must be outside the plugin folder and outside the repository that ships it. The folder where you started your workspace is a good choice. A finished song is archived to the cloud bucket (OCI, S3 or GCS) only after the cloud_upload gate is approved: `python scripts/upload_cloud.py <slug>`.
 
 Layout: `<workspace>/navaan.config.json`, `<workspace>/style-notes.md` (generated), `<local_dir>/songs/<slug>/`. The plugin scripts are called by path from the plugin folder.
+
+## Browser tab rule
+
+Reuse the tab the user already has open for a site (Suno, Flow). Never open a second tab for the same site to continue work, and never navigate back to the site's home address, because the account chosen in that tab is part of its address and a fresh tab can fall back to the default account. Read the tab list first, keep the current address, reload in place.

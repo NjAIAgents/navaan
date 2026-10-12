@@ -18,13 +18,22 @@ Flow TV is Google's free viewing channel of clips made with Veo. You cannot gene
 3. Work out how many generations fit: `floor(budget / cost shown)`. If that is zero, stop and tell the user the budget is too low for the chosen model, with the cost you saw. Never go over the budget. Each regenerate also counts.
 4. Tell the user the plan in chat: model, cost per clip, number of clips, total credits. The credits gate and an explicit yes in chat are both needed before you press Generate.
 
+## One tab, never a new one
+
+The account is tied to the browser tab and its address. Opening a fresh Flow tab or going back to the Flow home address can land on the default account again and undo the user's switch.
+
+1. At the start, list the open tabs. If a Flow tab is already open, use that tab. Open a new tab only when there is no Flow tab at all, and then only once.
+2. Do not navigate that tab to a new address. Reload it in place, and for any link you must follow, keep the exact address the tab has now, including any account index such as `/u/1/` or `authuser=1`, and any project path.
+3. After the user switches account, read the account and balance from the same tab. Never close it and never replace it.
+4. Remember the tab's address in `songs/<slug>/flow_tab.txt` (address only, no cookies or tokens) so a retried run can find the same account.
+
 ## Account and credits check
 
 Flow uses whichever Google account the browser is signed in with by default. Before any generation:
 
 1. Read the credit balance shown in Flow and the account it belongs to (name or email shown in the account menu). Tell the user in chat which account is active.
 2. If the balance is below the cost of one clip, or below what the plan needs, do not generate and do not sign in or out yourself. Write `songs/<slug>/needs_you.txt` with one plain sentence, for example: `Flow account <email> has 4 credits, a Lite clip needs 10. Switch the Google account in Flow (account menu, top right) to one with credits.` The web UI shows this file as a banner. Say the same in chat.
-3. Wait. Reload the Flow page every 30 seconds and re-read the balance and account, for up to 15 minutes. Passwords, 2 step prompts and CAPTCHAs are the user's job.
+3. Wait. Every 30 seconds reload the same tab in place (no new tab, no new address) and re-read the balance and account, for up to 15 minutes. If the user switched accounts, the tab now shows the new one: keep working in it. Passwords, 2 step prompts and CAPTCHAs are the user's job.
 4. When the balance covers the plan, delete `needs_you.txt`, tell the user which account you are now using, and continue. The credits gate and the budget still apply to the new account.
 5. If 15 minutes pass with no change, leave `needs_you.txt` in place, record the situation in `meta.json` history and stop. The orchestrator will not retry while the file exists.
 

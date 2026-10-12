@@ -16,7 +16,7 @@ A short share link is resolved to the song id when Suno allows it. If `meta.json
 
 ## Collect from Suno (browser, user's own logged in account)
 
-Open the song page in a new tab. Stop at any login or CAPTCHA and ask the user. Work at a human pace and only read and download. Do not press Create, Remix, Extend or anything that spends credits.
+Open the song page in a tab. If a Suno tab is already open, reuse it: do not open a second one or go back to the Suno home address, because the signed in account is tied to that tab. Stop at any login or CAPTCHA and ask the user. Work at a human pace and only read and download. Do not press Create, Remix, Extend or anything that spends credits.
 
 Collect, in a scratch folder outside the song folder:
 
