@@ -27,7 +27,7 @@ lyricist, suno-operator, visual-director, caption-aligner, publisher, analyst. I
 
 ## Safety rules
 
-- Gates (lyrics, listen, credits, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload) are approved only by the user, through the web UI or `navaan.py approve`. Agents never write approvals.
+- Gates (lyrics, listen, credits, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload, local_cleanup, go_public) are approved only by the user, through the web UI or `navaan.py approve`. Agents never write approvals.
 - Publishing, deleting public content, spending Suno or Flow credits, and sending messages each also need an explicit yes in chat.
 - Publish scripts dry run by default and need `--yes` plus the recorded gate.
 - Never store passwords, cookies, tokens or API keys in the project. Credentials live in the user's environment or `~/.config/navaan/`.

@@ -40,6 +40,7 @@ If the song was already generated on Suno, use the suno-import skill instead of 
 | video | video-build, shorts, tagging | visual-director | after: media (user approves the videos) |
 | publish_youtube | youtube-publish | publisher | before: publish_youtube |
 | youtube_short | youtube-short | publisher | before: publish_short |
+| go_public | none (script) | publisher | before: go_public. Full video and Short to public, then Instagram |
 | archive | upload_cloud.py | publisher | before: cloud_upload |
 | instagram_caption | instagram-caption | publisher | after: instagram_caption (caption printed for approval; edits clear the approval) |
 | publish_instagram | instagram-publish | publisher | before: publish_instagram |

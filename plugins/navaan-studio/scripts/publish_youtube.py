@@ -6,6 +6,7 @@
   update <slug> <videoId> [--meta youtube.json] [--thumbnail thumb_16x9.jpg] [--yes]   fix metadata of an uploaded video
   thumb <slug> <videoId> [--file thumb_16x9.jpg]   set the thumbnail alone (channel needs phone verification at youtube.com/verify)
   privacy <slug> <videoId> <private|unlisted|public> --yes
+  go-public <slug> --yes   last publishing step: full video and Short to public (needs the go_public gate)
   stats <videoId> [<videoId> ...]
 
 Safety: a real send needs --yes AND a human approval gate (navaan.py approve <slug> publish_youtube). Without --yes nothing is sent, the script only prints what it would do. Default privacy is private,
@@ -175,6 +176,30 @@ def privacy(a):
     print("done")
 
 
+def go_public(a):
+    """Last publishing step: set every YouTube video of the song (the full video and the Short) to public and record it in meta.json."""
+    mp = os.path.join(song_dir(a.slug), "meta.json"); m = load_json(mp, default={}); pub = m.get("published", {})
+    items = [("full video", i) for i in pub.get("youtube_items", [])] + ([("Short", pub["youtube_short"])] if pub.get("youtube_short", {}).get("id") else [])
+    if not items: sys.exit("navaan: nothing is uploaded to YouTube yet")
+    yt = service()
+    live = {v["id"]: v["status"]["privacyStatus"] for v in yt.videos().list(part="status", id=",".join(i["id"] for _, i in items)).execute().get("items", [])}
+    for _, i in items:
+        if i["id"] in live: i["privacy"] = live[i["id"]]  # trust YouTube over meta.json
+    todo = [(n, i) for n, i in items if i.get("privacy") != "public"]
+    for n, i in items: print(f"{n} {i['id']}: " + (f"{i.get('privacy', '?')} -> public" if (n, i) in todo else "already public"))
+    def save(note):
+        m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} {note}")
+        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    if not todo: save("youtube public check: all already public"); print("nothing to change"); return
+    if not a.yes: print("\nDRY RUN. Nothing changed. Re-run with --yes after you approve the go_public gate."); return
+    require_approval(a.slug, "go_public")
+    for n, i in todo:
+        yt.videos().update(part="status", body={"id": i["id"], "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": bool(cfg("publish.made_for_kids", False)),
+                                                                          "containsSyntheticMedia": bool(cfg("publish.ai_disclosure", True))}}).execute()
+        i["privacy"] = "public"; print(f"{n} {i['id']} is public")
+    save("youtube public " + ",".join(i["id"] for _, i in todo))
+
+
 def stats(a):
     yt = service()
     r = yt.videos().list(part="statistics,snippet,status", id=",".join(a.video_ids)).execute()
@@ -188,6 +213,7 @@ if __name__ == "__main__":
     u.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"]); u.add_argument("--thumbnail"); u.add_argument("--playlist"); u.add_argument("--publish-at", help="RFC 3339 time such as 2026-10-20T15:00:00Z, schedules a private upload"); u.add_argument("--yes", action="store_true"); u.set_defaults(fn=upload)
     up = sp.add_parser("update"); up.add_argument("slug"); up.add_argument("video_id"); up.add_argument("--meta", default="youtube.json"); up.add_argument("--thumbnail"); up.add_argument("--playlist"); up.add_argument("--yes", action="store_true"); up.set_defaults(fn=update)
     th = sp.add_parser("thumb"); th.add_argument("slug"); th.add_argument("video_id"); th.add_argument("--file"); th.set_defaults(fn=thumb)
+    gp = sp.add_parser("go-public"); gp.add_argument("slug"); gp.add_argument("--yes", action="store_true"); gp.set_defaults(fn=go_public)
     p = sp.add_parser("privacy"); p.add_argument("slug"); p.add_argument("video_id"); p.add_argument("status", choices=["private", "unlisted", "public"]); p.add_argument("--yes", action="store_true"); p.set_defaults(fn=privacy)
     s = sp.add_parser("stats"); s.add_argument("video_ids", nargs="+"); s.set_defaults(fn=stats)
     a = ap.parse_args(); a.fn(a)

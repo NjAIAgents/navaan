@@ -121,7 +121,7 @@ def cfg(key, default=None):
     return d
 
 
-GATES = ("lyrics", "suno_download", "listen", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup")
+GATES = ("lyrics", "suno_download", "listen", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public")
 
 
 def meta_path(slug):

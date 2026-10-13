@@ -24,6 +24,7 @@ def main(argv):
     if not m.get("cloud", {}).get("uploaded_at"): print("This song is not archived yet. Run the archive step first."); return 4
     pub = m.get("published", {})
     if not pub.get("youtube_items"): print("The song is not on YouTube yet. Clean up only after publishing."); return 4
+    if any(i.get("privacy") != "public" for i in pub.get("youtube_items", [])): print("The YouTube video is not public yet. Run the go_public step first."); return 4
     if cfg("publish.instagram_handle") and not pub.get("instagram"): print("Instagram is set up but the Reel is not posted yet. Clean up after it is."); return 4
     try:
         dest, ns, local, remote, missing, mism = storage.compare(prov, cfg("storage.cloud_bucket"), cfg("storage.cloud_prefix", ""), cfg("storage.cloud_region", ""), D, slug)

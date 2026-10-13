@@ -17,8 +17,8 @@
   navaan.py answer <slug> [--choice ID] [--text TEXT]   answer it (the web UI shows the same question as a card)
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
-Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, youtube_meta, publish_youtube, youtube_short, instagram_caption, publish_instagram, archive (uploads the whole song and records the bucket URLs in meta.json), cleanup (last: deletes the local media after the bucket is checked).
-Gates (human only): lyrics, suno_download, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload, local_cleanup. Approvals live in <local_dir>/songs/<slug>/meta.json.
+Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, youtube_meta, publish_youtube (private), youtube_short (private), instagram_caption, go_public (video and Short public), publish_instagram, archive (uploads the whole song and records the bucket URLs in meta.json), cleanup (last: deletes the local media after the bucket is checked).
+Gates (human only): lyrics, suno_download, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload, local_cleanup, go_public. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
 NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts steps run the tools in this folder.
@@ -36,6 +36,9 @@ now = lambda: datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H
 def files(D, pat): return sorted(glob.glob(os.path.join(D, pat)))
 def has(D, *names): return all(os.path.exists(os.path.join(D, n)) for n in names)
 def yt_done(m): return bool(m.get("published", {}).get("youtube_items"))
+def public_done(m):
+    p = m.get("published", {}); its = list(p.get("youtube_items", [])) + ([p["youtube_short"]] if p.get("youtube_short", {}).get("id") else [])
+    return bool(its) and all(i.get("privacy") == "public" for i in its)
 def ig_done(m): return bool(m.get("published", {}).get("instagram"))
 def caption_sha(D):
     """Hash of instagram.txt. The caption approval is tied to this hash, so any edit after approval needs a new approval."""
@@ -88,6 +91,8 @@ def steps(slug, D):
              done=lambda m: yt_done(m), sets_after="published"),
         dict(id="youtube_short", outputs=[], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
              done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4")),
+        dict(id="go_public", outputs=[], redo=False, label="Make the YouTube video and Short public", kind="script", before="go_public",
+             cmds=[sc("publish_youtube.py", "go-public", slug, "--yes")], done=lambda m: public_done(m)),
         dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption from the lyrics (you review and can edit it)", kind="claude", skill="instagram-caption", optional=True, after="instagram_caption",
              done=lambda m: has(D, "instagram.txt")),
         dict(id="publish_instagram", outputs=[], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
@@ -267,6 +272,7 @@ def _run(slug, step=None, dry=False, retries=2):
     bg = s.get("before")
     if bg and not gate_ok(D, meta(slug).get("approvals", {}), bg):
         show_gate(slug, bg); print(f"waiting for your approval: gate '{bg}' (step {sid}). Run: navaan.py approve {slug} {bg}"); return 3
+    if s["id"] == "publish_instagram" and not public_done(meta(slug)): print("Publish to YouTube first: the Reel links to the public full video. Approve gate 'go_public' and run that step."); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
