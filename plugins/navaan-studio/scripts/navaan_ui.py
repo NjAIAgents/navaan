@@ -4,7 +4,7 @@ import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
-import visuals_cfg as V, shots_prep, publish_schedule as PS, besttime
+import visuals_cfg as V, shots_prep, publish_schedule as PS, besttime, analytics_auto
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
@@ -141,6 +141,7 @@ class H(BaseHTTPRequestHandler):
                 q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
                 if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
                 return self._send(200, analytics_api.yt_overview(acc, (q.get("days") or ["30"])[0]))
+            if p == "/api/analytics/auto": return self._send(200, analytics_auto.settings())
             if p == "/api/besttime":
                 from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); lab = (q.get("type") or ["music"])[0]
@@ -220,6 +221,11 @@ class H(BaseHTTPRequestHandler):
                 if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 try: return self._send(200, {"ok": True, "schedule": PS.set_schedule(slug, str(body.get("instagram_at") or ""), body.get("youtube_at") or None)})
                 except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/auto":
+                try: return self._send(200, analytics_auto.set_settings(body.get("enabled"), body.get("every_days", 7), body.get("hour", 9), body.get("ask")))
+                except (ValueError, TypeError) as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/auto/run":
+                return self._send(200, {"started": True}) if analytics_auto.run_async() else self._send(409, {"error": "a refresh is already running"})
             if p == "/api/schedule/clear":
                 if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 PS.clear(slug); return self._send(200, {"ok": True})
@@ -329,6 +335,7 @@ def _fire(slug, sid):
 
 
 def serve(port=8765):
+    threading.Thread(target=analytics_auto.loop, daemon=True).start()  # refreshes the analytics on the schedule set on the Analytics page
     threading.Thread(target=PS.loop, args=(_fire, lambda s: JOBS.get(s, {}).get("running")), daemon=True).start()  # publishes what you scheduled, once its gates are approved
     srv = ThreadingHTTPServer(("127.0.0.1", port), H)
     print(f"NAVAAN Studio UI: http://127.0.0.1:{port}  (project {C.find_root()})  Ctrl+C to stop", flush=True)
