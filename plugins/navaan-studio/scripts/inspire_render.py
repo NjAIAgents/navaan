@@ -179,7 +179,16 @@ def render_ffmpeg(D, T, out):
 # ---------- remotion engine ----------
 def render_remotion(D, T, out):
     rd = remotion_dir()
-    cmd = ["npx", "--no-install", "remotion", "render", "src/index.ts", "Quote", out, f"--props={os.path.join(D, 'timing.json')}", f"--public-dir={D}",
+    comp, props = "Quote", os.path.join(D, "timing.json")
+    if T.get("narration"):  # a voiced quote: one line at a time, in step with the narration, then the end card
+        br = T.get("brand") or {}
+        np_ = {"width": W, "height": H, "fps": T.get("fps", 30), "duration": T["duration"], "bg": T["background"], "bg_is_image": True, "audio": T.get("voiceover"),
+               "cues": [{"text": l["text"], "start": l["start"], "end": l["end"]} for l in T["lines"]], "title": "", "hook": "",
+               "handle": ({"text": br["text"], "icon": br.get("icon", "instagram"), "start": br["start"]} if br else None),
+               "style": T.get("style") or {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.4}, "mode": "reel",
+               "acts": [{"kind": "calm", "from": 0, "to": T["duration"]}], "textY": 0.36}
+        props = os.path.join(D, "narration_props.json"); json.dump(np_, open(props, "w", encoding="utf-8"), ensure_ascii=False, indent=2); comp = "Lyrics"
+    cmd = ["npx", "--no-install", "remotion", "render", "src/index.ts", comp, out, f"--props={props}", f"--public-dir={D}",
            "--codec=h264", "--crf=18", "--pixel-format=yuv420p", "--log=error", "--overwrite"]
     chrome = os.environ.get("NAVAAN_CHROME") or next((c for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium") if os.path.exists(c)), "")
     if chrome: cmd += [f"--browser-executable={chrome}", "--chrome-mode=chrome-for-testing"]  # the downloaded headless shell can crash on some Macs, a normal Chrome is steadier

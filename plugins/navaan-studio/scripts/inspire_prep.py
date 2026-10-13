@@ -29,6 +29,20 @@ def opt(D, key, default=""):
     return default
 
 
+def parse_srt(path):
+    """Cues from a Suno narration subtitle file: [{text, start, end}] in seconds."""
+    def sec(x):
+        h, m, r = x.strip().replace(",", ".").split(":"); return int(h) * 3600 + int(m) * 60 + float(r)
+    out = []
+    for blk in re.split(r"\n\s*\n", open(path, encoding="utf-8").read().strip()):
+        ln = [l for l in blk.strip().split("\n") if l.strip()]
+        i = next((k for k, l in enumerate(ln) if "-->" in l), None)
+        if i is None or i + 1 >= len(ln): continue
+        a, b = ln[i].split("-->")
+        out.append({"text": " ".join(x.strip() for x in ln[i + 1:]), "start": sec(a), "end": sec(b)})
+    return out
+
+
 def split_lines(text, lang="", max_chars=None):
     """Break the quote into display lines. Short lines read better on a phone, and each line is one beat of the animation."""
     words = text.split()
@@ -194,20 +208,29 @@ def main(slug):
     voice = next((p for p in sorted(glob.glob(os.path.join(D, "voiceover.*"))) if os.path.splitext(p)[1].lower() in (".mp3", ".wav", ".m4a", ".aac")), None)
     if opt(D, "voiceover", "none").lower() == "file" and not voice:
         sys.exit("navaan: brief says voiceover: file but voiceover.mp3 is not in the folder. Add it, or set voiceover: none.")
+    srt = os.path.join(D, "voiceover.srt")
+    narr = bool(voice and os.path.exists(srt))  # a Suno narration with its timed subtitles: the text follows the voice exactly, one line at a time
     brand = brand_name(slug)  # the account name is shown on its own end card for the last seconds
     brand_tail = 3.4 if brand else 0.0
     intro, tail_hold = 1.0, 2.2 + (1.6 if author else 0.0) + brand_tail
-    if voice:
+    if narr:
+        ncues = parse_srt(srt)
+        if not ncues: sys.exit("navaan: voiceover.srt has no cues")
+        vd = probe_dur(voice); body_end = max(vd, ncues[-1]["end"])
+        dur = round(min(60.0, body_end + (brand_tail if brand else 2.4)), 2)  # the picture holds for the end card after the last word
+        body = body_end; span = dur
+    elif voice:
         vd = probe_dur(voice); body = max(3.0, vd); dur = min(MAX_S, max(MIN_S, intro + body + tail_hold))
     else:
         want = opt(D, "duration", "")
         body = sum(1.1 + 0.42 * w for w in words)
         dur = float(want) if want.replace(".", "", 1).isdigit() else intro + body + tail_hold
         dur = min(MAX_S, max(MIN_S, dur))
-    span = dur - intro - tail_hold  # time the lines have between them
+    if not narr: span = dur - intro - tail_hold  # time the lines have between them
     tot_w = sum(words) or 1
     # music first, so the lines can follow its beats
     mfile = os.path.join(D, "music.mp3"); src, how = music_source(D, dur)
+    if narr and opt(D, "music", "auto").lower() == "auto": src, how = None, "none"  # the narration already carries its own music
     if how == "none": mfile = None
     elif src: fit_music(src, mfile, dur)
     else: make_pad(mfile, dur, opt(D, "bed", "piano").lower())
@@ -221,6 +244,12 @@ def main(slug):
     # the whole quote stays on screen: each line appears, then all lines fade out together at hold_end
     hold_end = round(dur - brand_tail - (1.2 if author else 0.8), 2)
     out_lines = [{"text": l, "start": round(s, 2), "end": hold_end} for l, s in zip(lines, starts)]
+    if narr:
+        out_lines = [{"text": c["text"], "start": round(max(0.0, c["start"] - 0.1), 2), "end": round(c["end"] if i < len(ncues) - 1 else body_end, 2)} for i, c in enumerate(ncues)]
+        hold_end = round(body_end, 2)
+        vo = os.path.join(D, "narration.mp3")  # a plain mp3 so every renderer can play it
+        C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-i", voice, "-vn", "-ac", "2", "-ar", "44100", "-af", "loudnorm=I=-16:TP=-1.5:LRA=9", "-c:a", "libmp3lame", "-b:a", "192k", vo])
+        voice = vo
     h = int(hashlib.sha1(slug.encode()).hexdigest(), 16)
     presets = ["push_in", "pan_left", "pull_out", "pan_right", "drift"]
     cam = opt(D, "camera", presets[h % len(presets)]).lower()
@@ -233,7 +262,7 @@ def main(slug):
         "lines": out_lines, "hold_until": hold_end,
         "brand": ({"text": brand, "icon": "instagram", "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),
-        "camera": cam, "transition": tr, "language": q.get("language", ""),
+        "camera": cam, "transition": tr, "language": q.get("language", ""), "narration": narr,
         "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
         "watermark": watermark(slug),
         "music_source": how, "beat_source": bkind, "beats": bts[:80],

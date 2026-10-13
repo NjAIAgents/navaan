@@ -2,7 +2,7 @@ import React from 'react';
 import {AbsoluteFill, Audio, Easing, OffthreadVideo, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 
 export type Cue = {text: string; start: number; end: number};
-export type Act = {kind: 'ache' | 'confess' | 'hope'; from: number; to: number};
+export type Act = {kind: 'ache' | 'confess' | 'hope' | 'calm'; from: number; to: number};
 export type LyricsProps = {
   width: number;
   height: number;
@@ -18,6 +18,7 @@ export type LyricsProps = {
   style: {color: string; accent: string; dim: number};
   mode?: 'reel' | 'cover';
   acts?: Act[];
+  textY?: number;
 };
 
 export const lyricsDefaults: LyricsProps = {
@@ -52,6 +53,7 @@ const GRADE: Record<Act['kind'], {a: [number, number, number]; b: [number, numbe
   ache: {a: [0.82, 0.78, 1.0], b: [0.80, 0.74, 1.02]},
   confess: {a: [1.0, 1.18, 1.1], b: [1.04, 1.22, 1.12]},
   hope: {a: [0.95, 1.0, 1.04], b: [1.22, 1.15, 1.0]},
+  calm: {a: [1.04, 1.0, 1.03], b: [1.24, 1.06, 1.02]},
 };
 const clamp01 = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
@@ -121,7 +123,7 @@ export const Lyrics: React.FC<LyricsProps> = (p) => {
             const finalScale = isLast ? interpolate(t, [c.start, c.end], [1, 1.07], clamp01) : 1;
             const words = c.text.split(' ');
             return (
-              <div key={i} style={{position: 'absolute', left: 0, width, top: Math.round(height * 0.5 - 230), height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: out * (rap ? 1 : k), transform: rap ? undefined : `translateY(${(1 - k) * 30}px) scale(${finalScale})`}}>
+              <div key={i} style={{position: 'absolute', left: 0, width, top: Math.round(height * (p.textY ?? 0.5) - 230), height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: out * (rap ? 1 : k), transform: rap ? undefined : `translateY(${(1 - k) * 30}px) scale(${finalScale})`}}>
                 <div style={{fontFamily: FONT, fontSize: size, lineHeight: 1.3, textAlign: 'center', color: p.style.color, textShadow: shadow, maxWidth: width - 150, fontWeight: dev(c.text) ? 600 : rap ? 700 : 400, textWrap: 'balance' as const, letterSpacing: rap ? 0.5 : 0}}>
                   {rap
                     ? words.map((w, wi) => {
@@ -135,9 +137,9 @@ export const Lyrics: React.FC<LyricsProps> = (p) => {
             );
           })}
           {p.handle ? (
-            <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', opacity: fadeIn(p.handle.start, 0.9), transform: `translateY(${(1 - fadeIn(p.handle.start, 0.9)) * 30}px)`}}>
+            <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', opacity: fadeIn(p.handle.start, 0.9), transform: `translateY(${(1 - fadeIn(p.handle.start, 0.9)) * 30 + (p.textY !== undefined ? (p.textY - 0.5) * height : 0)}px)`}}>
               <div style={{width: 90 * fadeIn(p.handle.start, 0.9), height: 4, background: p.style.accent, borderRadius: 2, marginBottom: 40}} />
-              <div style={{fontFamily: FONT, fontSize: 76, color: p.style.color, textShadow: shadow, marginBottom: 44, fontWeight: dev(p.title) ? 600 : 400}}>{p.title}</div>
+              {p.title ? <div style={{fontFamily: FONT, fontSize: 76, color: p.style.color, textShadow: shadow, marginBottom: 44, fontWeight: dev(p.title) ? 600 : 400}}>{p.title}</div> : null}
               <HandleRow text={p.handle.text} size={50} color={p.style.color} />
             </AbsoluteFill>
           ) : null}
