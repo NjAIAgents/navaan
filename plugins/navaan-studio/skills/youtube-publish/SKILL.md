@@ -13,12 +13,13 @@ One time, done by the user, never by an agent: enable YouTube Data API v3 in Goo
 
 Every upload:
 
-1. Prepare a metadata JSON in the song folder (`tags.json` or a per language file) with `title`, `description`, `tags`, `language`, and optional `playlist`. Use the profile for credit text, hashtags, playlists and the AI disclosure. Shorts keep `#Shorts` in the title.
+1. The `youtube_meta` step writes `youtube.json` (skill youtube-meta). Pass it with `--meta youtube.json`; the pipeline does. A metadata JSON in the song folder (a per language file also works) with `title`, `description`, `tags`, `language`, and optional `playlist`. Use the profile for credit text, hashtags, playlists and the AI disclosure. Shorts keep `#Shorts` in the title.
 2. Dry run, which sends nothing: `python scripts/publish_youtube.py upload <slug> --file final_reel_cap.mp4 --meta tags.json`. Show the printed payload to the user.
 3. Get the user's explicit yes for this exact file, title and privacy, and make sure the gate is approved (`python scripts/navaan.py approve <slug> publish_youtube`, done by the user).
 4. Send it: add `--yes`. Default privacy is private so the user can check the upload first. Add `--privacy public`, or `--privacy private --publish-at 2026-10-20T15:00:00Z` to schedule.
 5. The script sets the altered or synthetic content flag from the profile (`containsSyntheticMedia`), marks made for kids from the profile, adds the thumbnail and playlist when given, and records the URL in `meta.json`.
-6. To change privacy later: `python scripts/publish_youtube.py privacy <slug> <videoId> public --yes`. Same rules.
+6. To fix title, description, tags or thumbnail of an uploaded video: `python scripts/publish_youtube.py update <slug> <videoId> --meta youtube.json --thumbnail thumb_16x9.jpg` (dry run first, `--yes` after the user approves).
+7. To change privacy later: `python scripts/publish_youtube.py privacy <slug> <videoId> public --yes`. Same rules.
 
 Quota and review rules for API projects change. Check the YouTube Data API quota page and the API Services audit requirements before relying on bulk uploads. If YouTube restricts uploads from an unaudited project, tell the user and use the Studio fallback.
 

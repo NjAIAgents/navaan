@@ -17,7 +17,7 @@
   navaan.py answer <slug> [--choice ID] [--text TEXT]   answer it (the web UI shows the same question as a card)
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
-Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, publish_youtube, youtube_short, archive, instagram_caption, publish_instagram.
+Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, youtube_meta, publish_youtube, youtube_short, archive, instagram_caption, publish_instagram.
 Gates (human only): lyrics, suno_download, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
@@ -81,8 +81,10 @@ def steps(slug, D):
         dict(id="video", outputs=['final_16x9*.mp4', 'final_reel*.mp4', 'final_tagged.mp3'], label=("Render videos, captions, tags" if CAP else ("Render videos and tags" if REELS else "Render the video and tags")), kind="script", sets_after="media_ready",
              cmds=[sc("clipvideo.py", slug, "16x9")] + ([sc("clipvideo.py", slug, "reel")] if REELS else []) + ([sc("caption_clips.py", slug, "16x9")] + ([sc("caption_clips.py", slug, "reel")] if REELS else []) if CAP else []) + [sc("tag_mp3.py", slug)],
              done=lambda m: fresh(D, [FULL] + ([REEL] if REELS else []) + ["final_tagged.mp3"], ["clips/*.mp4"]), after="media", sets="approved"),
+        dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube title, description and tags from the lyrics", kind="claude", skill="youtube-meta",
+             done=lambda m: has(D, "youtube.json") or yt_done(m)),
         dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
-             cmds=[sc("publish_youtube.py", "upload", slug, "--file", FULL, "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
+             cmds=[sc("publish_youtube.py", "upload", slug, "--file", FULL, "--meta", "youtube.json", *(["--thumbnail", "thumb_16x9.jpg"] if has(D, "thumb_16x9.jpg") else []), "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
         dict(id="youtube_short", outputs=[], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
              done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4")),

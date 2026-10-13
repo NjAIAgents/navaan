@@ -3,6 +3,7 @@
 
   upload <slug> --file final_reel_cap.mp4 [--meta tags.json] [--privacy private|unlisted|public]
          [--thumbnail thumb_16x9.jpg] [--playlist "Name"] [--yes]
+  update <slug> <videoId> [--meta youtube.json] [--thumbnail thumb_16x9.jpg] [--yes]   fix metadata of an uploaded video
   privacy <slug> <videoId> <private|unlisted|public> --yes
   stats <videoId> [<videoId> ...]
 
@@ -113,6 +114,31 @@ def upload(a):
         json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 
 
+def update(a):
+    """Fix the metadata of a video that is already uploaded: title, description, tags, language, thumbnail, playlist. Privacy and the file are untouched."""
+    D = song_dir(a.slug); meta = load_json(os.path.join(D, a.meta) if not os.path.isabs(a.meta) else a.meta)
+    sn = body_from(meta, "private")["snippet"]
+    print(json.dumps({"video": a.video_id, "snippet": sn, "thumbnail": a.thumbnail, "playlist": a.playlist or meta.get("playlist")}, ensure_ascii=False, indent=2))
+    if not a.yes:
+        print("\nDRY RUN. Nothing sent. Re-run with --yes after the user approves this exact change."); return
+    from googleapiclient.http import MediaFileUpload
+    yt = service()
+    yt.videos().update(part="snippet", body={"id": a.video_id, "snippet": sn}).execute()
+    if a.thumbnail:
+        tp = a.thumbnail if os.path.isabs(a.thumbnail) else os.path.join(D, a.thumbnail)
+        yt.thumbnails().set(videoId=a.video_id, media_body=MediaFileUpload(tp)).execute()
+    pl = a.playlist or meta.get("playlist")
+    if pl:
+        pid = find_playlist(yt, pl)
+        if pid: yt.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": a.video_id}}}).execute()
+        else: print(f"warning: playlist not found: {pl}")
+    print("updated", a.video_id)
+    mp = os.path.join(D, "meta.json")
+    if os.path.exists(mp):
+        m = json.load(open(mp, encoding="utf-8")); m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_update {a.video_id}")
+        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+
+
 def privacy(a):
     print(f"set {a.video_id} to {a.status}")
     if not a.yes: print("DRY RUN. Re-run with --yes after explicit user approval."); return
@@ -134,6 +160,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter); sp = ap.add_subparsers(dest="cmd", required=True)
     u = sp.add_parser("upload"); u.add_argument("slug"); u.add_argument("--file", required=True); u.add_argument("--meta", default="tags.json")
     u.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"]); u.add_argument("--thumbnail"); u.add_argument("--playlist"); u.add_argument("--publish-at", help="RFC 3339 time such as 2026-10-20T15:00:00Z, schedules a private upload"); u.add_argument("--yes", action="store_true"); u.set_defaults(fn=upload)
+    up = sp.add_parser("update"); up.add_argument("slug"); up.add_argument("video_id"); up.add_argument("--meta", default="youtube.json"); up.add_argument("--thumbnail"); up.add_argument("--playlist"); up.add_argument("--yes", action="store_true"); up.set_defaults(fn=update)
     p = sp.add_parser("privacy"); p.add_argument("slug"); p.add_argument("video_id"); p.add_argument("status", choices=["private", "unlisted", "public"]); p.add_argument("--yes", action="store_true"); p.set_defaults(fn=privacy)
     s = sp.add_parser("stats"); s.add_argument("video_ids", nargs="+"); s.set_defaults(fn=stats)
     a = ap.parse_args(); a.fn(a)
