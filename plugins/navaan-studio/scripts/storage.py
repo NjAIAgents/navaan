@@ -206,7 +206,8 @@ def compare(provider, bucket, prefix, region, src_dir, slug):
     ns = _oci_ns()[0] if provider == "oci" else ""
     remote = list_objects(provider, bucket, dest, region); local = local_files(src_dir)
     missing = sorted(k for k in local if dest + k not in remote)
-    mism = sorted(k for k in local if dest + k in remote and remote[dest + k] != local[k])
+    # meta.json changes by design after the upload (the cloud block is written into it), so a size difference there is not a mismatch
+    mism = sorted(k for k in local if k != "meta.json" and dest + k in remote and remote[dest + k] != local[k])
     return dest, ns, local, remote, missing, mism
 
 
