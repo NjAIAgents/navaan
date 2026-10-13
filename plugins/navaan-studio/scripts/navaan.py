@@ -125,7 +125,9 @@ def plan(slug):
             continue
         if s.get("optional_cloud") and cfg("storage.cloud_provider", "none") in ("none", None, ""):
             continue
-        d = s["done"](m) or ((legacy or cleaned) and s["id"] not in ("archive", "cleanup"))
+        skip = (legacy or cleaned) and s["id"] not in ("archive", "cleanup")
+        if s["id"] in ("instagram_caption", "publish_instagram") and not ig_done(m): skip = False  # never posted, so there is still a caption to write and approve
+        d = s["done"](m) or skip
         row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
         if d:

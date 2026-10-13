@@ -274,15 +274,24 @@ let cards="";ph.forEach((arr,pi)=>{if(!arr.length)return;const dn=arr.filter(x=>
 for(const [r,i] of arr)b+=srow(r,i,st(r),d,busy,nx);
 cards+=`<div class="card pad0" style="overflow:hidden"><div class="ph"><b>${pi+1}  ${PN[pi]}</b><span class="sub">${PD[pi]}</span><span style="flex:1"></span><span class="chip ${dn===arr.length?"ok":""}">${dn} of ${arr.length}</span></div>${b}</div>`});
 return cards}
+function gateCard(d,g){const head=`<div class="sub mono">${esc(g)}</div><div style="margin:4px 0 10px">${esc(lab(g))}</div>`;
+if(g==="instagram_caption"){const c=d.text["instagram.txt"];
+if(!c)return `<div class="card alert">${head}<p class="sub" style="margin:0">There is no caption yet. Run the caption step first, it writes instagram.txt and you review it here.</p></div>`;
+return `<div class="card alert">${head}<textarea id="cap_t" style="min-height:150px">${esc(c)}</textarea><p class="sub" style="margin:6px 0 10px">Edit it if you like. Approve saves your edit first. A later edit needs a new approval.</p><div style="display:flex;gap:8px"><button class="p" onclick="approveCap()">Save and approve</button><button onclick="saveCap()">Save only</button></div></div>`}
+if(g==="lyrics"&&d.text["lyrics.txt"])return `<div class="card alert">${head}<pre style="max-height:220px;color:var(--fg)">${esc(d.text["lyrics.txt"])}</pre><div style="display:flex;gap:8px;margin-top:8px"><button class="p" onclick="gate('lyrics')">Approve</button><button onclick="tab('text')">Edit in Text tab</button></div></div>`;
+if(g==="media"||g==="listen")return `<div class="card alert">${head}<div style="display:flex;gap:8px"><button class="p" onclick="gate('${g}')">Approve</button><button onclick="tab('media')">Open Media tab</button></div></div>`;
+return `<div class="card alert">${head}<button class="p" onclick="gate('${g}')">Approve</button></div>`}
+async function saveCap(){const t=document.getElementById("cap_t");if(!t)return;const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return alert(r.error);render(true)}
+async function approveCap(){const t=document.getElementById("cap_t");if(t){const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return alert(r.error)}await gate("instagram_caption")}
 let PANE=true,DT={prog:true,appr:false,links:true};try{PANE=localStorage.getItem("navaan_pane")!=="0"}catch(e){}
 function togglePane(){PANE=!PANE;try{localStorage.setItem("navaan_pane",PANE?"1":"0")}catch(e){}render(true)}
 function pane(d){const R=d.run||{},nx=d.next,rows=d.steps,total=rows.length,done=rows.filter(r=>r.done).length,busy=d.job.running;
 const n=(d.question?1:0)+(nx.type==="gate"?1:0)+((d.thumb_pending||[]).length?1:0)+(d.needs_you?1:0)+(d.profile===false?1:0);
 if(!PANE)return `<div class="pn col"><button class="sm" onclick="togglePane()" title="Open the Actions panel">&#8249;</button>${n?`<span class="bd2">${n}</span>`:""}<div class="vt">Actions</div></div>`;
-const gcard=nx.type==="gate"?`<div class="card alert"><div class="sub mono">${esc(nx.gate)}</div><div style="margin:4px 0 10px">${esc(lab(nx.gate))}</div><button class="p" onclick="gate('${nx.gate}')">Approve</button></div>`:"";
+const gcard=nx.type==="gate"?gateCard(d,nx.gate):"";
 const inbox=alerts(d)+gcard;
 const head=busy?`<span class="chip running">${esc(d.status_text||"running")}${R.elapsed!=null?" · "+fmt(R.elapsed):""}</span>`:R.failed?`<span class="chip failed">step ${esc(R.failed)} failed</span>`:nx.type==="gate"?`<span class="chip waiting">Waiting for you</span>`:nx.type==="done"?'<span class="chip done">All done</span>':"";
-let run="";if(nx.type!=="done"&&nx.type!=="gate")run=`<button class="p" style="width:100%;justify-content:center" onclick="runIt(true)" ${busy?"disabled":""}>${busy?"Running...":"Run from here to the end"}</button><button style="width:100%;justify-content:center;margin-top:8px" onclick="runIt(false)" ${busy?"disabled":""}>Run only: ${esc((rows.find(r=>r.id===nx.step)||{}).label||nx.step)}</button><p class="sub" style="margin:8px 0 0">From here runs the next unfinished step, then each one after it, pausing at approvals. Only runs just that step.</p>`;
+let run="";if(nx.type!=="done"&&nx.type!=="gate")run=`<button class="p" style="width:100%;justify-content:center" onclick="runIt(true)" ${busy?"disabled":""}>${busy?"Running...":"Run from here to the end"}</button><button style="width:100%;justify-content:center;margin-top:8px" title="${esc((rows.find(r=>r.id===nx.step)||{}).label||nx.step)}" onclick="runIt(false)" ${busy?"disabled":""}>Run only the next step</button><p class="sub" style="margin:8px 0 0">From here runs the next unfinished step, then each one after it, pausing at approvals. Only runs just that step.</p>`;
 else if(nx.type==="gate"&&busy)run='<p class="sub" style="margin:0">Paused here. It continues by itself right after you approve.</p>';
 else if(nx.type==="gate")run=`<button class="p" style="width:100%;justify-content:center" onclick="runIt(true)">Run from here to the end</button><p class="sub" style="margin:8px 0 0">Continues from the next unfinished step and waits at each approval.</p>`;
 const ap=d.gates.filter(g=>d.approvals[g]).length;
