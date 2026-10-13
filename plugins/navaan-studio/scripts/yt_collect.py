@@ -469,7 +469,7 @@ def link_songs(conn):
 
 def collect(conn, client, label, only=ALL_COLLECTORS, opts=None):
     """Run the chosen collectors for one channel. Returns the run summary that is also stored in yt_runs."""
-    o = {"days": 14, "comment_days": 60, "max_pages": 20, "force": False, "retention_videos": 8}
+    o = {"days": 14, "comment_days": 60, "max_pages": 20, "force": False, "retention_videos": 8, "hashtags": False}
     o.update(opts or {})
     ctx = Ctx(client, conn, label, o)
     run_id = uuid.uuid4().hex[:12]
@@ -488,6 +488,9 @@ def collect(conn, client, label, only=ALL_COLLECTORS, opts=None):
                     if e.auth or e.quota:
                         raise
                     ctx.errors.append({"where": name, "error": str(e)[:300]})
+        if o["hashtags"]:   # public Shorts that use your hashtags, for the best-time card. Weekly, and soft on every error.
+            import yt_hashtags
+            yt_hashtags.collect_step(ctx)
         link_songs(conn)
         status = "ok" if not ctx.errors else "partial"
     except ApiError as e:
@@ -522,7 +525,7 @@ def cmd_collect(a):
                 print(f"{label}: skipped ({e})")
                 continue
             raise
-        res = collect(conn, Client(auth), label, only, {"days": a.days, "force": a.force, "max_pages": a.max_pages})
+        res = collect(conn, Client(auth), label, only, {"days": a.days, "force": a.force, "max_pages": a.max_pages, "hashtags": True})
         print(f"{label}: {res['status']}  {json.dumps(res['stats'])}")
         for e in res["errors"]:
             print(f"  note: {e['where']}: {e['error']}")

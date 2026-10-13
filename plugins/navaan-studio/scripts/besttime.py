@@ -151,6 +151,7 @@ TZ_OFFSET = {"IN": 5.5, "US": -6, "GB": 0, "CA": -5, "AU": 10, "AE": 4, "PK": 5,
 # Share of a day's listening by local hour. An assumption (evenings and lunch), not a measurement, and the notes say so.
 LOCAL_LISTEN = {7: 0.3, 8: 0.3, 12: 0.5, 13: 0.5, 17: 0.5, 18: 1.0, 19: 1.5, 20: 2.0, 21: 2.0, 22: 1.5, 23: 0.8}
 W_YT_OWN, W_YT_ONLINE, W_YT_AUD = 0.45, 0.25, 0.30
+W_YT_PEERS, MIN_YT_PEERS, PEER_MIN_AGE_D = 0.25, 15, 2   # similar Shorts found by hashtag (yt_hashtags.py)
 MIN_YT_OWN, MIN_AGE_D, PRIOR = 8, 7, 2.0
 YT_LEAD_H = {"video": 1, "short": 0}   # post this many hours before the audience peak
 
@@ -194,6 +195,27 @@ def _yt_own(videos, kind, now):
         hs.setdefault(v["t"].hour, []).append(s); ds.setdefault(v["t"].weekday(), []).append(s)
     shrink = lambda d, n: [(sum(d.get(i, [])) + PRIOR * 1.0) / (len(d.get(i, [])) + PRIOR) for i in range(n)]
     return {"n": len(pool), "hour": shrink(hs, 24), "day": shrink(ds, 7), "used": [p for p in ("views per day", "share watched", "subscribers per 1,000 views")]}
+
+
+def _yt_peers(conn, label, now):
+    """UTC hour scores from public Shorts that use your hashtags (table yt_hashtag_posts). Each is scored on views per day against the median, age damped.
+    Returns (hours, n) or (None, n) when fewer than MIN_YT_PEERS posts older than PEER_MIN_AGE_D days exist. Posting hours are UTC, the peers' own time zones are unknown."""
+    try:
+        rows = db.rows(conn, f"SELECT published_at, views, tag FROM yt_hashtag_posts WHERE label = {db.PH} AND views IS NOT NULL", (label,))
+    except Exception:
+        return None, 0
+    pool = []
+    for r in rows:
+        t = _ts(r["published_at"])
+        age = (now - t).total_seconds() / 86400.0 if t else None
+        if t and age is not None and age >= PEER_MIN_AGE_D:
+            pool.append((t, r["views"] / (min(age, 30.0) + 3.0)))
+    if len(pool) < MIN_YT_PEERS: return None, len(pool)
+    med = _median([x[1] for x in pool])
+    if not med: return None, len(pool)
+    hs = {}
+    for t, rate in pool: hs.setdefault(t.hour, []).append(max(0.25, min(4.0, rate / med)))
+    return _norm(_smooth([(sum(hs.get(i, [])) + PRIOR) / (len(hs.get(i, [])) + PRIOR) for i in range(24)])), len(pool)
 
 
 def _yt_traffic(conn, cid):
@@ -248,6 +270,7 @@ def analyze_youtube(conn, label, now=None):
     ig = signals(conn, label)
     online = _norm(ig["online"]) if ig and ig.get("online_days") and sum(ig["online"]) > 0 else None
     traffic = _yt_traffic(conn, cid)
+    peer_hours, peer_n = _yt_peers(conn, label, now)
     out = {"label": label, "empty": False, "kinds": {}, "traffic": traffic, "countries": countries}
     for kind in ("video", "short"):
         own = _yt_own(vids, kind, now)
@@ -256,6 +279,9 @@ def analyze_youtube(conn, label, now=None):
         else: notes.append(f"Your own {'Shorts' if kind == 'short' else 'videos'}: {own['n']} older than {MIN_AGE_D} days with numbers, {MIN_YT_OWN} needed before they count.")
         if online: parts.append((W_YT_ONLINE, online, "Instagram followers online"))
         else: notes.append("No Instagram follower online data yet, so that signal is off.")
+        if kind == "short":
+            if peer_hours: parts.append((W_YT_PEERS, peer_hours, f"{peer_n} similar Shorts found by hashtag (posting hours in UTC)"))
+            else: notes.append(f"Similar Shorts by hashtag: {peer_n} of {MIN_YT_PEERS} needed. Run yt_hashtags.py collect, or a full YouTube collect.")
         if aud: parts.append((W_YT_AUD, aud, "viewer countries (evening listening assumed)"))
         else: notes.append("No viewer country data yet. It needs the analytics sign-in and a collect.")
         if not parts:
@@ -276,7 +302,7 @@ def analyze_youtube(conn, label, now=None):
             if kind == "short" and traffic["shorts_pct"] >= 50: notes.append(f"{traffic['shorts_pct']}% of views come from the Shorts feed, which spreads a Short over days, so keep a steady rhythm rather than chasing one hour.")
         out["kinds"][kind] = {"empty": False, "hours": [round(100 * v / mx) for v in post_hour], "weekdays": [round(100 * v / max(day)) for v in day],
                               "slots": _yt_slots(post_hour, day, now), "notes": notes, "confidence": conf,
-                              "basis": {"signals": [n for _, _, n in parts], "own_videos": own["n"], "scored_on": own["used"], "lead_hours": lead,
+                              "basis": {"signals": [n for _, _, n in parts], "own_videos": own["n"], "peer_shorts": peer_n if kind == "short" else 0, "scored_on": own["used"], "lead_hours": lead,
                                         "rule": f"post {lead} hour{'s' if lead != 1 else ''} before the hour most viewers are around" if lead else "post at the hour most viewers are around"}}
     if all(k.get("empty") for k in out["kinds"].values()):
         out["empty"], out["reason"] = True, "no_signal"
