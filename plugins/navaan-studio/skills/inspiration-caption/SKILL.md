@@ -16,3 +16,5 @@ Write `instagram.txt`. The caption is reviewed and approved by the user, and any
      If `<local_dir>/hashtags.json` exists (next to the songs folder, written by the analytics analysis), take up to two tags from `suggested.inspiration` that are not `in_use` and fit this quote, and prefer the top entries of `own.inspiration` by `avg_views` for the rest.
    - 100 to 280 characters in total. No AI or tool credit line.
 3. Save the file, print the caption, and stop. Do not approve the gate and do not publish.
+
+   Standing rules: if `<local_dir>/standing_rules.json` exists (next to the songs folder, written when the user presses Implement on a recommendation), apply every rule for this account whose category is caption, hook, hashtags, engagement, packaging or format, and say which ones you applied.

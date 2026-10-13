@@ -29,6 +29,8 @@ import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secret
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import setup_captions
 from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root, item_type, account
+import publish_schedule as PS
+import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
@@ -273,6 +275,7 @@ def plan(slug):
             row["needs_gate"] = gb if (gb and not gate_ok(D, ap, gb, ig_done(m))) else None
             row["status"] = "waiting for approval" if row["needs_gate"] else ("blocked" if (nxt and nxt["type"] == "gate") else "ready")
         if notused: row["status"] = "done"; row["needs_gate"] = None; row["notused"] = True
+        row["scheduled_for"] = PS.when(m, s["id"]) if not d else None
         rows.append(row)
         if nxt is None:
             if row["needs_gate"]: nxt = {"type": "gate", "step": s["id"], "gate": row["needs_gate"]}
@@ -417,6 +420,9 @@ def _run(slug, step=None, dry=False, retries=2):
     if os.path.exists(nyp) and open(nyp, encoding="utf-8").read().startswith("ACCOUNT:"): os.remove(nyp)  # the account is fine now
     if bg and not gate_ok(D, meta(slug).get("approvals", {}), bg):
         show_gate(slug, bg); print(f"waiting for your approval: gate '{bg}' (step {sid}). Run: navaan.py approve {slug} {bg}"); return 3
+    hw = PS.hold(meta(slug), sid) if not dry else None
+    if hw and slug not in PS.FIRING:
+        print(f"scheduled: step {sid} waits until {hw} (UTC). The portal, or navaan.py schedule-run, starts it then. Clear the schedule to publish now."); return 7
     if s["id"] == "publish_instagram" and not public_done(meta(slug)): print("Publish to YouTube first: the Reel links to the public full video. Approve gate 'go_public' and run that step."); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
@@ -494,6 +500,8 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
                 if timeout and time.time() - t0 > timeout: print("timed out waiting for an answer"); return 6
                 time.sleep(min(poll, 3))
             print("answered, continuing", flush=True); steps_run -= 1; continue
+        if rc == 7:
+            STATUS[slug] = "scheduled: it publishes at the set time"; print(STATUS[slug], flush=True); return 7
         if rc != 0:
             STATUS[slug] = f"step {nxt['step']} is waiting for you, see the banner" if rc == 5 else f"step {nxt['step']} failed, see logs"; return rc
     print("stopped: too many steps in one run"); return 1
@@ -657,6 +665,23 @@ def main(argv):
             if not sys.stdin.isatty(): sys.exit("approve needs a terminal. An agent must never approve a gate for you. Use this command yourself or the web UI.")
             if input(f"Approve gate '{gate}' for {slug}? Type yes: ").strip().lower() != "yes": print("not approved"); return 1
         set_gate(slug, gate, c == "approve", "cli"); print(c + "d", gate); return 0
+    if c == "schedule":
+        def opt(n, d=None): return a[a.index(n) + 1] if n in a and a.index(n) + 1 < len(a) else d
+        if not a or not opt("--at"): sys.exit('usage: navaan.py schedule <slug> --at "2026-10-16 18:30" [--youtube-at "2026-10-16 18:15"]   (your computer\'s local time)')
+        def utc(x): return PS.iso(datetime.datetime.strptime(x.replace("T", " "), "%Y-%m-%d %H:%M").astimezone())
+        try: s = PS.set_schedule(a[0], utc(opt("--at")), utc(opt("--youtube-at")) if opt("--youtube-at") else None)
+        except ValueError as e: sys.exit(f"navaan: {e}")
+        print("scheduled:", PS.status_text({"schedule": s}), "\nStill needed from you before then: approve go_public, instagram_caption and publish_instagram. Keep the portal or `navaan.py schedule-run --loop` running."); return 0
+    if c == "schedule-clear": PS.clear(a[0]); print("cleared"); return 0
+    if c == "schedules":
+        for sl in sorted(os.path.basename(p) for p in glob.glob(f"{songs_root()}/*") if os.path.isdir(p) and not os.path.basename(p).startswith("_")):
+            t = PS.status_text(meta(sl))
+            if t: print(sl, t)
+        return 0
+    if c == "schedule-run":
+        fire = lambda sl, sid: run(sl, step=sid)
+        if "--loop" in a: print("scheduler running, checking every minute. Ctrl+C to stop.", flush=True); PS.loop(fire); return 0
+        print(PS.tick(fire) or "nothing due"); return 0
     if c == "serve":
         import navaan_ui; return navaan_ui.serve(int(a[a.index("--port") + 1]) if "--port" in a else 8765)
     print(__doc__); return 2

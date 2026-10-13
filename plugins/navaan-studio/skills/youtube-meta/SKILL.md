@@ -21,3 +21,5 @@ Write `songs/<slug>/youtube.json`. The upload reads it, so a missing or thin fil
    - `playlist`: only when the profile maps this song's language to a playlist.
 3. Description stays under 4500 bytes. No angle brackets (YouTube rejects them). Use `\u` escapes or UTF-8, valid JSON either way.
 4. Save the file, print the title, hook, tags and hashtags in the final message, and stop. Do not approve any gate and do not upload. The user reads the payload at the `publish_youtube` gate and can ask for a rewrite with a `youtube_feedback.txt` note.
+
+   Standing rules: if `<local_dir>/standing_rules.json` exists (next to the songs folder, written when the user presses Implement on a recommendation), apply every rule for this account whose category is caption, hook, hashtags, engagement, packaging or format, and say which ones you applied.

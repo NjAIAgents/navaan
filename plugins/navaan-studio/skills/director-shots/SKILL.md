@@ -19,3 +19,5 @@ The video is stitched locally from the user's pictures in `images/` with slow ca
 4. Timing: `start` and `end` in seconds, the first shot starts at 0, each shot ends where the next begins, the last ends at the song duration. If `timing_source` says estimated, say so in `notes`, because the user may need to nudge the times.
 5. Layout `static` has no shot list. If `visuals.json` says static, write nothing and say so.
 6. Write `shots.json` as `{"duration": ..., "shots": [{"id", "label", "start", "end", "image", "camera", "focus", "scene", "lyric"}], "notes": "..."}` and print one line: how many shots, which pictures, anything uncertain. Do not approve gates and do not render.
+
+   Standing rules: if `<local_dir>/standing_rules.json` exists (next to the songs folder, written when the user presses Implement on a recommendation), apply every rule for this account whose category is format, hook or packaging, and say which ones you applied.
