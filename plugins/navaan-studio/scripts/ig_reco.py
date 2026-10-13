@@ -365,6 +365,20 @@ def r_market(D, T):
         if len(spans) >= 3 and med(spans) and n28 < 0.5 * med(spans):
             out.append(f("peer_cadence_gap", "peers", "cadence", "low", "Peers post more often than you", f"Peer median {med(spans):.1f} posts per week against your {n28:.1f}.",
                          {"peer_median_posts_per_week": round(med(spans), 1), "own_posts_per_week": round(n28, 1)}))
+    if not D["tag_media"] and len(by) >= 2:
+        mine = {t for p in D["posts"] for t in tags_in(p["caption"])}
+        stop = {"fyp", "foryou", "foryoupage", "reels", "reel", "viral", "trending", "explore", "explorepage", "instagood", "instagram", "love", "follow", "like"}
+        counts = {}
+        for u, ms in by.items():
+            ms = sorted(ms, key=lambda m: -((m["like_count"] or 0) + (m["comments_count"] or 0)))
+            un = re.sub(r"[^a-z0-9]", "", u.lower())
+            for t in {t for m in ms[:max(3, int(len(ms) * 0.4))] for t in tags_in(m["caption"])} - stop - mine:
+                if len(t) < 3 or t in un or un in t or t.isdigit(): continue
+                counts.setdefault(t, set()).add(u)
+        cand = [t for t, us in sorted(counts.items(), key=lambda kv: -len(kv[1])) if len(us) >= 2][:8] or [t for t, us in sorted(counts.items(), key=lambda kv: -len(kv[1]))][:5]
+        if cand:
+            out.append(f("hashtag_peers", "hashtags", "hashtags", "info", "Tags your peers use on their strongest posts", "From the top 40 percent of each peer's posts by likes and comments. Test, do not copy blindly.",
+                         {"tags": cand, "peers": len(by), "by_tag": {t: sorted(counts[t]) for t in cand}}))
     if D["tag_media"]:
         mine = {t for p in D["posts"] for t in tags_in(p["caption"])}
         counts = {}
@@ -414,6 +428,7 @@ def advice(fd):
         "audience_split": ("Plan two posting windows", "Pick one slot for each main audience region and alternate, then compare first-hour response.", "Better timing for both audiences.", "low"),
         "peer_engagement_gap": ("Study what peers do differently", "Open three peer posts with the highest engagement and note hook, length and caption. Borrow the structure, not the content.", "Closing part of the engagement gap.", "low"),
         "peer_cadence_gap": ("Match peer posting rhythm", "Move toward the peer median cadence using short Reels from released songs.", "More touchpoints per week.", "low"),
+        "hashtag_peers": ("Test peer tags on the next two posts", f"Add two of {', '.join('#' + t for t in (e.get('tags') or [])[:5])} to the next two captions, keep five tags in total, and compare reach after a week. The caption skills read hashtags.json and do this on their own for new posts.", "A fair test of whether niche tags bring reach from outside your followers.", "low"),
         "hashtag_overlap": ("Test niche tags seen in top posts", f"Try {', '.join('#' + t for t in (e.get('tags') or [])[:4])} on the next two posts and compare reach.", "A test, not a guarantee.", "low"),
     }
     t = A.get(r)
@@ -637,6 +652,12 @@ def cmd_analyze(a):
         res = analyze(conn, r["ig_user_id"])
         outcomes(conn)
         print(f"{r['label']}: {res['findings']} findings {json.dumps(res['by_severity'])}, recommendations refreshed {res['open_recommendations']}")
+    try:
+        import analytics_api
+        h = analytics_api.hashtag_block(conn, [r["ig_user_id"] for r in targets(conn, a.account)], write=True)
+        print("hashtags.json:", h.get("file") or h.get("file_error"))
+    except Exception as e:
+        print("hashtags.json not written:", str(e)[:120])
 
 
 def cmd_pack(a):

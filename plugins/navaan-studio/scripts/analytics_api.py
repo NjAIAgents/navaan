@@ -93,7 +93,9 @@ def overview(account="all", days=30, db_file=None):
             r["first_error"] = (errs[0]["where"] + ": " + errs[0]["error"])[:200] if errs else ""
         reco = recommendations(conn, uids)
         peers = peer_block(conn, uids)
-        return {"empty": False, "reco": reco, "peers": peers, "accounts": accounts, "account": account, "days": days, "kpis": kpis,
+        try: hashtags = hashtag_block(conn, uids)
+        except Exception as e: hashtags = {"error": str(e)[:200]}
+        return {"empty": False, "reco": reco, "peers": peers, "hashtags": hashtags, "accounts": accounts, "account": account, "days": days, "kpis": kpis,
                 "series": {"followers": followers, "views": series("views"), "reach": series("reach"), "interactions": series("total_interactions")},
                 "posts": posts, "patterns": patterns, "waiting": waiting, "audience": aud, "hours": hours, "runs": runs,
                 "db": db.db_path(db_file), "collect": dict(COLLECT)}
@@ -201,6 +203,67 @@ def link_post(media_id, slug, db_file=None):
         conn.close()
 
 
+STOP_TAGS = {"fyp", "foryou", "foryoupage", "reels", "reel", "viral", "trending", "explore", "explorepage", "instagood", "instagram", "love", "follow", "like",
+             "ad", "ads", "sponsored", "paidpartnership", "collab", "giveaway", "sale", "link", "linkinbio"}
+
+
+def hashtag_block(conn, uids, write=False):
+    """What tags the strongest peer posts carry that we do not use yet, and how our own tags did.
+    Peer posts are ranked inside each peer by likes plus comments, so a big account cannot drown a small one; a tag scores by how many
+    peers use it in their top 40 percent of posts. With write=True the result is saved as hashtags.json next to the songs folder, where the
+    caption skills read it."""
+    import re, datetime
+    tags = lambda t: {x.lower() for x in re.findall(r"#(\w+)", t or "")} - STOP_TAGS
+    peers = {r["username"]: r for r in db.rows(conn, "SELECT username, note, followers_count FROM peers")}
+    by = {}
+    for m in db.rows(conn, "SELECT username, caption, like_count, comments_count FROM peer_media"):
+        by.setdefault(m["username"], []).append(m)
+    group_of = lambda note: "inspiration" if "inspiration" in (note or "").lower() else "music"
+    score = {"music": {}, "inspiration": {}}
+    for u, ms in by.items():
+        g = group_of(peers.get(u, {}).get("note"))
+        ms = sorted(ms, key=lambda m: -((m["like_count"] or 0) + (m["comments_count"] or 0)))
+        top = ms[:max(3, int(len(ms) * 0.4))]
+        seen = {}
+        own_name = re.sub(r"[^a-z0-9]", "", u.lower())
+        for m in top:
+            for t in tags(m["caption"]):
+                if len(t) < 3 or t in own_name or own_name in t or t.isdigit(): continue  # a peer's own brand tag helps nobody else
+                seen[t] = seen.get(t, 0) + 1
+        for t, n in seen.items():
+            e = score[g].setdefault(t, {"tag": t, "peers": [], "posts": 0})
+            e["peers"].append(u); e["posts"] += n
+    own_tags = {}
+    own_rows = db.rows(conn, f"""SELECT a.label, m.caption, sn.views, sn.reach FROM media m JOIN accounts a ON a.ig_user_id = m.ig_user_id
+        LEFT JOIN media_snapshots sn ON sn.media_id = m.media_id AND sn.captured_at = (SELECT MAX(captured_at) FROM media_snapshots WHERE media_id = m.media_id)
+        WHERE m.deleted_at IS NULL AND m.ig_user_id IN ({_in(len(uids))})""", uids)
+    for r in own_rows:
+        for t in tags(r["caption"]):
+            e = own_tags.setdefault((r["label"], t), {"tag": t, "label": r["label"], "uses": 0, "views": []})
+            e["uses"] += 1
+            if r["views"] is not None: e["views"].append(r["views"])
+    own = {}
+    for (lab, t), e in own_tags.items():
+        own.setdefault(lab, []).append({"tag": t, "uses": e["uses"], "avg_views": (round(sum(e["views"]) / len(e["views"])) if e["views"] else None)})
+    for lab in own: own[lab].sort(key=lambda x: -(x["avg_views"] or 0))
+    used = {lab: {x["tag"] for x in rows} for lab, rows in own.items()}
+    suggested = {}
+    for g, d in score.items():
+        rows = sorted(d.values(), key=lambda e: (-len(set(e["peers"])), -e["posts"]))
+        suggested[g] = [{"tag": e["tag"], "peers": sorted(set(e["peers"])), "posts": e["posts"], "in_use": e["tag"] in used.get(g, set())} for e in rows[:12]]
+    out = {"suggested": suggested, "own": own, "peer_posts_with_tags": sum(1 for ms in by.values() for m in ms if tags(m["caption"])),
+           "updated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    if write:
+        try:
+            import navaan_common as C
+            path = os.path.join(os.path.dirname(C.songs_root()), "hashtags.json")
+            json.dump(out, open(path, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+            out["file"] = path
+        except Exception as e:
+            out["file_error"] = str(e)[:200]
+    return out
+
+
 def peer_block(conn, uids):
     """Benchmark table: one row per peer from Business Discovery, plus the same numbers for the selected own accounts.
     Only public numbers exist for peers (followers, likes, comments, cadence), so the comparison is on engagement per follower."""
@@ -287,6 +350,8 @@ def analyze_now(account="all", db_file=None):
             raise ValueError("no analytics data yet: press Collect now first")
         res = [dict(label=r["label"], **ig_reco.analyze(conn, r["ig_user_id"])) for r in rows]
         ig_reco.outcomes(conn)
+        try: hashtag_block(conn, [r["ig_user_id"] for r in rows], write=True)
+        except Exception: pass
         return res
     finally:
         conn.close()
