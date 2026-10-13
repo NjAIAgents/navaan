@@ -2,50 +2,233 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NAVAAN Studio</title>
 <style>
-:root{--bg:#faf8f4;--fg:#1d1b18;--mut:#6f6a62;--card:#fff;--line:#e4dfd6;--acc:#b4531a;--ok:#2b7a4b;--warn:#a86a00}
-@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#f0ece4;--mut:#a29b8e;--card:#201d19;--line:#35302a;--acc:#e0884f;--ok:#5fc58a;--warn:#e0a53c}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
-header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}h1{font-size:18px;margin:0;letter-spacing:.14em}
-main{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 54px)}
-aside{border-right:1px solid var(--line);padding:14px}section{padding:20px;max-width:980px}
-.song{padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px}.song:hover,.song.on{background:var(--card);outline:1px solid var(--line)}
-.song small{display:block;color:var(--mut)}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:6px 12px;border-radius:8px;cursor:pointer}
-button.p{background:var(--acc);border-color:var(--acc);color:#fff}button:disabled{opacity:.5;cursor:default}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
-.step{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}.step:last-child{border:0}.step b{flex:1}
-.chip{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}.chip.done{color:var(--ok);border-color:var(--ok)}.chip.waiting{color:var(--warn);border-color:var(--warn)}.chip.ready{color:var(--acc);border-color:var(--acc)}
-textarea,input{width:100%;font:13px/1.5 ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px}textarea{min-height:160px}
-video{max-width:100%;max-height:420px;border-radius:10px;background:#000}.row{display:flex;gap:14px;flex-wrap:wrap}pre{white-space:pre-wrap;font-size:12px;color:var(--mut);max-height:200px;overflow:auto}
-h2{font-size:15px;margin:0 0 8px}.mut{color:var(--mut)}
+:root{--bg:#0B0B10;--sb:#07070B;--card:#15151E;--card2:#101018;--line:#2C2C3A;--line2:#242430;--fg:#F3F3F7;--mut:#9B9BB0;--mut2:#B8B8CA;--acc:#FF4D7E;--vio:#8B5CF6;--ok:#22C55E;--warn:#FFB020;--bad:#FF7A7A;--input:#3F3F52}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 "DM Sans","Inter",system-ui,-apple-system,"Segoe UI",sans-serif;background-image:radial-gradient(800px 320px at 85% -60px,rgba(255,77,126,.16),transparent),radial-gradient(700px 300px at 20% -80px,rgba(139,92,246,.14),transparent);background-repeat:no-repeat;background-attachment:fixed}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+h1,h2,.kpi b{font-family:"Space Grotesk","DM Sans",system-ui,sans-serif;letter-spacing:-.01em}
+h1{font-size:24px;margin:0;font-weight:600}h2{font-size:15px;margin:0 0 8px;font-weight:600}
+code,.mono,pre,textarea,input.m{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+.app{display:flex;min-height:100vh}
+.sb{flex:0 0 232px;background:var(--sb);display:flex;flex-direction:column;padding:16px 12px;gap:2px;position:sticky;top:0;height:100vh;overflow:auto}
+.logo{display:flex;align-items:center;gap:10px;padding:4px 12px 14px}.logo i{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--vio));display:flex;align-items:center;justify-content:center}
+.logo b{color:#fff;font-size:15px;letter-spacing:.06em;display:block}.logo small{color:#8E8EA6;font-size:12px}
+.sec{font-size:11px;font-weight:600;letter-spacing:.08em;color:#7C7C94;padding:16px 12px 6px}
+.nav{display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-radius:6px;color:#CFCFE0;text-decoration:none;cursor:pointer}
+.nav:hover{background:#14141E;color:#fff;text-decoration:none}.nav.on{background:#20202D;color:#fff}
+.nav svg{flex:none}.nav .bd{margin-left:auto;background:#E08A00;color:#fff;font-size:11px;font-weight:600;border-radius:9px;min-width:20px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.nav .tg{margin-left:auto;font-size:11px;color:#8E8EA6;border:1px solid #3A3A4F;border-radius:9px;padding:0 7px}
+.np{margin-top:16px;padding:12px;border-radius:10px;background:linear-gradient(160deg,#2A1530,#14141E);border:1px solid var(--line)}
+.np small{display:block;font-size:10px;font-weight:600;letter-spacing:.1em;color:#FF7FA3;margin-bottom:8px}
+.np .r{display:flex;gap:10px;align-items:center}.np .t{color:#fff;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.np .s{color:#8E8EA6;font-size:11px}
+.pb{display:flex;align-items:center;gap:8px;margin-top:8px}.pb .pl{width:26px;height:26px;border-radius:50%;background:#fff;border:0;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+.pb .tr{flex:1;height:3px;border-radius:2px;background:#2D2D3F;cursor:pointer}.pb .tr i{display:block;height:3px;border-radius:2px;background:var(--acc);width:0}
+.me{display:flex;align-items:center;gap:10px;padding:12px;border-top:1px solid #20202D;margin-top:12px}.me i{width:30px;height:30px;border-radius:50%;background:#2D2D3F;color:#fff;font-size:12px;font-weight:600;font-style:normal;display:flex;align-items:center;justify-content:center}
+.ct{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.top{height:56px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 32px;flex-wrap:wrap}
+.crumb{color:var(--mut);font-size:13px}.crumb b{color:var(--fg);font-weight:500}
+.srch{display:flex;align-items:center;gap:8px;height:34px;width:300px;border:1px solid var(--input);border-radius:6px;padding:0 10px;color:var(--mut);background:var(--card)}
+.srch input{flex:1;background:none;border:0;outline:0;color:var(--fg);font:inherit;padding:0;min-width:0}
+#main{padding:28px 32px 48px;display:flex;flex-direction:column;gap:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
+.card.np0{padding:0;overflow:hidden}.card.pad0{padding:0}
+.ch{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}.ch b{font-size:15px;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;font-size:12px;font-weight:500;white-space:nowrap;background:#2A2A38;color:var(--mut2)}
+.chip.ok,.chip.done{background:rgba(34,197,94,.14);color:var(--ok)}.chip.warn,.chip.waiting{background:rgba(255,176,32,.15);color:var(--warn)}
+.chip.bad,.chip.failed{background:rgba(255,92,92,.16);color:var(--bad)}.chip.info,.chip.running,.chip.ready{background:rgba(255,77,126,.16);color:var(--acc)}
+.dt{width:6px;height:6px;border-radius:50%;background:currentColor}
+button,.btn{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--input);background:#1C1C26;color:var(--fg);font:500 13px "DM Sans",system-ui,sans-serif;cursor:pointer;text-decoration:none}
+button:hover,.btn:hover{background:#262634;text-decoration:none}
+button.p,.btn.p{background:linear-gradient(135deg,var(--acc),var(--vio));border-color:transparent;color:#fff}button.p:hover{filter:brightness(1.1)}
+button.sm,.btn.sm{height:28px;padding:0 10px;font-size:12px}button:disabled{opacity:.5;cursor:default}
+input,textarea,select{background:var(--card2);color:var(--fg);border:1px solid var(--input);border-radius:6px;padding:8px 10px;font:inherit;width:100%}
+textarea{min-height:160px;font-size:13px}input:focus,textarea:focus{outline:2px solid rgba(255,77,126,.5);outline-offset:0}
+table{border-collapse:collapse;width:100%}
+th{font-size:12px;font-weight:600;color:var(--mut2);text-align:left;padding:9px 16px;background:var(--card2);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid var(--line2);vertical-align:middle}tr:last-child td{border-bottom:0}
+.sub{color:var(--mut);font-size:12px}.mut{color:var(--mut)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.kpi{padding:16px 18px}.kpi small{color:var(--mut);font-size:12px;font-weight:500}.kpi b{display:block;font-size:32px;font-weight:600;margin-top:6px;line-height:1.1}.kpi span{display:block;color:var(--mut);font-size:12px;margin-top:6px}
+.cols{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}.cols>.l{flex:2 1 600px;min-width:0;display:flex;flex-direction:column;gap:20px}.cols>.r{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:20px}
+.hd{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}.hd .g{flex-grow:1}
+.cv{position:relative;border-radius:6px;overflow:hidden;flex:none}.cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.lrow{display:grid;grid-template-columns:44px minmax(0,2.4fr) minmax(0,1.3fr) minmax(0,1.5fr) minmax(0,1.4fr) minmax(0,1.2fr);gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line2);cursor:pointer}
+.lrow>.chip{justify-self:start}
+.lrow:hover{background:var(--card2)}.lhd{background:var(--card2);font-size:12px;font-weight:600;color:var(--mut2);padding:9px 16px;border-bottom:1px solid var(--line);cursor:default}.lhd:hover{background:var(--card2)}
+.gh{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#1B1B26;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--input);border-radius:6px;overflow:hidden}.seg button{border:0;border-right:1px solid var(--input);border-radius:0;height:30px;background:var(--card)}.seg button:last-child{border-right:0}.seg button.on{background:var(--acc);color:#fff}
+.pill{height:28px;border-radius:14px;padding:0 12px}.pill.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.two{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}.two>.l{flex:2 1 640px;min-width:0}.two>.r{flex:1 1 320px;min-width:0}
+.step{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line2)}.step:last-child{border:0}.step b{flex:1;font-weight:500}
+video{max-width:100%;max-height:420px;border-radius:10px;background:#000}.row{display:flex;gap:14px;flex-wrap:wrap}
+pre{white-space:pre-wrap;font-size:12px;color:var(--mut);max-height:200px;overflow:auto}
 .wf{position:relative;margin:6px 0 0}.node{display:flex;gap:12px;position:relative;padding-bottom:10px}
 .node:not(:last-child)::before{content:"";position:absolute;left:13px;top:28px;bottom:-2px;width:2px;background:var(--line)}
 .node.done:not(:last-child)::before{background:var(--ok)}
 .dot{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--mut);z-index:1}
-.node.done .dot{background:var(--ok);border-color:var(--ok);color:#fff}.node.running .dot{border-color:var(--acc);color:var(--acc)}.node.waiting .dot{border-color:var(--warn);color:var(--warn);animation:pulse 1.6s infinite}
+.node.done .dot{background:var(--ok);border-color:var(--ok);color:#07120b}.node.running .dot{border-color:var(--acc);color:var(--acc)}.node.waiting .dot{border-color:var(--warn);color:var(--warn);animation:pulse 1.6s infinite}
 .node.failed .dot{background:#b3261e;border-color:#b3261e;color:#fff}.node.gate .dot{width:20px;height:20px;margin:4px;border-radius:5px;font-size:11px}
 .spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(168,106,0,.2)}}
-.nb{flex:1;min-width:0}.nt{display:flex;gap:8px;align-items:center;cursor:pointer;min-height:28px}.nt b{font-weight:600}.node.pending .nt b,.node.gate.pending .nt b{color:var(--mut);font-weight:500}
-.node.gate .nt b{font-weight:500;font-size:14px}.sub{color:var(--mut);font-size:12px}.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 4px}.bar i{display:block;height:100%;background:var(--ok);transition:width .4s}
-.nb pre{overflow-wrap:anywhere;margin:6px 0 0;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:320px}.chip.failed{color:#b3261e;border-color:#b3261e}.chip.running{color:var(--acc);border-color:var(--acc)}
-@media(max-width:700px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
+@keyframes sp{to{transform:rotate(360deg)}}@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(255,176,32,.2)}}
+.nb{flex:1;min-width:0}.nt{display:flex;gap:8px;align-items:center;cursor:pointer;min-height:28px;flex-wrap:wrap}.nt b{font-weight:600}.node.pending .nt b,.node.gate.pending .nt b{color:var(--mut);font-weight:500}
+.node.gate .nt b{font-weight:500;font-size:14px}.bar{height:8px;border-radius:99px;background:#2A2A38;overflow:hidden;margin:8px 0 4px}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--vio));transition:width .4s}
+.nb pre{overflow-wrap:anywhere;margin:6px 0 0;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:320px}
+.alert{border-color:#5A4513;background:#1E1810}.alert h2{color:var(--warn)}
+.wave{display:block}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10}.modal.on{display:flex}.modal .card{width:min(460px,92vw);display:flex;flex-direction:column;gap:12px;background:var(--card)}
+.opt{display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:8px;color:var(--fg)}.opt:hover{border-color:var(--acc);text-decoration:none}.opt>div{flex:1}
+.pipe{display:flex;gap:10px;flex-wrap:wrap}.pipe>div{flex:1 1 150px;display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+@media(max-width:900px){.sb{display:none}.kpis{grid-template-columns:repeat(2,1fr)}#main{padding:20px 16px}.srch{width:100%}}
 </style></head><body>
-<header><h1>NAVAAN STUDIO</h1><span class="mut">local, nothing leaves this computer except what you approve</span></header>
-<main><aside><button style="width:100%;margin-bottom:10px" onclick="openCloud()">Cloud storage (all songs)</button><div style="display:flex;gap:6px;margin-bottom:10px"><input id="ns" placeholder="new slug, e.g. song-003"><button onclick="newSong()">Add</button></div><div style="display:flex;gap:6px;margin-bottom:10px"><input id="iu" placeholder="Suno link to import"><button onclick="importSuno()">Import</button></div><div id="list"></div></aside>
-<section id="main"><p class="mut">Pick a song or add one.</p></section></main>
+<div class="app">
+<aside class="sb">
+ <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 20V10M9 20V4M13 20V12M17 20V7M21 20V14"/></svg></i><div><b>NAVAAN</b><small>Studio</small></div></div>
+ <div class="sec">WORKSPACE</div>
+ <a class="nav" data-v="dashboard" href="#/dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</a>
+ <a class="nav" data-v="library" href="#/library"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>Library</a>
+ <a class="nav" data-v="albums" href="#/albums"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg>Albums</a>
+ <a class="nav" data-v="reels" href="#/reels"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>Reels<span class="tg">Planned</span></a>
+ <a class="nav" data-v="cloud" href="#/cloud"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M7 18a4 4 0 010-8 5 5 0 019.6-1A4.5 4.5 0 0117 18z"/></svg>Cloud storage</a>
+ <div class="sec">OPERATIONS</div>
+ <a class="nav" data-v="approvals" href="#/approvals"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Approvals<span class="bd" id="apc" style="display:none">0</span></a>
+ <div style="flex-grow:1"></div>
+ <div class="np" id="np"><small>NOW PLAYING</small><div class="r"><div class="cv" id="npc" style="width:40px;height:40px"></div><div style="min-width:0"><div class="t" id="npt">Nothing yet</div><div class="s" id="nps"></div></div></div><div id="npw"></div><div class="pb"><button class="pl" id="npb" onclick="togglePlay()" aria-label="Play or pause"><svg width="10" height="10" viewBox="0 0 24 24" fill="#07070B"><path d="M7 4l13 8-13 8z"/></svg></button><div class="tr" onclick="seekPlay(event)"><i id="npp"></i></div><span class="s" id="npd">0:00</span></div></div>
+ <div class="me"><i>NN</i><div><div style="color:#fff;font-size:13px">Navjyot</div><div class="s" style="color:#8E8EA6;font-size:12px">Owner</div></div></div>
+</aside>
+<div class="ct">
+ <div class="top"><div class="crumb" id="crumb"></div><div style="flex-grow:1"></div>
+  <label class="srch"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="q" placeholder="Search songs" onkeydown="if(event.key==='Enter'){LIB.q=this.value;go('library')}"></label>
+  <span class="chip ok"><span class="dt"></span>Portal running locally</span>
+  <button class="p" onclick="openNew()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.25" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New</button>
+ </div>
+ <section id="main"><p class="mut">Loading...</p></section>
+</div></div>
+<div class="modal" id="modal" onclick="if(event.target===this)closeNew()"><div class="card"><h2 style="font-size:18px">New</h2>
+ <div class="opt"><div><b>Song from a Suno link</b><div class="sub">Imports lyrics, style and cover, then starts the pipeline</div><input id="iu" placeholder="https://suno.com/song/..." style="margin-top:8px"></div><button class="p" onclick="importSuno()">Import</button></div>
+ <div class="opt"><div><b>Empty song</b><div class="sub">Write a brief, lyrics to Suno</div><input id="ns" placeholder="slug, e.g. song-005" style="margin-top:8px"></div><button onclick="newSong()">Add</button></div>
+ <a class="opt" href="#/albums" onclick="closeNew()"><div><b>Album</b><div class="sub">Group finished songs under one name</div></div><span class="chip info">New</span></a>
+ <a class="opt" href="#/reels" onclick="closeNew()"><div><b>Reel with speech</b><div class="sub">Inspirational clip for Instagram</div></div><span class="chip">Planned</span></a>
+ <div style="text-align:right"><button onclick="closeNew()">Close</button></div></div></div>
 <script>
-const T="__TOKEN__";let cur=null,timer=null;
+const T="__TOKEN__";let cur=null,timer=null,SONGS=[],CL=null,IMP=false,view="";
+const LIB={group:"album",status:"all",q:""};
 const api=(p,b)=>fetch(p,b?{method:"POST",headers:{"Content-Type":"application/json","X-Navaan-Token":T},body:JSON.stringify(b)}:{}).then(r=>r.json());
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const GL={lyrics:"I approve these lyrics",suno_download:"I allow one Suno download from my plan allowance (needed to import this song)",listen:"I listened and accept this song",credits:"I approve spending Suno and Flow credits",captions_setup:"I approve a one time download of the caption tools (about 700 MB from GitHub and PyPI, saved outside the repo)",media:"I reviewed the videos and approve them",publish_youtube:"Upload the full video to YouTube (private, nobody can see it yet)",publish_short:"Make the Short in YouTube Studio (stays private)",go_public:"Make the YouTube video and Short PUBLIC now (then the Instagram Reel can go out)",instagram_caption:"I approve this Instagram caption (edit it in the instagram.txt box below and Save first)",publish_instagram:"Publish to Instagram now",cloud_upload:"Upload this finished song to my cloud bucket",local_cleanup:"Delete the local media of this song now (the bucket copy is checked file by file first, text and meta stay)"};
-const OPEN={};
-const fmt=n=>n>=60?Math.floor(n/60)+"m "+(n%60)+"s":n+"s";
+const lab=g=>g==='credits'&&IMP?'I approve spending Flow credits for visuals (the Suno song is already made, nothing more is spent on Suno)':(GL[g]||g);
+const OPEN={};const fmt=n=>n>=60?Math.floor(n/60)+"m "+(n%60)+"s":n+"s";
+const sz=n=>n>=1e6?(n/1e6).toFixed(1)+" MB":Math.max(1,Math.round(n/1e3))+" KB";
+const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
+function cov(s,px){const h=hue(s.slug);return `<div class="cv" style="width:${px}px;height:${px}px;background:linear-gradient(135deg,hsl(${h},80%,55%),hsl(${(h+70)%360},70%,25%))">${s.cover?`<img src="/media/${esc(s.slug)}/cover_1x1.png" alt="" onerror="this.remove()">`:""}</div>`}
+function wave(w,h,n,seed){let r="";const bw=w/n;for(let i=0;i<n;i++){const v=Math.abs(Math.sin(i*.55+seed)*.55+Math.sin(i*1.37+seed*2)*.35)+.12,bh=Math.max(3,Math.min(h,v*h));r+=`<rect x="${(i*bw+bw*.2).toFixed(1)}" y="${((h-bh)/2).toFixed(1)}" width="${(bw*.6).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bw*.3).toFixed(1)}"/>`}
+return `<svg class="wave" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs><linearGradient id="wg${seed}" x1="0" x2="1"><stop offset="0" stop-color="#FF4D7E"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><g fill="url(#wg${seed})">${r}</g></svg>`}
+function stat(s){if(s.status==="approval")return `<span class="chip warn"><span class="dt"></span>Needs you</span>`;if(s.status==="production")return `<span class="chip info">In production</span>`;if(s.public)return `<span class="chip ok"><span class="dt"></span>Published</span>`;if(s.private)return `<span class="chip warn">Private</span>`;return `<span class="chip ok">Done</span>`}
+function cl(s){return s.cleaned?`<span class="chip">Local cleaned</span>`:s.archived?(s.verified===false?`<span class="chip warn">Bucket stale</span>`:`<span class="chip ok">In OCI</span>`):`<span class="chip">Local only</span>`}
+const go=v=>{location.hash="#/"+v};
+function openNew(){document.getElementById("modal").classList.add("on")}function closeNew(){document.getElementById("modal").classList.remove("on")}
+async function loadSongs(){SONGS=await api("/api/songs");const n=SONGS.filter(s=>s.status==="approval").length+SONGS.filter(s=>s.thumb_pending).length;const b=document.getElementById("apc");b.style.display=n?"flex":"none";b.textContent=n;pickPlayer();return SONGS}
+async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return alert(r.error);document.getElementById("iu").value="";closeNew();await loadSongs();go("song/"+r.slug)}
+async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";closeNew();await loadSongs();go("song/"+v)}
+/* player */
+const PL={a:new Audio(),slug:null};PL.a.preload="none";
+function pickPlayer(){const want=(cur&&SONGS.find(s=>s.slug===cur&&s.audio))||(PL.slug&&SONGS.find(s=>s.slug===PL.slug&&s.audio&&!PL.a.paused))||[...SONGS].reverse().find(s=>s.audio);if(!want||want.slug===PL.slug)return;const was=!PL.a.paused;PL.a.pause();PL.slug=want.slug;PL.a.src="/media/"+want.slug+"/final.mp3";PL.a.volume=Math.min(1,VOL);
+document.getElementById("npt").textContent=want.title||want.slug;document.getElementById("nps").textContent=want.slug;document.getElementById("npc").outerHTML=cov(want,40).replace('class="cv"','class="cv" id="npc"');document.getElementById("npw").innerHTML=wave(180,26,36,3);document.getElementById("npp").style.width="0";if(was)PL.a.play().catch(()=>{})}
+function togglePlay(){if(!PL.slug)return;PL.a.volume=Math.min(1,VOL);PL.a.muted=MUTE;PL.a.paused?PL.a.play().catch(()=>{}):PL.a.pause()}
+function seekPlay(e){if(!PL.a.duration)return;const r=e.currentTarget.getBoundingClientRect();PL.a.currentTime=PL.a.duration*Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))}
+PL.a.addEventListener("timeupdate",()=>{const d=PL.a.duration||0;document.getElementById("npp").style.width=d?(100*PL.a.currentTime/d)+"%":"0";const t=Math.floor(PL.a.currentTime);document.getElementById("npd").textContent=Math.floor(t/60)+":"+String(t%60).padStart(2,"0")});
+PL.a.addEventListener("play",()=>document.getElementById("npb").innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="#07070B"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>');
+PL.a.addEventListener("pause",()=>document.getElementById("npb").innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="#07070B"><path d="M7 4l13 8-13 8z"/></svg>');
+/* routing */
+function crumb(t){document.getElementById("crumb").innerHTML=t}
+async function route(){clearTimeout(timer);const h=(location.hash||"#/dashboard").slice(2).split("/");view=h[0]||"dashboard";cur=view==="song"?h[1]:null;shown=null;
+document.querySelectorAll(".nav").forEach(a=>a.classList.toggle("on",a.dataset.v===(view==="song"?"library":view)));
+await loadSongs();
+if(view==="song")return openSong(cur);
+const draw={dashboard:dashboard,library:library,albums:albums,reels:reels,cloud:cloudView,approvals:approvals}[view]||dashboard;
+await draw();if(["dashboard","library","approvals"].includes(view)){const t=async()=>{if(!document.activeElement||!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){await loadSongs();await draw()}timer=setTimeout(t,5000)};timer=setTimeout(t,5000)}}
+window.addEventListener("hashchange",route);
+/* dashboard */
+function gateRows(rows){return rows.map(s=>{const g=s.next.gate;return `<tr><td><a href="#/song/${esc(s.slug)}" style="font-weight:500">${esc(s.title||s.slug)}</a><div class="mono sub">${esc(s.slug)}</div></td><td>${esc(lab(g))}</td><td><span class="chip mono">${esc(g)}</span></td><td style="text-align:right"><a class="btn sm p" href="#/song/${esc(s.slug)}">Review</a></td></tr>`}).join("")}
+async function dashboard(){crumb('Workspace <span style="margin:0 6px">/</span><b>Dashboard</b>');const S=SONGS,w=S.filter(s=>s.status==="approval"),tp=S.filter(s=>s.thumb_pending),pub=S.filter(s=>s.public),arc=S.filter(s=>s.archived),prod=S.filter(s=>s.status==="production");
+const bp=S.filter(s=>s.public&&s.status==="done"),bv=S.filter(s=>s.private&&s.status==="done");
+const rec=[...S].sort((a,b)=>b.mtime-a.mtime).slice(0,6);
+document.getElementById("main").innerHTML=`<div class="hd"><div><h1>Channel overview</h1><div class="mut" style="margin-top:4px">NAVAAN, ${S.length} song${S.length===1?"":"s"}</div></div><div class="g"></div>${wave(320,44,56,1)}<a class="btn" href="#/library">Open library</a></div>
+<div class="kpis"><div class="card kpi"><small>Waiting on you</small><b>${w.length+tp.length}</b><span>${w.length} approval${w.length===1?"":"s"}, ${tp.length} account action</span></div>
+<div class="card kpi"><small>Songs</small><b>${S.length}</b><span>${pub.length} published, ${prod.length} in production</span></div>
+<div class="card kpi"><small>Archived in cloud</small><b>${arc.length}</b><span>${arc.filter(s=>s.verified!==false).length} verified, ${S.filter(s=>s.cleaned).length} local copies cleaned</span></div>
+<div class="card kpi"><small>Instagram</small><b>${S.filter(s=>s.instagram).length}</b><span>Reels posted</span></div></div>
+<div class="cols"><div class="l">
+<div class="card np0"><div class="ch"><b>Needs your approval</b><span class="chip warn">${w.length+tp.length} open</span><div style="flex:1"></div><a href="#/approvals">View all</a></div>
+${w.length||tp.length?`<table><thead><tr><th>Song</th><th>Action</th><th>Gate</th><th></th></tr></thead><tbody>${gateRows(w)}${tp.map(s=>`<tr><td><a href="#/song/${esc(s.slug)}" style="font-weight:500">${esc(s.title||s.slug)}</a><div class="mono sub">${esc(s.slug)}</div></td><td>Verify the YouTube channel by phone so the thumbnail can be set</td><td><span class="chip bad">Account action</span></td><td style="text-align:right"><a class="btn sm" href="#/song/${esc(s.slug)}">Open</a></td></tr>`).join("")}</tbody></table>`:'<div style="padding:16px" class="mut">Nothing is waiting for you.</div>'}</div>
+<div class="card"><div style="display:flex;align-items:center;margin-bottom:12px"><b>Songs by stage</b><div style="flex:1"></div><span class="sub">${S.length} songs</span></div>
+<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px;background:#2A2A38">${[[bp.length,"#22C55E"],[w.length,"#E08A00"],[prod.length,"#FF4D7E"],[bv.length,"#8B5CF6"]].map(x=>x[0]?`<div style="flex:${x[0]};background:${x[1]}"></div>`:"").join("")}</div>
+<div style="display:flex;gap:24px;margin-top:12px;font-size:13px;flex-wrap:wrap">${[["Published",bp.length,"#22C55E"],["Waiting on you",w.length,"#E08A00"],["In production",prod.length,"#FF4D7E"],["Private",bv.length,"#8B5CF6"]].map(x=>`<span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:2px;background:${x[2]}"></span>${x[0]} <b>${x[1]}</b></span>`).join("")}</div></div>
+<div class="card np0"><div class="ch"><b>Recent songs</b></div>${rec.map(s=>`<a href="#/song/${esc(s.slug)}" style="display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line2);color:var(--fg)">${cov(s,36)}<div style="flex:1;min-width:0"><div style="font-weight:500">${esc(s.title||s.slug)}</div><div class="sub mono">${esc(s.slug)}${s.album?" · "+esc(s.album):""}</div></div>${stat(s)}${cl(s)}</a>`).join("")||'<div style="padding:16px" class="mut">No songs yet.</div>'}</div>
+</div><div class="r">
+<div class="card np0"><div class="ch"><b>Create</b></div><div style="padding:12px;display:flex;flex-direction:column;gap:8px">
+<a class="opt" href="javascript:openNew()"><div><b>Song</b><div class="sub">Import from Suno, or start a brief</div></div><span class="chip info">Available</span></a>
+<a class="opt" href="#/albums"><div><b>Album</b><div class="sub">Group songs under one name</div></div><span class="chip info">New</span></a>
+<a class="opt" href="#/reels"><div><b>Reel with speech</b><div class="sub">Inspirational clip for Instagram</div></div><span class="chip">Planned</span></a></div></div>
+<div class="card np0"><div class="ch"><b>Cloud storage</b></div><div style="padding:14px 16px" id="dcl" class="sub">Reading the bucket...</div></div>
+</div></div>`;
+if(!CL)api("/api/cloud").then(c=>{CL=c;dcl()});else dcl()}
+function dcl(){const e=document.getElementById("dcl");if(!e||!CL)return;if(!CL.configured){e.textContent="No cloud bucket set.";return}const b=CL.songs.reduce((a,s)=>a+s.bytes,0),n=CL.songs.reduce((a,s)=>a+s.files.length,0);e.innerHTML=`<b>${esc(CL.bucket)}</b> (${esc(CL.region||CL.provider)})<br>${CL.songs.length} songs, ${n} objects, ${sz(b)}<br><a href="#/cloud">Browse</a>`}
+/* library */
+function library(){crumb('Workspace <span style="margin:0 6px">/</span><b>Library</b>');const S=SONGS,f=(s,k)=>k==="all"?true:k==="approval"?s.status==="approval":k==="production"?s.status==="production":k==="published"?s.public:k==="archived"?s.archived:true;
+const opts=[["all","All"],["approval","Waiting on you"],["production","In production"],["published","Published"],["archived","In cloud"]];const q=LIB.q.toLowerCase();
+const rows=S.filter(s=>f(s,LIB.status)&&(!q||(s.title+" "+s.slug+" "+s.album).toLowerCase().includes(q)));
+const key=s=>LIB.group==="album"?(s.album||"No album"):LIB.group==="status"?({approval:"Waiting on you",production:"In production",done:s.public?"Published":"Done"}[s.status]):"";
+const groups={};rows.forEach(s=>{(groups[key(s)]=groups[key(s)]||[]).push(s)});
+const row=s=>`<div class="lrow" onclick="go('song/${esc(s.slug)}')">${cov(s,36)}<div style="min-width:0"><div style="font-weight:500">${esc(s.title||"untitled")}</div><div class="mono sub">${esc(s.slug)}${s.album&&LIB.group!=="album"?" · "+esc(s.album):""}</div></div>${stat(s)}<div><div class="bar" style="margin:0 0 4px"><i style="width:${s.steps_total?Math.round(100*s.steps_done/s.steps_total):0}%"></i></div><span class="sub">${s.steps_done} of ${s.steps_total} steps</span></div><div>${cl(s)}</div><div>${s.youtube?`<a href="${esc(s.youtube)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">YouTube</a>`:'<span class="sub">no link</span>'}${s.instagram?' <span class="chip ok">IG</span>':""}</div></div>`;
+let body="";for(const g of Object.keys(groups).sort((a,b)=>a==="No album"?1:b==="No album"?-1:a.localeCompare(b))){if(LIB.group!=="none")body+=`<div class="gh">${esc(g)}<span class="chip">${groups[g].length}</span></div>`;body+=groups[g].map(row).join("")}
+document.getElementById("main").innerHTML=`<div class="hd"><div><h1>Library</h1><div class="mut" style="margin-top:4px">${S.length} songs. Group and filter to find the one you need</div></div><div class="g"></div><button class="p" onclick="openNew()">New song</button></div>
+<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><div style="display:flex;align-items:center;gap:8px"><span class="sub">Group by</span><div class="seg">${[["none","None"],["album","Album"],["status","Status"]].map(x=>`<button class="${LIB.group===x[0]?"on":""}" onclick="LIB.group='${x[0]}';library()">${x[1]}</button>`).join("")}</div></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">${opts.map(o=>`<button class="pill ${LIB.status===o[0]?"on":""}" onclick="LIB.status='${o[0]}';library()">${o[1]} <b>${S.filter(s=>f(s,o[0])).length}</b></button>`).join("")}</div>
+<label class="srch" style="margin-left:auto;width:240px"><input placeholder="Filter by title" value="${esc(LIB.q)}" oninput="LIB.q=this.value;clearTimeout(window._lt);window._lt=setTimeout(()=>{const p=this.selectionStart;library();const i=document.querySelector('#main .srch input');if(i){i.focus();i.setSelectionRange(p,p)}},250)"></label></div>
+<div class="card np0"><div class="lrow lhd"><div></div><div>Song</div><div>Status</div><div>Progress</div><div>Cloud</div><div>Links</div></div>${body||'<div style="padding:24px" class="mut">No songs match.</div>'}</div>`}
+/* approvals */
+function approvals(){crumb('Operations <span style="margin:0 6px">/</span><b>Approvals</b>');const w=SONGS.filter(s=>s.status==="approval");
+document.getElementById("main").innerHTML=`<div class="hd"><div><h1>Approvals</h1><div class="mut" style="margin-top:4px">Only a click here can unlock publishing. Agents cannot.</div></div></div><div class="card np0">${w.length?`<table><thead><tr><th>Song</th><th>Action</th><th>Gate</th><th></th></tr></thead><tbody>${gateRows(w)}</tbody></table>`:'<div style="padding:20px" class="mut">Nothing is waiting for you.</div>'}</div>`}
+/* albums */
+function albums(){crumb('Workspace <span style="margin:0 6px">/</span><b>Albums</b>');const by={};SONGS.filter(s=>s.album).forEach(s=>(by[s.album]=by[s.album]||[]).push(s));const free=SONGS;
+document.getElementById("main").innerHTML=`<div class="hd"><div><h1>Albums</h1><div class="mut" style="margin-top:4px">Group songs under one release name. The name is saved in each song's meta.json</div></div></div>
+<div class="cols"><div class="l">${Object.keys(by).map(a=>`<div class="card np0"><div class="ch"><b>${esc(a)}</b><span class="chip">${by[a].length} songs</span><div style="flex:1"></div><button class="sm" onclick="albumOff('${esc(a).replace(/'/g,"")}')">Remove album</button></div>${by[a].map(s=>`<a href="#/song/${esc(s.slug)}" style="display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line2);color:var(--fg)">${cov(s,36)}<div style="flex:1"><div style="font-weight:500">${esc(s.title||s.slug)}</div><div class="sub mono">${esc(s.slug)}</div></div>${stat(s)}</a>`).join("")}</div>`).join("")||'<div class="card mut">No albums yet. Create one on the right.</div>'}</div>
+<div class="r"><div class="card"><h2>Create album</h2><div class="sub" style="margin-bottom:8px">Album name</div><input id="an" placeholder="e.g. Pata Hi Na Chala EP"><div class="sub" style="margin:12px 0 6px">Tracks</div>${free.map(s=>`<label style="display:flex;gap:10px;align-items:center;padding:6px 0;cursor:pointer"><input type="checkbox" class="ak" value="${esc(s.slug)}" style="width:auto"><span style="flex:1">${esc(s.title||s.slug)} <span class="sub mono">${esc(s.slug)}</span></span>${s.album?`<span class="chip">${esc(s.album)}</span>`:""}</label>`).join("")||'<div class="mut">No songs.</div>'}<div style="margin-top:12px"><button class="p" onclick="albumMake()">Save album</button></div>
+<p class="sub" style="margin:12px 0 0">A shared cover, a YouTube playlist and a single release step come next. This grouping already shows in the Library.</p></div></div></div>`}
+async function albumMake(){const n=document.getElementById("an").value.trim();const sl=[...document.querySelectorAll(".ak:checked")].map(x=>x.value);if(!n||!sl.length)return alert("Give the album a name and pick at least one song.");await api("/api/album",{name:n,slugs:sl});await loadSongs();albums()}
+async function albumOff(a){const sl=SONGS.filter(s=>s.album===a).map(s=>s.slug);if(!confirm("Remove the album name from "+sl.length+" songs? The songs stay."))return;await api("/api/album",{name:"",slugs:sl});await loadSongs();albums()}
+/* reels */
+function reels(){crumb('Workspace <span style="margin:0 6px">/</span><b>Reels</b>');const n=(i,t,d,k)=>{const c={new:["#FF4D7E","New step"],reuse:["#22C55E","Reused"],gate:["#FFB020","Your approval"]}[k];return `<div><div style="display:flex;align-items:center;gap:8px"><span style="width:22px;height:22px;border-radius:50%;background:${c[0]}22;color:${c[0]};font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center">${i}</span><b>${t}</b></div><div class="sub">${d}</div><span class="chip" style="align-self:flex-start;background:${c[0]}22;color:${c[0]}">${c[1]}</span></div>`};
+document.getElementById("main").innerHTML=`<div class="hd"><div><h1>Reel with speech</h1><div class="mut" style="margin-top:4px">Inspirational clip for Instagram. Planned: the pipeline is designed, not built yet</div></div><div class="g"></div><span class="chip">Planned</span></div>
+<div class="card"><h2>Pipeline preview</h2><div class="pipe">${n(1,"Script","Draft with timing per line. You edit and approve.","gate")}${n(2,"Voice over","Speech file from the script","new")}${n(3,"Visuals","Flow clips cut to the speech length","reuse")}${n(4,"Captions","Burned in, word by word","reuse")}${n(5,"Reel","Speech, music and clips mixed into 9:16","new")}${n(6,"Post","Caption, go public gate, then Instagram","reuse")}</div></div>`}
+/* cloud */
+async function cloudView(refresh){crumb('Workspace <span style="margin:0 6px">/</span><b>Cloud storage</b>');const m=document.getElementById("main");if(!CL||refresh){m.innerHTML='<p class="mut">Reading the bucket...</p>';CL=await api("/api/cloud"+(refresh?"?refresh=1":""))}drawCloud()}
+function drawCloud(){const m=document.getElementById("main"),c=CL;if(!c.configured){m.innerHTML='<div class="card"><h2>Cloud storage</h2><p>No cloud bucket is set in the profile. Set storage.cloud_provider in navaan.config.json.</p></div>';return}
+const tb=c.songs.reduce((a,s)=>a+s.bytes,0),no=c.songs.reduce((a,s)=>a+s.files.length,0),stale=c.songs.filter(s=>s.verified===false).length;
+let h=`<div class="hd"><div><h1>Cloud storage</h1><div class="mut" style="margin-top:4px">${esc(c.provider)} bucket <b class="mono">${esc(c.bucket)}</b>, ${esc(c.region||"")}, folder <span class="mono">${esc(c.prefix)}</span></div></div><div class="g"></div><button onclick="cloudView(true)">Refresh</button></div>
+${c.error?`<div class="card alert"><h2>Bucket error</h2>${esc(c.error)}</div>`:""}
+<div class="kpis"><div class="card kpi"><small>Objects</small><b>${no}</b></div><div class="card kpi"><small>Total size</small><b>${sz(tb)}</b></div><div class="card kpi"><small>Songs archived</small><b>${c.songs.length}</b><span>of ${SONGS.length}</span></div><div class="card kpi"><small>Out of date</small><b style="color:${stale?"var(--warn)":"var(--fg)"}">${stale}</b><span>songs where the bucket differs from local</span></div></div>`;
+for(const s of c.songs){h+=`<div class="card np0"><div class="ch"><b class="mono">${esc(s.slug)}</b><span class="mut">${esc(s.title)}</span><div style="flex:1"></div><span class="chip ${s.verified===false?"warn":"ok"}">${s.verified===false?"Bucket differs from local":"Verified"}</span><span class="chip">${s.local?(s.cleaned?"Local media cleaned":"Local copy kept"):"Not on this computer"}</span></div>
+<div style="padding:10px 16px" class="sub">${s.files.length} files, ${sz(s.bytes)}${s.uploaded_at?" · archived "+esc(s.uploaded_at):""}${s.youtube.map(u=>` · <a href="${esc(u)}" target="_blank" rel="noopener">YouTube</a>`).join("")}</div>
+<table><thead><tr><th>Name</th><th>Size</th><th></th></tr></thead><tbody>${s.files.map(f=>`<tr><td class="mono" style="font-size:13px;overflow-wrap:anywhere">${esc(f.name)}</td><td class="mono" style="white-space:nowrap;font-size:13px">${sz(f.size)}</td><td style="text-align:right"><button class="sm" onclick='cloudOpen(${JSON.stringify(f.key)},this)'>Open 1 hour link</button></td></tr>`).join("")}</tbody></table></div>`}
+if(!c.songs.length&&!c.error)h+='<p class="mut">The bucket has no song folders yet.</p>';m.innerHTML=h}
+async function cloudOpen(key,b){b.disabled=true;const r=await api("/api/cloud/link",{key});b.disabled=false;if(r.error)return alert(r.error);window.open(r.url,"_blank","noopener")}
+/* song */
+let fast=false,shown=null;
+async function openSong(s){cur=s;crumb('<a href="#/library">Library</a> <span style="margin:0 6px">/</span><b>'+esc(s)+'</b>');await render();clearTimeout(timer);const tick=async()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")await render();timer=setTimeout(tick,fast?1500:4000)};timer=setTimeout(tick,1500)}
+let VOL=0.8,MUTE=false,AC=null;try{const v=localStorage.getItem("navaan_vol");if(v!==null)VOL=Math.max(0,Math.min(2,parseFloat(v)||0));MUTE=localStorage.getItem("navaan_mute")==="1"}catch(e){}
+function boost(el){if(!el.__g){AC=AC||new (window.AudioContext||window.webkitAudioContext)();const src=AC.createMediaElementSource(el),g=AC.createGain();src.connect(g);g.connect(AC.destination);el.__g=g}if(AC.state==="suspended")AC.resume();return el.__g}
+function applyVol(){document.querySelectorAll("#main audio,#main video").forEach(el=>{el.muted=MUTE;el.volume=Math.min(1,VOL);if(VOL>1)boost(el).gain.value=VOL;else if(el.__g)el.__g.gain.value=1});PL.a.volume=Math.min(1,VOL);PL.a.muted=MUTE;
+const l=document.getElementById("vl");if(l)l.textContent=MUTE?"muted":Math.round(VOL*100)+"%";const b=document.getElementById("vm");if(b)b.textContent=MUTE?"Unmute":"Mute"}
+function setVol(v){VOL=v/100;MUTE=false;try{localStorage.setItem("navaan_vol",VOL);localStorage.setItem("navaan_mute","0")}catch(e){}applyVol()}
+function toggleMute(){MUTE=!MUTE;try{localStorage.setItem("navaan_mute",MUTE?"1":"0")}catch(e){}applyVol()}
+function setSec(id,html,par){const main=document.getElementById(par||"main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){const sv=[...el.querySelectorAll("pre")].map(p=>({t:p.scrollTop,bot:p.scrollHeight-p.scrollTop-p.clientHeight<24}));el.innerHTML=html;el.dataset.h=html;el.querySelectorAll("pre").forEach((p,i)=>{const o=sv[i];p.scrollTop=(!o||o.bot)?p.scrollHeight:o.t})}}
 function gnode(g,state,d){const a=d.approvals[g];const t=lab(g);
 if(a)return `<div class="node gate done"><div class="dot">&#10003;</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="sub">approved ${esc(a.at||"")}</span></div></div></div>`;
 if(state==="waiting")return `<div class="node gate waiting"><div class="dot">!</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="chip waiting">needs you</span></div><div style="margin:4px 0"><button class="p" onclick="gate('${g}')">${esc(t)}</button></div></div></div>`;
 return `<div class="node gate pending"><div class="dot">&#9679;</div><div class="nb"><div class="nt"><b>Gate: ${esc(g)}</b><span class="sub">${esc(t)}</span></div></div></div>`}
+function questionCard(q){const fl=(q.options||[]).some(o=>o.text);const btn=o=>`<button onclick="answerQ('${esc(o.id)}',${o.text?1:0})">${esc(o.label)}</button>`;return `<div class="card alert"><h2>The agent is asking you</h2><p style="margin:0 0 8px">${esc(q.text)}</p>${q.allow_text?`<textarea id="qtext" rows="2" style="width:100%;margin-bottom:8px;min-height:60px" placeholder="${fl?"Type here, then press the button marked with ✎":(q.options&&q.options.length?"Optional note":"Type your answer")}"></textarea>`:""}<div style="display:flex;gap:8px;flex-wrap:wrap">${(q.options||[]).map(o=>o.text?btn({...o,label:"✎ "+o.label}):btn(o)).join("")}${q.options&&q.options.length?"":`<button onclick="answerQ('',1)">Send answer</button>`}</div></div>`}
 function wf(d){const R=d.run||{},nx=d.next,rows=d.steps,total=rows.length,done=rows.filter(r=>r.done).length,busy=d.job.running;
-const cur=rows.find(r=>R.step===r.id);let h=(d.profile===false?`<div class="card" style="border-color:var(--warn)"><h2 style="color:var(--warn)">No artist profile yet</h2><p style="margin:0">The agents have no palette, motifs or voice to follow, so they guess from earlier songs. Run <code>python3 plugins/navaan-studio/scripts/navaan.py init</code> in your workspace, then re-run the step.</p></div>`:"")+(d.question?questionCard(d.question):"")+((d.thumb_pending||[]).length?`<div class="card" style="border-color:var(--warn)"><h2 style="color:var(--warn)">Thumbnail not set on YouTube</h2><p style="margin:0">YouTube refused the custom thumbnail because the channel is not phone verified. Verify at <a href="https://www.youtube.com/verify" target="_blank" rel="noopener">youtube.com/verify</a>, then run <code>python3 plugins/navaan-studio/scripts/publish_youtube.py thumb ${esc(d.slug||"")} ${esc(d.thumb_pending[0].id)}</code>. This card goes away once it is set.</p></div>`:"")+(d.needs_you?`<div class="card" style="border-color:var(--warn)"><h2 style="color:var(--warn)">Action needed from you</h2><p style="margin:0">${esc(d.needs_you)}</p><p class="sub" style="margin:6px 0 0">Switch the account in the Flow tab the agent opened, not in a new tab. The agent checks every 30 seconds and continues by itself. If it timed out, click Retry and continue. If Flow keeps going back to the old account, sign out of that Google account in Chrome, or use a Chrome profile that only has the account with credits.</p></div>`:"")+`<div class="card"><h2>Workflow</h2><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${done}</b> of ${total} steps done</span>`;
+let h=(d.profile===false?`<div class="card alert"><h2>No artist profile yet</h2><p style="margin:0">The agents have no palette, motifs or voice to follow, so they guess from earlier songs. Run <code>python3 plugins/navaan-studio/scripts/navaan.py init</code> in your workspace, then re-run the step.</p></div>`:"")+(d.question?questionCard(d.question):"")+((d.thumb_pending||[]).length?`<div class="card alert"><h2>Thumbnail not set on YouTube</h2><p style="margin:0">YouTube refused the custom thumbnail because the channel is not phone verified. Verify at <a href="https://www.youtube.com/verify" target="_blank" rel="noopener">youtube.com/verify</a>, then run <code>python3 plugins/navaan-studio/scripts/publish_youtube.py thumb ${esc(d.slug||"")} ${esc(d.thumb_pending[0].id)}</code>. This card goes away once it is set.</p></div>`:"")+(d.needs_you?`<div class="card alert"><h2>Action needed from you</h2><p style="margin:0">${esc(d.needs_you)}</p><p class="sub" style="margin:6px 0 0">Switch the account in the Flow tab the agent opened, not in a new tab. The agent checks every 30 seconds and continues by itself. If it timed out, click Retry and continue. If Flow keeps going back to the old account, sign out of that Google account in Chrome, or use a Chrome profile that only has the account with credits.</p></div>`:"")+`<div class="card"><h2>Workflow</h2><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${done}</b> of ${total} steps done</span>`;
 if(busy)h+=`<span class="chip running">${esc(d.status_text||"running")}${R.elapsed!=null?" · "+fmt(R.elapsed):""}</span>`;
 else if(R.failed)h+=`<span class="chip failed">step ${esc(R.failed)} failed</span>`;
 else if(nx.type==="gate")h+=`<span class="chip waiting">waiting for your approval: ${esc(nx.gate)}</span>`;else if(nx.type==="done")h+=`<span class="chip done">all done</span>`;
@@ -58,8 +241,8 @@ for(const r of rows){let st=r.done?"done":R.step===r.id?"running":R.failed===r.i
 if(r.gate_before&&!r.done)h+=gnode(r.gate_before,(nx.type==="gate"&&nx.gate===r.gate_before)?"waiting":"pending",d);
 const logt=d.logs[r.id]||"";const open=OPEN[r.id]!==undefined?OPEN[r.id]:(st==="running"||st==="failed");
 const icon=st==="done"?"&#10003;":st==="running"?'<div class="spin"></div>':st==="failed"?"&#10005;":st==="waiting"?"!":"&#9679;";
-const lab={done:"done",running:"running"+(R.attempts>1&&R.attempt?" (try "+R.attempt+" of "+R.attempts+")":"")+(R.elapsed!=null?" · "+fmt(R.elapsed):""),failed:"failed",waiting:"waiting",pending:"not started"}[st];
-h+=`<div class="node ${st}"><div class="dot">${icon}</div><div class="nb"><div class="nt" onclick="tog('${r.id}',${!open})"><b>${esc(r.label)}</b><span class="chip ${st==="done"?"done":st==="running"?"running":st==="failed"?"failed":st==="waiting"?"waiting":""}">${lab}</span>${r.kind==="claude"?'<span class="sub">agent</span>':""}${(st==="done"||st==="failed")&&r.redo&&!busy?`<button style="padding:2px 10px;font-size:12px;margin-left:auto" onclick="event.stopPropagation();redoStep('${r.id}',${r.spends})">Redo</button>`:""}</div>`;
+const lb={done:"done",running:"running"+(R.attempts>1&&R.attempt?" (try "+R.attempt+" of "+R.attempts+")":"")+(R.elapsed!=null?" · "+fmt(R.elapsed):""),failed:"failed",waiting:"waiting",pending:"not started"}[st];
+h+=`<div class="node ${st}"><div class="dot">${icon}</div><div class="nb"><div class="nt" onclick="tog('${r.id}',${!open})"><b>${esc(r.label)}</b><span class="chip ${st==="done"?"done":st==="running"?"running":st==="failed"?"failed":st==="waiting"?"waiting":""}">${lb}</span>${r.kind==="claude"?'<span class="sub">agent</span>':""}${(st==="done"||st==="failed")&&r.redo&&!busy?`<button class="sm" style="margin-left:auto" onclick="event.stopPropagation();redoStep('${r.id}',${r.spends})">Redo</button>`:""}</div>`;
 if(open&&logt)h+=`<pre>${esc(logt)}</pre>`;else if(open&&st!=="pending")h+=`<div class="sub">no log yet</div>`;
 if(st==="failed")h+=`<div class="sub" style="margin:4px 0">Log above. Fix the cause, then click Retry and continue.</div>`;
 h+=`</div></div>`;
@@ -67,44 +250,24 @@ if(r.gate_after&&r.done)h+=gnode(r.gate_after,(nx.type==="gate"&&nx.gate===r.gat
 return h+`</div></div>`}
 async function redoStep(id,sp){if(!confirm('Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). Other steps are not touched. If the new run fails, the old files are put back.'+(sp?' It spends credits, so approve the credits gate again first.':'')))return;const r=await api('/api/redo',{slug:cur,step:id});if(r.error)return alert(r.error);OPEN[id]=true;render()}
 function tog(id,v){OPEN[id]=v;render()}
-let IMP=false;const lab=g=>g==='credits'&&IMP?'I approve spending Flow credits for visuals (the Suno song is already made, nothing more is spent on Suno)':(GL[g]||g);
-async function loadList(){const l=await api("/api/songs");document.getElementById("list").innerHTML=l.map(s=>`<div class="song ${s.slug===cur?"on":""}" onclick="openSong('${s.slug}')">${esc(s.slug)}<small>${esc(s.title||"untitled")} · ${esc(s.state||"")}</small></div>`).join("")||'<p class="mut">No songs yet.</p>'}
-async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return alert(r.error);document.getElementById("iu").value="";await loadList();openSong(r.slug)}
-async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";await loadList();openSong(v)}
-let CL=null;const sz=n=>n>=1e6?(n/1e6).toFixed(1)+" MB":Math.max(1,Math.round(n/1e3))+" KB";
-async function openCloud(refresh){cur=null;clearTimeout(timer);loadList();const m=document.getElementById("main");m.innerHTML='<p class="mut">Reading the bucket...</p>';CL=await api("/api/cloud"+(refresh?"?refresh=1":""));drawCloud()}
-function drawCloud(){const m=document.getElementById("main"),c=CL;if(!c.configured){m.innerHTML='<div class="card"><h2>Cloud storage</h2><p>No cloud bucket is set in the profile. Set storage.cloud_provider in navaan.config.json.</p></div>';return}
-let h=`<div class="card"><h2>Cloud storage</h2><p class="sub" style="margin:0">${esc(c.provider)} bucket <b>${esc(c.bucket)}</b>, folder <b>${esc(c.prefix)}</b> <button onclick="openCloud(true)" style="margin-left:8px">Refresh</button></p>${c.error?`<p style="color:#b3261e">${esc(c.error)}</p>`:""}</div>`;
-for(const s of c.songs){h+=`<div class="card"><h2 style="margin-bottom:4px">${esc(s.slug)} <span class="sub">${esc(s.title)}</span></h2><p class="sub" style="margin:0 0 6px">${s.files.length} files, ${sz(s.bytes)} · ${s.local?(s.cleaned?"local media cleaned up":"local copy still on this computer"):"not on this computer"}${s.verified===false?" · bucket does not match local":""}${s.uploaded_at?" · archived "+esc(s.uploaded_at):""}${s.youtube.map(u=>` · <a href="${esc(u)}" target="_blank" rel="noopener">YouTube</a>`).join("")}</p><table style="width:100%;font-size:13px;border-collapse:collapse">`+s.files.map(f=>`<tr><td style="padding:2px 0;overflow-wrap:anywhere">${esc(f.name)}</td><td class="sub" style="white-space:nowrap;padding:0 8px">${sz(f.size)}</td><td><button onclick='cloudOpen(${JSON.stringify(f.key)},this)'>Open</button></td></tr>`).join("")+`</table></div>`}
-if(!c.songs.length&&!c.error)h+='<p class="mut">The bucket has no song folders yet.</p>';m.innerHTML=h}
-async function cloudOpen(key,b){b.disabled=true;const r=await api("/api/cloud/link",{key});b.disabled=false;if(r.error)return alert(r.error);window.open(r.url,"_blank","noopener")}
-let fast=false;
-async function openSong(s){cur=s;await loadList();await render();clearTimeout(timer);const tick=async()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")await render();timer=setTimeout(tick,fast?1500:4000)};timer=setTimeout(tick,1500)}
-let VOL=0.8,MUTE=false,AC=null;try{const v=localStorage.getItem("navaan_vol");if(v!==null)VOL=Math.max(0,Math.min(2,parseFloat(v)||0));MUTE=localStorage.getItem("navaan_mute")==="1"}catch(e){}
-function boost(el){if(!el.__g){AC=AC||new (window.AudioContext||window.webkitAudioContext)();const src=AC.createMediaElementSource(el),g=AC.createGain();src.connect(g);g.connect(AC.destination);el.__g=g}if(AC.state==="suspended")AC.resume();return el.__g}
-function applyVol(){document.querySelectorAll("audio,video").forEach(el=>{el.muted=MUTE;el.volume=Math.min(1,VOL);if(VOL>1)boost(el).gain.value=VOL;else if(el.__g)el.__g.gain.value=1});
-const l=document.getElementById("vl");if(l)l.textContent=MUTE?"muted":Math.round(VOL*100)+"%";const b=document.getElementById("vm");if(b)b.textContent=MUTE?"Unmute":"Mute"}
-function setVol(v){VOL=v/100;MUTE=false;try{localStorage.setItem("navaan_vol",VOL);localStorage.setItem("navaan_mute","0")}catch(e){}applyVol()}
-function toggleMute(){MUTE=!MUTE;try{localStorage.setItem("navaan_mute",MUTE?"1":"0")}catch(e){}applyVol()}
-let shown=null;
-function setSec(id,html){const main=document.getElementById("main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){const sv=[...el.querySelectorAll("pre")].map(p=>({t:p.scrollTop,bot:p.scrollHeight-p.scrollTop-p.clientHeight<24}));el.innerHTML=html;el.dataset.h=html;el.querySelectorAll("pre").forEach((p,i)=>{const o=sv[i];p.scrollTop=(!o||o.bot)?p.scrollHeight:o.t})}}
-async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);shown=null;return}
-if(shown!==cur){document.getElementById("main").innerHTML="";shown=cur}
+async function render(){if(!cur||view!=="song")return;const d=await api("/api/song/"+cur);const main=document.getElementById("main");if(d.error){main.innerHTML=esc(d.error);shown=null;return}
+if(shown!==cur){main.innerHTML='<div id="s_head"></div><div class="two"><div class="l" id="colL" style="display:flex;flex-direction:column;gap:16px"></div><div class="r" id="colR" style="display:flex;flex-direction:column;gap:16px"></div></div><div id="colB" style="display:flex;flex-direction:column;gap:16px"></div>';shown=cur}
 IMP=d.meta.source==="suno_import";fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}?v=${f[n]||0}`;
-setSec("s_top",`<h2 style="font-size:20px">${esc(cur)} <span class="chip">${esc(d.meta.state||"")}</span></h2>`+wf(d));
+const row=SONGS.find(s=>s.slug===cur)||{slug:cur};
+setSec("s_head",`<div class="hd">${cov({...row,cover:!!f["cover_1x1.png"]},56)}<div><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>${esc(row.title||cur)}</h1>${stat(row)}</div><div class="mut mono" style="margin-top:4px;font-size:13px">${esc(cur)}${d.meta.album?" · Album: "+esc(d.meta.album):""}</div></div><div class="g"></div>${wave(260,44,46,2)}${row.youtube?`<a class="btn" href="${esc(row.youtube)}" target="_blank" rel="noopener">Open on YouTube</a>`:""}<a class="btn" href="#/cloud">Cloud storage</a></div>`);
+setSec("s_top",wf(d),"colL");
 let md="";const vids=["final_reel_cap.mp4","final_16x9_cap.mp4","final_reel_sync.mp4","final_16x9.mp4"].filter(n=>f[n]).concat(Object.keys(f).filter(n=>n.startsWith("clips~")));if(f["final.mp3"])md+=`<div class="card"><h2>Song</h2><audio controls preload="metadata" src="${m("final.mp3")}" style="width:100%"></audio></div>`;
 if(vids.length)md+=`<div class="card"><h2>Review videos</h2><div class="row">${vids.map(n=>`<div><div class="mut">${n.startsWith("clips~")?"Flow clip: "+n.slice(6):/_cap\.mp4$/.test(n)?n+" (with lyrics)":n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div></div>`;
-setSec("s_vol",md?`<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b>Volume</b><input type="range" min="0" max="200" step="1" value="${Math.round(VOL*100)}" oninput="setVol(this.value)" style="flex:1;min-width:140px;width:auto;padding:0"><span id="vl" style="min-width:48px">${Math.round(VOL*100)}%</span><button id="vm" onclick="toggleMute()">${MUTE?"Unmute":"Mute"}</button><span class="sub">above 100% boosts a quiet song</span></div>`:"");
-setSec("s_media",md);applyVol();
-setSec("s_appr",`<div class="card"><h2>Approvals</h2>`+d.gates.map(g=>{const a=d.approvals[g];return `<div class="step"><b>${esc(g)}</b><span class="chip ${a?"done":""}">${a?"approved "+esc(a.at):"not approved"}</span>${a?`<button onclick="revoke('${g}')">Revoke</button>`:`<button onclick="gate('${g}')">Approve</button>`}</div>`}).join("")+`<p class="mut">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div>`);
-let tx="";for(const n of Object.keys(d.text))tx+=`<div class="card"><h2>${esc(n)}</h2><textarea id="t_${n}">${esc(d.text[n])}</textarea><p><button onclick="save('${n}')">Save</button></p></div>`;
-if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")setSec("s_text",tx);
-loadList()}
-function questionCard(q){const fl=(q.options||[]).some(o=>o.text);const btn=o=>`<button onclick="answerQ('${esc(o.id)}',${o.text?1:0})">${esc(o.label)}</button>`;return `<div class="card" style="border-color:var(--warn)"><h2 style="color:var(--warn)">The agent is asking you</h2><p style="margin:0 0 8px">${esc(q.text)}</p>${q.allow_text?`<textarea id="qtext" rows="2" style="width:100%;margin-bottom:8px" placeholder="${fl?"Type here, then press the button marked with ✎":(q.options&&q.options.length?"Optional note":"Type your answer")}"></textarea>`:""}<div style="display:flex;gap:8px;flex-wrap:wrap">${(q.options||[]).map(o=>o.text?btn({...o,label:"✎ "+o.label}):btn(o)).join("")}${q.options&&q.options.length?"":`<button onclick="answerQ('',1)">Send answer</button>`}</div></div>`}
+setSec("s_vol",md?`<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b>Volume</b><input type="range" min="0" max="200" step="1" value="${Math.round(VOL*100)}" oninput="setVol(this.value)" style="flex:1;min-width:120px;width:auto;padding:0"><span id="vl" style="min-width:48px">${Math.round(VOL*100)}%</span><button id="vm" onclick="toggleMute()">${MUTE?"Unmute":"Mute"}</button><span class="sub">above 100% boosts a quiet song</span></div>`:"","colR");
+setSec("s_media",md,"colR");applyVol();
+setSec("s_appr",`<div class="card"><h2>Approvals</h2>`+d.gates.map(g=>{const a=d.approvals[g];return `<div class="step"><b>${esc(g)}</b><span class="chip ${a?"done":""}">${a?"approved "+esc(a.at):"not approved"}</span>${a?`<button class="sm" onclick="revoke('${g}')">Revoke</button>`:`<button class="sm" onclick="gate('${g}')">Approve</button>`}</div>`}).join("")+`<p class="mut" style="margin:10px 0 0">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div>`,"colR");
+let tx="";for(const n of Object.keys(d.text))tx+=`<div class="card"><h2>${esc(n)}</h2><textarea id="t_${n}">${esc(d.text[n])}</textarea><p style="margin:10px 0 0"><button onclick="save('${n}')">Save</button></p></div>`;
+if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")setSec("s_text",tx,"colB");
+loadSongs()}
 async function answerQ(c,usesText){const t=document.getElementById("qtext");const v=t?t.value.trim():"";if(usesText&&!v)return alert("Type the answer in the box first.");const r=await api("/api/answer",{slug:cur,choice:c,text:v});if(r.error)return alert(r.error);render()}
 async function gate(g){if(!confirm("Approve: "+lab(g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
 async function revoke(g){await api("/api/revoke",{slug:cur,gate:g});render()}
 async function runIt(all){await api("/api/run",{slug:cur,all:!!all});render()}
 async function save(n){const r=await api("/api/save",{slug:cur,file:n,content:document.getElementById("t_"+n).value});alert(r.error||"saved")}
-loadList();
+route();
 </script></body></html>

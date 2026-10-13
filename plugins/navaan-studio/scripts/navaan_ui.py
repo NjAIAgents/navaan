@@ -16,6 +16,25 @@ def songs():
     return sorted(os.path.basename(p) for p in glob.glob(f"{C.songs_root()}/*") if os.path.isdir(p) and not os.path.basename(p).startswith("_"))
 
 
+def song_row(s):
+    """One line per song for the dashboard, library and approvals views."""
+    D = C.song_dir(s); m = navaan.meta(s)
+    try: rows, n = navaan.plan(s)
+    except SystemExit: rows, n = [], {"type": "none"}
+    pub = m.get("published", {}); its = list(pub.get("youtube_items", [])) + ([pub["youtube_short"]] if pub.get("youtube_short", {}).get("id") else [])
+    cl = m.get("cloud", {}); public = navaan.public_done(m)
+    if n.get("type") == "gate": status = "approval"
+    elif n.get("type") == "done": status = "done"
+    else: status = "production"
+    tp = os.path.join(D, "title.txt")
+    return {"slug": s, "state": m.get("state"), "next": n, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "",
+            "album": m.get("album", ""), "status": status, "steps_done": sum(1 for r in rows if r.get("done")), "steps_total": len(rows),
+            "public": public, "private": bool(its) and not public, "instagram": bool(pub.get("instagram")), "archived": bool(cl.get("uploaded_at")),
+            "verified": cl.get("verified"), "cleaned": bool(m.get("cleanup")), "youtube": (pub.get("youtube_items") or [{}])[0].get("url", ""),
+            "audio": os.path.exists(os.path.join(D, "final.mp3")), "cover": os.path.exists(os.path.join(D, "cover_1x1.png")),
+            "thumb_pending": bool(pub.get("thumbnail_pending")), "source": m.get("source", ""), "mtime": int(os.path.getmtime(os.path.join(D, "meta.json"))) if os.path.exists(os.path.join(D, "meta.json")) else 0}
+
+
 CLOUD = {"at": 0, "data": None}
 
 
@@ -105,11 +124,7 @@ class H(BaseHTTPRequestHandler):
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
-            if p == "/api/songs":
-                out = []
-                for s in songs():
-                    m = navaan.meta(s); _, n = navaan.plan(s); out.append({"slug": s, "state": m.get("state"), "next": n, "title": (open(f"{C.song_dir(s)}/title.txt", encoding="utf-8").read().strip() if os.path.exists(f"{C.song_dir(s)}/title.txt") else "")})
-                return self._send(200, out)
+            if p == "/api/songs": return self._send(200, [song_row(s) for s in songs()])
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
             m = re.match(r"^/media/([^/]+)/([^/]+)$", p)
@@ -149,6 +164,13 @@ class H(BaseHTTPRequestHandler):
                 if not key.startswith(pre) or ".." in key: return self._send(400, {"error": "not a song object"})
                 try: return self._send(200, {"url": storage.signed_url(C.cfg("storage.cloud_provider"), C.cfg("storage.cloud_bucket"), C.cfg("storage.cloud_region", ""), key)})
                 except RuntimeError as e: return self._send(500, {"error": str(e)})
+            if p == "/api/album":
+                name = str(body.get("name", "")).strip()[:80]; sl = [x for x in body.get("slugs", []) if isinstance(x, str) and SLUG.match(x)]
+                for x in sl:
+                    m = navaan.meta(x); m["album"] = name
+                    if not name: m.pop("album", None)
+                    navaan.save_meta(x, m)
+                return self._send(200, {"ok": True, "count": len(sl)})
             if p == "/api/new":
                 if not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 rc = subprocess.call([sys.executable, os.path.join(navaan.HERE, "new_song.py"), slug], cwd=C.find_root()); return self._send(200, {"rc": rc})

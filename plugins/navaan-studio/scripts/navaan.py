@@ -119,12 +119,13 @@ def plan(slug):
     """Walk the steps in order and return (rows, next_action). Everything is derived from files plus approvals."""
     D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); rows = []; nxt = None
     legacy = m.get("state") == "published" and any(a.get("via") == "legacy backfill" for a in ap.values())  # songs finished before navaan-studio
+    cleaned = bool(m.get("cleanup"))  # local media was deleted after a verified archive, so earlier steps no longer have their files and must not look unfinished
     for s in steps(slug, D):
         if s.get("optional") and not (cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM")):
             continue
         if s.get("optional_cloud") and cfg("storage.cloud_provider", "none") in ("none", None, ""):
             continue
-        d = s["done"](m) or (legacy and s["id"] not in ("archive", "cleanup"))
+        d = s["done"](m) or ((legacy or cleaned) and s["id"] not in ("archive", "cleanup"))
         row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
         if d:
