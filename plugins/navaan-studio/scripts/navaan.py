@@ -244,7 +244,8 @@ def plan(slug):
             continue
         skip = (legacy or cleaned) and s["id"] not in ("archive", "cleanup")
         if s["id"] in ("instagram_caption", "publish_instagram") and not ig_done(m): skip = False  # never posted, so there is still a caption to write and approve
-        notused = legacy and s["id"] in ("instagram_caption", "publish_instagram", "archive", "cleanup") and not s["done"](m)  # older song, finished before these steps existed
+        reel_made = os.path.exists(os.path.join(D, "reel_clip.json")) and s["id"] in ("instagram_caption", "publish_instagram")  # a reel was cut for Instagram from this older song, so those two steps are live again
+        notused = legacy and s["id"] in ("instagram_caption", "publish_instagram", "archive", "cleanup") and not s["done"](m) and not reel_made  # older song, finished before these steps existed
         if notused: skip = True
         d = s["done"](m) or skip
         row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
@@ -409,8 +410,11 @@ def _run(slug, step=None, dry=False, retries=2):
         if not rf: print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
         if not gate_ok(D, meta(slug).get("approvals", {}), "instagram_caption"): show_gate(slug, "instagram_caption"); print("The Instagram caption is missing or changed since you approved it. Approve gate 'instagram_caption' again."); return 3
         cap = os.path.join(D, "publish"); os.makedirs(cap, exist_ok=True)
-        s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, rf))}) && '
-                      f'{shlex.quote(PY)} {shlex.quote(os.path.join(HERE, "publish_instagram.py"))} publish {shlex.quote(slug)} --video-url "$U" --caption-file instagram.txt --yes']]
+        oci = f'NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))}'
+        cover = os.path.join(D, "thumb_9x16.jpg")  # a cover made for this reel (clip_reel.py or the inspiration render), sent as the Reel cover
+        cv_get, cv_arg = ((f'CV=$({oci} {shlex.quote(cover)}) && ', ' --cover-url "$CV"') if os.path.exists(cover) else ("", ""))
+        s["cmds"] = [["bash", "-c", f'U=$({oci} {shlex.quote(os.path.join(D, rf))}) && {cv_get}'
+                      f'{shlex.quote(PY)} {shlex.quote(os.path.join(HERE, "publish_instagram.py"))} publish {shlex.quote(slug)} --video-url "$U"{cv_arg} --caption-file instagram.txt --yes']]
     if s["kind"] == "claude" and question_open(slug) and not dry:
         print(f"step {sid} is waiting for your answer: {question_open(slug)['text']}"); return 6
     cmds = [claude_cmd(slug, s)] if s["kind"] == "claude" else s["cmds"]
