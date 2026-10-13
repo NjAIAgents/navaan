@@ -162,10 +162,7 @@ def song_view(slug, db_file=None):
             try:
                 fs = db.rows(conn, f"SELECT finding_id, rule_id, severity, title, detail FROM findings WHERE subject = {db.PH} AND status = 'open'", (p["media_id"],))
                 ids = {f["finding_id"] for f in fs}
-                recs = [r for r in db.rows(conn, f"SELECT rec_id, priority, title, action, status, finding_ids FROM recommendations WHERE ig_user_id = {db.PH} AND status IN ('open','done')", (uid,))
-                        if ids & set(json.loads(r["finding_ids"] or "[]"))]
-                for r in recs:
-                    r.pop("finding_ids")
+                recs = _recs_for(conn, uid, "instagram", ids)
                 p["findings"], p["recommendations"] = fs, recs
             except Exception:
                 p["findings"], p["recommendations"] = [], []
@@ -356,10 +353,7 @@ def yt_song(conn, slug):
         try:
             fs = db.rows(conn, f"SELECT finding_id, rule_id, severity, title, detail FROM findings WHERE subject = {db.PH} AND status = 'open'", (vid,))
             ids = {f["finding_id"] for f in fs}
-            recs = [r for r in db.rows(conn, f"SELECT rec_id, priority, title, action, status, finding_ids FROM recommendations WHERE ig_user_id = {db.PH} AND status IN ('open','done')", (cid,))
-                    if ids & set(json.loads(r["finding_ids"] or "[]"))]
-            for r in recs:
-                r.pop("finding_ids")
+            recs = _recs_for(conn, cid, "youtube", ids)
             v["findings"], v["recommendations"] = fs, recs
         except Exception:
             v["findings"], v["recommendations"] = [], []
@@ -502,6 +496,13 @@ def peer_block(conn, uids):
     return {"rows": rows, "own": own}
 
 
+def _recs_for(conn, uid, platform, finding_ids):
+    """Open and done recommendations (full cards, as on the Analytics page) that cite one of these findings, for a post or video."""
+    if not finding_ids: return []
+    R = recommendations(conn, [uid], platform)
+    return [r for r in R["open"] + R["done"] if finding_ids & set(r.get("finding_ids") or [])]
+
+
 def recommendations(conn, uids, platform="instagram"):
     """Open, done and dismissed recommendations with the findings and market notes they cite. Empty lists when the advisor has not run."""
     marks = _in(len(uids))
@@ -521,7 +522,9 @@ def recommendations(conn, uids, platform="instagram"):
     out = {"open": [], "done": [], "dismissed": []}
     for r in recs:
         r["outcome"] = json.loads(r.pop("outcome_json") or "null")
-        r["evidence"] = [{"title": finds[i]["title"], "severity": finds[i]["severity"]} for i in json.loads(r.pop("finding_ids") or "[]") if i in finds]
+        fids = json.loads(r.pop("finding_ids") or "[]")
+        r["finding_ids"] = fids  # the song page uses these to pick the recommendations that cite one post or video
+        r["evidence"] = [{"title": finds[i]["title"], "severity": finds[i]["severity"]} for i in fids if i in finds]
         r["sources"] = [{"topic": notes[i]["topic"], "summary": notes[i]["summary"], "url": notes[i]["source_url"], "title": notes[i]["source_title"]} for i in json.loads(r.pop("note_ids") or "[]") if i in notes]
         out.get(r["status"], out["open"]).append(r)
     out["done"], out["dismissed"] = out["done"][:20], out["dismissed"][:20]

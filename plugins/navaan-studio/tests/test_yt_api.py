@@ -87,6 +87,20 @@ class Api(Base):
         self.assertTrue(y["findings"])
         self.assertTrue(all(f["rule_id"].startswith("yt_") for f in y["findings"]))
 
+    def test_song_recommendations_are_full_cards_that_cite_the_video(self):
+        self.video(15, views=100, slug="weak", pct=10.0)
+        api.analyze_now("all", self.path, "youtube")
+        y = api.song_view("weak", self.path)["youtube"]["videos"][0]
+        ids = {f["finding_id"] for f in y["findings"]}
+        c = db.connect(self.path)
+        R = api.recommendations(c, [CH], "youtube")
+        want = {r["rec_id"] for r in R["open"] + R["done"] if ids & set(r["finding_ids"])}
+        self.assertEqual({r["rec_id"] for r in y["recommendations"]}, want)
+        for r in y["recommendations"]:
+            for k in ("why", "action", "evidence", "finding_ids", "confidence", "priority", "status", "category"):
+                self.assertIn(k, r)
+        json.dumps(y)
+
     def test_unlinked_videos_are_offered_and_link_survives(self):
         y = api.song_view("nothing-yet", self.path)["youtube"]
         self.assertEqual(y["videos"], [])
