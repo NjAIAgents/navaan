@@ -6,6 +6,7 @@ Reads songs/<slug>/reel_clip.json:
    "bg": "final_16x9.mp4", "crop_x": [560, 760]}
   start, end   seconds in the full song. The lyric lines come from caption_cues.json between them.
   bg           the full video the pictures are taken from (default final_16x9.mp4, the one without captions).
+  bg_image     a still picture in the song folder to use instead of the video (it gets the same slow push-in and grading).
   crop_x       left edge of the 9:16 window cut out of the 16:9 picture, at the start and the end (a slow drift). Default centred.
 Writes final_reel_9x16.mp4 (1080x1920, 30 fps), thumb_9x16.jpg (the Reel cover) and reel_clip_report.json.
 The Instagram step picks final_reel_9x16.mp4 first. No generation credits are used.
@@ -28,7 +29,9 @@ def main(slug):
     ff = C.tool("ffmpeg")
     bg = os.path.join(D, cc.get("bg", "final_16x9.mp4"))
     audio_src = next((os.path.join(D, n) for n in ("final.mp3", "final_tagged.mp3") if os.path.exists(os.path.join(D, n))), None)
-    if not os.path.exists(bg) or not audio_src: sys.exit("navaan: need the full video and final.mp3 in the song folder")
+    bg_image = cc.get("bg_image")
+    if bg_image and not os.path.exists(os.path.join(D, bg_image)): sys.exit(f"navaan: bg_image {bg_image} is not in the song folder")
+    if (not bg_image and not os.path.exists(bg)) or not audio_src: sys.exit("navaan: need the full video (or a bg_image) and final.mp3 in the song folder")
     cues = [c for c in C.load_json(os.path.join(D, "caption_cues.json")) if t0 - 0.3 <= c[0] < t1]
     if not cues: sys.exit("navaan: no lyric lines between start and end in caption_cues.json")
     rel = [{"text": c[2], "start": round(max(0.0, c[0] - t0), 2), "end": round(c[1] - t0, 2)} for c in cues]
@@ -56,7 +59,7 @@ def main(slug):
     # 1) picture: a 9:16 window from the 16:9 frame, drifting slowly, 30 fps, no sound
     bgp = os.path.join(D, "reel_bg.mp4")
     vf = f"crop=608:1080:x='{x0}+({x1}-{x0})*t/{dur}':y=0,scale=1080:1920:flags=lanczos,fps=30,setsar=1,format=yuv420p"
-    C.run([ff, "-y", "-v", "error", "-ss", f"{t0:.2f}", "-t", f"{dur:.2f}", "-i", bg, "-an", "-vf", vf, "-c:v", "libx264", "-preset", "fast", "-crf", "16", bgp])
+    if not bg_image: C.run([ff, "-y", "-v", "error", "-ss", f"{t0:.2f}", "-t", f"{dur:.2f}", "-i", bg, "-an", "-vf", vf, "-c:v", "libx264", "-preset", "fast", "-crf", "16", bgp])
     # 2) sound: the part of the song, faded in, and out soon after the last lyric line so the next section does not leak in
     ap = os.path.join(D, "reel_audio.mp3")
     a_len = body + 1.1
@@ -64,12 +67,12 @@ def main(slug):
     C.run([ff, "-y", "-v", "error", "-ss", f"{t0:.2f}", "-t", f"{a_len:.2f}", "-i", audio_src, "-af", af, "-t", f"{dur:.2f}", "-ac", "2", "-ar", "44100", "-c:a", "libmp3lame", "-b:a", "192k", ap])
     # 3) cover picture: a calm frame from the picture
     cb = os.path.join(D, "reel_cover_bg.jpg")
-    C.run([ff, "-y", "-v", "error", "-ss", "3", "-i", bgp, "-frames:v", "1", "-q:v", "2", cb])
-    props = {"width": 1080, "height": 1920, "fps": 30, "duration": dur, "bg": "reel_bg.mp4", "audio": "reel_audio.mp3", "cues": rel, "title": title,
+    if not bg_image: C.run([ff, "-y", "-v", "error", "-ss", "3", "-i", bgp, "-frames:v", "1", "-q:v", "2", cb])
+    props = {"width": 1080, "height": 1920, "fps": 30, "duration": dur, "bg": bg_image or "reel_bg.mp4", "bg_is_image": bool(bg_image), "audio": "reel_audio.mp3", "cues": rel, "title": title,
              "hook": cc.get("hook") or rel[0]["text"], "handle": {"text": handle, "icon": "instagram", "start": handle_s},
              "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.42}, "mode": "reel", "acts": acts}
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w"), indent=2, ensure_ascii=False)
-    cp = dict(props, bg="reel_cover_bg.jpg", bg_is_image=True, audio=None, mode="cover"); cpp = os.path.join(D, "reel_cover_props.json"); json.dump(cp, open(cpp, "w"), indent=2, ensure_ascii=False)
+    cp = dict(props, bg=bg_image or "reel_cover_bg.jpg", bg_is_image=True, audio=None, mode="cover"); cpp = os.path.join(D, "reel_cover_props.json"); json.dump(cp, open(cpp, "w"), indent=2, ensure_ascii=False)
     rd = R.remotion_dir()
     if not R.remotion_ready(): sys.exit("navaan: Remotion is not installed. Run npm ci in the plugin's remotion folder.")
     env = dict(os.environ); env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + env.get("PATH", "")
