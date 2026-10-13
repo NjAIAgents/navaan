@@ -195,12 +195,12 @@ def probe(path):
     return {"width": v.get("width"), "height": v.get("height"), "codec": v.get("codec_name"), "has_audio": bool(a), "duration": round(float(j["format"]["duration"]), 2), "bytes": int(j["format"]["size"])}
 
 
-def validate(info, T):
+def validate(info, T, max_s=60):
     errs, warns = [], []
     if (info["width"], info["height"]) != (W, H): errs.append(f"size is {info['width']}x{info['height']}, need {W}x{H}")
     if info["codec"] != "h264": errs.append(f"codec is {info['codec']}, need h264")
     if info["duration"] < 9.5: errs.append(f"{info['duration']}s is shorter than the 10 s minimum")
-    if info["duration"] > 60: errs.append(f"{info['duration']}s is too long for a Short (60 s)")
+    if info["duration"] > max_s: errs.append(f"{info['duration']}s is too long (limit {max_s} s)")
     elif info["duration"] > 30.5: warns.append(f"{info['duration']}s is over the 30 s target")
     if not info["has_audio"]: warns.append("no audio track")
     if abs(info["duration"] - T["duration"]) > 0.6: warns.append(f"length {info['duration']}s differs from the plan {T['duration']}s")

@@ -36,6 +36,20 @@ def main(slug):
     body = rel[-1]["end"]
     handle_s = round(body + END_GAP, 2)
     dur = round(handle_s + END_CARD, 2)
+    # director: split the clip into acts by language, so the picture and type can change at the turns
+    def _lang(tx):
+        return "hi" if any("\u0900" <= ch <= "\u097f" for ch in tx) else "en"
+    runs = []
+    for c in rel:
+        l = _lang(c["text"])
+        if runs and runs[-1]["lang"] == l: runs[-1]["to"] = c["end"]
+        else: runs.append({"lang": l, "from": c["start"], "to": c["end"]})
+    acts = []
+    for i, r in enumerate(runs):
+        kind = "confess" if r["lang"] == "en" else ("ache" if not any(a["kind"] == "ache" for a in acts) and not any(a["kind"] == "confess" for a in acts) else "hope")
+        acts.append({"kind": kind, "from": 0.0 if i == 0 else round((runs[i - 1]["to"] + r["from"]) / 2, 2), "to": r["to"]})
+    for i in range(len(acts) - 1): acts[i]["to"] = acts[i + 1]["from"]
+    acts[-1]["to"] = round(handle_s + END_CARD, 2)
     title = cc.get("title") or (open(os.path.join(D, "title.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "title.txt")) else slug)
     handle = (C.cfg("publish.instagram_handle", "") or "").lstrip("@") or "NAVAAN"
     x0, x1 = (cc.get("crop_x") or [656, 656])
@@ -53,7 +67,7 @@ def main(slug):
     C.run([ff, "-y", "-v", "error", "-ss", "3", "-i", bgp, "-frames:v", "1", "-q:v", "2", cb])
     props = {"width": 1080, "height": 1920, "fps": 30, "duration": dur, "bg": "reel_bg.mp4", "audio": "reel_audio.mp3", "cues": rel, "title": title,
              "hook": cc.get("hook") or rel[0]["text"], "handle": {"text": handle, "icon": "instagram", "start": handle_s},
-             "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.42}, "mode": "reel"}
+             "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.42}, "mode": "reel", "acts": acts}
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w"), indent=2, ensure_ascii=False)
     cp = dict(props, bg="reel_cover_bg.jpg", bg_is_image=True, audio=None, mode="cover"); cpp = os.path.join(D, "reel_cover_props.json"); json.dump(cp, open(cpp, "w"), indent=2, ensure_ascii=False)
     rd = R.remotion_dir()
@@ -71,7 +85,7 @@ def main(slug):
     subprocess.run(base + ["still", "src/index.ts", "LyricsCover", png, f"--props={cpp}"] + extra, cwd=rd, check=True, env=env)
     C.run([ff, "-y", "-v", "error", "-i", png, "-q:v", "2", thumb]); os.remove(png)
     info = R.probe(out)
-    errs, warns = R.validate(info, {"duration": dur})
+    errs, warns = R.validate(info, {"duration": dur}, max_s=90)
     json.dump({"engine": "remotion", "checks": "failed" if errs else "passed", "errors": errs, "warnings": warns, "start": t0, "end": t1, **info}, open(os.path.join(D, "reel_clip_report.json"), "w"), indent=2)
     if errs: sys.exit("navaan: " + "; ".join(errs))
     print(f"done: {OUT} {dur:.1f}s, {THUMB}")
