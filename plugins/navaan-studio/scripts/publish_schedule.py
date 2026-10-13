@@ -74,6 +74,46 @@ def set_schedule(slug, instagram_at, youtube_at=None, nav=None):
     return m["schedule"]
 
 
+def suggest(slug, at=None):
+    """Best times to publish this item, from the analytics, or None when there is no timing data or nothing left to schedule.
+    YouTube first: the best upcoming slot for full videos (the Short goes public with it). The Reel goes at the best Instagram slot that falls 5 minutes to 12 hours
+    after it, else one hour after. Without YouTube data only the Reel time is suggested and YouTube stays on auto (15 minutes before). Computed on request, never stored,
+    and it approves nothing."""
+    import navaan as N, besttime
+    m = N.meta(slug)
+    if N.ig_done(m) or m.get("cleanup"): return None
+    label = C.item_type(m); n = at or now()
+    ig, yt = besttime.for_label(label), besttime.for_label_youtube(label)
+    igs = [(parse(x["at"]), x["score"]) for x in ig.get("slots", [])] if not ig.get("empty") else []
+    yk = (yt.get("kinds") or {}).get("video") or {}
+    yts = [(parse(x["at"]), x["score"]) for x in yk.get("slots", [])] if yk and not yk.get("empty") else []
+    best = lambda c: max(c, key=lambda t: (t[1], -t[0].timestamp()))
+    day = datetime.timedelta
+    y = r = None; basis = []; conf = "medium"
+    if N.public_done(m):  # already public, only the Reel time matters
+        c = [t for t in igs if t[0] >= n + day(minutes=MIN_LEAD_MIN + 3)]
+        if c: r = best(c)[0]; basis = ["Instagram followers online"] + (["your own Reels"] if "your own posts" in (ig.get("basis") or {}).get("signals", []) else [])
+    else:
+        c = [t for t in yts if t[0] >= n + day(minutes=MIN_LEAD_MIN + 1)]
+        if c:
+            y = best(c)[0]; conf = yk.get("confidence", "low"); basis = list((yk.get("basis") or {}).get("signals", []))
+            rc = [t for t in igs if y + day(minutes=5) <= t[0] <= y + day(hours=12)]
+            r = best(rc)[0] if rc else y + day(minutes=60)
+        else:
+            c = [t for t in igs if t[0] >= n + day(minutes=MIN_LEAD_MIN + 18)]
+            if c: r = best(c)[0]; basis = ["Instagram followers online"]
+    if not r: return None
+    return {"youtube_at": iso(y) if y else None, "instagram_at": iso(r), "confidence": conf, "basis": basis,
+            "youtube_data": bool(y), "note": "" if y else "No YouTube timing data yet, so YouTube goes public 15 minutes before the Reel."}
+
+
+def accept(slug):
+    """Schedule the suggested times. Gates are still yours."""
+    sg = suggest(slug)
+    if not sg: raise ValueError("no timing suggestion yet: collect analytics first, or pick a time yourself")
+    return set_schedule(slug, sg["instagram_at"], sg["youtube_at"])
+
+
 def clear(slug):
     import navaan as N
     m = N.meta(slug)

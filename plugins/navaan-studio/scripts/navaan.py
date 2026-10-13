@@ -423,6 +423,11 @@ def _run(slug, step=None, dry=False, retries=2):
     hw = PS.hold(meta(slug), sid) if not dry else None
     if hw and slug not in PS.FIRING:
         print(f"scheduled: step {sid} waits until {hw} (UTC). The portal, or navaan.py schedule-run, starts it then. Clear the schedule to publish now."); return 7
+    if sid in ("publish_youtube", "go_public") and not dry and slug not in PS.FIRING and not PS.get(meta(slug)):  # a hint only, it never blocks or schedules
+        try:
+            sg = PS.suggest(slug)
+            if sg: print(f"Tip: the analytics suggest publishing at {PS.parse(sg['youtube_at'] or sg['instagram_at']).astimezone():%a %b %d %H:%M}. See it with: navaan.py schedule {slug} --suggest")
+        except Exception: pass
     if s["id"] == "publish_instagram" and not public_done(meta(slug)): print("Publish to YouTube first: the Reel links to the public full video. Approve gate 'go_public' and run that step."); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
@@ -667,7 +672,16 @@ def main(argv):
         set_gate(slug, gate, c == "approve", "cli"); print(c + "d", gate); return 0
     if c == "schedule":
         def opt(n, d=None): return a[a.index(n) + 1] if n in a and a.index(n) + 1 < len(a) else d
-        if not a or not opt("--at"): sys.exit('usage: navaan.py schedule <slug> --at "2026-10-16 18:30" [--youtube-at "2026-10-16 18:15"]   (your computer\'s local time)')
+        if a and ("--suggest" in a or "--accept" in a):
+            sg = PS.suggest(a[0])
+            if not sg: print("no timing suggestion: nothing left to schedule, or no analytics timing data yet. Run collect, or use --at."); return 1
+            loc = lambda t: PS.parse(t).astimezone().strftime("%a %b %d %H:%M") if t else "auto, 15 minutes before the Reel"
+            print(f"suggested: YouTube public {loc(sg['youtube_at'])}, Reel {loc(sg['instagram_at'])}  (confidence {sg['confidence']}; {', '.join(sg['basis']) or 'followers online'}) {sg['note']}")
+            if "--accept" not in a: print(f"Schedule these times: navaan.py schedule {a[0]} --accept   (approvals stay yours)"); return 0
+            try: s = PS.accept(a[0])
+            except ValueError as e: sys.exit(f"navaan: {e}")
+            print("scheduled:", PS.status_text({"schedule": s}), "\nStill needed from you before then: approve go_public, instagram_caption and publish_instagram. Keep the portal or `navaan.py schedule-run --loop` running."); return 0
+        if not a or not opt("--at"): sys.exit('usage: navaan.py schedule <slug> --at "2026-10-16 18:30" [--youtube-at "2026-10-16 18:15"] | --suggest | --accept   (your computer\'s local time)')
         def utc(x): return PS.iso(datetime.datetime.strptime(x.replace("T", " "), "%Y-%m-%d %H:%M").astimezone())
         try: s = PS.set_schedule(a[0], utc(opt("--at")), utc(opt("--youtube-at")) if opt("--youtube-at") else None)
         except ValueError as e: sys.exit(f"navaan: {e}")

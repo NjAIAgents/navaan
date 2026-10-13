@@ -148,6 +148,12 @@ class H(BaseHTTPRequestHandler):
                 if not analytics_api.ACCOUNT_OK.match(lab): return self._send(400, {"error": "bad type"})
                 if (q.get("platform") or ["instagram"])[0] == "youtube": return self._send(200, besttime.for_label_youtube(lab))
                 return self._send(200, besttime.for_label(lab))
+            if p == "/api/schedule/suggest":
+                from urllib.parse import parse_qs, urlparse
+                sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
+                if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
+                try: return self._send(200, {"suggestion": PS.suggest(sl)})
+                except Exception as e: return self._send(200, {"suggestion": None, "error": str(e)[:200]})
             if p == "/api/schedule/options":
                 from urllib.parse import parse_qs, urlparse
                 ty = (parse_qs(urlparse(self.path).query).get("type") or ["music"])[0]; out = []
@@ -226,6 +232,10 @@ class H(BaseHTTPRequestHandler):
                 except (ValueError, TypeError) as e: return self._send(400, {"error": str(e)})
             if p == "/api/analytics/auto/run":
                 return self._send(200, {"started": True}) if analytics_auto.run_async() else self._send(409, {"error": "a refresh is already running"})
+            if p == "/api/schedule/accept":
+                if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
+                try: return self._send(200, {"ok": True, "schedule": PS.accept(slug)})
+                except ValueError as e: return self._send(400, {"error": str(e)})
             if p == "/api/schedule/clear":
                 if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 PS.clear(slug); return self._send(200, {"ok": True})
