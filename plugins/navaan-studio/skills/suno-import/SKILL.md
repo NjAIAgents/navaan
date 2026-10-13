@@ -25,7 +25,7 @@ Collect, in a scratch folder outside the song folder:
 1. Title.
 2. Lyrics exactly as shown on the song page. If the page shows both the entered lyrics and the sung text, keep the sung text. Save as `lyrics.txt`.
 3. Style prompt and the model version (v4.5, v5, v6 and so on). Save the style as `style.txt`.
-4. Audio. Use the song menu, Download, and prefer M4A, because the MP3 download sometimes hangs on a spinner. The file lands in the user's Downloads folder on their computer.
+4. Audio. First look in `~/Downloads` for an audio file the user already saved: `.m4a`, `.mp3` or `.wav`, newest first, whose name contains the song title or that is less than a day old. Ignore images, video and unrelated files. If one fits, use it and do not open the Download dialog at all. Otherwise use the song menu, Download, and prefer M4A, because the MP3 download sometimes hangs on a spinner. The file lands in the user's Downloads folder on their computer.
 5. Cover image if the user wants it kept.
 
 ## Ingest
