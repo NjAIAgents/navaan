@@ -69,6 +69,7 @@ How to design the scene from the lyrics:
    7. Audio: say "no dialogue, no music, ambient only". The song replaces the audio and the builder drops the clip's sound.
    8. Negatives and continuity: no text, no captions, no logos, no watermark, no lip-sync, no cuts, no fast motion, no crowds, natural anatomy, and for clip 2 the same person, clothing and place as clip 1.
    Scene changes only on a real shift (place, time of day, emotion). The two clips are one such shift, never a timer.
+   Image first (optional, saves credits): a still fixes the person, place and light, so the clip is right on the first try and you avoid paid regenerates. If the user has put `songs/<slug>/refs/first_frame.png` (made in any free image tool), use it as the start frame of clip 1 in Flow and describe only the motion in the prompt. Do not make an image in Flow if that costs credits, do not sign in to other tools, and do not wait for a still that is not there: without one, use text to video.
 5. Keep the channel varied. Read other songs' `scenes/` folders and `meta.json` and list the person, place and nature already used. Choose a different combination. Clichés (candle, flame, moon, rain on a window, hands) only if the lyrics are literally about them. Profile `visual.motifs` are optional hints, use at most one.
 6. Before generating, show the user the scene, the lyric line behind it and the plan in chat. Save the prompt or prompts in `scenes/prompt.txt`.
 
