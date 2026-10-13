@@ -38,6 +38,11 @@ def main(argv):
     if not linked: sys.exit("navaan: the Page is not linked to an Instagram account yet. Link it (Page settings, Linked accounts, Instagram), then run again. Pages seen: " + ", ".join(p["name"] for p in pages))
     page = linked[0]; ig = page["instagram_business_account"]
     print(f"signed in as {me.get('name')}; Page '{page['name']}' is linked to @{ig.get('username')} (business id ends with ...{str(ig['id'])[-4:]})")
+    scopes = get("debug_token", tok, input_token=tok).get("data", {}).get("scopes", [])
+    need = ["instagram_basic", "pages_show_list", "pages_read_engagement", "business_management"]
+    print("token scopes:", ", ".join(scopes) or "(none)")
+    miss = [x for x in need if x not in scopes]
+    if miss: sys.exit("navaan: the token lacks " + ", ".join(miss) + ". In the Graph API Explorer add them under Add a Permission, press Generate Access Token again, allow the Page, extend, rerun.")
     # the check that matters: Business Discovery on a public account
     test = get(ig["id"], tok, fields="business_discovery.username(instagram){username,followers_count}").get("business_discovery", {})
     print(f"Business Discovery works: @{test.get('username')} has {test.get('followers_count'):,} followers")
