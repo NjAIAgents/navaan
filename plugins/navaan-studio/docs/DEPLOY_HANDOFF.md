@@ -47,3 +47,6 @@ Remove the navaan mount and network from the nginx service, `docker compose up -
 
 ## Open choices for Nj
 Access gate (basic auth in front, or Tailscale only), Postgres yes or no, Claude subscription token versus API key.
+
+## Spec Kit
+Initialised in the repo root (`specify init --here --integration claude --script sh`): skills in `.claude/skills/speckit-*`, files in `.specify/`. The constitution (v1.0.0, 11 principles) is `.specify/memory/constitution.md`. Next: `/speckit-specify` for "Run NAVAAN on the Oracle VM at navaan.njlabs.dev", then `/speckit-clarify`, `/speckit-plan` (start from the plan above), `/speckit-tasks`, `/speckit-implement`.
