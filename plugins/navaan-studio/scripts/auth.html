@@ -1,0 +1,55 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NAVAAN sign in</title>
+<style>
+:root{--bg:#0B0B10;--card:#15151E;--line:#2C2C3A;--fg:#F3F3F7;--mut:#9B9BB0;--acc:#FF4D7E;--vio:#8B5CF6;--ok:#22C55E;--bad:#FF7A7A;--input:#3F3F52}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(900px 500px at 50% -10%,#241437,var(--bg));color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.box{width:min(420px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px}
+h1{margin:0 0 4px;font-size:22px;letter-spacing:.5px}.sub{color:var(--mut);margin:0 0 18px;font-size:13px}
+label{display:block;font-size:12px;color:var(--mut);margin:12px 0 4px}
+input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--input);background:#0F0F16;color:var(--fg);font-size:15px}
+input:focus{outline:2px solid var(--vio);border-color:transparent}
+button{width:100%;margin-top:16px;padding:11px;border:0;border-radius:10px;background:linear-gradient(90deg,var(--acc),var(--vio));color:#fff;font-weight:600;font-size:15px;cursor:pointer}
+button.alt{background:transparent;border:1px solid var(--input);color:var(--fg);margin-top:10px;font-weight:500}
+button:disabled{opacity:.5;cursor:wait}.err{color:var(--bad);font-size:13px;min-height:18px;margin-top:10px}
+.qr{background:#fff;border-radius:12px;padding:6px;width:210px;margin:10px auto}.qr svg{width:100%;height:auto;display:block}
+.mono{font-family:ui-monospace,Menlo,monospace}.codes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0;padding:12px;border:1px dashed var(--line);border-radius:10px;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.tabs{display:flex;gap:6px;margin-bottom:6px}.tabs a{flex:1;text-align:center;padding:7px;border:1px solid var(--line);border-radius:8px;color:var(--mut);cursor:pointer;font-size:13px}.tabs a.on{color:var(--fg);border-color:var(--vio);background:#1d1830}
+.small{font-size:12px;color:var(--mut)}.sec{word-break:break-all;background:#0F0F16;padding:8px;border-radius:8px;font-size:12px;margin-top:6px}
+</style></head><body><div class="box" id="box"><p class="sub">Loading...</p></div>
+<script>
+const $=id=>document.getElementById(id);const box=$("box");let TK="";
+const post=(p,b)=>fetch(p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})}).then(async r=>({s:r.status,j:await r.json().catch(()=>({error:"bad reply"}))}));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function err(m){const e=$("err");if(e)e.textContent=m||""}
+async function start(){const r=await fetch("/auth/state").then(r=>r.json());if(r.state==="authed")return location.replace("/");r.state==="setup"?setup1():login(r)}
+function setup1(){box.innerHTML=`<h1>NAVAAN</h1><p class="sub">First run: create your login. You will use a password plus an authenticator app.</p>
+<label>Setup code <span class="small">(in the file ~/.config/navaan/auth_setup_code on this computer)</span></label><input id="c" autocomplete="off" placeholder="xxxx-xxxx-xxxx">
+<label>User name</label><input id="u" value="navjyot" autocomplete="username">
+<label>Password (12 characters or more)</label><input id="p" type="password" autocomplete="new-password">
+<label>Repeat password</label><input id="p2" type="password" autocomplete="new-password">
+<div class="err" id="err"></div><button id="go">Continue</button>`;
+$("go").onclick=async()=>{if($("p").value!==$("p2").value)return err("Passwords do not match.");$("go").disabled=true;const r=await post("/auth/setup/start",{code:$("c").value,user:$("u").value,password:$("p").value});$("go").disabled=false;if(r.s!==200)return err(r.j.error);setup2(r.j)}}
+function setup2(j){box.innerHTML=`<h1>Authenticator app</h1><p class="sub">Scan this with Google Authenticator, Authy, 1Password or similar, then type the 6 digit code.</p>
+<div class="qr">${j.qr}</div><div class="small">Cannot scan? Enter this key by hand:</div><div class="sec mono">${esc(j.secret)}</div>
+<label>6 digit code</label><input id="t" inputmode="numeric" maxlength="7" autocomplete="one-time-code"><div class="err" id="err"></div><button id="go">Verify and finish</button>`;
+$("t").focus();$("t").onkeydown=e=>{if(e.key==="Enter")$("go").click()};
+$("go").onclick=async()=>{$("go").disabled=true;const r=await post("/auth/setup/finish",{code:$("t").value});$("go").disabled=false;if(r.s!==200)return err(r.j.error);setup3(r.j.recovery)}}
+function setup3(codes){box.innerHTML=`<h1>Save your recovery codes</h1><p class="sub">Each code works once if you lose the phone. They are shown only now. Store them in a password manager, not in this project.</p>
+<div class="codes">${codes.map(c=>`<span>${esc(c)}</span>`).join("")}</div><button class="alt" id="cp">Copy codes</button><button id="go">I saved them, open NAVAAN</button>`;
+$("cp").onclick=()=>{navigator.clipboard.writeText(codes.join("\n")).then(()=>$("cp").textContent="Copied")};$("go").onclick=()=>location.replace("/")}
+function login(st){box.innerHTML=`<h1>NAVAAN</h1><p class="sub">Sign in to the studio.</p><label>User name</label><input id="u" autocomplete="username"><label>Password</label><input id="p" type="password" autocomplete="current-password">
+<div class="err" id="err">${st.locked?"Locked for "+st.locked+" s after too many tries.":""}</div><button id="go">Continue</button>`;
+$("u").focus();[$("u"),$("p")].forEach(i=>i.onkeydown=e=>{if(e.key==="Enter")$("go").click()});
+$("go").onclick=async()=>{$("go").disabled=true;const r=await post("/auth/login",{user:$("u").value,password:$("p").value});$("go").disabled=false;if(r.s!==200)return err(r.j.error);TK=r.j.ticket;mfa(r.j.passkeys,st.passkey_ready)}}
+function mfa(hasKey,ready){const pk=hasKey&&ready&&window.PublicKeyCredential;
+box.innerHTML=`<h1>Second step</h1><p class="sub">Confirm it is you.</p><div class="tabs"><a id="t1" class="on">Authenticator</a>${pk?'<a id="t2">Passkey</a>':""}<a id="t3">Recovery code</a></div><div id="pane"></div><div class="err" id="err"></div>`;
+const tab=n=>{["t1","t2","t3"].forEach(k=>$(k)&&$(k).classList.toggle("on",k===n));err("");n==="t1"?code("6 digit code","123456"):n==="t3"?code("Recovery code","xxxxxx-xxxxxx"):key()};
+["t1","t2","t3"].forEach(k=>$(k)&&($(k).onclick=()=>tab(k)));tab(pk?"t1":"t1")}
+function code(lab,ph){$("pane").innerHTML=`<label>${lab}</label><input id="t" autocomplete="one-time-code" placeholder="${ph}"><button id="go">Sign in</button>`;$("t").focus();$("t").onkeydown=e=>{if(e.key==="Enter")$("go").click()};
+$("go").onclick=async()=>{$("go").disabled=true;const r=await post("/auth/mfa",{ticket:TK,code:$("t").value});$("go").disabled=false;if(r.s!==200){err(r.j.error);if(r.s===401&&/expired|Too many wrong/.test(r.j.error))setTimeout(start,1200);return}location.replace("/")}}
+const b2u=b=>{let s="";new Uint8Array(b).forEach(x=>s+=String.fromCharCode(x));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")};
+const u2b=s=>Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-s.length%4)%4)),c=>c.charCodeAt(0));
+function key(){$("pane").innerHTML=`<p class="small">Use Touch ID, Windows Hello or your security key.</p><button id="go">Use passkey</button>`;$("go").onclick=async()=>{err("");
+try{const o=await post("/auth/passkey/login-options",{ticket:TK});if(o.s!==200)return err(o.j.error);const c=await navigator.credentials.get({publicKey:{challenge:u2b(o.j.challenge),rpId:o.j.rpId,timeout:o.j.timeout,userVerification:"required",allowCredentials:o.j.allowCredentials.map(a=>({type:a.type,id:u2b(a.id)}))}});
+const r=await post("/auth/passkey/login",{ticket:TK,id:b2u(c.rawId),clientDataJSON:b2u(c.response.clientDataJSON),authenticatorData:b2u(c.response.authenticatorData),signature:b2u(c.response.signature)});if(r.s!==200)return err(r.j.error);location.replace("/")}catch(e){err("Passkey cancelled or failed: "+(e.name||e))}}}
+start();
+</script></body></html>
