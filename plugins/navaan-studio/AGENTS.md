@@ -19,11 +19,11 @@ If `navaan.config.json` is missing, run the artist-setup skill (or `python scrip
 
 ## Commands
 
-setup, config, verify, new-song, pipeline, status, next, run, lyrics, suno, visuals, captions, video, youtube, instagram, publish, archive, analytics, approve, studio. Each one runs the matching skill or script. `approve` only explains how: agents never approve gates. In this plugin `scripts/` means the plugin's scripts folder (`${CLAUDE_PLUGIN_ROOT}/scripts` in Claude Code); run scripts from the workspace folder.
+setup, config, verify, new-song, pipeline, status, next, run, lyrics, suno, visuals, captions, video, youtube, instagram, publish, archive, analytics, collect, recommend, approve, studio. Each one runs the matching skill or script. `approve` only explains how: agents never approve gates. In this plugin `scripts/` means the plugin's scripts folder (`${CLAUDE_PLUGIN_ROOT}/scripts` in Claude Code); run scripts from the workspace folder.
 
 ## Roles
 
-lyricist, suno-operator, visual-director, caption-aligner, publisher, analyst. Instructions live in `agents/`, shared knowledge in `skills/`. Tools that support subagents should delegate. Tools that do not should follow the same skills in order.
+lyricist, suno-operator, visual-director, caption-aligner, publisher, analyst, data-collector, growth-advisor. Instructions live in `agents/`, shared knowledge in `skills/`. Tools that support subagents should delegate. Tools that do not should follow the same skills in order.
 
 ## Safety rules
 
@@ -70,3 +70,13 @@ quote (gate `quote`) -> originality check on the web (gate `originality`) -> bac
 - Options live in brief.md as `- key: value` lines: music (auto, none or a file), voiceover (none or file), background (generate, library or a path), camera, transition, duration.
 - Inspiration publishes to its own account. Set `accounts.inspiration` in navaan.config.json (`instagram_handle`, `youtube_channel`, `instagram_env`, `youtube_token`, optional `youtube_client_secret`). The login files must not be the NAVAAN ones. Until then every publish step refuses and posts nothing. `navaan.py account inspiration` shows what is missing.
 - Never attach a famous author to a line without the originality check finding two independent sources.
+
+## Instagram analytics and growth advice
+
+`scripts/ig_collect.py` (read only collector, SQLite) and `scripts/ig_reco.py` (rules, evidence pack, recommendation store) feed the portal's Analytics page. The same work runs from chat or on a schedule:
+
+- `/navaan-studio:collect [music|inspiration|all]` runs the data-collector role.
+- `/navaan-studio:recommend [account] [--collect] [--no-web]` runs the growth-advisor role with the growth-advice skill: rules write findings, Claude researches the market on the web, stores sourced notes and writes at most 6 recommendations that each cite a finding or note.
+- Both are headless safe: they never ask questions, never write to Instagram, and stop with a plain message on an auth error.
+- Organic growth only. Recommendations show in the portal with Done and Dismiss; Done ones are compared with later posts.
+- To schedule, create a Claude scheduled task on the computer that holds your workspace, for example weekly, with the prompt `/navaan-studio:recommend music --collect`. In Codex use the growth-advice skill by name.

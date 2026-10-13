@@ -5,6 +5,8 @@ description: Read channel analytics after publishing and propose re-edits for th
 
 # Analytics and re-edit loop
 
+Instagram numbers live in a local database filled by `python3 scripts/ig_collect.py collect` (command `/navaan-studio:collect`, read only, safe to schedule). What to change next is the growth-advice skill (command `/navaan-studio:recommend`). Use those for Instagram. The steps below cover YouTube and per song notes.
+
 1. Pull numbers with the API where possible: `python scripts/publish_youtube.py stats <videoId> ...` gives views, likes and comments. For retention curves, click through rate and traffic sources, open YouTube Studio analytics in the browser. For Instagram use the app insights or the Graph API insights the user has access to.
 2. Record the date, numbers and sources in `songs/<slug>/analytics.md`.
 3. Compare Shorts against full videos and Hindi against Maithili. Say what the data supports and what it does not. Small numbers are noise.

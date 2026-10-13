@@ -3,7 +3,7 @@ Create songs, edit and review text, play media, approve gates (human clicks only
 import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
-import navaan, navaan_common as C, storage
+import navaan, navaan_common as C, storage, analytics_api, settings_api
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
@@ -126,6 +126,20 @@ class H(BaseHTTPRequestHandler):
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
+            if p == "/api/settings":
+                try: return self._send(200, settings_api.status("refresh=1" in self.path))
+                except Exception as e: return self._send(500, {"error": str(e)[:300]})
+            if p == "/api/analytics":
+                from urllib.parse import parse_qs, urlparse
+                q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
+                if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
+                return self._send(200, analytics_api.overview(acc, (q.get("days") or ["30"])[0]))
+            if p == "/api/analytics/song":
+                from urllib.parse import parse_qs, urlparse
+                q = parse_qs(urlparse(self.path).query); sl = (q.get("slug") or [""])[0]
+                if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
+                return self._send(200, analytics_api.song_view(sl))
+            if p == "/api/analytics/by-song": return self._send(200, analytics_api.by_song())
             if p == "/api/songs": return self._send(200, [song_row(s) for s in songs()])
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
@@ -161,6 +175,32 @@ class H(BaseHTTPRequestHandler):
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path
         try:
+            if p == "/api/analytics/link":
+                try: analytics_api.link_post(str(body.get("media_id") or ""), str(body.get("slug") or "")); return self._send(200, {"ok": True})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/analyze":
+                try: return self._send(200, {"results": analytics_api.analyze_now(str(body.get("account") or "all"))})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/ask":
+                try: return self._send(200, {"started": analytics_api.start_ask(str(body.get("account") or "all"))})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/rec":
+                try: analytics_api.set_rec_status(str(body.get("id") or ""), str(body.get("status") or ""), body.get("reason")); return self._send(200, {"ok": True})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/collect":
+                try: return self._send(200, {"started": analytics_api.start_collect(str(body.get("account") or "all"))})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p.startswith("/api/settings/"):
+                act = p.rsplit("/", 1)[1]; ct = str(body.get("type") or "music")
+                try:
+                    if act == "ig_refresh": return self._send(200, settings_api.ig_refresh(ct, str(body.get("kind") or "login")))
+                    if act == "ig_save": return self._send(200, settings_api.ig_save(ct, str(body.get("kind") or "login"), str(body.get("token") or "")))
+                    if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
+                    if act == "yt_secret": return self._send(200, settings_api.save_secret(str(body.get("content") or "")))
+                    if act == "account": return self._send(200, settings_api.add_account(ct, body.get("handle"), body.get("channel")))
+                    return self._send(404, {"error": "unknown settings action"})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except Exception as e: return self._send(500, {"error": str(e)[:300]})
             if p == "/api/cloud/link":
                 key = str(body.get("key", "")); pre = (C.cfg("storage.cloud_prefix", "").strip("/") + "/") if C.cfg("storage.cloud_prefix", "") else ""
                 if not key.startswith(pre) or ".." in key: return self._send(400, {"error": "not a song object"})

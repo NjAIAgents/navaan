@@ -201,11 +201,6 @@ def link_post(media_id, slug, db_file=None):
         conn.close()
 
 
-def _median(xs):
-    xs = sorted(x for x in xs if x is not None)
-    return None if not xs else (xs[len(xs) // 2] if len(xs) % 2 else (xs[len(xs) // 2 - 1] + xs[len(xs) // 2]) / 2.0)
-
-
 def peer_block(conn, uids):
     """Benchmark table: one row per peer from Business Discovery, plus the same numbers for the selected own accounts.
     Only public numbers exist for peers (followers, likes, comments, cadence), so the comparison is on engagement per follower."""

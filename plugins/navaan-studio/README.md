@@ -18,7 +18,7 @@ Codex: add the repository as a marketplace (reads `.agents/plugins/marketplace.j
 
 ## Commands (Claude Code and Cursor)
 
-setup, config, verify, new-song, import-suno, pipeline, status, next, run, lyrics, suno, visuals, captions, video, youtube, instagram, publish, archive, analytics, approve, studio. In Claude Code they are namespaced, for example `/navaan-studio:new-song song-003`. In Codex use the skills by name instead (for example `$navaan-pipeline`).
+setup, config, verify, new-song, import-suno, pipeline, status, next, run, lyrics, suno, visuals, captions, video, youtube, instagram, publish, archive, analytics, collect, recommend, approve, studio. In Claude Code they are namespaced, for example `/navaan-studio:new-song song-003`. In Codex use the skills by name instead (for example `$navaan-pipeline`).
 
 ## Scripts
 
@@ -46,3 +46,9 @@ Lyric captions over the video are switched off. The pipeline skips the Measure l
 ## No captions, no separate Short by default
 
 YouTube makes captions and Shorts itself, so the pipeline renders only the full 16:9 video and uploads that. Set `video.make_reel` to true for a vertical reel (Instagram needs it) and `captions.enabled` to true to burn lyrics in.
+
+## Analytics and growth advice
+
+Portal: Analytics page (collector data) with a Recommendations panel. Each song or short has a Performance tab with its own Instagram numbers (views, reach, saves, comparison with your other posts, comments waiting, findings), and the Library shows views per item. Posts link to songs automatically through `published.instagram`; link one by hand from the tab if you posted outside NAVAAN. Chat or schedule: `/navaan-studio:collect` pulls Instagram numbers into the local database, `/navaan-studio:recommend music --collect` collects, analyses, researches the market and stores sourced, organic growth recommendations. Both are read only towards Instagram and safe to run unattended. Scheduling: make a Claude scheduled task on the computer that holds your workspace with one of those prompts, for example weekly.
+
+CLI: `python3 scripts/ig_collect.py collect|status|link|peers|mention`, `python3 scripts/ig_reco.py analyze|pack|note|add|list|status|outcomes`.
