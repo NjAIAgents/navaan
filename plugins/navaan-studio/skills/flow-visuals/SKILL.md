@@ -168,9 +168,28 @@ After the credits gate is approved and the user said yes, make one still image p
 
 ## Generate (scene and loop modes)
 
-1. Generate only after the credits gate is approved and the user said yes in chat. Name the results `c1_<word>.mp4`, `c2_<word>.mp4` in `songs/<slug>/clips/`.
+1. Generate only after the credits gate is approved and the user said yes in chat (see "Field notes on driving the Flow page" for the dry run and for what to do if a render stalls). Name the results `c1_<word>.mp4`, `c2_<word>.mp4` in `songs/<slug>/clips/`.
 2. Record in `meta.json`: model, credits spent per clip, total spent and remaining budget. Show the clip to the user.
 3. If the first result is poor, offer one regenerate only if the remaining budget covers it, and ask first.
+
+## Field notes on driving the Flow page
+
+Learned from reading the public project google-flow-mcp (MIT, an unofficial automation of the Flow web page, September 2026). We do not install it. These are observations, so confirm each one on the live page: Flow changes often.
+
+Before pressing Generate (the dry run):
+1. Start a new chat or agent session in the Flow composer first. Otherwise Flow can reuse an earlier attachment as the first frame.
+2. Open the composer settings (the `tune` control) and set the model, aspect ratio (16:9 for the full video, 9:16 only if asked) and the number of outputs to 1. There is also a "Confirm before generating" setting. Leave it on if it shows a card with the cost, and read the cost there. Turning it to Never removes that safety net, so only do it if the user says so.
+3. If you attach a first frame (`refs/first_frame.png`), check that its thumbnail really appears in the composer before sending. If it did not land, stop: nothing was spent. JPEG uploads faster than large PNG.
+4. Type the prompt, then stop and take a screenshot. Show the user the model, cost, prompt and the thumbnail. Send only after the credits gate and a yes in chat. This is the same plan then confirm rule as above.
+
+While it renders and after:
+1. Before you send, count the video tiles in the project grid (newest first). A render is done when the count grows by the number you asked for. Poll about every 6 seconds and give up after about 30 minutes.
+2. If the tab closes, the page reloads or you time out, do not generate again. Look at the grid first: a new tile means the clip exists and was already paid for. Only if there is none, write `needs_you.txt` and ask.
+3. If Flow refuses the prompt (a policy message), rewrite the prompt without the trigger and ask the user before spending on another try. Do not resend the same text.
+4. Download the clip through the logged in page (the Download button, or fetching the tile's video address from inside the page), because the address is signed and expires. Name it `c1_<word>.mp4` right away.
+5. If a button is not where the skill says, do not guess at coordinates. Read the page text and the visible buttons (icon names are glued to the label text, for example `download` plus `Download`), find the new label, and tell the user what changed.
+
+Longer take without a new text to video clip (optional): Flow Scene Builder can add the clip to a scene and Extend it by about 7 seconds that continue the motion and the ambient audio, with the first frame matching the previous clip's last frame. In late 2026 reports it used Veo 3.1 Lite at about 5 credits a hop on Ultra (about half the usual price, so expect roughly 10 elsewhere; read the real cost in Flow). Use it only when the cost shown fits the budget, for example a 10 credit Fast clip plus two 5 credit hops on Ultra is 20. Restate the subject, clothing, light and camera move in every hop prompt, because Flow does not carry the earlier prompt over. Scene export through an automated tab was reported broken, so download each clip separately and join them with ffmpeg (the join is frame exact, so no cross fade), and the scene timeline page was rebuilt in September 2026, so check that the Extend control still exists before planning on it. If Extend works, list its clips in `story.json` with `at` offsets and no crossfade overlap, or just concatenate them into one clip and treat it as clip 1.
 
 ## Cover art
 
