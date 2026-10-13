@@ -8,8 +8,9 @@ Read only. It runs a public search for each hashtag (Shorts length, published in
 count of each result, and stores them in the table yt_hashtag_posts. Your own channel is left out.
 
 Which hashtags: --tags, else navaan.config.json analytics.yt_hashtags.<account> (a list), else the hashtags that appear most often in the
-descriptions of your own videos (youtube.json), leaving out generic ones like #Shorts. At most 4 per run.
-Quota: a search costs 100 units and reading details about 1, so 4 hashtags cost about 410 of the 10,000 free units a day.
+descriptions of your own videos (youtube.json), leaving out generic ones like #Shorts and your own channel name. Up to 4 picked
+automatically, up to 6 from a list you set.
+Quota: a search costs 100 units and reading details about 1, so each hashtag costs about 102 of the 10,000 free units a day (4 about 410, 6 about 610).
 It runs at most once every 6 days per account unless --force.
 """
 import os, sys, re, json, glob, argparse, datetime, collections
@@ -32,7 +33,7 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS yt_hashtag_posts (
   captured_at TEXT NOT NULL
 )"""
 GENERIC = {"shorts", "short", "youtubeshorts", "viral", "fyp", "trending", "subscribe", "reels", "video", "new"}
-MAX_TAGS, WINDOW_DAYS, SHORT_MAX_S, MIN_GAP_DAYS = 4, 30, 180, 6
+MAX_TAGS, AUTO_TAGS, WINDOW_DAYS, SHORT_MAX_S, MIN_GAP_DAYS = 6, 4, 30, 180, 6
 HASHTAG = re.compile(r"#([A-Za-z][A-Za-z0-9_]{2,40})")
 
 
@@ -50,8 +51,15 @@ def parse_duration(s):
     return d * 86400 + h * 3600 + mi * 60 + sec
 
 
-def own_tags(conn, label, limit=MAX_TAGS):
-    """Most used hashtags in the descriptions of this account's videos."""
+def brand_words(conn, label):
+    """Your own channel name and handle without punctuation. A hashtag equal to one finds your own content, so it is not searched."""
+    r = db.one(conn, "SELECT title, handle FROM yt_channels WHERE label = " + db.PH, (label,)) or {}
+    return {re.sub(r"[^a-z0-9]", "", str(x or "").lower()) for x in (r.get("title"), (r.get("handle") or "").lstrip("@"), label)} - {""}
+
+
+def own_tags(conn, label, limit=AUTO_TAGS):
+    """Most used hashtags in the descriptions of this account's videos, leaving out the channel's own brand name."""
+    brand = brand_words(conn, label)
     rows = db.rows(conn, "SELECT v.slug FROM yt_videos v JOIN yt_channels c ON c.channel_id = v.channel_id WHERE c.label = " + db.PH + " AND v.slug IS NOT NULL", (label,))
     count = collections.Counter()
     try:
@@ -66,7 +74,7 @@ def own_tags(conn, label, limit=MAX_TAGS):
         except (OSError, ValueError):
             continue
         for t in {x.lower() for x in HASHTAG.findall(desc)}:
-            if t not in GENERIC:
+            if t not in GENERIC and re.sub(r"[^a-z0-9]", "", t) not in brand:
                 count[t] += 1
     return [t for t, _ in count.most_common(limit)]
 

@@ -45,6 +45,10 @@ class T(unittest.TestCase):
         self.assertTrue(H.recently_collected(self.conn, "inspiration", NOW))
         self.assertEqual(H.pick_tags(self.conn, "inspiration", ["#Healing", "healing", "bad tag!", "Letting_Go"]), ["healing", "letting_go"])
 
+    def test_brand_words_skipped(self):
+        self.conn.execute("UPDATE yt_channels SET title = 'The Unsaid Within', handle = '@the.unsaidwithin' WHERE label = 'inspiration'"); self.conn.commit()
+        self.assertEqual(H.brand_words(self.conn, "inspiration"), {"theunsaidwithin", "inspiration"})
+
     def test_besttime_peer_hours(self):
         for i in range(20):
             hr = 18 if i % 2 == 0 else 6
