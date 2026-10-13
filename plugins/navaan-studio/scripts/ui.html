@@ -126,11 +126,11 @@ button.ib{padding:5px 7px;min-width:30px;display:inline-flex;align-items:center;
  <section id="main"><p class="mut">Loading...</p></section>
 </div></div>
 <div class="modal" id="modal" onclick="if(event.target===this)closeNew()"><div class="card"><h2 style="font-size:18px">New</h2>
- <div class="opt"><div><b>Song from a Suno link</b><div class="sub">Imports lyrics, style and cover, then starts the pipeline</div><input id="iu" placeholder="https://suno.com/song/..." style="margin-top:8px"></div><button class="p" onclick="importSuno()">Import</button></div>
- <div class="opt"><div><b>Empty song</b><div class="sub">Write a brief, lyrics to Suno</div><input id="ns" placeholder="slug, e.g. song-005" style="margin-top:8px"></div><button onclick="newSong()">Add</button></div>
- <a class="opt" href="#/albums" onclick="closeNew()"><div><b>Album</b><div class="sub">Group finished songs under one name</div></div><span class="chip info">New</span></a>
- <div class="opt"><div style="flex:1;min-width:0"><b>Inspiration short</b><div class="sub">A quote or idea becomes a 9:16 video for the inspiration account</div><textarea id="ni" rows="2" placeholder="The quote or idea, in your words" style="margin-top:8px;min-height:64px"></textarea></div><button class="p" onclick="newInsp()">Create</button></div>
- <div class="opt"><div><b>Explainer</b><div class="sub">Short explainer video</div></div><span class="chip">Planned</span></div>
+ <div class="opt" data-k="music"><div><b>Song from a Suno link</b><div class="sub">Imports lyrics, style and cover, then starts the pipeline</div><input id="iu" placeholder="https://suno.com/song/..." style="margin-top:8px"></div><button class="p" onclick="importSuno()">Import</button></div>
+ <div class="opt" data-k="music"><div><b>Empty song</b><div class="sub">Write a brief, lyrics to Suno</div><input id="ns" placeholder="slug, e.g. song-005" style="margin-top:8px"></div><button onclick="newSong()">Add</button></div>
+ <a class="opt" data-k="music" href="#/albums" onclick="closeNew()"><div><b>Album</b><div class="sub">Group finished songs under one name</div></div><span class="chip info">New</span></a>
+ <div class="opt" data-k="inspiration"><div style="flex:1;min-width:0"><b>Inspiration short</b><div class="sub">A quote or idea becomes a 9:16 video for the inspiration account</div><textarea id="ni" rows="2" placeholder="The quote or idea, in your words" style="margin-top:8px;min-height:64px"></textarea></div><button class="p" onclick="newInsp()">Create</button></div>
+ <div class="opt" data-k="explainer"><div><b>Explainer</b><div class="sub">Short explainer video</div></div><span class="chip">Planned</span></div>
  <div style="text-align:right"><button onclick="closeNew()">Close</button></div></div></div>
 <script>
 const T="__TOKEN__";let cur=null,timer=null,SONGS=[],CL=null,IMP=false,view="";
@@ -149,7 +149,7 @@ const tyChip=s=>s&&s.type&&s.type!=="music"?` <span class="chip" style="margin-l
 function stat(s){if(s.status==="approval")return `<span class="chip warn"><span class="dt"></span>Needs you</span>`;if(s.published)return `<span class="chip ok"><span class="dt"></span>Published</span>`;if(s.status==="production")return `<span class="chip info">In production</span>`;if(s.public)return `<span class="chip warn">YouTube only</span>`;if(s.private)return `<span class="chip warn">Private</span>`;return `<span class="chip ok">Done</span>`}
 function cl(s){return s.cleaned?`<span class="chip">Local cleaned</span>`:s.archived?(s.verified===false?`<span class="chip warn">Bucket stale</span>`:`<span class="chip ok">In OCI</span>`):`<span class="chip">Local only</span>`}
 const go=v=>{location.hash="#/"+v};
-function openNew(){document.getElementById("modal").classList.add("on")}function closeNew(){document.getElementById("modal").classList.remove("on")}
+function openNew(kind){const k=kind||((document.querySelector("#main h1")||{}).textContent==="Inspiration"?"inspiration":"all");document.querySelectorAll("#modal [data-k]").forEach(e=>{e.style.display=(k==="all"||e.dataset.k===k)?"":"none"});document.querySelector("#modal h2").textContent=k==="inspiration"?"New inspiration short":k==="music"?"New song":"New";document.getElementById("modal").classList.add("on");if(k==="inspiration")setTimeout(()=>document.getElementById("ni").focus(),50)}function closeNew(){document.getElementById("modal").classList.remove("on")}
 async function loadSongs(){SONGS=await api("/api/songs");const n=SONGS.filter(s=>s.status==="approval").length+SONGS.filter(s=>s.thumb_pending).length;const b=document.getElementById("apc");b.style.display=n?"flex":"none";b.textContent=n;pickPlayer();return SONGS}
 async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return alert(r.error);document.getElementById("iu").value="";closeNew();await loadSongs();go("song/"+r.slug)}
 async function newInsp(){const t=document.getElementById("ni"),v=t.value.trim();if(!v)return alert("Write the quote or the idea first.");const r=await api("/api/new",{type:"inspiration",idea:v});if(r.error)return alert(r.error);t.value="";closeNew();await loadSongs();go("song/"+r.slug);api("/api/run",{slug:r.slug,all:true})}
@@ -191,9 +191,9 @@ ${w.length||tp.length?`<table><thead><tr><th>Song</th><th>Action</th><th>Gate</t
 <div class="card np0"><div class="ch"><b>Recent songs</b></div>${rec.map(s=>`<a href="#/song/${esc(s.slug)}" style="display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line2);color:var(--fg)">${cov(s,36)}<div style="flex:1;min-width:0"><div style="font-weight:500">${esc(s.title||s.slug)}</div><div class="sub mono">${esc(s.slug)}${s.album?" · "+esc(s.album):""}</div></div>${stat(s)}${cl(s)}</a>`).join("")||'<div style="padding:16px" class="mut">No songs yet.</div>'}</div>
 </div><div class="r">
 <div class="card np0"><div class="ch"><b>Create</b></div><div style="padding:12px;display:flex;flex-direction:column;gap:8px">
-<a class="opt" href="javascript:openNew()"><div><b>Song</b><div class="sub">Import from Suno, or start a brief</div></div><span class="chip info">Available</span></a>
+<a class="opt" href="javascript:openNew('music')"><div><b>Song</b><div class="sub">Import from Suno, or start a brief</div></div><span class="chip info">Available</span></a>
 <a class="opt" href="#/albums"><div><b>Album</b><div class="sub">Group songs under one name</div></div><span class="chip info">New</span></a>
-<a class="opt" href="javascript:openNew()"><div><b>Inspiration short</b><div class="sub">A quote or idea as a 9:16 video</div></div><span class="chip info">Available</span></a></div></div>
+<a class="opt" href="javascript:openNew('inspiration')"><div><b>Inspiration short</b><div class="sub">A quote or idea as a 9:16 video</div></div><span class="chip info">Available</span></a></div></div>
 <div class="card np0"><div class="ch"><b>Cloud storage</b></div><div style="padding:14px 16px" id="dcl" class="sub">Reading the bucket...</div></div>
 </div></div>`;
 if(!CL)api("/api/cloud").then(c=>{CL=c;dcl()});else dcl()}
