@@ -73,6 +73,15 @@ def find_playlist(yt, name):
         if not tok: return None
 
 
+def set_thumb(yt, vid, path):
+    """Custom thumbnails need a phone verified channel. A refusal must not fail the run, the video is already up."""
+    from googleapiclient.http import MediaFileUpload
+    from googleapiclient.errors import HttpError
+    try: yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(path)).execute()
+    except HttpError as e:
+        print(f"warning: thumbnail not set ({e.resp.status}). Verify the channel at youtube.com/verify, then upload {os.path.basename(path)} in Studio or re-run update.")
+
+
 def upload(a):
     D = song_dir(a.slug); meta = load_json(os.path.join(D, a.meta) if not os.path.isabs(a.meta) else a.meta)
     f = a.file if os.path.isabs(a.file) else os.path.join(D, a.file)
@@ -99,7 +108,7 @@ def upload(a):
     pl = a.playlist or meta.get("playlist")
     if a.thumbnail:
         tp = a.thumbnail if os.path.isabs(a.thumbnail) else os.path.join(D, a.thumbnail)
-        yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(tp)).execute()
+        set_thumb(yt, vid, tp)
     if pl:
         pid = find_playlist(yt, pl)
         if pid: yt.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": vid}}}).execute()
@@ -126,7 +135,7 @@ def update(a):
     yt.videos().update(part="snippet", body={"id": a.video_id, "snippet": sn}).execute()
     if a.thumbnail:
         tp = a.thumbnail if os.path.isabs(a.thumbnail) else os.path.join(D, a.thumbnail)
-        yt.thumbnails().set(videoId=a.video_id, media_body=MediaFileUpload(tp)).execute()
+        set_thumb(yt, a.video_id, tp)
     pl = a.playlist or meta.get("playlist")
     if pl:
         pid = find_playlist(yt, pl)
