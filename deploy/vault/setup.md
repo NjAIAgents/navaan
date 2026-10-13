@@ -36,9 +36,11 @@ sudo chmod 400   /opt/navaan/secrets/vault_role_id /opt/navaan/secrets/vault_sec
 Rotate the secret id any time by repeating the second command and restarting the container.
 
 ## 4. Put the secrets in (from the Mac, task T024)
-Reach Vault from the Mac with an ssh tunnel to the container's address, for example
-`ssh -L 8200:$(ssh njPRD docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' engagehub-vault | head -n1):8200 njPRD`
-(any other way you already use is fine), then:
+Reach Vault from the Mac with an ssh tunnel. Vault listens only inside Docker (on 2026-10-13: 172.18.0.2:8200 on `engagehub-network`; check with `docker inspect engagehub-vault`):
+```sh
+ssh -N -L 8200:172.18.0.2:8200 ods@163.192.110.178     # leave running in its own terminal
+```
+Then, in another terminal:
 ```sh
 export VAULT_ADDR=http://127.0.0.1:8200
 vault login                                      # your admin login on the Mac

@@ -57,7 +57,8 @@
   - Note: `claude.env` is not exported by the entrypoint; the portal reads it each time a Claude step starts (`navaan_common.load_claude_env`), so a late or renewed token needs no restart.
 - [X] T021 [US3] Add secrets status to `plugins/navaan-studio/scripts/navaan_ui.py`: read `NAVAAN_SECRETS_STATUS`, expose on `/auth/state` and the status area so the sign-in page shows "secrets waiting" when sealed.
 - [X] T022 [US3] Add a Claude credential indicator in `plugins/navaan-studio/scripts/ui.html` and `settings_api.py`: show token type in use, and missing, expired or rate limited states (FR-012, FR-018).
-- [ ] T023 [US3] (Nj) Run the Vault setup from `deploy/vault/setup.md` with own admin login. Have 2 unseal keys ready.
+- [X] T023 [US3] (Nj) Run the Vault setup from `deploy/vault/setup.md` with own admin login. Have 2 unseal keys ready.
+  - Done 2026-10-13: mount `navaan/` (kv-v2), policy `navaan`, AppRole `navaan` created with the stored admin login; role id and secret id in `/opt/navaan/secrets/` (uid 10001, mode 400, never printed). Checked by an AppRole login and `vault_sync.py pull` from the `navaan:local` image on `engagehub-network`: `secrets: ok (0 files)`. The admin token file was removed from the Vault container afterwards.
 - [ ] T024 [US3] (Nj) Push secrets from the Mac using `vault_sync.py push`. Confirm no credential files in the data volume.
 - [ ] T025 [US3] (VM) Sealed-Vault drill (quickstart step 9): seal, restart container, page shows waiting, unseal, status `ok` within 1 minute.
 
