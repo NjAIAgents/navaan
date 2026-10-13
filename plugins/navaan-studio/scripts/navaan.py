@@ -127,6 +127,8 @@ def plan(slug):
             continue
         skip = (legacy or cleaned) and s["id"] not in ("archive", "cleanup")
         if s["id"] in ("instagram_caption", "publish_instagram") and not ig_done(m): skip = False  # never posted, so there is still a caption to write and approve
+        notused = legacy and s["id"] in ("instagram_caption", "publish_instagram", "archive", "cleanup") and not s["done"](m)  # older song, finished before these steps existed
+        if notused: skip = True
         d = s["done"](m) or skip
         row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
@@ -136,6 +138,7 @@ def plan(slug):
         else:
             row["needs_gate"] = gb if (gb and not gate_ok(D, ap, gb, ig_done(m))) else None
             row["status"] = "waiting for approval" if row["needs_gate"] else ("blocked" if (nxt and nxt["type"] == "gate") else "ready")
+        if notused: row["status"] = "done"; row["needs_gate"] = None; row["notused"] = True
         rows.append(row)
         if nxt is None:
             if row["needs_gate"]: nxt = {"type": "gate", "step": s["id"], "gate": row["needs_gate"]}
