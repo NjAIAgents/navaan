@@ -2,7 +2,8 @@
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
 import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-import navaan, navaan_common as C
+import time
+import navaan, navaan_common as C, storage
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
@@ -13,6 +14,36 @@ SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
 def songs():
     return sorted(os.path.basename(p) for p in glob.glob(f"{C.songs_root()}/*") if os.path.isdir(p) and not os.path.basename(p).startswith("_"))
+
+
+CLOUD = {"at": 0, "data": None}
+
+
+def cloud_view(refresh=False):
+    """List the songs in the bucket (one folder per slug under storage.cloud_prefix) and match them with local songs. Cached for a minute."""
+    prov = C.cfg("storage.cloud_provider", "none")
+    if prov in ("none", None, ""): return {"configured": False}
+    if not refresh and CLOUD["data"] and time.time() - CLOUD["at"] < 60: return CLOUD["data"]
+    bucket, region, prefix = C.cfg("storage.cloud_bucket"), C.cfg("storage.cloud_region", ""), C.cfg("storage.cloud_prefix", "")
+    pre = (prefix.strip("/") + "/") if prefix else ""
+    out = {"configured": True, "provider": prov, "bucket": bucket, "region": region, "prefix": pre, "songs": []}
+    try: objs = storage.list_objects(prov, bucket, pre, region)
+    except RuntimeError as e: out["error"] = str(e); return out
+    by = {}
+    for k, sz in objs.items():
+        rel = k[len(pre):]; slug, _, name = rel.partition("/")
+        if name: by.setdefault(slug, []).append({"name": name, "size": sz, "key": k})
+    local = set(songs())
+    for slug in sorted(by):
+        m = navaan.meta(slug) if slug in local else {}; fl = sorted(by[slug], key=lambda x: x["name"])
+        title = ""
+        tp = os.path.join(C.songs_root(), slug, "title.txt")
+        if os.path.exists(tp): title = open(tp, encoding="utf-8").read().strip()
+        out["songs"].append({"slug": slug, "title": title, "files": fl, "bytes": sum(f["size"] for f in fl), "local": slug in local,
+                             "cleaned": bool(m.get("cleanup")), "uploaded_at": m.get("cloud", {}).get("uploaded_at"), "verified": m.get("cloud", {}).get("verified"),
+                             "youtube": [i.get("url") for i in m.get("published", {}).get("youtube_items", [])], "instagram": m.get("published", {}).get("instagram") or ""})
+    CLOUD["at"] = time.time(); CLOUD["data"] = out
+    return out
 
 
 def detail(slug):
@@ -73,6 +104,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/":
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
                 return self._send(200, page, "text/html")
+            if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
             if p == "/api/songs":
                 out = []
                 for s in songs():
@@ -112,6 +144,11 @@ class H(BaseHTTPRequestHandler):
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path
         try:
+            if p == "/api/cloud/link":
+                key = str(body.get("key", "")); pre = (C.cfg("storage.cloud_prefix", "").strip("/") + "/") if C.cfg("storage.cloud_prefix", "") else ""
+                if not key.startswith(pre) or ".." in key: return self._send(400, {"error": "not a song object"})
+                try: return self._send(200, {"url": storage.signed_url(C.cfg("storage.cloud_provider"), C.cfg("storage.cloud_bucket"), C.cfg("storage.cloud_region", ""), key)})
+                except RuntimeError as e: return self._send(500, {"error": str(e)})
             if p == "/api/new":
                 if not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 rc = subprocess.call([sys.executable, os.path.join(navaan.HERE, "new_song.py"), slug], cwd=C.find_root()); return self._send(200, {"rc": rc})

@@ -155,3 +155,74 @@ def upload_commands(provider, bucket, prefix, region, src_dir, slug):
     if provider == "gcs":
         return [["gcloud", "storage", "rsync", "--recursive", "--exclude", "^(\\.cache|logs)/.*", src_dir, f"gs://{bucket}/{dest_prefix}"]], f"gs://{bucket}/{dest_prefix}"
     raise RuntimeError("cloud upload is off. Set storage.cloud_provider in the profile.")
+
+
+def object_url(provider, bucket, region, ns, key):
+    """Plain object URL. A private bucket needs a signed or pre-authenticated link to open it, so this is the address, not a share link."""
+    from urllib.parse import quote
+    if provider == "oci": return f"https://objectstorage.{region}.oraclecloud.com/n/{ns}/b/{bucket}/o/{quote(key)}"
+    if provider == "s3": return f"https://{bucket}.s3{'.' + region if region else ''}.amazonaws.com/{quote(key)}"
+    if provider == "gcs": return f"https://storage.googleapis.com/{bucket}/{quote(key)}"
+    return ""
+
+
+def list_objects(provider, bucket, prefix, region=""):
+    """Return {object name: size in bytes} for everything under prefix, read with the provider CLI. Raises RuntimeError on failure."""
+    if provider == "oci":
+        ns, err = _oci_ns()
+        if not ns: raise RuntimeError(f"oci is not configured: {err[:200]}")
+        rc, out, err = _run(["oci", "os", "object", "list", "-ns", ns, "-bn", bucket, "--prefix", prefix, "--all", "--fields", "name,size"], timeout=120)
+        if rc: raise RuntimeError(f"cannot list the bucket: {err[:200]}")
+        return {o["name"]: int(o.get("size") or 0) for o in (json.loads(out).get("data", []) if out else [])}
+    if provider == "s3":
+        rc, out, err = _run(["aws"] + (["--region", region] if region else []) + ["s3api", "list-objects-v2", "--bucket", bucket, "--prefix", prefix, "--output", "json"], timeout=120)
+        if rc: raise RuntimeError(f"cannot list the bucket: {err[:200]}")
+        return {o["Key"]: int(o["Size"]) for o in (json.loads(out or "{}").get("Contents") or [])}
+    if provider == "gcs":
+        rc, out, err = _run(["gcloud", "storage", "ls", "--long", "--recursive", f"gs://{bucket}/{prefix}"], timeout=120)
+        if rc: raise RuntimeError(f"cannot list the bucket: {err[:200]}")
+        res = {}
+        for ln in out.splitlines():
+            parts = ln.split()
+            if len(parts) >= 3 and parts[2].startswith(f"gs://{bucket}/") and parts[0].isdigit(): res[parts[2][len(f"gs://{bucket}/"):]] = int(parts[0])
+        return res
+    raise RuntimeError("cloud storage is off")
+
+
+def local_files(src_dir):
+    """Relative paths and sizes of what the archive uploads (everything except .cache and logs)."""
+    res = {}
+    for r, ds, fs in os.walk(src_dir):
+        rel = os.path.relpath(r, src_dir)
+        if rel.split(os.sep)[0] in EXCLUDES: ds[:] = []; continue
+        for f in fs:
+            full = os.path.join(r, f); res[os.path.normpath(os.path.join(rel, f)).replace(os.sep, "/")] = os.path.getsize(full)
+    return res
+
+
+def compare(provider, bucket, prefix, region, src_dir, slug):
+    """Compare the local song folder with the bucket. Returns (dest_prefix, ns, local, remote, missing, mismatched)."""
+    dest = (prefix.strip("/") + "/" if prefix else "") + slug + "/"
+    ns = _oci_ns()[0] if provider == "oci" else ""
+    remote = list_objects(provider, bucket, dest, region); local = local_files(src_dir)
+    missing = sorted(k for k in local if dest + k not in remote)
+    mism = sorted(k for k in local if dest + k in remote and remote[dest + k] != local[k])
+    return dest, ns, local, remote, missing, mism
+
+
+def signed_url(provider, bucket, region, key, hours=1):
+    """A link that opens one object for a short time, made with the user's own CLI login. oci: pre-authenticated request, s3: presign."""
+    import datetime
+    if provider == "oci":
+        ns, err = _oci_ns()
+        if not ns: raise RuntimeError(f"oci is not configured: {err[:200]}")
+        exp = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rc, out, err = _run(["oci", "os", "preauth-request", "create", "-ns", ns, "-bn", bucket, "--name", f"navaan-browse-{int(datetime.datetime.now().timestamp())}",
+                             "--access-type", "ObjectRead", "--object-name", key, "--time-expires", exp, "--query", 'data."access-uri"', "--raw-output"])
+        if rc or not out: raise RuntimeError(f"cannot make a link: {err[:200]}")
+        return f"https://objectstorage.{region}.oraclecloud.com{out}"
+    if provider == "s3":
+        rc, out, err = _run(["aws"] + (["--region", region] if region else []) + ["s3", "presign", f"s3://{bucket}/{key}", "--expires-in", str(hours * 3600)])
+        if rc: raise RuntimeError(f"cannot make a link: {err[:200]}")
+        return out
+    raise RuntimeError("links are supported for oci and s3 only")

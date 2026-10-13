@@ -2,6 +2,7 @@
 """upload_cloud.py  archive a finished song folder to your cloud bucket.
 
   upload_cloud.py <slug> [--yes]     dry run by default; --yes sends (needs the cloud_upload gate approved by you)
+  upload_cloud.py <slug> --record    read only: list the bucket, verify it against the local folder and record the URLs in meta.json
   upload_cloud.py --verify [--write] check the local folder and the cloud location from the profile
 
 While you work, everything stays in the local folder (storage.local_dir). Run this once a song is final.
@@ -21,8 +22,28 @@ def verify(write=False):
     return 1 if bad else 0
 
 
+def record(slug, uploaded_at=None, uri=None):
+    """List the bucket, compare it with the local folder, and write meta.json cloud: provider, bucket, prefix, one URL per file and verified yes or no."""
+    prov, bucket, region = cfg("storage.cloud_provider", "none"), cfg("storage.cloud_bucket"), cfg("storage.cloud_region", "")
+    D = song_dir(slug)
+    dest, ns, local, remote, missing, mism = storage.compare(prov, bucket, cfg("storage.cloud_prefix", ""), region, D, slug)
+    m = load_json(meta_path(slug), default={}); old = m.get("cloud", {})
+    objs = {k: {"size": local[k], "url": storage.object_url(prov, bucket, region, ns, dest + k)} for k in sorted(local) if dest + k in remote}
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    m["cloud"] = {"uploaded_at": uploaded_at or old.get("uploaded_at") or now, "uri": uri or old.get("uri") or f"{prov}://{ns + '/' if ns else ''}{bucket}/{dest}",
+                  "provider": prov, "bucket": bucket, "region": region, "namespace": ns, "prefix": dest, "folder_url": storage.object_url(prov, bucket, region, ns, dest),
+                  "files": len(objs), "bytes": sum(o["size"] for o in objs.values()), "verified": not missing and not mism, "verified_at": now,
+                  "missing": missing, "size_mismatch": mism, "objects": objs}
+    if old.get("cleanup_ok") is not None: m["cloud"]["cleanup_ok"] = old["cleanup_ok"]
+    m.setdefault("history", []).append(f"{now} cloud record {len(objs)} files verified={m['cloud']['verified']}")
+    json.dump(m, open(meta_path(slug), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    print(f"recorded {len(objs)} objects under {dest}, verified={m['cloud']['verified']}" + (f", missing {missing}" if missing else "") + (f", size mismatch {mism}" if mism else ""))
+    return 0 if m["cloud"]["verified"] else 1
+
+
 def main(argv):
     if "--verify" in argv: return verify("--write" in argv)
+    if "--record" in argv and argv and not argv[0].startswith("-"): return record(argv[0])
     if not argv or argv[0].startswith("-"): print(__doc__); return 2
     slug, yes = argv[0], "--yes" in argv
     prov = cfg("storage.cloud_provider", "none")
@@ -37,11 +58,13 @@ def main(argv):
     for c in cmds:
         rc = subprocess.call(c)
         if rc: print("upload failed, exit", rc); return 1
-    m = load_json(meta_path(slug), default={})
-    m["cloud"] = {"uploaded_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "uri": uri}
-    m.setdefault("history", []).append(f"{m['cloud']['uploaded_at']} cloud upload to {uri}")
+    up = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print("uploaded", uri, "verifying against the bucket")
+    rc = record(slug, uploaded_at=up, uri=uri)
+    m = load_json(meta_path(slug), default={}); m.setdefault("history", []).append(f"{up} cloud upload to {uri}")
     json.dump(m, open(meta_path(slug), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-    print("uploaded", uri); return 0
+    if rc: print("the bucket does not match the local folder. Nothing may be cleaned up until it does. Run the archive step again."); return 1
+    return 0
 
 
 if __name__ == "__main__":
