@@ -121,7 +121,46 @@ def cfg(key, default=None):
     return d
 
 
-GATES = ("lyrics", "suno_download", "listen", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public")
+GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public")
+
+
+CONTENT_TYPES = ("music", "inspiration", "explainer")  # every item has one; it picks the pipeline steps, prompts and checks
+TYPE_PREFIX = {"music": "song", "inspiration": "insp", "explainer": "expl"}
+TYPE_GATES = {"music": tuple(g for g in GATES if g not in ("quote", "originality")),
+              "inspiration": ("quote", "originality", "credits", "media", "publish_youtube", "instagram_caption", "go_public", "publish_instagram", "cloud_upload", "local_cleanup")}
+
+
+def item_type(m):
+    """Content type from a meta dict. Older items have no type and are music."""
+    return (m or {}).get("type") or "music"
+
+
+def type_gates(t): return TYPE_GATES.get(t or "music", TYPE_GATES["music"])
+
+
+def next_slug(ctype):
+    import re
+    pre = TYPE_PREFIX[ctype]; n = 0; root = songs_root()
+    for d in (os.listdir(root) if os.path.isdir(root) else []):
+        m = re.match(rf"^{pre}-(\d+)$", d)
+        if m: n = max(n, int(m.group(1)))
+    return f"{pre}-{n + 1:03d}"
+
+
+def account(ctype):
+    """Where a content type publishes. Music uses the default NAVAAN login files. Every other type needs its own account in
+    navaan.config.json under accounts.<type> ({instagram_handle, youtube_channel, instagram_env, youtube_token, youtube_client_secret}),
+    and its login files must differ from the NAVAAN ones, so nothing can land on the wrong channel."""
+    home = os.path.expanduser("~/.config/navaan")
+    if ctype == "music":
+        return {"type": "music", "configured": True, "handle": cfg("publish.instagram_handle", ""), "youtube_channel": "", "ig_env": None, "yt_token": None, "yt_secret": None, "ig_ready": True, "yt_ready": True, "same_as_music": False}
+    a = cfg("accounts." + ctype) or {}
+    rp = lambda k: os.path.realpath(os.path.expanduser(a[k])) if a.get(k) else ""
+    ig, yt, ys = rp("instagram_env"), rp("youtube_token"), rp("youtube_client_secret")
+    same_ig = bool(ig) and ig == os.path.realpath(f"{home}/instagram.env"); same_yt = bool(yt) and yt == os.path.realpath(f"{home}/youtube_token.json")
+    return {"type": ctype, "configured": bool(ig and yt), "handle": a.get("instagram_handle", ""), "youtube_channel": a.get("youtube_channel", ""),
+            "ig_env": ig, "yt_token": yt, "yt_secret": ys or None, "ig_ready": bool(ig) and os.path.exists(ig) and not same_ig,
+            "yt_ready": bool(yt) and os.path.exists(yt) and not same_yt, "same_as_music": same_ig or same_yt}
 
 
 def meta_path(slug):

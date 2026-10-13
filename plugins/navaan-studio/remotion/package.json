@@ -1,0 +1,17 @@
+{
+  "name": "navaan-inspire",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Remotion project that renders NAVAAN inspiration shorts from a song folder's timing.json",
+  "scripts": {
+    "studio": "remotion studio src/index.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.535",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.535",
+    "typescript": "7.0.2"
+  }
+}

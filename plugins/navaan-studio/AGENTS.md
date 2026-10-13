@@ -56,3 +56,17 @@ Lyric captions over the video are switched off. The pipeline skips the Measure l
 YouTube makes its own captions from the audio and can cut a Short from the full video in its editor, so the pipeline does neither. The video step renders only the full 16:9 video and the tagged mp3, and the YouTube step uploads that full video. To also render a vertical reel (needed for Instagram), set `video.make_reel` to true in the profile. To burn lyrics into the video, set `captions.enabled` to true.
 
 Asking the user from a headless step: write `songs/<slug>/question.json` (`{"text": "...", "options": [{"id": "...", "label": "..."}], "allow_text": false}`) and stop. The web portal shows a question card, the user answers there (or with `navaan.py answer <slug> --choice ID`), and the step runs again with the answer in its prompt. Answers are human only, stored in `meta.json`. Never answer for the user.
+
+## Content types
+
+Every item has a `type` in meta.json: `music` (also every older item), `inspiration`, `explainer` (planned). The type picks the production steps, skills and checks. Gates, approvals, publishing, archive and the portal are shared. Folders are named `song-001`, `insp-001`, `expl-001`. Create one with `navaan.py new --type inspiration --idea "..."` or the New button in the portal.
+
+### Inspiration pipeline
+
+quote (gate `quote`) -> originality check on the web (gate `originality`) -> background image -> typography, timing and music -> render -> review (gate `media`) -> upload to YouTube as a Short, private (gate `publish_youtube`) -> Instagram caption (gate) -> go public (gate) -> Instagram Reel (gate) -> archive -> cleanup.
+
+- Output is 1080x1920, 30 fps, 10 to 30 seconds, h264 plus aac. `render_report.json` records the checks.
+- The renderer is Remotion (`npm install` once in `plugins/navaan-studio/remotion`) with an ffmpeg and Pillow fallback. The camera move, typography and transitions run from `timing.json`, so output is predictable and uses no generation credits. Only `background: generate` in brief.md uses Flow credits, behind the `credits` gate. Use Flow video clips only when a quote needs genuinely moving footage.
+- Options live in brief.md as `- key: value` lines: music (auto, none or a file), voiceover (none or file), background (generate, library or a path), camera, transition, duration.
+- Inspiration publishes to its own account. Set `accounts.inspiration` in navaan.config.json (`instagram_handle`, `youtube_channel`, `instagram_env`, `youtube_token`, optional `youtube_client_secret`). The login files must not be the NAVAAN ones. Until then every publish step refuses and posts nothing. `navaan.py account inspiration` shows what is missing.
+- Never attach a famous author to a line without the originality check finding two independent sources.

@@ -7,8 +7,9 @@ import navaan, navaan_common as C, storage
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
-EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt"}
-MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".json", ".txt", ".md", ".log"}
+EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
+READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json"}
+MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
 
@@ -23,12 +24,12 @@ def song_row(s):
     except SystemExit: rows, n = [], {"type": "none"}
     pub = m.get("published", {}); its = list(pub.get("youtube_items", [])) + ([pub["youtube_short"]] if pub.get("youtube_short", {}).get("id") else [])
     cl = m.get("cloud", {}); public = navaan.public_done(m)
-    ig_on = bool(C.cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
+    ig_on = navaan.ig_enabled(m)
     if n.get("type") == "gate": status = "approval"
     elif n.get("type") == "done": status = "done"
     else: status = "production"
     tp = os.path.join(D, "title.txt")
-    return {"slug": s, "state": m.get("state"), "next": n, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "",
+    return {"slug": s, "type": C.item_type(m), "state": m.get("state"), "next": n, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "",
             "album": m.get("album", ""), "status": status, "steps_done": sum(1 for r in rows if r.get("done")), "steps_total": len(rows),
             "public": public, "ig_enabled": ig_on, "published": public and (bool(pub.get("instagram")) or not ig_on), "private": bool(its) and not public, "instagram": bool(pub.get("instagram")), "instagram_url": (pub.get("instagram") or "") if str(pub.get("instagram") or "").startswith("http") else "", "archived": bool(cl.get("uploaded_at")),
             "verified": cl.get("verified"), "cleaned": bool(m.get("cleanup")), "youtube": (pub.get("youtube_items") or [{}])[0].get("url", ""),
@@ -73,7 +74,7 @@ def detail(slug):
         p = os.path.join(D, f)
         if os.path.isfile(p) and os.path.splitext(f)[1].lower() in MEDIA_EXT: fl[f] = os.path.getsize(p)
     for cp in sorted(glob.glob(os.path.join(D, "clips", "*.mp4"))): fl["clips~" + os.path.basename(cp)] = os.path.getsize(cp)
-    txt = {n: open(os.path.join(D, n), encoding="utf-8").read() for n in EDITABLE if os.path.exists(os.path.join(D, n))}
+    txt = {n: open(os.path.join(D, n), encoding="utf-8").read() for n in READABLE if os.path.exists(os.path.join(D, n))}
     lg = ""
     for lp in sorted(glob.glob(os.path.join(D, "logs", "*.log")), key=os.path.getmtime)[-1:]:
         lg = open(lp, encoding="utf-8", errors="ignore").read()[-4000:]
@@ -87,7 +88,7 @@ def detail(slug):
     if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
     rn.pop("started", None)
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
-            "gates": C.GATES, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
+            "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -173,8 +174,10 @@ class H(BaseHTTPRequestHandler):
                     navaan.save_meta(x, m)
                 return self._send(200, {"ok": True, "count": len(sl)})
             if p == "/api/new":
-                if not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
-                rc = subprocess.call([sys.executable, os.path.join(navaan.HERE, "new_song.py"), slug], cwd=C.find_root()); return self._send(200, {"rc": rc})
+                if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
+                import new_song
+                sl = new_song.create(slug or None, body.get("type") or "music", str(body.get("idea") or ""))
+                return self._send(200, {"rc": 0, "slug": sl})
             if p == "/api/import":
                 import suno_import
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "bad slug"})

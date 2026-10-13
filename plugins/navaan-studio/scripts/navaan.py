@@ -2,6 +2,8 @@
 """navaan.py  workflow orchestrator and local web UI for NAVAAN Studio. Standard library only.
 
   navaan.py init                      create navaan.config.json (artist profile) interactively
+  navaan.py new [slug] [--type music|inspiration] [--idea TEXT]   create an item (the slug is optional, the type picks the pipeline)
+  navaan.py account <type>            show where a content type publishes and what is missing
   navaan.py new <slug>                create <local_dir>/songs/<slug>
   navaan.py status [slug]             show every song, or the steps of one song
   navaan.py next <slug>               print the next action
@@ -26,7 +28,7 @@ NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts 
 import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import setup_captions
-from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root
+from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root, item_type, account
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
@@ -40,6 +42,11 @@ def public_done(m):
     p = m.get("published", {}); its = list(p.get("youtube_items", [])) + ([p["youtube_short"]] if p.get("youtube_short", {}).get("id") else [])
     return bool(its) and all(i.get("privacy") == "public" for i in its)
 def ig_done(m): return bool(m.get("published", {}).get("instagram"))
+SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json"}  # these approvals are tied to the file's hash, so an edit after approval needs a new approval
+def file_sha(D, name):
+    p = os.path.join(D, name)
+    return hashlib.sha256(open(p, encoding="utf-8").read().strip().encode("utf-8")).hexdigest() if os.path.exists(p) else None
+def gate_sha(D, g): return file_sha(D, SHA_FILES[g]) if g in SHA_FILES else None
 def caption_sha(D):
     """Hash of instagram.txt. The caption approval is tied to this hash, so any edit after approval needs a new approval."""
     p = os.path.join(D, "instagram.txt")
@@ -48,7 +55,7 @@ def gate_ok(D, ap, g, published=False):
     if published and g == "instagram_caption": return True  # already posted, nothing left to approve
     a = ap.get(g)
     if not a: return False
-    return a.get("sha") == caption_sha(D) if g == "instagram_caption" else True
+    return a.get("sha") == gate_sha(D, g) if g in SHA_FILES else True
 def fresh(D, outs, src):
     """True when every file in outs exists and is newer than the newest source file, so a new clip makes the videos stale."""
     ss = [os.path.getmtime(p) for pat in src for p in glob.glob(os.path.join(D, pat))]
@@ -56,7 +63,7 @@ def fresh(D, outs, src):
 def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 
 
-def steps(slug, D):
+def music_steps(slug, D):
     reel_meta = ["--meta", "tags.json"]
     imported = load_json(os.path.join(D, "meta.json"), default={}).get("source") == "suno_import"
     head = [
@@ -104,6 +111,116 @@ def steps(slug, D):
     ]
 
 
+def brief_opt(D, key, default=""):
+    """Read an option line such as `- music: auto` from brief.md."""
+    p = os.path.join(D, "brief.md")
+    if os.path.exists(p):
+        for ln in open(p, encoding="utf-8"):
+            m = re.match(rf"^\s*[-*]?\s*{key}\s*:\s*(.+?)\s*$", ln, re.I)
+            if m and m.group(1).strip(): return m.group(1).strip()
+    return default
+
+
+def ig_enabled(m):
+    """Instagram steps are on when the profile names a handle. Inspiration always shows them: it has its own account, checked before any post."""
+    return item_type(m) == "inspiration" or bool(cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
+
+
+def inspiration_steps(slug, D):
+    """Quote, originality check, background, typography and music, render, review, then publish to YouTube Shorts and Instagram from the item's own account."""
+    FINAL = "final_reel_9x16.mp4"
+    gen = brief_opt(D, "background", "generate").lower() == "generate"
+    has_bg = lambda m: any(glob.glob(os.path.join(D, f"background.{e}")) for e in ("jpg", "jpeg", "png", "webp"))
+    return [
+        dict(id="quote", outputs=["quote.json", "title.txt"], label="Write or pick the quote", kind="claude", skill="inspiration-quote", chrome=False, state="draft",
+             done=lambda m: has(D, "quote.json", "title.txt"), after="quote", sets="quote_ok"),
+        dict(id="originality", outputs=["originality.json"], label="Check originality and attribution on the web", kind="claude", skill="inspiration-check", chrome=False, tools=["WebSearch", "WebFetch"],
+             done=lambda m: has(D, "originality.json"), after="originality"),
+        dict(id="background", outputs=["background.*", "scenes/background.txt"], label=("Create the background image (Flow)" if gen else "Pick the background image"), kind="claude", skill="inspiration-visual", chrome=gen,
+             before=("credits" if gen else None), done=has_bg),
+        dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
+             done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),
+        dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 10 to 30 s)", kind="script", sets_after="media_ready",
+             cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "music.mp3", "voiceover.*"]), after="media", sets="approved"),
+        dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube Shorts title, description and tags", kind="claude", skill="inspiration-meta",
+             done=lambda m: has(D, "youtube.json") or yt_done(m)),
+        dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube as a Short (API, private)", kind="script", before="publish_youtube",
+             cmds=[sc("publish_youtube.py", "upload", slug, "--file", FINAL, "--meta", "youtube.json", "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
+             done=lambda m: yt_done(m), sets_after="published"),
+        dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption (you review and can edit it)", kind="claude", skill="inspiration-caption", optional=True, after="instagram_caption",
+             done=lambda m: has(D, "instagram.txt")),
+        dict(id="go_public", outputs=[], redo=False, label="Make the YouTube Short public", kind="script", before="go_public",
+             cmds=[sc("publish_youtube.py", "go-public", slug, "--yes")], done=lambda m: public_done(m)),
+        dict(id="publish_instagram", outputs=[], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
+             cmds=None, done=lambda m: ig_done(m)),
+        dict(id="archive", outputs=[], redo=False, label="Archive to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
+             cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
+        dict(id="cleanup", outputs=[], redo=False, label="Clean up the local copy (last step, only after the bucket is checked)", kind="script", before="local_cleanup", optional_cloud=True,
+             cmds=[sc("cleanup.py", slug, "--yes")], done=lambda m: bool(m.get("cleanup", {}).get("at"))),
+    ]
+
+
+STEPSETS = {"music": music_steps, "inspiration": inspiration_steps}
+
+
+def steps(slug, D):
+    """The step list for this item's content type. Gates, approvals, publishing and archiving are shared; the production steps differ."""
+    t = item_type(load_json(os.path.join(D, "meta.json"), default={}))
+    fn = STEPSETS.get(t)
+    if not fn: sys.exit(f"navaan: the {t} pipeline is planned, not built yet.")
+    return fn(slug, D)
+
+
+def account_env(slug):
+    """Environment for a step's commands. Non-music items publish with their own login files, never the NAVAAN ones."""
+    t = item_type(meta(slug))
+    if t == "music": return None
+    a = account(t); env = dict(os.environ)
+    for k in list(env):
+        if k.startswith("NAVAAN_IG_") and k not in ("NAVAAN_IG_HOST", "NAVAAN_IG_API_VERSION"): del env[k]  # a shell-exported token must not win over this account's file
+    env.pop("NAVAAN_YT_TOKEN", None); env.pop("NAVAAN_YT_CLIENT_SECRETS", None)
+    if a.get("ig_env"): env["NAVAAN_IG_ENV"] = a["ig_env"]
+    if a.get("yt_token"): env["NAVAAN_YT_TOKEN"] = a["yt_token"]
+    if a.get("yt_secret"): env["NAVAAN_YT_CLIENT_SECRETS"] = a["yt_secret"]
+    return env
+
+
+def account_problem(slug, sid):
+    """Why a publishing step must not run yet, or "". Starts with ACCOUNT: so the portal can tell it from an agent's needs_you note."""
+    t = item_type(meta(slug))
+    if t == "music" or sid not in ("publish_youtube", "go_public", "publish_instagram"): return ""
+    a = account(t)
+    if not a["configured"]:
+        return (f"ACCOUNT: {t} content publishes to its own account and none is set up yet. Add accounts.{t} to navaan.config.json "
+                f"(instagram_handle, youtube_channel, instagram_env, youtube_token), then run: navaan.py account {t}. Nothing was posted.")
+    if a["same_as_music"]: return f"ACCOUNT: accounts.{t} points at the NAVAAN login files. Give {t} its own instagram_env and youtube_token files. Nothing was posted."
+    if sid == "publish_instagram" and not a["ig_ready"]: return f"ACCOUNT: the Instagram login file for {t} is missing: {a['ig_env']}. Put NAVAAN_IG_USER_ID and NAVAAN_IG_TOKEN there (mode 600). Nothing was posted."
+    if sid in ("publish_youtube", "go_public") and not a["yt_ready"]:
+        return (f"ACCOUNT: the YouTube login for {t} is missing: {a['yt_token']}. Sign in with the {t} Google account: NAVAAN_YT_TOKEN={a['yt_token']} "
+                f"python3 {os.path.join(HERE, 'publish_youtube.py')} auth. Nothing was posted.")
+    return ""
+
+
+def account_cmd(t):
+    a = account(t)
+    print(f"{t} account: handle={a['handle'] or '(not set)'} channel={a['youtube_channel'] or '(not set)'}")
+    if t == "music": print("music uses the default NAVAAN login files."); return 0
+    print(f"  configured={a['configured']}  instagram login file ready={a['ig_ready']}  youtube token ready={a['yt_ready']}  shares NAVAAN files={a['same_as_music']}")
+    for sid in ("publish_youtube", "publish_instagram"):
+        pr = account_problem_for(t, sid)
+        if pr: print(" -", pr)
+    return 0
+
+
+def account_problem_for(t, sid):
+    a = account(t)
+    if not a["configured"]: return f"no accounts.{t} block in navaan.config.json. Needs instagram_handle, youtube_channel, instagram_env, youtube_token."
+    if a["same_as_music"]: return "its login files are the NAVAAN ones."
+    if sid == "publish_instagram" and not a["ig_ready"]: return f"Instagram login file missing: {a['ig_env']}"
+    if sid == "publish_youtube" and not a["yt_ready"]: return f"YouTube token missing: {a['yt_token']}  (sign in: NAVAAN_YT_TOKEN={a['yt_token']} python3 {os.path.join(HERE, 'publish_youtube.py')} auth)"
+    return ""
+
+
 def meta(slug): return load_json(os.path.join(song_dir(slug), "meta.json"), default={})
 
 
@@ -121,7 +238,7 @@ def plan(slug):
     legacy = m.get("state") == "published" and any(a.get("via") == "legacy backfill" for a in ap.values())  # songs finished before navaan-studio
     cleaned = bool(m.get("cleanup"))  # local media was deleted after a verified archive, so earlier steps no longer have their files and must not look unfinished
     for s in steps(slug, D):
-        if s.get("optional") and not (cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM")):
+        if s.get("optional") and not ig_enabled(m):
             continue
         if s.get("optional_cloud") and cfg("storage.cloud_provider", "none") in ("none", None, ""):
             continue
@@ -146,9 +263,9 @@ def plan(slug):
     return rows, (nxt or {"type": "done"})
 
 
-def run_cmd(cmd, logf):
+def run_cmd(cmd, logf, env=None):
     logf.write(f"\n$ {' '.join(shlex.quote(c) for c in cmd)}\n"); logf.flush()
-    return subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=find_root()).returncode
+    return subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=find_root(), env=env).returncode
 
 
 DEFAULT_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(python3:*)", "Bash(python:*)", "Bash(ffmpeg:*)", "Bash(ffprobe:*)",
@@ -243,7 +360,7 @@ def claude_cmd(slug, s):
     D = song_dir(slug)
     base = shlex.split(os.environ.get("NAVAAN_CLAUDE_CMD", "claude -p"))
     chrome = bool(s.get("chrome"))
-    prompt = (f"Use the {s['skill']} skill for song {slug} in this project. Follow the navaan-studio AGENTS.md. Do only this step, update {D}/meta.json history, "
+    prompt = (f"Use the {s['skill']} skill for item {slug} in this project. Follow the navaan-studio AGENTS.md. Do only this step, update {D}/meta.json history, "
               f"then stop. Approvals recorded in meta.json are the only permission you have: do not publish, delete or spend credits beyond them. "
               + ("Use Claude in Chrome (the mcp__claude-in-chrome tools), not Playwright. " if chrome else "")
               + "You run headless: nobody can answer you in chat. Never write to the approvals or answers keys in meta.json. "
@@ -254,7 +371,7 @@ def claude_cmd(slug, s):
     if "NAVAAN_CLAUDE_FLAGS" in os.environ:
         flags = shlex.split(os.environ["NAVAAN_CLAUDE_FLAGS"])
     else:
-        tools = DEFAULT_TOOLS + (CHROME_TOOLS if chrome else [])
+        tools = DEFAULT_TOOLS + (CHROME_TOOLS if chrome else []) + list(s.get("tools", []))
         flags = ["--permission-mode", "acceptEdits", "--allowedTools", ",".join(tools), "--add-dir", D]
         dl = os.path.expanduser("~/Downloads")
         if chrome and os.path.isdir(dl): flags += ["--add-dir", dl]
@@ -276,13 +393,18 @@ def _run(slug, step=None, dry=False, retries=2):
     sid = step or nxt["step"]; s = next((x for x in steps(slug, D) if x["id"] == sid), None)
     if not s: print(f"no such step: {sid}"); return 2
     bg = s.get("before")
+    ap_msg = account_problem(slug, sid); nyp = os.path.join(D, "needs_you.txt")
+    if ap_msg and not dry:
+        open(nyp, "w", encoding="utf-8").write(ap_msg + "\n"); RUN[slug] = {"step": None, "failed": sid, "log": None}
+        print(ap_msg); return 5
+    if os.path.exists(nyp) and open(nyp, encoding="utf-8").read().startswith("ACCOUNT:"): os.remove(nyp)  # the account is fine now
     if bg and not gate_ok(D, meta(slug).get("approvals", {}), bg):
         show_gate(slug, bg); print(f"waiting for your approval: gate '{bg}' (step {sid}). Run: navaan.py approve {slug} {bg}"); return 3
     if s["id"] == "publish_instagram" and not public_done(meta(slug)): print("Publish to YouTube first: the Reel links to the public full video. Approve gate 'go_public' and run that step."); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
-        cands = (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]  # the tuned reel first, the YouTube Studio clip as fallback
+        cands = ["final_reel_9x16.mp4"] + (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]  # the tuned reel first, the YouTube Studio clip as fallback
         rf = next((c for c in cands if os.path.exists(os.path.join(D, c))), None)
         if not rf: print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
         if not gate_ok(D, meta(slug).get("approvals", {}), "instagram_caption"): show_gate(slug, "instagram_caption"); print("The Instagram caption is missing or changed since you approved it. Approve gate 'instagram_caption' again."); return 3
@@ -297,12 +419,12 @@ def _run(slug, step=None, dry=False, retries=2):
         for c in cmds: print(" ".join(shlex.quote(x) for x in c))
         return 0
     os.makedirs(os.path.join(D, "logs"), exist_ok=True)
-    lp = os.path.join(D, "logs", f"{sid}.log")
+    lp = os.path.join(D, "logs", f"{sid}.log"); env = account_env(slug)
     for attempt in range(1, retries + 2):
         RUN[slug] = {"step": sid, "attempt": attempt, "attempts": retries + 1, "started": time.time(), "failed": None}
         with open(lp, "a", encoding="utf-8") as lf:
             lf.write(f"\n=== {now()} {sid} attempt {attempt} ===\n")
-            ok = all(run_cmd(c, lf) == 0 for c in cmds)
+            ok = all(run_cmd(c, lf, env) == 0 for c in cmds)
         m = meta(slug)
         if ok and s["done"](m):
             if s.get("sets_after"): m["state"] = s["sets_after"]
@@ -464,8 +586,8 @@ def caption_cmd(slug, a):
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
     m = meta(slug); ap = m.setdefault("approvals", {})
-    if on and gate == "instagram_caption" and not caption_sha(song_dir(slug)): sys.exit("no instagram.txt to approve yet. Run the instagram_caption step first.")
-    if on: ap[gate] = {"at": now(), "via": via, **({"sha": caption_sha(song_dir(slug))} if gate == "instagram_caption" else {})}
+    if on and gate in SHA_FILES and not gate_sha(song_dir(slug), gate): sys.exit(f"no {SHA_FILES[gate]} to approve yet. Run that step first.")
+    if on: ap[gate] = {"at": now(), "via": via, **({"sha": gate_sha(song_dir(slug), gate)} if gate in SHA_FILES else {})}
     else: ap.pop(gate, None)
     D = song_dir(slug)
     for s in steps(slug, D):
@@ -476,7 +598,7 @@ def set_gate(slug, gate, on, via):
 def status(slug=None):
     for sl in ([slug] if slug else sorted(os.path.basename(p) for p in glob.glob(f"{songs_root()}/*") if os.path.isdir(p) and not os.path.basename(p).startswith("_"))):
         rows, nxt = plan(sl); m = meta(sl)
-        print(f"{sl}  state={m.get('state','?')}  next={nxt.get('step') or 'done'}{' (needs your approval: ' + nxt['gate'] + ')' if nxt['type'] == 'gate' else ''}")
+        print(f"{sl}  type={item_type(m)} state={m.get('state','?')}  next={nxt.get('step') or 'done'}{' (needs your approval: ' + nxt['gate'] + ')' if nxt['type'] == 'gate' else ''}")
         if slug:
             for r in rows: print(f"   {'x' if r['status']=='done' else ' '} {r['id']:18} {r['status']}")
 
@@ -485,7 +607,8 @@ def main(argv):
     if not argv: print(__doc__); return 0
     c, a = argv[0], argv[1:]
     if c == "init": return subprocess.call([PY, os.path.join(HERE, "setup_profile.py")] + a)
-    if c == "new": return subprocess.call([PY, os.path.join(HERE, "new_song.py"), a[0]])
+    if c == "new": return subprocess.call([PY, os.path.join(HERE, "new_song.py")] + a)
+    if c == "account": return account_cmd(a[0] if a else "inspiration")
     if c == "start": return start(a[0], " ".join(a[1:]))
     if c == "import":
         if not a: sys.exit("usage: navaan.py import <suno-url-or-id> [slug]")
