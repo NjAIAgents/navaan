@@ -109,4 +109,4 @@ plugins/navaan-studio/
 | Deviation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | The shared-password gate throttles unauthenticated clients per IP instead of counting failed attempts and locking out (FR-017 wording) | nginx cannot count failed basic-auth attempts | A custom auth service in front would be a new component to maintain. The throttle (30 requests a minute per IP without a session cookie) limits guessing to a rate that a strong password survives. |
-| NAVAAN's container joins the Vault network | The sync script needs to reach Vault | Publishing Vault's port on the host would expose it more widely. Task 1 above may replace this with a dedicated network. |
+| NAVAAN's container joins `engagehub-network` (the Vault network) | The sync script needs to reach Vault | Publishing Vault's port on the host would expose it more widely. Checked on the VM (research.md R10): Vault is only on `engagehub-network`, so NAVAAN joins that network; a dedicated one would mean recreating Vault. |

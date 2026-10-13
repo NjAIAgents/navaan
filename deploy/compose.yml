@@ -1,5 +1,5 @@
 # NAVAAN Studio on the Oracle VM. Project "navaan". Run from /opt/navaan/repo:
-#   VAULT_NETWORK=<network of engagehub-vault> docker compose -f deploy/compose.yml up -d --build
+#   docker compose -f deploy/compose.yml up -d --build      (joins engagehub-network to reach Vault)
 # No credential is in this file. Secrets come from Vault at start (deploy/vault_sync.py).
 name: navaan
 
@@ -43,7 +43,7 @@ networks:
     name: navaan-network      # engagehub-nginx joins this one (deploy/nginx/README.md)
   vault:
     external: true
-    name: ${VAULT_NETWORK:?set VAULT_NETWORK to the Docker network of engagehub-vault (task T002)}
+    name: ${VAULT_NETWORK:-engagehub-network}   # where engagehub-vault lives (research.md R10)
 
 secrets:
   vault_role_id:

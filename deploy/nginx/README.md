@@ -5,7 +5,11 @@ NAVAAN shares the VM's existing `engagehub-nginx` (owns 80 and 443). Nothing abo
 Files: `navaan.conf` (full vhost), `navaan-acme.conf` (stage 1, port 80 only).
 
 ## 0. Snapshot the neighbours first (task T041)
-`deploy/check-neighbours.sh > /tmp/before.txt`
+```sh
+printf '%s\n' https://engagehub.ignorelist.com/ https://relayent.ignorelist.com/ https://relayent-demo.ignorelist.com/ | sudo tee /opt/navaan/neighbours.txt >/dev/null
+deploy/check-neighbours.sh > /tmp/before.txt
+```
+(create `/opt/navaan` first if it does not exist yet)
 
 ## 1. Back up and create the host files
 ```sh
@@ -17,7 +21,7 @@ sudo chown 10001 /opt/navaan/data    # the data folder is written by the contain
 ```
 
 ## 2. Edit `/opt/engagehub/docker-compose.yml` (nginx service only)
-Copy the style Relayent already uses for its network (task T003 records it). Three additions:
+The service is `nginx` (container `engagehub-nginx`); its existing vhost mounts and the `relayent-network: {external: true, name: ...}` entry are the style to copy (research.md R10). Three additions:
 
 ```yaml
 services:

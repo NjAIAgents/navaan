@@ -25,14 +25,14 @@ One container (`navaan`) runs the portal and the scheduler, behind the VM's exis
 ## Install (first time)
 1. **Vault**: `vault/setup.md` (mount, policy, AppRole, secret files), then push the secrets from the Mac.
 2. **Data folder**: `sudo install -d -o 10001 /opt/navaan/data/songs /opt/navaan/data/state`, then `migrate.md`.
-3. **Network and container**: `cd /opt/navaan/repo && VAULT_NETWORK=<network of engagehub-vault> docker compose -f deploy/compose.yml up -d --build`. Find the Vault network with `docker inspect engagehub-vault --format '{{json .NetworkSettings.Networks}}'`.
+3. **Network and container**: `cd /opt/navaan/repo && docker compose -f deploy/compose.yml up -d --build`. The container joins `engagehub-network` (where `engagehub-vault` lives); override with `VAULT_NETWORK` if that ever changes.
 4. **nginx and certificate**: `nginx/README.md`.
 5. **First sign in**: `docker exec navaan cat /home/navaan/.config/navaan/auth_setup_code`, open the site, enter the shared password, then create the login. Save the recovery codes. The login is written to Vault within 30 seconds.
 
 ## Update
 ```sh
 cd /opt/navaan/repo && git pull
-VAULT_NETWORK=... docker compose -f deploy/compose.yml up -d --build
+docker compose -f deploy/compose.yml up -d --build
 ```
 Data, secrets and the Vault login survive (they are outside the image). Sessions end (they live in memory).
 

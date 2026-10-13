@@ -12,8 +12,8 @@
 
 - [X] T001 Commit only the auth hunks of `plugins/navaan-studio/scripts/navaan_ui.py` and `plugins/navaan-studio/scripts/ui.html`, leaving the other session's analytics hunks unstaged (constitution IX). Use `git add -p`, never `git checkout`.
   - Status: done. The other session's analytics hunks in `ui.html` went in their own commit (e31ac73), then this work in one commit; no `git add -p` was possible (non-interactive), so hunks were split by patch.
-- [ ] T002 [P] (VM) Verify open item 1: which Docker network `engagehub-vault` is on (`docker inspect engagehub-vault`). Record answer in `specs/001-run-navaan-on-server/research.md`.
-- [ ] T003 [P] (VM) Verify open items 2 and 3: certbot deploy hook (`cat /etc/letsencrypt/renewal/*.conf`), `docker compose version`, and how `/opt/engagehub/docker-compose.yml` declares Relayent's external network. Record in `research.md`.
+- [X] T002 [P] (VM) Verify open item 1: which Docker network `engagehub-vault` is on (`docker inspect engagehub-vault`). Record answer in `specs/001-run-navaan-on-server/research.md`.
+- [X] T003 [P] (VM) Verify open items 2 and 3: certbot deploy hook (`cat /etc/letsencrypt/renewal/*.conf`), `docker compose version`, and how `/opt/engagehub/docker-compose.yml` declares Relayent's external network. Record in `research.md`.
 - [X] T004 [P] Create `deploy/` skeleton with `deploy/README.md` (install, update, rollback outline) and empty subfolders `deploy/nginx`, `deploy/backup`, `deploy/vault`.
 
 ## Phase 2: Foundational (blocks all stories)
