@@ -167,6 +167,12 @@ def snap(t, bts, lo, hi, tol=0.4):
     return min(cand, key=lambda b: abs(b - t)) if cand else t
 
 
+def watermark(slug):
+    """The handle shown at the bottom is the account this item posts to (accounts.<type>), never the NAVAAN one."""
+    h = (C.account(C.item_type(C.load_json(os.path.join(C.song_dir(slug), "meta.json")))).get("handle") or "").strip()
+    return ("@" + h.lstrip("@")) if h else "NAVAAN"
+
+
 def main(slug):
     D = C.song_dir(slug)
     q = C.load_json(os.path.join(D, "quote.json"))
@@ -218,7 +224,7 @@ def main(slug):
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),
         "camera": cam, "transition": tr, "language": q.get("language", ""),
         "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
-        "watermark": C.cfg("publish.instagram_handle", "") or "NAVAAN",
+        "watermark": watermark(slug),
         "music_source": how, "beat_source": bkind, "beats": bts[:80],
     }
     json.dump(timing, open(os.path.join(D, "timing.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
