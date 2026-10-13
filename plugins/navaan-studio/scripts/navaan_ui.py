@@ -131,6 +131,14 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/settings":
                 try: return self._send(200, settings_api.status("refresh=1" in self.path))
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})
+            if p == "/api/replies":
+                import comment_reply as CR
+                from urllib.parse import parse_qs, urlparse
+                pf = (parse_qs(urlparse(self.path).query).get("platform") or [""])[0]
+                if pf not in CR.PLATFORMS: return self._send(400, {"error": "bad platform"})
+                conn = CR.connect()
+                try: return self._send(200, {"items": CR.waiting(conn, pf)})
+                finally: conn.close()
             if p == "/api/analytics":
                 from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
@@ -239,6 +247,22 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/schedule/clear":
                 if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 PS.clear(slug); return self._send(200, {"ok": True})
+            if p.startswith("/api/replies/"):
+                import comment_reply as CR
+                act = p.rsplit("/", 1)[1]; pf = str(body.get("platform") or ""); cid = str(body.get("comment_id") or "")
+                if act not in ("draft", "edit", "skip", "send"): return self._send(404, {"error": "unknown action"})
+                conn = None
+                try:
+                    conn = CR.connect()   # Claude only drafts. Posting happens only here, when the person presses Approve and send for one comment.
+                    if act == "draft": r = CR.draft(conn, pf, cid)
+                    elif act == "edit": r = CR.edit(conn, pf, cid, str(body.get("text") or ""))
+                    elif act == "skip": r = CR.skip(conn, pf, cid)
+                    else: r = CR.send(conn, pf, cid, str(body["text"]) if "text" in body else None)
+                    return self._send(200, {"ok": True, "reply": r})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except Exception as e: return self._send(502, {"error": str(e)[:300]})
+                finally:
+                    if conn: conn.close()
             if p == "/api/analytics/rec":
                 try: analytics_api.set_rec_status(str(body.get("id") or ""), str(body.get("status") or ""), body.get("reason")); return self._send(200, {"ok": True})
                 except ValueError as e: return self._send(400, {"error": str(e)})
