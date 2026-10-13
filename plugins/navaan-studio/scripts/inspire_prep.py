@@ -6,7 +6,7 @@ to the video length) and beats.json (beat times the text is snapped to). No cred
 
 quote.json: {"text": "...", "lines": ["optional manual line breaks"], "author": "Name or empty", "kind": "original|attributed|public_domain", "language": "hi|en|..."}
 brief.md options (a line like `music: auto`):
-  music:      auto (default) | none | <path to an audio file>   auto uses music.* in the folder, then <local_dir>/inspire_music, then a generated ambient pad
+  music:      auto (default) | none | <path to an audio file>   auto uses music.* in the folder, then <local_dir>/inspire_music, then a generated soft piano with distant rain\n  bed:        piano (default) | piano_dry | drone   which generated bed to use when no music file is found
   voiceover:  none (default) | file   with `file`, voiceover.mp3 in the folder sets the length and the text follows the voice
   duration:   target seconds, 10 to 30 (default: from the length of the text)
   camera:     push_in | pull_out | pan_left | pan_right | drift (default: picked from the slug)
@@ -53,14 +53,64 @@ def split_lines(text, lang="", max_chars=None):
 def probe_dur(p): return C.duration(p)
 
 
-def make_pad(out, dur):
-    """An original ambient pad made with ffmpeg: slow chord, low drone, gentle tremolo. Always available and free of any licence."""
+def make_drone(out, dur):
+    """The old bed: a slow chord drone. Kept as music: drone."""
     ff = C.tool("ffmpeg")
     chord = [110.0, 164.81, 220.0, 277.18, 329.63]  # A2 E3 A3 C#4 E4, open and calm
     src = "+".join(f"{0.18 if f < 150 else 0.10}*sin(2*PI*{f}*t+{0.4*i})" for i, f in enumerate(chord))
     f = f"aevalsrc='({src})*(0.75+0.25*sin(2*PI*0.12*t))':s=44100:d={dur + 1:.2f}:c=stereo"
     af = f"lowpass=f=1800,aecho=0.8:0.7:380|620:0.35|0.25,afade=t=in:st=0:d=1.5,afade=t=out:st={max(0.0, dur - 2.5):.2f}:d=2.5"
     C.run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", f, "-af", af, "-t", f"{dur:.2f}", "-c:a", "libmp3lame", "-b:a", "192k", out])
+
+
+def make_pad(out, dur, style="piano"):
+    """An original bed made here, free of any licence: a slow soft piano (synthesised notes, Am F C G) under distant rain.
+    style 'drone' gives the old chord drone, 'piano' adds no rain-free option, 'piano_dry' is piano without rain."""
+    if style == "drone": return make_drone(out, dur)
+    import math, wave, tempfile
+    ff = C.tool("ffmpeg")
+    sr = 22050
+    n = int((dur + 2) * sr)
+    buf = array.array("f", [0.0]) * n
+    prog = [  # (bass, arpeggio)  each chord lasts 4 steps of 0.85 s
+        (110.00, [220.00, 261.63, 329.63]),   # Am
+        (87.31, [174.61, 220.00, 261.63]),    # F
+        (130.81, [196.00, 261.63, 329.63]),   # C
+        (98.00, [196.00, 246.94, 293.66]),    # G
+    ]
+    step, rnd = 0.85, random.Random(7)
+
+    def note(f, t0, vel):
+        i0 = int(t0 * sr); L = int(3.2 * sr)
+        for k in range(min(L, n - i0)):
+            t = k / sr
+            env = math.exp(-t * (1.25 if f > 150 else 0.85)) * (1 - math.exp(-t * 90))
+            w = math.sin(6.2831853 * f * t) + 0.45 * math.sin(12.5663706 * f * t) * math.exp(-t * 2.2) + 0.18 * math.sin(18.8495559 * f * t) * math.exp(-t * 3.5)
+            buf[i0 + k] += vel * env * w
+    t, ci = 0.6, 0
+    while t < dur - 1.5:
+        bass, arp = prog[ci % 4]
+        note(bass, t, 0.34)
+        for j, f in enumerate(arp + [arp[1]]):
+            tt = t + (j + 1) * step + rnd.uniform(-0.03, 0.03)
+            if tt < dur - 1.0: note(f, tt, 0.20 + 0.06 * rnd.random())
+        t += step * 5; ci += 1
+    peak = max(1e-6, max(abs(x) for x in buf))
+    tmp = tempfile.mkdtemp(prefix="insp_pad_")
+    wav = os.path.join(tmp, "piano.wav")
+    with wave.open(wav, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+        w.writeframes(array.array("h", [int(max(-1, min(1, x / peak * 0.8)) * 32767) for x in buf]).tobytes())
+    fade = f"loudnorm=I=-16:TP=-1.5:LRA=7,afade=t=in:st=0:d=1.2,afade=t=out:st={max(0.0, dur - 2.5):.2f}:d=2.5"
+    piano = "[0:a]aresample=44100,lowpass=f=3200,aecho=0.8:0.6:420|760:0.30|0.20,aformat=channel_layouts=stereo[p]"
+    if style == "piano_dry":
+        fc = piano.replace("[p]", "[m]") + f";[m]{fade}[o]"
+        args = ["-i", wav]
+    else:
+        rain = "[1:a]highpass=f=900,lowpass=f=7000,volume=0.16,aformat=channel_layouts=stereo[r]"
+        fc = f"{piano};{rain};[p][r]amix=inputs=2:duration=first:normalize=0,{fade}[o]"
+        args = ["-i", wav, "-f", "lavfi", "-i", f"anoisesrc=color=pink:amplitude=0.5:r=44100:d={dur + 2:.2f}"]
+    C.run([ff, "-y", "-v", "error"] + args + ["-filter_complex", fc, "-map", "[o]", "-t", f"{dur:.2f}", "-c:a", "libmp3lame", "-b:a", "192k", out])
 
 
 def music_source(D, dur):
@@ -144,7 +194,7 @@ def main(slug):
     mfile = os.path.join(D, "music.mp3"); src, how = music_source(D, dur)
     if how == "none": mfile = None
     elif src: fit_music(src, mfile, dur)
-    else: make_pad(mfile, dur)
+    else: make_pad(mfile, dur, opt(D, "bed", "piano").lower())
     bts, bkind = ([], "none") if not mfile else beats(mfile, dur)
     # a line's start time follows how many words came before it; the end is the next start (the last one holds until the author line)
     starts, acc = [], 0.0
