@@ -241,7 +241,7 @@ function applyVol(){document.querySelectorAll("#main audio,#main video").forEach
 const l=document.getElementById("vl");if(l)l.textContent=MUTE?"muted":Math.round(VOL*100)+"%";const b=document.getElementById("vm");if(b)b.textContent=MUTE?"Unmute":"Mute"}
 function setVol(v){VOL=v/100;MUTE=false;try{localStorage.setItem("navaan_vol",VOL);localStorage.setItem("navaan_mute","0")}catch(e){}applyVol()}
 function toggleMute(){MUTE=!MUTE;try{localStorage.setItem("navaan_mute",MUTE?"1":"0")}catch(e){}applyVol()}
-function setSec(id,html,par){const main=document.getElementById(par||"main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){const sv=[...el.querySelectorAll("pre")].map(p=>({t:p.scrollTop,bot:p.scrollHeight-p.scrollTop-p.clientHeight<24}));el.innerHTML=html;el.dataset.h=html;el.querySelectorAll("pre").forEach((p,i)=>{const o=sv[i];p.scrollTop=(!o||o.bot)?p.scrollHeight:o.t})}}
+function setSec(id,html,par){const main=document.getElementById(par||"main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){const sv=[...el.querySelectorAll("pre")].map(p=>({t:p.scrollTop,bot:p.scrollHeight-p.scrollTop-p.clientHeight<24}));el.innerHTML=html;el.dataset.h=html;el.querySelectorAll("pre").forEach((p,i)=>{const o=sv[i];p.scrollTop=p.classList.contains("lg")?((!o||o.bot)?p.scrollHeight:o.t):(o?o.t:0)})}}
 function questionCard(q){const fl=(q.options||[]).some(o=>o.text);const btn=o=>`<button onclick="answerQ('${esc(o.id)}',${o.text?1:0})">${esc(o.label)}</button>`;return `<div class="card alert"><h2>The agent is asking you</h2><p style="margin:0 0 8px">${esc(q.text)}</p>${q.allow_text?`<textarea id="qtext" rows="2" style="width:100%;margin-bottom:8px;min-height:60px" placeholder="${fl?"Type here, then press the button marked with ✎":(q.options&&q.options.length?"Optional note":"Type your answer")}"></textarea>`:""}<div style="display:flex;gap:8px;flex-wrap:wrap">${(q.options||[]).map(o=>o.text?btn({...o,label:"✎ "+o.label}):btn(o)).join("")}${q.options&&q.options.length?"":`<button onclick="answerQ('',1)">Send answer</button>`}</div></div>`}
 let TAB="pipeline",TXT=null;
 const PH={visuals:1,video:1,youtube_meta:1,publish_youtube:2,youtube_short:2,instagram_caption:2,go_public:3,publish_instagram:3,archive:4,cleanup:4};
@@ -273,7 +273,7 @@ const ph=[[],[],[],[],[]];let last=0;rows.forEach((r,i)=>{if(PH[r.id]!==undefine
 let cards="";ph.forEach((arr,pi)=>{if(!arr.length)return;const dn=arr.filter(x=>x[0].done).length;let b="";
 for(const [r,i] of arr)b+=srow(r,i,st(r),d,busy,nx);
 cards+=`<div class="card pad0" style="overflow:hidden"><div class="ph"><b>${pi+1}  ${PN[pi]}</b><span class="sub">${PD[pi]}</span><span style="flex:1"></span><span class="chip ${dn===arr.length?"ok":""}">${dn} of ${arr.length}</span></div>${b}</div>`});
-return cards}
+return lyricsCard(d)+cards}
 function gateCard(d,g){const head=`<div class="sub mono">${esc(g)}</div><div style="margin:4px 0 10px">${esc(lab(g))}</div>`;
 if(g==="instagram_caption"){const c=d.text["instagram.txt"];
 if(!c)return `<div class="card alert">${head}<p class="sub" style="margin:0">There is no caption yet. Run the caption step first, it writes instagram.txt and you review it here.</p></div>`;
@@ -283,7 +283,10 @@ if(g==="media"||g==="listen")return `<div class="card alert">${head}<div style="
 return `<div class="card alert">${head}<button class="p" onclick="gate('${g}')">Approve</button></div>`}
 async function saveCap(){const t=document.getElementById("cap_t");if(!t)return;const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return alert(r.error);render(true)}
 async function approveCap(){const t=document.getElementById("cap_t");if(t){const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return alert(r.error)}await gate("instagram_caption")}
-let PANE=true,DT={prog:true,appr:false,links:true};try{PANE=localStorage.getItem("navaan_pane")!=="0"}catch(e){}
+function lyricsCard(d){const ly=d.text["lyrics.txt"],st=d.text["style.txt"];if(!ly&&!st)return "";const f=d.files;
+const au=f["final.mp3"]?`<audio controls preload="metadata" src="/media/${cur}/final.mp3?v=${f["final.mp3"]}" style="width:100%;margin-bottom:12px"></audio>`:"";
+return `<details class="dtl" ${DT.lyr?"open":""} ontoggle="DT.lyr=this.open"><summary>Lyrics and style<span style="margin-left:auto"></span><button class="sm" onclick="event.preventDefault();tab('text')">Edit</button></summary><div class="dtb">${au}<div style="display:flex;gap:20px;flex-wrap:wrap"><div style="flex:2 1 320px;min-width:0"><div class="sub" style="margin-bottom:4px">Lyrics</div><pre style="max-height:300px;color:var(--fg);font-family:inherit;font-size:14px;line-height:1.6;margin:0">${esc(ly||"No lyrics yet.")}</pre></div>${st?`<div style="flex:1 1 200px;min-width:0"><div class="sub" style="margin-bottom:4px">Style</div><pre style="max-height:300px;color:var(--mut2);margin:0">${esc(st)}</pre></div>`:""}</div></div></details>`}
+let PANE=true,DT={prog:true,appr:false,links:true,lyr:true};try{PANE=localStorage.getItem("navaan_pane")!=="0"}catch(e){}
 function togglePane(){PANE=!PANE;try{localStorage.setItem("navaan_pane",PANE?"1":"0")}catch(e){}render(true)}
 function pane(d){const R=d.run||{},nx=d.next,rows=d.steps,total=rows.length,done=rows.filter(r=>r.done).length,busy=d.job.running;
 const n=(d.question?1:0)+(nx.type==="gate"?1:0)+((d.thumb_pending||[]).length?1:0)+(d.needs_you?1:0)+(d.profile===false?1:0);
