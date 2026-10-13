@@ -95,11 +95,11 @@ How to design the scene from the lyrics:
    7. Audio: say "no dialogue, no music, ambient only". The song replaces the audio and the builder drops the clip's sound.
    8. Negatives and continuity: no text, no captions, no logos, no watermark, no lip-sync, no cuts, no fast motion, no crowds, natural anatomy, and for clip 2 the same person, clothing and place as clip 1.
    Scene changes only on a real shift (place, time of day, emotion). The two clips are one such shift, never a timer.
-   Image first (optional, saves credits): a still fixes the person, place and light, so the clip is right on the first try and you avoid paid regenerates. If the user has put `songs/<slug>/refs/first_frame.png` (made in any free image tool), use it as the start frame of clip 1 in Flow and describe only the motion in the prompt. Do not make an image in Flow if that costs credits, do not sign in to other tools, and do not wait for a still that is not there: without one, use text to video.
+   Image first (optional, saves credits): a still fixes the person, place and light, so the clip is right on the first try and you avoid paid regenerates. If the user has put `songs/<slug>/refs/first_frame.png` (made in any free image tool), use it as the start frame of clip 1 in Flow and describe only the motion in the prompt. Do not make any image except the cover (see Cover art), do not sign in to other tools, and do not wait for a still that is not there: without one, use text to video.
 5. Keep the channel varied. Read other songs' `scenes/` folders and `meta.json` and list the person, place and nature already used. Choose a different combination. Clichés (candle, flame, moon, rain on a window, hands) only if the lyrics are literally about them. Profile `visual.motifs` are optional hints, use at most one.
 6. Before generating, show the user the scene, the lyric line behind it and the plan in chat. Save the prompt or prompts in `scenes/prompt.txt`.
 
-After generation, write `story.json`: `{"scenes": [{"clip": "c1_<word>.mp4", "at": 0.0}, {"clip": "c2_<word>.mp4", "at": 0.5}]}` (one scene if one clip). Do not set `"story": true`, so the builder boomerangs and cross fades the clips. The cover is a frame taken from clip 1, which costs no credits.
+After generation, write `story.json`: `{"scenes": [{"clip": "c1_<word>.mp4", "at": 0.0}, {"clip": "c2_<word>.mp4", "at": 0.5}]}` (one scene if one clip). Do not set `"story": true`, so the builder boomerangs and cross fades the clips. The cover is a generated image (see Cover art), with a frame of clip 1 as the fallback.
 
 ## The loop look (visual.mode loop)
 
@@ -191,8 +191,14 @@ While it renders and after:
 
 Longer take without a new text to video clip (optional): Flow Scene Builder can add the clip to a scene and Extend it by about 7 seconds that continue the motion and the ambient audio, with the first frame matching the previous clip's last frame. In late 2026 reports it used Veo 3.1 Lite at about 5 credits a hop on Ultra (about half the usual price, so expect roughly 10 elsewhere; read the real cost in Flow). Use it only when the cost shown fits the budget, for example a 10 credit Fast clip plus two 5 credit hops on Ultra is 20. Restate the subject, clothing, light and camera move in every hop prompt, because Flow does not carry the earlier prompt over. Scene export through an automated tab was reported broken, so download each clip separately and join them with ffmpeg (the join is frame exact, so no cross fade), and the scene timeline page was rebuilt in September 2026, so check that the Extend control still exists before planning on it. If Extend works, list its clips in `story.json` with `at` offsets and no crossfade overlap, or just concatenate them into one clip and treat it as clip 1.
 
-## Cover art
+## Cover art (always generate one)
 
-Take one strong frame from the best clip (in story mode, a frame with the lead character, `cover_flow.jpg`), then make `cover_1x1.png`, `cover_16x9.png` and `thumb_16x9.jpg`. Keep the song title large and legible in the native script. Show previews to the user.
+Every song gets its own cover made as an image in Flow, then `make_cover.py` puts the title on it. A frame of the clip is only the fallback.
+
+1. Plan it with the clips. In the Flow image mode (not video), read the cost of one image on the Generate button. If it costs 0 credits, no budget is used. If it costs credits, count it in the plan: clips plus image must fit the budget. When they do not, make the image and drop to one clip before you drop the image, and say so in the plan you show the user. If the cost cannot fit even then, skip the image and use the clip frame, and say that too. Never go over the budget.
+2. Prompt: one strong still that could be the cover of this song, album art and not a screenshot. Square, 1:1. Take the subject from the lyrics and the title (the person, place, light and objects the song is about), the way `scenes/prompt.txt` does, and quote the lyric line behind it. Use the profile `visual.look` and palette. A painterly, grainy, editorial or photographic poster look works well: one clear subject, a lot of texture and a limited colour palette. No text, no lettering, no logos, no frames or borders, no collage of several panels. The title is drawn afterwards.
+3. Generate one image. If the first one is poor, regenerate only when the cost allows and you asked first. Download it with the page's download button (see the field notes on authenticated downloads) to `songs/<slug>/cover_art.png`.
+4. Run `python scripts/make_cover.py <slug>`. It uses `cover_art.png` first, then `refs/cover.png`, then `cover_flow.jpg`, and writes `cover_1x1.png`, `cover_16x9.png` and `thumb_16x9.jpg` with the title in the native script and the Latin spelling under it. If no image could be made, save a frame of clip 1 as `cover_flow.jpg` and run the same script.
+5. Show the user the three small previews. Do not ask the user to pick: one cover per song.
 
 Large files fail the sandbox bridge above about 1.5 MB, so do all file work on the user's computer and only send small previews to chat.
