@@ -23,7 +23,8 @@ LOCK = threading.Lock()
 SESSIONS = {}   # token -> {"created", "last", "user"}
 TICKETS = {}    # ticket -> {"exp", "user", "tries", "challenge"}
 PENDING = {}    # setup in progress: {"exp", "user", "pw", "secret"}
-THROTTLE = {"fails": 0, "until": 0.0}
+THROTTLE = {}   # ip -> {"fails", "until"}; one counter per client address so a stranger cannot lock you out
+CTX = threading.local()  # per request: .ip and .https, set by state() and handle_post()
 
 
 def disabled(): return os.environ.get("NAVAAN_AUTH", "").lower() == "off"
@@ -123,16 +124,21 @@ def use_recovery(d, code):
 
 
 # ---------- throttle ----------
+def _ip(): return getattr(CTX, "ip", "") or "local"
+
+
 def locked():
-    return max(0, int(THROTTLE["until"] - now()))
+    t = THROTTLE.get(_ip())
+    return max(0, int(t["until"] - now())) if t else 0
 
 
 def fail():
-    THROTTLE["fails"] += 1
-    if THROTTLE["fails"] >= 5: THROTTLE["until"] = now() + min(900, 15 * 2 ** (THROTTLE["fails"] - 5))
+    if len(THROTTLE) > 5000: THROTTLE.clear()
+    t = THROTTLE.setdefault(_ip(), {"fails": 0, "until": 0.0}); t["fails"] += 1
+    if t["fails"] >= 5: t["until"] = now() + min(900, 15 * 2 ** (t["fails"] - 5))
 
 
-def ok_reset(): THROTTLE["fails"] = 0; THROTTLE["until"] = 0.0
+def ok_reset(): THROTTLE.pop(_ip(), None)
 
 
 # ---------- sessions ----------
@@ -143,8 +149,9 @@ def start_session(user):
 
 
 def cookie_header(token, clear=False):
-    if clear: return f"{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
-    return f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_MAX}"
+    sec = "; Secure" if getattr(CTX, "https", False) else ""
+    if clear: return f"{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{sec}"
+    return f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_MAX}{sec}"
 
 
 def token_from(cookie_hdr):
@@ -218,7 +225,7 @@ def rp_of(host_hdr):
     """(rp id, origin) from the Host header, or (None, None) when the host is an IP (passkeys need a name such as localhost)."""
     h = (host_hdr or "").strip(); name = h.split(":")[0]
     if re.match(r"^\d+\.\d+\.\d+\.\d+$", name): return None, None
-    return name, "http://" + h
+    return name, ("https://" if getattr(CTX, "https", False) else "http://") + h
 
 
 def _client_check(cd_b64, want_type, challenge, origin):
@@ -299,7 +306,8 @@ def assert_verify(d, host, tk, body):
 
 
 # ---------- request handling ----------
-def state(cookie_hdr, host=""):
+def state(cookie_hdr, host="", ip="", https=False):
+    CTX.ip = ip; CTX.https = https
     d = load() or {}
     rp, _ = rp_of(host)
     if disabled(): return {"state": "authed", "user": "local", "off": True}
@@ -311,8 +319,9 @@ def state(cookie_hdr, host=""):
     return {"state": "login", "passkey_ready": bool(d.get("passkeys") and rp and passkeys_available()), "locked": locked()}
 
 
-def handle_post(path, body, cookie_hdr, host):
+def handle_post(path, body, cookie_hdr, host, ip="", https=False):
     """-> (status, json, [Set-Cookie values])"""
+    CTX.ip = ip; CTX.https = https
     _gc()
     d = load() or {}
     def err(code, msg, **kw): return code, dict({"error": msg}, **kw), []
