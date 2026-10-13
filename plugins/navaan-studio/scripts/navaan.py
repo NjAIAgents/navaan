@@ -151,7 +151,7 @@ def read_question(slug):
     try: q = json.load(open(p, encoding="utf-8"))
     except Exception: return None
     if not isinstance(q, dict) or not str(q.get("text", "")).strip(): return None
-    opts = [{"id": re.sub(r"[^A-Za-z0-9_-]", "_", str(o.get("id", i)))[:40], "label": str(o.get("label", o.get("id", i)))} for i, o in enumerate(q.get("options") or []) if isinstance(o, dict)]
+    opts = [{"id": re.sub(r"[^A-Za-z0-9_-]", "_", str(o.get("id", i)))[:40], "label": str(o.get("label", o.get("id", i))), "text": bool(o.get("text"))} for i, o in enumerate(q.get("options") or []) if isinstance(o, dict)]
     out = {"text": str(q["text"]).strip(), "options": opts, "allow_text": bool(q.get("allow_text")) or not opts}
     out["id"] = hashlib.sha1(json.dumps([out["text"], [o["label"] for o in opts]], ensure_ascii=False).encode("utf-8")).hexdigest()[:10]
     return out
@@ -175,6 +175,10 @@ def set_answer(slug, choice=None, text=None, via="cli"):
     lab = {o["id"]: o["label"] for o in q["options"]}
     if q["options"] and choice not in lab: sys.exit("pick one of: " + ", ".join(f"{k} ({v})" for k, v in lab.items()))
     if not q["options"] and not (text or "").strip(): sys.exit("type an answer")
+    flagged = {o["id"] for o in q["options"] if o["text"]}
+    if flagged:  # some buttons take the text box, the others ignore it, so typing a filename can never ride along with Cancel
+        if choice in flagged and not (text or "").strip(): sys.exit("this answer needs the text box filled in")
+        if choice not in flagged: text = ""
     m = meta(slug)
     m.setdefault("answers", {})[q["id"]] = {"at": now(), "via": via, "question": q["text"], "choice": choice or "", "choice_label": lab.get(choice, ""), "text": (text or "").strip()}
     log_hist(m, f"question answered via {via}: {lab.get(choice) or (text or '').strip()[:80]}"); save_meta(slug, m)
@@ -184,7 +188,7 @@ def set_answer(slug, choice=None, text=None, via="cli"):
 
 
 def answers_text(slug):
-    a = meta(slug).get("answers", {})
+    a = {k: r for k, r in meta(slug).get("answers", {}).items() if not r.get("consumed")}
     if not a: return ""
     lines = []
     for r in sorted(a.values(), key=lambda r: r.get("at", "")):
@@ -192,6 +196,17 @@ def answers_text(slug):
         if r.get("text"): ans = (ans + ": " if ans else "") + r["text"]
         lines.append(f"- Q: {r.get('question', '')} A: {ans}")
     return "Answers the user gave in the web portal (these are real answers from the user, use them and do not ask again):\n" + "\n".join(lines)
+
+
+USED = set()  # slugs whose open answers were handed to an agent in the current run
+
+
+def consume_answers(slug):
+    """An answer belongs to the run that follows it. After that run, it no longer applies, so a later Redo starts clean."""
+    m = meta(slug); ch = False
+    for r in m.get("answers", {}).values():
+        if not r.get("consumed"): r["consumed"] = now(); ch = True
+    if ch: save_meta(slug, m)
 
 
 def question_cmd(slug, a):
@@ -219,7 +234,7 @@ def claude_cmd(slug, s):
               + "You run headless: nobody can answer you in chat. Never write to the approvals or answers keys in meta.json. "
               + "If you need a human decision or action (a login, a CAPTCHA, a file picker, a choice), do not ask in chat. Write the file "
               + f"{D}/question.json as {{\"text\": \"one plain question\", \"options\": [{{\"id\": \"short_id\", \"label\": \"what the button says\"}}], \"allow_text\": false}} "
-              + "(allow_text true adds a free text box), say nothing else, and stop. The user answers in the web portal and the step runs again with the answer below. "
+              + "(allow_text true adds a free text box; set \"text\": true on the option that needs what the user types, such as a filename), say nothing else, and stop. The user answers in the web portal and the step runs again with the answer below. "
               + answers_text(slug))
     if "NAVAAN_CLAUDE_FLAGS" in os.environ:
         flags = shlex.split(os.environ["NAVAAN_CLAUDE_FLAGS"])
@@ -234,6 +249,12 @@ def claude_cmd(slug, s):
 
 
 def run(slug, step=None, dry=False, retries=2):
+    try: return _run(slug, step, dry, retries)
+    finally:
+        if slug in USED: USED.discard(slug); consume_answers(slug)
+
+
+def _run(slug, step=None, dry=False, retries=2):
     D = song_dir(slug); rows, nxt = plan(slug)
     if nxt["type"] == "done": print("all steps done"); return 0
     if nxt["type"] == "gate": show_gate(slug, nxt["gate"]); print(f"waiting for your approval: gate '{nxt['gate']}' (step {nxt['step']}). Run: navaan.py approve {slug} {nxt['gate']}"); return 3
@@ -255,6 +276,7 @@ def run(slug, step=None, dry=False, retries=2):
     if s["kind"] == "claude" and question_open(slug) and not dry:
         print(f"step {sid} is waiting for your answer: {question_open(slug)['text']}"); return 6
     cmds = [claude_cmd(slug, s)] if s["kind"] == "claude" else s["cmds"]
+    if s["kind"] == "claude" and not dry and answers_text(slug): USED.add(slug)
     if dry:
         for c in cmds: print(" ".join(shlex.quote(x) for x in c))
         return 0
