@@ -100,7 +100,8 @@ pre.lg{margin:0;border-radius:0;border:0;border-bottom:1px solid var(--line2);ba
 @media(max-width:1100px){.sp{flex-direction:column}.pn,.pn.col{flex:none;width:100%;position:static;max-height:none}.pn.col{flex-direction:row;padding:8px 12px}.pn.col .vt{writing-mode:horizontal-tb}}
 #c_main,#c_pane{display:contents}.pnw .pn,.pnw .pn.col{flex:none;width:100%}.sp{align-items:stretch}.pnw{flex:0 0 340px;width:340px}.pnw.col{flex-basis:52px;width:52px}
 @media(max-width:1100px){.pnw,.pnw.col{flex:none;width:100%}}
-@media(max-width:900px){.sb{display:none}.kpis{grid-template-columns:repeat(2,1fr)}#main{padding:20px 16px}.srch{width:100%}}
+.kpis.k5{grid-template-columns:repeat(5,minmax(0,1fr))}.an-grid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:900px){.sb{display:none}.kpis,.kpis.k5{grid-template-columns:repeat(2,1fr)}.an-grid.g2{grid-template-columns:1fr}#main{padding:20px 16px}.srch{width:100%}}
 button.ib{padding:5px 7px;min-width:30px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 
 /* ---- redesign: home and song ---- */
@@ -212,6 +213,16 @@ button.ib{padding:5px 7px;min-width:30px;display:inline-flex;align-items:center;
  <div class="opt" data-k="explainer"><div><b>Explainer</b><div class="sub">Short explainer video</div></div><span class="chip">Planned</span></div>
  <div style="text-align:right"><button onclick="closeNew()">Close</button></div></div></div>
 <script>
+/* in-app dialogs, no browser popups */
+(function(){const st=document.createElement("style");st.textContent=".dlg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}.dlg .box{background:var(--card,#1b1b1f);border:1px solid var(--line,#2a2a2e);border-radius:14px;padding:18px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}.dlg .msg{white-space:pre-wrap;line-height:1.5;margin:0 0 16px;overflow-wrap:anywhere}.dlg .row{display:flex;gap:8px;justify-content:flex-end}.tst{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:110;max-width:min(520px,92vw);background:var(--card,#1b1b1f);border:1px solid var(--line,#2a2a2e);border-left:4px solid var(--acc,#ff4d7e);border-radius:10px;padding:12px 14px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:flex;gap:12px;align-items:flex-start;overflow-wrap:anywhere}.tst button{flex:none}";document.head.appendChild(st)})();
+function ask(msg,ok){return new Promise(res=>{const d=document.createElement("div");d.className="dlg";const done=v=>{document.removeEventListener("keydown",kd,true);d.remove();res(v)};
+const kd=e=>{if(e.key==="Escape"){e.preventDefault();done(false)}else if(e.key==="Enter"){e.preventDefault();done(true)}};
+const m=String(msg||"").replace(/^Approve: /,"");const isAp=/^Approve: /.test(String(msg||""));
+d.innerHTML=`<div class="box" role="dialog" aria-modal="true"><p class="msg"></p><div class="row"><button data-n>Cancel</button><button class="p" data-y></button></div></div>`;
+d.querySelector(".msg").textContent=isAp?m.replace(/\?$/,""):String(msg||"");d.querySelector("[data-y]").textContent=ok||(isAp?"Approve":"OK");
+d.querySelector("[data-n]").onclick=()=>done(false);d.querySelector("[data-y]").onclick=()=>done(true);d.addEventListener("mousedown",e=>{if(e.target===d)done(false)});
+document.addEventListener("keydown",kd,true);document.body.appendChild(d);d.querySelector("[data-y]").focus()})}
+let TST=null;function toast(msg){if(msg==null||msg==="")return;if(TST)TST.remove();const t=document.createElement("div");t.className="tst";t.innerHTML=`<div style="flex:1"></div><button class="sm">OK</button>`;t.firstChild.textContent=String(msg);const kill=()=>{if(TST===t){t.remove();TST=null}};t.querySelector("button").onclick=kill;document.body.appendChild(t);TST=t;setTimeout(kill,12000)}
 const T="__TOKEN__";let cur=null,timer=null,SONGS=[],CL=null,IMP=false,view="";
 const LIB={group:"none",status:"all",q:"",type:"all",view:"grid"};try{LIB.view=localStorage.getItem("navaan_view")||"grid"}catch(e){}
 const api=(p,b)=>fetch(p,b?{method:"POST",headers:{"Content-Type":"application/json","X-Navaan-Token":T},body:JSON.stringify(b)}:{}).then(r=>r.json());
@@ -239,9 +250,9 @@ function cl(s){return s.cleaned?`<span class="chip">Local cleaned</span>`:s.arch
 const go=v=>{location.hash="#/"+v};
 function openNew(kind){const k=kind||((document.querySelector("#main h1")||{}).textContent==="Inspiration"?"inspiration":"all");document.querySelectorAll("#modal [data-k]").forEach(e=>{e.style.display=(k==="all"||e.dataset.k===k)?"":"none"});document.querySelector("#modal h2").textContent=k==="inspiration"?"New inspiration short":k==="music"?"New song":"New";document.getElementById("modal").classList.add("on");if(k==="inspiration")setTimeout(()=>document.getElementById("ni").focus(),50)}function closeNew(){document.getElementById("modal").classList.remove("on")}
 async function loadSongs(){loadBySong();SONGS=await api("/api/songs");const n=SONGS.filter(s=>s.status==="approval").length+SONGS.filter(s=>s.thumb_pending).length;const b=document.getElementById("apc");b.style.display=n?"flex":"none";b.textContent=n;pickPlayer();return SONGS}
-async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return alert(r.error);document.getElementById("iu").value="";closeNew();await loadSongs();go("song/"+r.slug)}
-async function newInsp(){const t=document.getElementById("ni"),v=t.value.trim();if(!v)return alert("Write the quote or the idea first.");const r=await api("/api/new",{type:"inspiration",idea:v});if(r.error)return alert(r.error);t.value="";closeNew();await loadSongs();go("song/"+r.slug);api("/api/run",{slug:r.slug,all:true})}
-async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return alert(r.error);document.getElementById("ns").value="";closeNew();await loadSongs();go("song/"+v)}
+async function importSuno(){const v=document.getElementById("iu").value.trim();if(!v)return;const r=await api("/api/import",{url:v});if(r.error)return toast(r.error);document.getElementById("iu").value="";closeNew();await loadSongs();go("song/"+r.slug)}
+async function newInsp(){const t=document.getElementById("ni"),v=t.value.trim();if(!v)return toast("Write the quote or the idea first.");const r=await api("/api/new",{type:"inspiration",idea:v});if(r.error)return toast(r.error);t.value="";closeNew();await loadSongs();go("song/"+r.slug);api("/api/run",{slug:r.slug,all:true})}
+async function newSong(){const v=document.getElementById("ns").value.trim();if(!v)return;const r=await api("/api/new",{slug:v});if(r.error)return toast(r.error);document.getElementById("ns").value="";closeNew();await loadSongs();go("song/"+v)}
 /* player */
 const PL={a:new Audio(),slug:null};PL.a.preload="none";
 function pickPlayer(){const want=(cur&&SONGS.find(s=>s.slug===cur&&s.audio))||(PL.slug&&SONGS.find(s=>s.slug===PL.slug&&s.audio&&!PL.a.paused))||[...SONGS].reverse().find(s=>s.audio);if(!want||want.slug===PL.slug)return;const was=!PL.a.paused;PL.a.pause();PL.slug=want.slug;PL.a.src="/media/"+want.slug+"/final.mp3";PL.a.volume=Math.min(1,VOL);
@@ -293,7 +304,7 @@ ${w.map(s=>{const nx=nextOf(s);return `<div class="q">${cov(s,40)}<div class="qt
 <div class="card np0"><div class="ch"><b>Cloud storage</b></div><div style="padding:14px 16px" id="dcl" class="sub">Reading the bucket...</div></div>
 </div></div>`;
 syncHero();if(!CL)api("/api/cloud").then(c=>{CL=c;dcl()});else dcl()}
-async function heroPlay(slug){if(PL.slug!==slug){const s=SONGS.find(x=>x.slug===slug)||{slug};const src=await audioSrc(s);if(!src)return alert("No audio for this item here or in the bucket.");pickPlayerFor(s,src)}togglePlay()}
+async function heroPlay(slug){if(PL.slug!==slug){const s=SONGS.find(x=>x.slug===slug)||{slug};const src=await audioSrc(s);if(!src)return toast("No audio for this item here or in the bucket.");pickPlayerFor(s,src)}togglePlay()}
 async function audioSrc(s){if(s.audio)return "/media/"+s.slug+"/final.mp3";if(!s.archived&&!(s.cleaned))return "";if(!CL)CL=await api("/api/cloud");const cs=CL&&CL.configured&&(CL.songs||[]).find(x=>x.slug===s.slug);const f=cs&&cs.files.find(x=>/^final\.mp3$|\/final\.mp3$/.test(x.name||x.key));if(!f)return "";const r=await api("/api/cloud/link",{key:f.key});return r.url||""}
 function pickPlayerFor(want,src){PL.a.pause();PL.slug=want.slug;PL.a.src=src||("/media/"+want.slug+"/final.mp3");PL.a.volume=Math.min(1,VOL);document.getElementById("npt").textContent=want.title||want.slug;document.getElementById("nps").textContent=want.slug;document.getElementById("npc").outerHTML=cov(want,40).replace('class="cv"','class="cv" id="npc"');document.getElementById("npw").innerHTML=wave(180,26,36,3);document.getElementById("npp").style.width="0"}
 function syncHero(){const on=!PL.a.paused&&PL.slug;document.querySelectorAll("[data-wv]").forEach(e=>e.classList.toggle("live",!!on));const b=document.getElementById("hpb");if(b)b.innerHTML=on?'<svg width="18" height="18" viewBox="0 0 24 24" fill="#07070B"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>':'<svg width="18" height="18" viewBox="0 0 24 24" fill="#07070B"><path d="M7 4l13 8-13 8z"/></svg>'}
@@ -328,8 +339,8 @@ document.getElementById("main").innerHTML=`<div class="pgh"><div><h1>Albums<span
 <div class="cols"><div class="l"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${cards.join("")}</div>${cards.length?"":'<div class="card mut">No albums yet. Create one on the right.</div>'}</div>
 <div class="r"><div class="card"><h2>New album</h2><input id="an" placeholder="Album name, e.g. Pata Hi Na Chala EP"><div class="sub" style="margin:14px 0 6px">Tracks</div>${free.map(s=>`<label class="chk"><input type="checkbox" class="ak" value="${esc(s.slug)}">${cov(s,28)}<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.title||s.slug)}</span>${s.album?`<span class="chip">${esc(s.album)}</span>`:""}</label>`).join("")||'<div class="mut">No songs.</div>'}<div style="margin-top:12px"><button class="p" onclick="albumMake()">Save album</button></div>
 <p class="sub" style="margin:12px 0 0">A shared cover, a YouTube playlist and a single release step come next.</p></div></div></div>`}
-async function albumMake(){const n=document.getElementById("an").value.trim();const sl=[...document.querySelectorAll(".ak:checked")].map(x=>x.value);if(!n||!sl.length)return alert("Give the album a name and pick at least one song.");await api("/api/album",{name:n,slugs:sl});await loadSongs();albums()}
-async function albumOff(a){const sl=SONGS.filter(s=>s.album===a).map(s=>s.slug);if(!confirm("Remove the album name from "+sl.length+" songs? The songs stay."))return;await api("/api/album",{name:"",slugs:sl});await loadSongs();albums()}
+async function albumMake(){const n=document.getElementById("an").value.trim();const sl=[...document.querySelectorAll(".ak:checked")].map(x=>x.value);if(!n||!sl.length)return toast("Give the album a name and pick at least one song.");await api("/api/album",{name:n,slugs:sl});await loadSongs();albums()}
+async function albumOff(a){const sl=SONGS.filter(s=>s.album===a).map(s=>s.slug);if(!await ask("Remove the album name from "+sl.length+" songs? The songs stay."))return;await api("/api/album",{name:"",slugs:sl});await loadSongs();albums()}
 /* inspiration */
 async function reels(){LIB.type="inspiration";library()}
 /* cloud */
@@ -344,7 +355,7 @@ for(const s of c.songs){const row=SONGS.find(x=>x.slug===s.slug)||{slug:s.slug,t
 h+=`<details class="card pad0 cs dtl" style="overflow:hidden"><summary>${cov(row,36)}<div style="flex:1;min-width:0;margin-left:4px"><div style="font-weight:600">${esc(s.title||s.slug)}</div><div class="sub mono">${esc(s.slug)} · ${s.files.length} files · ${sz(s.bytes)}${s.uploaded_at?" · "+esc(String(s.uploaded_at).slice(0,10)):""}</div></div><span class="chip ${s.verified===false?"warn":"ok"}">${s.verified===false?"Differs from local":"Verified"}</span><span class="chip">${s.local?(s.cleaned?"Local cleaned":"Local kept"):"Bucket only"}</span>${(g.a.length)?`<button class="sm ib" title="Play" onclick="event.preventDefault();heroPlay('${esc(s.slug)}')">&#9654;</button>`:""}</summary>
 <table><tbody>${s.files.map(f=>{const k=fk(f.name);return `<tr><td style="font-size:13px;overflow-wrap:anywhere"><span class="fi ${k[0]}">${k[1]}</span><span class="mono">${esc(f.name)}</span></td><td class="mono" style="white-space:nowrap;font-size:13px">${sz(f.size)}</td><td style="text-align:right"><button class="sm" onclick='cloudOpen(${JSON.stringify(f.key)},this)'>Open 1 hour link</button></td></tr>`}).join("")}</tbody></table></details>`}
 if(!c.songs.length&&!c.error)h+='<p class="mut">The bucket has no song folders yet.</p>';m.innerHTML=h}
-async function cloudOpen(key,b){b.disabled=true;const r=await api("/api/cloud/link",{key});b.disabled=false;if(r.error)return alert(r.error);window.open(r.url,"_blank","noopener")}
+async function cloudOpen(key,b){b.disabled=true;const r=await api("/api/cloud/link",{key});b.disabled=false;if(r.error)return toast(r.error);window.open(r.url,"_blank","noopener")}
 /* song */
 let fast=false,shown=null;
 async function openSong(s){cur=s;crumb('<a href="#/library">Library</a> <span style="margin:0 6px">/</span><b>'+esc(s)+'</b>');await render();clearTimeout(timer);const tick=async()=>{if(!document.activeElement||document.activeElement.tagName!=="TEXTAREA")await render();timer=setTimeout(tick,fast?1500:4000)};timer=setTimeout(tick,1500)}
@@ -410,9 +421,9 @@ ${VS.mode==="own"?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom
 <div class="sub" style="margin-bottom:4px">Camera style (optional, leave empty for the director's default)</div><textarea style="min-height:48px;margin-bottom:8px" placeholder="slow pushes, handheld feel, always end on a pull out" oninput="VS.camera=this.value">${esc(VS.camera)}</textarea>
 <div class="sub" style="margin-bottom:4px">Scene and look (optional)</div><textarea style="min-height:48px;margin-bottom:10px" placeholder="monsoon night, warm lamps, nostalgic" oninput="VS.scene=this.value">${esc(VS.scene)}</textarea>`:`<p class="sub" style="margin:0 0 10px">Flow clips spend credits. You approve the credits next.</p>`}
 <button class="p" ${ok&&!VS.busy?"":"disabled"} onclick="vsSave()">Save and continue</button></div>`}
-async function vsUpload(files){if(!files||!files.length)return;for(const f of files){VS.busy="Uploading "+f.name+"...";render(true);const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)});const r=await api("/api/visuals/upload",{slug:cur,name:f.name,data:b64});if(r.error){VS.busy="";alert(r.error);break}}VS.busy="";render(true)}
-async function vsRemove(p){const r=await api("/api/visuals/remove",{slug:cur,path:p});if(r.error)alert(r.error);render(true)}
-async function vsSave(){const r=await api("/api/visuals/save",{slug:cur,mode:VS.mode,layout:VS.layout,camera:VS.camera,scene:VS.scene});if(r.error)return alert(r.error);VS=null;render(true)}
+async function vsUpload(files){if(!files||!files.length)return;for(const f of files){VS.busy="Uploading "+f.name+"...";render(true);const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)});const r=await api("/api/visuals/upload",{slug:cur,name:f.name,data:b64});if(r.error){VS.busy="";toast(r.error);break}}VS.busy="";render(true)}
+async function vsRemove(p){const r=await api("/api/visuals/remove",{slug:cur,path:p});if(r.error)toast(r.error);render(true)}
+async function vsSave(){const r=await api("/api/visuals/save",{slug:cur,mode:VS.mode,layout:VS.layout,camera:VS.camera,scene:VS.scene});if(r.error)return toast(r.error);VS=null;render(true)}
 const CAMS=[["push_in","Push in"],["pull_out","Pull out"],["pan_left","Pan left"],["pan_right","Pan right"],["tilt_up","Tilt up"],["tilt_down","Tilt down"],["drift","Drift"],["hold","Hold"]];
 function shInit(d){let j={};try{j=JSON.parse(d.text["shots.json"]||"{}")}catch(e){}const key=cur+":"+(d.text["shots.json"]||"").length;if(!SH||SH.key!==key)SH={key,shots:(j.shots||[]).map(s=>({...s})),notes:j.notes||"",duration:j.duration||0}}
 function shotsCard(d){const head=`<div class="sub mono">shots</div><div style="margin:4px 0 10px"><b>Director's shot list</b> <span class="sub">${esc(lab("shots"))}</span></div>`;
@@ -423,7 +434,7 @@ const rows=SH.shots.map((s,i)=>`<div style="display:grid;grid-template-columns:7
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0"><select onchange="SH.shots[${i}].image='images/'+this.value;render(true)">${im.map(f=>`<option ${("images/"+f)===s.image?"selected":""}>${esc(f)}</option>`).join("")}</select><select onchange="SH.shots[${i}].camera=this.value">${CAMS.map(c=>`<option value="${c[0]}" ${c[0]===s.camera?"selected":""}>${c[1]}</option>`).join("")}</select></div>
 <input style="width:100%" value="${esc(s.scene||"")}" placeholder="what the viewer should feel" onchange="SH.shots[${i}].scene=this.value"><div class="sub" style="margin-top:4px">${esc(s.lyric||"")}</div></div></div>`).join("");
 return `<div class="card alert">${head}${SH.notes?`<p class="sub" style="margin:0 0 8px">${esc(SH.notes)}</p>`:""}<div class="sub" style="margin-bottom:4px">${SH.shots.length} shots over ${Math.round(SH.duration||0)} s. Change the picture, camera move, times or the note, then approve.</div>${rows}<div style="display:flex;gap:8px;margin-top:10px"><button class="p" onclick="shSave(true)">Save and approve</button><button onclick="shSave(false)">Save only</button></div><p class="sub" style="margin:8px 0 0">A later edit needs a new approval. Approving does not render by itself, press Run after.</p></div>`}
-async function shSave(ap){const r=await api("/api/shots/save",{slug:cur,shots:SH.shots,notes:SH.notes});if(r.error)return alert(r.error);SH=null;if(ap){await api("/api/approve",{slug:cur,gate:"shots"})}render(true)}
+async function shSave(ap){const r=await api("/api/shots/save",{slug:cur,shots:SH.shots,notes:SH.notes});if(r.error)return toast(r.error);SH=null;if(ap){await api("/api/approve",{slug:cur,gate:"shots"})}render(true)}
 function gateCard(d,g){if(g==="visuals_mode")return visualsChoiceCard(d);if(g==="shots")return shotsCard(d);const head=`<div class="sub mono">${esc(g)}</div><div style="margin:4px 0 10px">${esc(lab(g))}</div>`;
 if(g==="instagram_caption"){const c=d.text["instagram.txt"];
 if(!c)return `<div class="card alert">${head}<p class="sub" style="margin:0">There is no caption yet. Run the caption step first, it writes instagram.txt and you review it here.</p></div>`;
@@ -436,10 +447,10 @@ if(g==="media"&&d.files["final_reel_9x16.mp4"]){let rr={};try{rr=JSON.parse(d.te
 if(g==="lyrics"&&d.text["lyrics.txt"])return `<div class="card alert">${head}<pre style="max-height:220px;color:var(--fg)">${esc(d.text["lyrics.txt"])}</pre><div style="display:flex;gap:8px;margin-top:8px"><button class="p" onclick="gate('lyrics')">Approve</button><button onclick="tab('text')">Edit in Text tab</button></div></div>`;
 if(g==="media"||g==="listen")return `<div class="card alert">${head}<div style="display:flex;gap:8px"><button class="p" onclick="gate('${g}')">Approve</button><button onclick="tab('media')">Open Media tab</button></div></div>`;
 return `<div class="card alert">${head}<button class="p" onclick="gate('${g}')">Approve</button></div>`}
-async function saveCap(){const t=document.getElementById("cap_t");if(!t)return;const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return alert(r.error);render(true)}
-async function approveCap(){const t=document.getElementById("cap_t");if(t){const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return alert(r.error)}await gate("instagram_caption")}
-async function saveQuote(){const t=document.getElementById("q_t");if(!t)return;try{JSON.parse(t.value)}catch(e){return alert("quote.json is not valid JSON: "+e.message)}const r=await api("/api/save",{slug:cur,file:"quote.json",content:t.value});if(r.error)return alert(r.error);render(true)}
-async function approveQuote(){const t=document.getElementById("q_t");if(t){try{JSON.parse(t.value)}catch(e){return alert("quote.json is not valid JSON: "+e.message)}const r=await api("/api/save",{slug:cur,file:"quote.json",content:t.value});if(r.error)return alert(r.error)}await gate("quote")}
+async function saveCap(){const t=document.getElementById("cap_t");if(!t)return;const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return toast(r.error);render(true)}
+async function approveCap(){const t=document.getElementById("cap_t");if(t){const r=await api("/api/save",{slug:cur,file:"instagram.txt",content:t.value});if(r.error)return toast(r.error)}await gate("instagram_caption")}
+async function saveQuote(){const t=document.getElementById("q_t");if(!t)return;try{JSON.parse(t.value)}catch(e){return toast("quote.json is not valid JSON: "+e.message)}const r=await api("/api/save",{slug:cur,file:"quote.json",content:t.value});if(r.error)return toast(r.error);render(true)}
+async function approveQuote(){const t=document.getElementById("q_t");if(t){try{JSON.parse(t.value)}catch(e){return toast("quote.json is not valid JSON: "+e.message)}const r=await api("/api/save",{slug:cur,file:"quote.json",content:t.value});if(r.error)return toast(r.error)}await gate("quote")}
 function quoteCard(d){const c=d.text["quote.json"];if(!c)return "";let q={},o={};try{q=JSON.parse(c)}catch(e){}try{o=JSON.parse(d.text["originality.json"]||"{}")}catch(e){}const ok=["clear","attributed_verified","public_domain"].includes(o.verdict);
 return `<details class="dtl" ${DT.lyr?"open":""} ontoggle="DT.lyr=this.open"><summary>Quote<span style="margin-left:auto"></span>${o.verdict?`<span class="chip ${ok?"ok":"bad"}">${esc(o.verdict.replace(/_/g," "))}</span>`:""}</summary><div class="dtb"><div style="font-size:17px;line-height:1.55">${esc(q.text||"")}</div><div class="sub" style="margin-top:8px">${q.author?"By "+esc(q.author):"No credit line"}${q.kind?" · "+esc(q.kind):""}${q.language?" · "+esc(q.language):""}</div></div></details>`}
 function lyricsCard(d){const ly=d.text["lyrics.txt"],st=d.text["style.txt"];if(!ly&&!st)return quoteCard(d);const f=d.files;
@@ -462,7 +473,7 @@ else if(nx.type==="gate")run=`<button class="p" style="${B}" onclick="runIt(true
 const ap=d.gates.filter(g=>d.approvals[g]).length;
 const al=d.gates.map(g=>{const a=d.approvals[g];return `<div class="lk"><span class="mono" style="font-size:12px;min-width:0;overflow-wrap:anywhere">${esc(g)}</span><span style="display:flex;gap:8px;align-items:center;flex:none">${a?`<span class="chip ok" title="${esc(a.at||"")}">&#10003;</span><button class="sm" onclick="revoke('${g}')">Revoke</button>`:`<span class="chip">no</span><button class="sm" onclick="gate('${g}')">Approve</button>`}</span></div>`}).join("");
 return `<div class="pn"><div class="pnh"><b>${n?"Needs you":"Actions"}</b>${n?`<span class="bd2">${n}</span>`:""}<span style="flex:1"></span><button class="sm" onclick="togglePane()" title="Fold the panel">&#8250;</button></div><div class="pnb">${inbox||'<div class="sub" style="padding:2px 2px 6px">Nothing needs you right now.</div>'}
-${lyr}<details class="dtl" ${DT.appr?"open":""} ontoggle="DT.appr=this.open"><summary>All approvals<span class="sub" style="margin-left:auto">${ap} of ${d.gates.length}</span></summary><div>${al}<p class="sub" style="margin:8px 14px 12px">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div></details>
+${schedCard(d)}${lyr}<details class="dtl" ${DT.appr?"open":""} ontoggle="DT.appr=this.open"><summary>All approvals<span class="sub" style="margin-left:auto">${ap} of ${d.gates.length}</span></summary><div>${al}<p class="sub" style="margin:8px 14px 12px">Only a click here or the approve command can unlock publishing. Agents cannot.</p></div></details>
 <details class="dtl" ${DT.links?"open":""} ontoggle="DT.links=this.open"><summary>Links</summary>${linksCard(d)}</details></div></div>`}
 const mtype=n=>/\.(mp3|wav|m4a)$/i.test(n)?"audio":/\.(mp4|mov|webm)$/i.test(n)?"video":/\.(png|jpe?g|webp)$/i.test(n)?"image":"";
 let CLREQ=false;
@@ -495,17 +506,17 @@ h+=`<div class="card pad0"><div class="ch"><b>On this computer</b><span class="c
 (li.length?`<div class="row">${li.map(n=>`<div><div class="sub" style="margin-bottom:4px">${n}</div><img src="${m(n)}" alt="" style="max-height:180px;max-width:100%;border-radius:8px;border:1px solid var(--line)"></div>`).join("")}</div>`:"")+
 (lv.length?`<div class="vg">${lv.map(n=>`<div><div class="sub" style="margin-bottom:4px">${n.startsWith("clips~")?"Flow clip: "+n.slice(6):/_cap\.mp4$/.test(n)?n+" (with lyrics)":n}</div><video controls preload="metadata" src="${m(n)}"></video></div>`).join("")}</div>`:"")+`</div></div>`}
 return h}
-async function cloudPlay(key,kind,id,btn){const box=document.getElementById(id);if(box.firstChild){box.innerHTML="";btn.textContent="Preview";return}btn.disabled=true;const r=await api("/api/cloud/link",{key});btn.disabled=false;if(r.error)return alert(r.error);
+async function cloudPlay(key,kind,id,btn){const box=document.getElementById(id);if(box.firstChild){box.innerHTML="";btn.textContent="Preview";return}btn.disabled=true;const r=await api("/api/cloud/link",{key});btn.disabled=false;if(r.error)return toast(r.error);
 box.style.marginTop="8px";box.innerHTML=kind==="audio"?`<audio controls autoplay src="${esc(r.url)}" style="width:100%"></audio>`:kind==="video"?`<video controls autoplay src="${esc(r.url)}" style="max-width:100%;max-height:360px;border-radius:10px;background:#000"></video>`:`<img src="${esc(r.url)}" alt="" style="max-width:100%;max-height:320px;border-radius:8px;border:1px solid var(--line)">`;btn.textContent="Close"}
 function textTab(d){const names=Object.keys(d.text);if(!names.length)return '<div class="card mut">No text files yet.</div>';if(!TXT||!d.text[TXT])TXT=d.text["lyrics.txt"]!==undefined?"lyrics.txt":names[0];
 return `<div class="card pad0"><div class="ch" style="flex-wrap:wrap">${names.map(n=>`<button class="pill ${n===TXT?"on":""}" onclick="txt('${n}')">${esc(n)}</button>`).join("")}</div><div style="padding:14px"><textarea id="t_${TXT}" style="min-height:360px">${esc(d.text[TXT])}</textarea><div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="p" onclick="save('${TXT}')">Save</button><span class="sub">Saved to the song folder. A changed Instagram caption needs a new approval.</span></div></div></div>`}
 
 let BYSONG={},BYAT=0;
-const bsv=s=>{const b=BYSONG[s.slug];return b&&b.views!=null?" · "+nf(b.views)+" views on Instagram":""};
+const bsv=s=>{const b=BYSONG[s.slug]||{},a=[];if(b.views!=null)a.push(nf(b.views)+" views on Instagram");if(b.yt_views!=null)a.push(nf(b.yt_views)+" views on YouTube");return a.length?" · "+a.join(" · "):""};
 async function loadBySong(){if(Date.now()-BYAT<30000)return;BYAT=Date.now();try{const r=await api("/api/analytics/by-song");if(r&&!r.error&&JSON.stringify(r)!==JSON.stringify(BYSONG)){BYSONG=r;if(view==="library"&&!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest(".srch")))library()}}catch(e){}}
 const PERF={};
 async function loadPerf(slug){PERF[slug]={...(PERF[slug]||{}),loading:true};let data;try{data=await api("/api/analytics/song?slug="+encodeURIComponent(slug))}catch(e){data={empty:true,reason:"error"}}PERF[slug]={data,at:Date.now()};if(cur===slug&&TAB==="perf")render()}
-async function linkPost(mid,slug){const r=await api("/api/analytics/link",{media_id:mid,slug});if(r.error)return alert(r.error);BYAT=0;await loadPerf(cur);loadBySong()}
+async function linkPost(mid,slug){const r=await api("/api/analytics/link",{media_id:mid,slug});if(r.error)return toast(r.error);BYAT=0;await loadPerf(cur);loadBySong()}
 function perfPost(p){
  const c=p.compare||{},vs=c.views_vs_median,vc=vs==null?"":vs>=1.2?"ok":vs<0.8?"bad":"warn";
  const cmp=c.account_posts>1&&p.views!=null?`<div class="sub" style="margin:2px 0 10px">Ranked <b>#${c.views_rank}</b> of ${c.account_posts} posts on this account by views${vs!=null?`, <span class="chip ${vc}">${vs}x</span> the median of ${nf(c.median_views)}`:""}${c.median_save_rate!=null&&p.save_rate!=null?`. Save rate ${pc(p.save_rate)} against a median of ${pc(c.median_save_rate)}`:""}${c.median_avg_watch_s!=null&&p.avg_watch_s!=null?`. Average watch ${p.avg_watch_s}s against ${c.median_avg_watch_s}s`:""}.</div>`:`<div class="sub" style="margin:2px 0 10px">${p.views==null?"No numbers yet. Instagram reports with up to 2 days delay, then Collect now.":"Only post with numbers on this account, so there is nothing to compare with yet."}</div>`;
@@ -515,22 +526,45 @@ function perfPost(p){
  const fr=(p.findings||[]).length||(p.recommendations||[]).length?`<div style="margin-top:12px"><div class="sub">What the analysis says about this post</div>${(p.findings||[]).map(f=>`<div style="padding:4px 0"><span class="chip ${f.severity==="high"?"bad":f.severity==="medium"?"warn":""}">${esc(f.severity)}</span> ${esc(f.title)}<div class="sub">${esc(f.detail||"")}</div></div>`).join("")}${(p.recommendations||[]).map(r=>`<div class="rc-act" style="margin:6px 0">${esc(r.title)}: ${esc(r.action)} <span class="sub">(${esc(r.status)})</span></div>`).join("")}</div>`:"";
  const cm=p.comments_waiting.length?`<div style="margin-top:12px"><div class="sub">Comments waiting for a reply (${p.comments_total} total)</div>${p.comments_waiting.map(w=>`<div style="padding:5px 0;border-bottom:1px solid var(--line2)"><b>@${esc(w.username)}</b> <span class="sub">${ago(w.posted_at)}</span><div>${esc((w.text||"").slice(0,200))}</div></div>`).join("")}</div>`:`<div class="sub" style="margin-top:12px">${p.comments_total?`${p.comments_total} comment${p.comments_total===1?"":"s"}, all answered.`:"No comments yet."}</div>`;
  return `<div class="card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><span class="chip info">${esc((p.product_type||"post").toLowerCase())}</span><b>@${esc(p.username||p.account)}</b><span class="sub">posted ${esc((p.posted_at||"").slice(0,10))}${p.captured_at?" &middot; numbers "+ago(p.captured_at):""}</span><div style="flex:1"></div>${p.permalink?`<a class="btn sm" href="${esc(p.permalink)}" target="_blank" rel="noopener">Open on Instagram</a>`:""}<button class="sm" onclick="linkPost('${esc(p.media_id)}','')" title="Remove the link between this post and this item">Unlink</button></div>${cmp}${k}${chart}${fr}${cm}</div>`}
+const platH=t=>`<div style="margin:16px 2px 8px;font-size:13px;font-weight:600;color:var(--mut)">${t}</div>`;
+async function linkVideo(vid,slug){const r=await api("/api/analytics/link-video",{video_id:vid,slug});if(r.error)return toast(r.error);BYAT=0;await loadPerf(cur);loadBySong()}
+const mins=n=>n==null?"-":n>=600?(n/60).toFixed(1)+" h":Math.round(n)+" min";
+function perfVideo(p){
+ const c=p.compare||{},vs=c.views_vs_median,vc=vs==null?"":vs>=1.2?"ok":vs<0.8?"bad":"warn",kd=p.kind==="short"?"Short":"video";
+ const cmp=c.same_kind_videos>1&&p.views!=null?`<div class="sub" style="margin:2px 0 10px">Ranked <b>#${c.views_rank}</b> of ${c.same_kind_videos} ${kd}s on this channel by views${vs!=null?`, <span class="chip ${vc}">${vs}x</span> the median of ${nf(c.median_views)}`:""}${c.median_avg_view_pct!=null&&p.avg_view_pct!=null?`. Viewers watched ${pc(p.avg_view_pct)} on average against a median of ${pc(c.median_avg_view_pct)}`:""}.</div>`:`<div class="sub" style="margin:2px 0 10px">${p.views==null?"No numbers yet. Open Analytics, switch to YouTube and press Collect now.":`Only ${kd} with numbers on this channel, so there is nothing to compare with yet.`}</div>`;
+ const k=`<div class="kpis k5">${kpi("Views",nf(p.views),p.avg_view_s!=null?Math.round(p.avg_view_s)+"s average view":"")}${kpi("Watch time",mins(p.minutes_watched),p.avg_view_pct!=null?pc(p.avg_view_pct)+" of the video":"")}${kpi("Likes",nf(p.likes),"")}${kpi("Comments",nf(p.comments),p.comments_waiting.length?p.comments_waiting.length+" waiting":"")}${kpi("Subscribers",nf(p.subs_gained),p.subs_per_1000!=null?p.subs_per_1000+" per 1,000 views":"")}</div>`;
+ const pts=(p.history||[]).filter(h=>h.views!=null).map((h,i)=>[i,h.views]);
+ const chart=pts.length>1?`<div class="sub" style="margin:10px 0 4px">Views over time (${pts.length} collects)</div><div style="max-width:520px">${lineSvg(pts,"#FF4D4D",520,90,4)}</div>`:`<div class="sub" style="margin-top:10px">The trend line appears after two collects.</div>`;
+ const rp=(p.retention||[]).filter(r=>r[1]!=null).map(r=>[r[0],r[1]]),at10=rp.length?rp.reduce((a,b)=>Math.abs(b[0]-0.1)<Math.abs(a[0]-0.1)?b:a):null;
+ const ret=rp.length>2?`<div class="sub" style="margin:10px 0 4px">Audience retention: share of viewers still watching, from the start (left) to the end (right)${at10?`. ${Math.round(100*at10[1])}% are still there at the 10% mark`:""}</div><div style="max-width:520px">${lineSvg(rp,"#22C55E",520,90,4)}</div>`:`<div class="sub" style="margin-top:10px">Retention shows once the analytics sign-in is set up and the video has enough views.</div>`;
+ const fr=(p.findings||[]).length||(p.recommendations||[]).length?`<div style="margin-top:12px"><div class="sub">What the analysis says about this video</div>${(p.findings||[]).map(f=>`<div style="padding:4px 0"><span class="chip ${f.severity==="high"?"bad":f.severity==="medium"?"warn":""}">${esc(f.severity)}</span> ${esc(f.title)}<div class="sub">${esc(f.detail||"")}</div></div>`).join("")}${(p.recommendations||[]).map(r=>`<div class="rc-act" style="margin:6px 0">${esc(r.title)}: ${esc(r.action)} <span class="sub">(${esc(r.status)})</span></div>`).join("")}</div>`:"";
+ const cm=p.comments_waiting.length?`<div style="margin-top:12px"><div class="sub">Comments waiting for a reply (${p.comments_total} total)</div>${p.comments_waiting.map(w=>`<div style="padding:5px 0;border-bottom:1px solid var(--line2)"><b>${esc(w.username)}</b> <span class="sub">${ago(w.posted_at)}</span><div>${esc((w.text||"").slice(0,200))}</div></div>`).join("")}</div>`:`<div class="sub" style="margin-top:12px">${p.comments_total?`${p.comments_total} comment${p.comments_total===1?"":"s"}, all answered.`:"No comments yet."}</div>`;
+ return `<div class="card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><span class="chip info">${p.kind==="short"?"short":"video"}</span>${p.privacy&&p.privacy!=="public"?`<span class="chip warn">${esc(p.privacy)}</span>`:""}<b>${esc(p.channel||p.account)}</b><span class="sub">published ${esc((p.published_at||"").slice(0,10))}${p.captured_at?" &middot; numbers "+ago(p.captured_at):""}</span><div style="flex:1"></div><a class="btn sm" href="${esc(p.url)}" target="_blank" rel="noopener">Open on YouTube</a><button class="sm" onclick="linkVideo('${esc(p.video_id)}','')" title="Remove the link between this video and this item">Unlink</button></div>${cmp}${k}${chart}${ret}${fr}${cm}</div>`}
+function perfYT(v){
+ const y=v.youtube||{videos:[],unlinked:[]},T=y.totals||{};
+ if(!y.videos.length){
+  const opts=(y.unlinked||[]).map(u=>`<option value="${esc(u.video_id)}">${esc(u.account)} &middot; ${u.kind==="short"?"Short":"Video"} &middot; ${esc((u.published_at||"").slice(0,10))} &middot; ${esc(u.title||u.video_id)}</option>`).join("");
+  return `<div class="card"><h2>${opts?"No YouTube video linked to this item":"No YouTube data yet"}</h2><p class="mut" style="margin:6px 0 10px">${opts?"Videos are linked automatically when the item was published through NAVAAN. If you uploaded it by hand, pick the video here.":'Open <a href="#/analytics" onclick="AN.platform=\'youtube\';AN.data=null">Analytics</a>, switch to YouTube and press Collect now. Once videos are collected they show up here for each song.'}</p>${opts?`<div style="display:flex;gap:8px;flex-wrap:wrap"><select id="lnkv" style="max-width:520px">${opts}</select><button class="p" onclick="linkVideo(document.getElementById('lnkv').value,cur)">Link this video</button></div>`:""}</div>`}
+ const sum=y.videos.length>1?`<div class="card"><h2>All videos for this item</h2><div class="kpis k5">${kpi("Views",nf(T.views),y.videos.length+" videos")}${kpi("Watch time",mins(T.minutes_watched),"")}${kpi("Likes",nf(T.likes),"")}${kpi("Comments",nf(T.comments),"")}${kpi("Subscribers",nf(T.subs_gained),"")}</div></div>`:"";
+ return sum+y.videos.map(perfVideo).join("")}
 function perfTab(d){
  const e=PERF[cur];
  if(!e||(!e.loading&&Date.now()-e.at>60000))loadPerf(cur);
  const v=e&&e.data;
- if(!v)return `<div class="card"><p class="mut" style="margin:0">Reading Instagram numbers...</p></div>`;
+ if(!v)return `<div class="card"><p class="mut" style="margin:0">Reading numbers...</p></div>`;
  if(v.error)return `<div class="card alert"><p style="margin:0">${esc(v.error)}</p></div>`;
+ return platH("Instagram")+perfIG(v)+platH("YouTube")+perfYT(v)}
+function perfIG(v){
  if(v.empty)return `<div class="card"><h2>No Instagram data yet</h2><p class="mut" style="margin:6px 0 0">Open <a href="#/analytics">Analytics</a> and press Collect now. Once posts are collected they show up here for each song.</p></div>`;
  const T=v.totals||{};
  if(!v.posts.length){
   const opts=(v.unlinked||[]).map(u=>`<option value="${esc(u.media_id)}">${esc(u.account)} &middot; ${esc((u.posted_at||"").slice(0,10))} &middot; ${esc(u.caption||u.permalink||u.media_id)}</option>`).join("");
   return `<div class="card"><h2>No Instagram post linked to this item</h2><p class="mut" style="margin:6px 0 10px">Posts are linked automatically when the item was published through NAVAAN. If you posted it by hand, pick the post here.</p>${opts?`<div style="display:flex;gap:8px;flex-wrap:wrap"><select id="lnk" style="max-width:520px">${opts}</select><button class="p" onclick="linkPost(document.getElementById('lnk').value,cur)">Link this post</button></div>`:'<div class="sub">No unlinked posts in the database. Press Collect now on the Analytics page if you just posted.</div>'}</div>`}
  const sum=v.posts.length>1?`<div class="card"><h2>All posts for this item</h2><div class="kpis">${kpi("Views",nf(T.views),v.posts.length+" posts")}${kpi("Reach",nf(T.reach),"")}${kpi("Saves",nf(T.saved),"")}${kpi("Shares",nf(T.shares),"")}${kpi("Likes",nf(T.like_count),"")}${kpi("Comments",nf(T.comments_count),"")}</div></div>`:"";
- return sum+v.posts.map(perfPost).join("")+`<div class="sub" style="margin:8px 2px">Read only. Numbers come from the Instagram collector. Recommendations for the whole account are on the <a href="#/analytics">Analytics</a> page.</div>`}
+ return sum+v.posts.map(perfPost).join("")+`<div class="sub" style="margin:8px 2px">Read only. Numbers come from the collectors. Recommendations for the whole account are on the <a href="#/analytics">Analytics</a> page.</div>`}
 function tab(t){TAB=t;shown=null;render()}
 function txt(n){TXT=n;render(true)}
-async function redoStep(id,sp){if(!confirm('Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). Other steps are not touched. If the new run fails, the old files are put back.'+(sp?' It spends credits, so approve the credits gate again first.':'')))return;const r=await api('/api/redo',{slug:cur,step:id});if(r.error)return alert(r.error);OPEN[id]=true;render()}
+async function redoStep(id,sp){if(!await ask('Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). Other steps are not touched. If the new run fails, the old files are put back.'+(sp?' It spends credits, so approve the credits gate again first.':'')))return;const r=await api('/api/redo',{slug:cur,step:id});if(r.error)return toast(r.error);OPEN[id]=true;render()}
 function tog(id,v){OPEN[id]=v;render()}
 async function render(force){if(!cur||view!=="song")return;const d=await api("/api/song/"+cur);const main=document.getElementById("main");if(d.error){main.innerHTML=esc(d.error);shown=null;return}
 if(shown!==cur){main.innerHTML='<div id="s_head"></div><div class="sp"><div class="spm" id="s_main"></div><div class="pnw" id="s_pane"></div></div>';shown=cur;CLREQ=false}
@@ -559,13 +593,14 @@ syncHero();
 const ta=document.activeElement&&document.activeElement.tagName==="TEXTAREA";
 if(!ta||force){const html=TAB==="media"?mediaTab(d):TAB==="text"?textTab(d):TAB==="perf"?perfTab(d):pipe(d);setSec("c_main",html,"s_main");setSec("c_pane",pane(d),"s_pane");document.getElementById("s_pane").className="pnw"+(PANE?"":" col");if(TAB==="media")applyVol()}
 loadSongs()}
-async function answerQ(c,usesText){const t=document.getElementById("qtext");const v=t?t.value.trim():"";if(usesText&&!v)return alert("Type the answer in the box first.");const r=await api("/api/answer",{slug:cur,choice:c,text:v});if(r.error)return alert(r.error);render()}
-async function gate(g){if(!confirm("Approve: "+lab(g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
+async function answerQ(c,usesText){const t=document.getElementById("qtext");const v=t?t.value.trim():"";if(usesText&&!v)return toast("Type the answer in the box first.");const r=await api("/api/answer",{slug:cur,choice:c,text:v});if(r.error)return toast(r.error);render()}
+async function gate(g){if(!await ask("Approve: "+lab(g)+"?"))return;await api("/api/approve",{slug:cur,gate:g});render()}
 async function revoke(g){await api("/api/revoke",{slug:cur,gate:g});render()}
 async function runIt(all){await api("/api/run",{slug:cur,all:!!all});render()}
-async function save(n){const r=await api("/api/save",{slug:cur,file:n,content:document.getElementById("t_"+n).value});alert(r.error||"saved")}
+async function save(n){const r=await api("/api/save",{slug:cur,file:n,content:document.getElementById("t_"+n).value});toast(r.error||"saved")}
 /* analytics */
-const AN={account:"all",days:30,data:null,sort:"posted_at",dir:-1,busy:false,rbusy:false,tab:"open"};
+const AN={account:"all",days:30,data:null,sort:"posted_at",dir:-1,busy:false,rbusy:false,tab:"open",platform:(()=>{try{return localStorage.getItem("anPlat")==="youtube"?"youtube":"instagram"}catch(e){return "instagram"}})(),ysort:"published_at",ydir:-1,ykind:"all"};
+const anPath=()=>(AN.platform==="youtube"?"/api/analytics/youtube":"/api/analytics")+`?account=${encodeURIComponent(AN.account)}&days=${AN.days}`;
 const nf=n=>n==null?"-":Math.abs(n)>=1e6?(n/1e6).toFixed(1)+"M":Math.abs(n)>=1e4?(n/1e3).toFixed(1)+"k":Math.round(n).toLocaleString();
 const pc=n=>n==null?"-":Number(n).toFixed(1)+"%";
 const sgn=n=>n==null?"":(n>0?"+":"")+Math.round(n);
@@ -593,34 +628,80 @@ function setAN(k,v){AN[k]=v;analyticsView()}
 async function analyticsView(){
  crumb('Workspace <span style="margin:0 6px">/</span><b>Analytics</b>');
  if(!AN.data)document.getElementById("main").innerHTML='<p class="mut">Reading analytics...</p>';
- AN.data=await api(`/api/analytics?account=${encodeURIComponent(AN.account)}&days=${AN.days}`);
+ const pl=AN.platform,dd=await api(anPath());
+ if(pl!==AN.platform)return;AN.data=dd;
  drawAnalytics()}
 async function collectNow(){
- if(AN.busy)return;AN.busy=true;drawAnalytics();
- const r=await api("/api/analytics/collect",{account:AN.account});
- if(r.error){AN.busy=false;return alert(r.error)}
- for(let i=0;i<600;i++){await new Promise(z=>setTimeout(z,3000));AN.data=await api(`/api/analytics?account=${encodeURIComponent(AN.account)}&days=${AN.days}`);if(!(AN.data.collect||{}).running)break;if(view!=="analytics"){AN.busy=false;return}}
- AN.busy=false;drawAnalytics()}
+ if(AN.busy)return;const pl=AN.platform;AN.busy=true;drawAnalytics();
+ const r=await api("/api/analytics/collect",{account:AN.account,platform:pl});
+ if(r.error){AN.busy=false;drawAnalytics();return toast(r.error)}
+ for(let i=0;i<600;i++){await new Promise(z=>setTimeout(z,3000));if(view!=="analytics"||AN.platform!==pl)break;AN.data=await api(anPath());if(!(AN.data.collect||{}).running)break}
+ AN.busy=false;if(view==="analytics")drawAnalytics()}
 
 const PRI={1:["Do first","bad"],2:["Soon","warn"],3:["Later",""]};
 function setTab(t){AN.tab=t;drawAnalytics()}
-async function recStatus(id,st){const r=await api("/api/analytics/rec",{id,status:st});if(r.error)return alert(r.error);AN.data=await api(`/api/analytics?account=${encodeURIComponent(AN.account)}&days=${AN.days}`);drawAnalytics()}
+const fmtL=iso=>new Date(iso).toLocaleString([],{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+const toLocalIn=iso=>{const d=new Date(iso),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`};
+const toIso=loc=>new Date(loc).toISOString().replace(/\.\d{3}Z$/,"Z");
+let SC=null;
+async function implementRec(id){const r=await api("/api/analytics/implement",{id});if(r.error)return toast(r.error);
+if(r.kind==="schedule"){openSched(r.type,"",null,id);return}
+toast(r.message);AN.data=await api(anPath());drawAnalytics()}
+async function openSched(type,slug,at,rec){SC={type:type||"music",slug:slug||"",at:at?toLocalIn(at):"",rec:rec||"",busy:false,err:"",opts:null,bt:null};drawSched();
+const [o,b]=await Promise.all([api("/api/schedule/options?type="+encodeURIComponent(SC.type)),api("/api/besttime?type="+encodeURIComponent(SC.type))]);
+if(!SC)return;SC.opts=o.songs||[];SC.bt=b;if(!SC.slug&&SC.opts.length===1)SC.slug=SC.opts[0].slug;if(!SC.at&&b&&b.slots&&b.slots[0])SC.at=toLocalIn(b.slots[0].at);drawSched()}
+function closeSched(){SC=null;drawSched()}
+function drawSched(){let el=document.getElementById("schedm");if(!SC){if(el)el.remove();return}
+if(!el){el=document.createElement("div");el.id="schedm";el.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto";document.body.appendChild(el)}
+const o=SC.opts,b=SC.bt||{},sl=(b.slots||[]);const sel=(o||[]).find(x=>x.slug===SC.slug);
+const chips=sl.map(x=>`<button class="${toLocalIn(x.at)===SC.at?"p":""}" onclick="SC.at='${toLocalIn(x.at)}';drawSched()" title="followers peak around ${x.audience_peak_hour_utc}:00 UTC">${esc(fmtL(x.at))} <span class="sub">${x.score}</span></button>`).join("");
+const why=b.empty?`<div class="sub">${esc((b.notes||[]).join(" ")||"No timing data yet. Run Collect on the Analytics page.")}</div>`:`<div class="sub">Best slots from ${esc((b.basis.signals||[]).join(", "))}, one hour before your followers peak. Number = score out of 100.</div>`;
+let go=SC.at?new Date(SC.at):null,ytTxt=go&&!isNaN(go)?fmtL(new Date(go.getTime()-15*60000).toISOString()):"";
+el.innerHTML=`<div class="card" style="max-width:560px;width:100%"><h2 style="margin:0 0 10px">Schedule publishing</h2>
+<div class="sub" style="margin-bottom:4px">Song</div>
+<select style="width:100%;margin-bottom:10px" onchange="SC.slug=this.value;drawSched()"><option value="">${o===null?"Loading...":"Choose a song"}</option>${(o||[]).map(x=>`<option value="${esc(x.slug)}" ${x.slug===SC.slug?"selected":""}>${esc(x.slug)} ${esc(x.title?"· "+x.title:"")} (next: ${esc(x.next)})</option>`).join("")}</select>
+${sel&&sel.missing_gates.length?`<div class="sub" style="margin-bottom:10px;color:var(--warn,#e0a030)">Still to approve before that time: ${sel.missing_gates.map(esc).join(", ")}. Nothing posts without them.</div>`:""}
+<div class="sub" style="margin-bottom:4px">Recommended times</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${chips||'<span class="sub">none yet</span>'}</div>${why}
+<div class="sub" style="margin:12px 0 4px">Instagram Reel at (your local time)</div><input type="datetime-local" value="${esc(SC.at)}" onchange="SC.at=this.value;drawSched()" style="margin-bottom:6px">
+<div class="sub" style="margin-bottom:12px">${ytTxt?`YouTube video and Short go public at ${esc(ytTxt)}, 15 minutes earlier, because the Reel links to it.`:""} This computer must be on, with the portal running, at those times.</div>
+${SC.err?`<div class="sub" style="color:var(--bad,#e55);margin-bottom:8px">${esc(SC.err)}</div>`:""}
+<div style="display:flex;gap:8px"><button class="p" ${SC.slug&&SC.at&&!SC.busy?"":"disabled"} onclick="schedSave()">${SC.busy?"Saving...":"Schedule"}</button><button onclick="closeSched()">Cancel</button></div></div>`}
+async function schedSave(){SC.busy=true;SC.err="";drawSched();const r=await api("/api/schedule/set",{slug:SC.slug,instagram_at:toIso(SC.at)});if(r.error){SC.busy=false;SC.err=r.error;drawSched();return}
+const rec=SC.rec,slug=SC.slug;if(rec)await api("/api/analytics/rec",{id:rec,status:"done"});SC=null;drawSched();
+if(view==="analytics"){AN.data=await api(anPath());drawAnalytics()}else if(cur===slug)render(true);loadSongs()}
+async function schedClear(slug){if(!await ask("Clear the publishing schedule? The song then waits for you to run the steps."))return;await api("/api/schedule/clear",{slug});render(true);loadSongs()}
+function schedCard(d){const m=d.meta||{},s=m.schedule,t=m.type||"music";if(((m.published||{}).instagram&&!s)||(d.next&&d.next.type==="done"&&!s))return "";
+let body;if(s){const bl=Object.values(s.blocked||{}),ms=Object.keys(s.missed||{});
+body=`<div style="line-height:1.7">YouTube public: <b>${fmtL(s.youtube_at)}</b><br>Instagram Reel: <b>${fmtL(s.instagram_at)}</b></div>${bl.length?`<div class="sub" style="margin-top:6px">${esc(bl.join(", "))}. Approve it and the step runs on the next check.</div>`:""}${ms.length?`<div class="sub" style="margin-top:6px;color:var(--bad,#e55)">Missed: ${esc(ms.join(", "))}. Pick a new time.</div>`:""}<div style="display:flex;gap:8px;margin-top:10px"><button onclick="openSched('${esc(t)}','${esc(d.slug)}')">Change</button><button onclick="schedClear('${esc(d.slug)}')">Clear</button></div>`}
+else body=`<p class="sub" style="margin:0 0 10px">Publish at the time your analytics recommend. Approvals stay yours: approve go_public, the caption and publish_instagram, and the steps run at the chosen time.</p><button class="p" onclick="openSched('${esc(t)}','${esc(d.slug)}')">Schedule publishing</button>`;
+return `<details class="dtl" open><summary>Publishing schedule<span style="margin-left:auto"></span>${s&&s.done?'<span class="chip ok">published</span>':s?'<span class="chip waiting">scheduled</span>':""}</summary><div class="dtb">${body}</div></details>`}
+function btCard(d){const B=d.besttime||{};const labs=Object.keys(B).filter(k=>k!=="error");if(!labs.length)return "";
+const hr=h=>new Date(Date.UTC(2026,0,15,h)).toLocaleTimeString([],{hour:"numeric"});
+const one=l=>{const b=B[l];if(b.empty)return `<div class="sub" style="margin-bottom:10px"><b>${esc(l)}</b>: ${esc((b.notes||[]).join(" ")||"not enough data yet")}</div>`;
+const bars=b.hours.map((v,i)=>`<div title="post at ${hr(i)}, score ${v}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;height:46px;display:flex;align-items:flex-end"><div style="width:100%;height:${Math.max(3,v*0.46)}px;background:var(--acc,#ff4d7e);opacity:${0.35+v/160};border-radius:2px"></div></div><span class="sub" style="font-size:9px">${i%3===0?hr(i).replace(/ ?(AM|PM)/i,m=>m.trim().toLowerCase()):""}</span></div>`).join("");
+const DY=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];const days=b.weekdays.map((v,i)=>`<span class="chip ${v>=85?"ok":""}" title="score ${v}">${DY[i]} ${v}</span>`).join(" ");
+return `<div style="margin-bottom:14px"><div style="margin-bottom:6px"><b>${esc(l)}</b> <span class="sub">${esc((b.basis.signals||[]).join(", "))} · ${b.basis.own_posts} own posts · ${b.basis.peer_posts} peer posts</span></div>
+<div style="display:flex;gap:2px;margin-bottom:8px">${bars}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${days}</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">${b.slots.map(x=>`<button class="sm" onclick="openSched('${esc(l)}','',${JSON.stringify(x.at)})">${esc(fmtL(x.at))} <span class="sub">${x.score}</span></button>`).join("")}</div>${(b.notes||[]).length?`<div class="sub" style="margin-top:6px">${esc(b.notes.join(" "))}</div>`:""}</div>`};
+return `<div class="card"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px"><h2 style="margin:0">Best time to publish</h2><span class="sub">bars = the hour to post (your local time). Slots are the next week. Click one to schedule a song.</span></div>${labs.map(one).join("")}</div>`}
+async function recStatus(id,st){const r=await api("/api/analytics/rec",{id,status:st});if(r.error)return toast(r.error);AN.data=await api(anPath());drawAnalytics()}
 async function analyzeNow(){
  if(AN.rbusy)return;AN.rbusy="analyze";drawAnalytics();
- const r=await api("/api/analytics/analyze",{account:AN.account});AN.rbusy=false;
- if(r.error)alert(r.error);
- AN.data=await api(`/api/analytics?account=${encodeURIComponent(AN.account)}&days=${AN.days}`);drawAnalytics()}
+ const r=await api("/api/analytics/analyze",{account:AN.account,platform:AN.platform});AN.rbusy=false;
+ if(r.error)toast(r.error);
+ AN.data=await api(anPath());drawAnalytics()}
 async function askClaude(){
- if(AN.rbusy)return;AN.rbusy="ask";drawAnalytics();
- const r=await api("/api/analytics/ask",{account:AN.account});
- if(r.error){AN.rbusy=false;drawAnalytics();return alert(r.error)}
- for(let i=0;i<600;i++){await new Promise(z=>setTimeout(z,4000));AN.data=await api(`/api/analytics?account=${encodeURIComponent(AN.account)}&days=${AN.days}`);if(!((AN.data.reco||{}).ask||{}).running)break;if(view!=="analytics"){AN.rbusy=false;return}}
+ if(AN.rbusy)return;const pl=AN.platform;AN.rbusy="ask";drawAnalytics();
+ const r=await api("/api/analytics/ask",{account:AN.account,platform:pl});
+ if(r.error){AN.rbusy=false;drawAnalytics();return toast(r.error)}
+ for(let i=0;i<600;i++){await new Promise(z=>setTimeout(z,4000));AN.data=await api(anPath());if(!((AN.data.reco||{}).ask||{}).running)break;if(view!=="analytics"||AN.platform!==pl){AN.rbusy=false;return}}
  AN.rbusy=false;drawAnalytics()}
+const chgTxt=o=>{const c=o.change_pct||{},t=(l,v)=>v==null?"":l+" "+(v>0?"+":"")+v+"% ";return t("Median views",c.median_views)+t("Median average viewed",c.median_avg_view_pct)};
 function recCard(r){
  const pr=PRI[r.priority]||PRI[3],o=r.outcome,vc={improved:"ok",worse:"bad",flat:"warn"}[o&&o.verdict]||"";
  const ev=(r.evidence||[]).map(e=>`<li>Seen in your data: ${esc(e.title)}</li>`).join("")+(r.sources||[]).map(x=>`<li>Market: ${esc(x.topic)}${x.url?` &middot; <a href="${esc(x.url)}" target="_blank" rel="noopener">${esc((x.title||x.url).slice(0,60))}</a>`:""}</li>`).join("");
- const out=r.status==="done"?`<div class="sub" style="margin-top:8px">Marked done ${ago(r.done_at)}. ${o?`<span class="chip ${vc}">${esc(o.verdict)}</span> ${o.change_pct&&o.change_pct.median_views!=null?"Median views "+(o.change_pct.median_views>0?"+":"")+o.change_pct.median_views+"% ":""}${o.posts_after} post${o.posts_after===1?"":"s"} since. ${esc(o.note||"")}`:"Results show after the next collect."}</div>`:r.status==="dismissed"&&r.dismissed_reason?`<div class="sub" style="margin-top:8px">Dismissed: ${esc(r.dismissed_reason)}</div>`:"";
- const btn=r.status==="open"?`<button class="p" onclick="recStatus('${esc(r.rec_id)}','done')">Done</button><button onclick="recStatus('${esc(r.rec_id)}','dismissed')">Dismiss</button>`:`<button onclick="recStatus('${esc(r.rec_id)}','open')">Reopen</button>`;
+ const out=r.status==="done"?`<div class="sub" style="margin-top:8px">Marked done ${ago(r.done_at)}. ${o?`<span class="chip ${vc}">${esc(o.verdict)}</span> ${chgTxt(o)}${o.posts_after} post${o.posts_after===1?"":"s"} since. ${esc(o.note||"")}`:"Results show after the next collect."}</div>`:r.status==="dismissed"&&r.dismissed_reason?`<div class="sub" style="margin-top:8px">Dismissed: ${esc(r.dismissed_reason)}</div>`:"";
+ const btn=r.status==="open"?`<button class="p" onclick="implementRec('${esc(r.rec_id)}')">Implement</button><button onclick="recStatus('${esc(r.rec_id)}','done')">Mark done</button><button onclick="recStatus('${esc(r.rec_id)}','dismissed')">Dismiss</button>`:`<button onclick="recStatus('${esc(r.rec_id)}','open')">Reopen</button>`;
  return `<div class="rc-card"><div class="rc-top"><span class="chip ${pr[1]}">${pr[0]}</span><span class="chip">${esc(r.category)}</span><span class="chip ${r.source==="claude"?"info":""}">${r.source==="claude"?"Claude":"Rule based"}</span><span class="sub">confidence ${esc(r.confidence||"medium")}${AN.account==="all"&&r.account?" &middot; "+esc(r.account):""}</span></div>
  <h3>${esc(r.title)}</h3>${r.why?`<div class="mut">${esc(r.why)}</div>`:""}<div class="rc-act">${esc(r.action)}</div>${r.expected_effect?`<div class="sub">Expected: ${esc(r.expected_effect)}</div>`:""}${ev?`<ul class="rc-ev">${ev}</ul>`:""}${out}<div class="rc-btn">${btn}</div></div>`}
 function recPanel(d){
@@ -635,9 +716,10 @@ function recPanel(d){
  return `<div class="card"><div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><h2 style="margin:0">What to improve</h2><span class="sub">${R.ready?`${R.findings} open finding${R.findings===1?"":"s"}${R.analyzed_at?", analysed "+ago(R.analyzed_at):""} &middot; ${R.notes} market note${R.notes===1?"":"s"}`:"Not analysed yet"}. Organic growth only.</span></div>${bar}${askErr}${empty}</div>`}
 function drawAnalytics(){
  if(view!=="analytics")return;
+ if(AN.platform==="youtube")return drawYouTube();
  const d=AN.data||{},main=document.getElementById("main"),c=d.collect||{};
  const accs=d.accounts||[];
- const ctl=`<div class="an-hd"><div><h1>Analytics</h1><div class="sub" style="margin-top:4px">Instagram data, collected locally. Read only.</div></div><div style="flex-grow:1"></div>
+ const ctl=`<div class="an-hd"><div><h1>Analytics</h1><div class="sub" style="margin-top:4px">Instagram data, collected locally. Read only.</div></div><div style="flex-grow:1"></div>${platSwitch()}
  ${accs.length>1?`<div class="seg">${[["all","All"],...accs.map(a=>[a.label,a.username?"@"+a.username:a.label])].map(x=>`<button class="${AN.account===x[0]?"on":""}" onclick="setAN('account','${esc(x[0])}')">${esc(x[1])}</button>`).join("")}</div>`:""}
  <div class="seg">${[[7,"7 days"],[30,"30 days"],[90,"90 days"]].map(x=>`<button class="${AN.days===x[0]?"on":""}" onclick="setAN('days',${x[0]})">${x[1]}</button>`).join("")}</div>
  <button class="p" onclick="collectNow()" ${AN.busy||c.running?"disabled":""}>${AN.busy||c.running?'<span class="spin"></span>Collecting...':"Collect now"}</button></div>`;
@@ -666,16 +748,56 @@ function drawAnalytics(){
  const HT=d.hashtags||{},sg=HT.suggested||{},ow=HT.own||{};
  const tagRow=(g,title)=>`<div><div class="sub" style="margin-bottom:6px">${title}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${(sg[g]||[]).map(x=>`<span class="chip ${x.in_use?"ok":""}" title="${esc(x.peers.map(p=>"@"+p).join(", "))}${x.in_use?" (already in your captions)":""}" style="cursor:default">#${esc(x.tag)} <b style="margin-left:4px;color:var(--mut)">${x.peers.length}</b></span>`).join("")||'<span class="sub">nothing yet</span>'}</div>${(ow[g]||[]).length?`<div class="sub" style="margin:10px 0 6px">Your own tags, by average views</div><div style="display:flex;flex-wrap:wrap;gap:6px">${ow[g].slice(0,10).map(x=>`<span class="chip" style="cursor:default">#${esc(x.tag)} <b style="margin-left:4px;color:var(--mut)">${x.avg_views==null?"-":nf(x.avg_views)}</b></span>`).join("")}</div>`:""}</div>`;
  const hashtags=`<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h2 style="margin:0">Hashtags to test</h2><span class="sub">tags on the strongest 40% of each peer's posts (${HT.peer_posts_with_tags||0} peer posts carry tags). Number = how many peers use it. Green = already in your captions.</span></div><div class="an-grid">${tagRow("music","For NAVAAN songs")}${tagRow("inspiration","For The Unsaid Within")}</div><div class="sub" style="margin-top:10px">Re-run analysis writes these to <span class="mono">hashtags.json</span> next to the songs folder; the caption steps pick up to two of them for every new post. Instagram's API cannot edit captions of posts already live, so for those: copy the tags, edit the caption in the app.</div></div>`;
- main.innerHTML=ctl+err+kp+recPanel(d)+charts+posts+peers+hashtags+`<div class="card"><h2>What seems to work</h2>${patBlock}</div>`+`<div class="cols"><div class="l">${cm}</div><div class="r">${aud}</div></div>`+runs}
+ const besttime=btCard(d);main.innerHTML=ctl+err+kp+recPanel(d)+besttime+charts+posts+peers+hashtags+`<div class="card"><h2>What seems to work</h2>${patBlock}</div>`+`<div class="cols"><div class="l">${cm}</div><div class="r">${aud}</div></div>`+runs}
+
+/* analytics: YouTube tab */
+const ytSrc=s=>String(s||"").replace(/^YT_/,"").replace(/_/g," ").toLowerCase();
+const YCOLS=[["views","Views"],["likes","Likes"],["comments","Comments"],["minutes_watched","Watch (min)"],["avg_view_pct","Avg viewed %"],["avg_view_s","Avg view (s)"],["subs_gained","Subs gained"],["subs_per_1000","Subs / 1k views"]];
+function ysortBy(k){AN.ydir=AN.ysort===k?-AN.ydir:-1;AN.ysort=k;drawAnalytics()}
+function platSwitch(){return `<div class="seg">${[["instagram","Instagram"],["youtube","YouTube"]].map(x=>`<button class="${AN.platform===x[0]?"on":""}" onclick="setPlatform('${x[0]}')">${x[1]}</button>`).join("")}</div>`}
+function setPlatform(p){if(AN.platform===p)return;AN.platform=p;AN.data=null;AN.tab="open";AN.account="all";try{localStorage.setItem("anPlat",p)}catch(e){}analyticsView()}
+function drawYouTube(){
+ if(view!=="analytics")return;
+ const d=AN.data||{},main=document.getElementById("main"),c=d.collect||{},accs=d.accounts||[];
+ const ctl=`<div class="an-hd"><div><h1>Analytics</h1><div class="sub" style="margin-top:4px">YouTube data, collected locally. Read only.</div></div><div style="flex-grow:1"></div>${platSwitch()}
+ ${accs.length>1?`<div class="seg">${[["all","All"],...accs.map(a=>[a.label,a.title||a.label])].map(x=>`<button class="${AN.account===x[0]?"on":""}" onclick="setAN('account','${esc(x[0])}')">${esc(x[1])}</button>`).join("")}</div>`:""}
+ <div class="seg">${[[7,"7 days"],[30,"30 days"],[90,"90 days"]].map(x=>`<button class="${AN.days===x[0]?"on":""}" onclick="setAN('days',${x[0]})">${x[1]}</button>`).join("")}</div>
+ <button class="p" onclick="collectNow()" ${AN.busy||c.running?"disabled":""}>${AN.busy||c.running?'<span class="spin"></span>Collecting...':"Collect now"}</button></div>`;
+ const err=c.rc>0&&!c.running&&c.tail?`<div class="card alert"><h2>The last collect did not finish cleanly</h2><pre>${esc(c.tail)}</pre></div>`:"";
+ const setup=`Watch time, retention, traffic sources and audience need one extra read only Google sign-in. Run <span class="mono">python3 plugins/navaan-studio/scripts/yt_collect.py auth</span> once.`;
+ if(d.empty){
+  main.innerHTML=ctl+err+`<div class="card"><h2>No YouTube data yet</h2><p class="mut" style="margin:6px 0 12px">${d.reason==="db_error"?esc(d.error):"The YouTube collector has not run yet."} It uses the same Google sign-in as publishing, so press Collect now to get views, likes and comments. ${setup}</p><div class="sub">Database file: <span class="mono">${esc(d.db||"")}</span></div></div>`;return}
+ const k=d.kpis,S=d.series;
+ const note=d.analytics_ok?"":`<div class="an-note" style="margin-bottom:12px">Showing public counts only (views, likes, comments, subscribers). ${setup}</div>`;
+ const kp=`<div class="kpis k5">${kpi("Subscribers",nf(k.subscribers),k.subscribers_change!=null?`${sgn(k.subscribers_change)} in ${d.days} days`:"Change shows after two days of data")}${kpi("Views",nf(k.views),k.views==null?"Needs the analytics sign-in":`last ${d.days} days`)}${kpi("Watch time",k.watch_hours==null?"-":nf(k.watch_hours)+" h",k.watch_hours==null?"Needs the analytics sign-in":`last ${d.days} days`)}${kpi("Subscribers gained",nf(k.subs_gained),k.subs_net!=null?`${sgn(k.subs_net)} net of losses`:"")}${kpi("Comments waiting",nf(k.waiting),k.waiting?'<a href="#" onclick="document.getElementById(\'an-cm\').scrollIntoView({behavior:\'smooth\'});return false">See below</a>':"All answered")}</div>`;
+ const charts=`<div class="an-grid g2">${chartCard("Subscribers",S.subscribers,"#FF4D4D")}${chartCard("Views per day",S.views,"#8B5CF6","YouTube reports with up to 2 days delay")}${chartCard("Watch hours per day",S.watch_hours,"#22C55E")}${chartCard("Subscribers gained per day",S.subs_gained,"#F59E0B")}</div>`;
+ const V=d.videos.filter(v=>AN.ykind==="all"||v.kind===AN.ykind);
+ V.sort((a,b)=>{const x=a[AN.ysort],y=b[AN.ysort];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return (x>y?1:x<y?-1:0)*AN.ydir});
+ const head=`<tr><th>Video</th>${YCOLS.map(x=>`<th class="n" onclick="ysortBy('${x[0]}')" title="Sort">${x[1]}${AN.ysort===x[0]?(AN.ydir<0?" &#9660;":" &#9650;"):""}</th>`).join("")}<th>Views over time</th></tr>`;
+ const rowsH=V.map(v=>{const href=v.slug?`#/song/${esc(v.slug)}`:esc(v.url);return `<tr><td><a href="${href}" ${v.slug?"":'target="_blank" rel="noopener"'} style="font-weight:500">${esc(v.name)}</a><div class="sub"><span class="chip ${v.kind==="short"?"info":""}">${v.kind==="short"?"short":"video"}</span> ${v.privacy&&v.privacy!=="public"?`<span class="chip warn">${esc(v.privacy)}</span> `:""}${esc(v.account)} &middot; ${esc((v.published_at||"").slice(0,10))}${v.language?" &middot; "+esc(v.language):""}${v.genre?" &middot; "+esc(v.genre):""}</div></td>
+  ${YCOLS.map(x=>`<td class="n">${x[0]==="avg_view_pct"?pc(v[x[0]]):x[0]==="avg_view_s"?(v[x[0]]==null?"-":Math.round(v[x[0]])):x[0]==="minutes_watched"?(v[x[0]]==null?"-":nf(v[x[0]])):x[0]==="subs_per_1000"?(v[x[0]]==null?"-":v[x[0]]):nf(v[x[0]])}</td>`).join("")}<td style="width:96px">${v.trend&&v.trend.length>1?lineSvg(v.trend.map((n,i)=>[i,n]),"#FF4D4D",96,26,3):'<span class="sub">needs 2 collects</span>'}</td></tr>`}).join("");
+ const kindSeg=`<div class="seg">${[["all","All"],["video","Videos"],["short","Shorts"]].map(x=>`<button class="${AN.ykind===x[0]?"on":""}" onclick="AN.ykind='${x[0]}';drawAnalytics()">${x[1]}</button>`).join("")}</div>`;
+ const vids=`<div class="card pad0"><div class="ch"><b>Videos</b><span class="sub">${V.length} shown, latest numbers per video. Click a column to sort. YouTube does not share impressions or click through rate with any API, so those stay in YouTube Studio.</span><div style="flex:1"></div>${kindSeg}</div><div style="overflow:auto"><table class="an-tab"><thead>${head}</thead><tbody>${rowsH||'<tr><td colspan="10" class="sub">No videos collected yet</td></tr>'}</tbody></table></div></div>`;
+ const withViews=d.videos.filter(v=>v.views!=null&&v.privacy==="public").length,pat=d.patterns||{};
+ const kp2=(pat.kind||[]).filter(r=>r.avg_view_pct!=null).map(r=>`${r.name==="short"?"Shorts":"Videos"} ${pc(r.avg_view_pct)}`).join(", ");
+ const patBlock=withViews<3?`<div class="an-note">Patterns appear once at least 3 public videos have numbers. Right now ${withViews} do. Each collect adds a snapshot, so the picture builds over time.</div>`:
+  `<div class="an-grid"><div><div class="sub" style="margin-bottom:6px">By kind: average views</div>${barList((pat.kind||[]).map(r=>[`${r.name==="short"?"short":"video"} (${r.videos})`,r.avg_views]))}</div><div><div class="sub" style="margin-bottom:6px">By language: average views</div>${barList((pat.language||[]).map(r=>[`${r.name} (${r.videos})`,r.avg_views]))}</div><div><div class="sub" style="margin-bottom:6px">By genre: average views</div>${barList((pat.genre||[]).map(r=>[`${r.name} (${r.videos})`,r.avg_views]))}</div></div>${kp2?`<div class="sub" style="margin-top:8px">Average share of the video watched: ${kp2}.</div>`:""}<div class="sub" style="margin-top:8px">Early signal from ${withViews} videos. Treat it as a hint until each group has several.</div>`;
+ const ret=`<div class="card"><h2>Audience retention</h2>${(d.retention||[]).length?`<div class="an-grid">${d.retention.map(r=>`<div><div class="sub" style="margin-bottom:4px"><b>${esc(r.name)}</b> <span class="chip ${r.kind==="short"?"info":""}">${r.kind==="short"?"short":"video"}</span></div>${lineSvg(r.points.filter(p=>p[1]!=null).map(p=>[p[0],p[1]]),"#22C55E",260,80,4)}<div class="sub" style="display:flex;justify-content:space-between"><span>start</span><span>end</span></div></div>`).join("")}</div><div class="sub" style="margin-top:8px">Share of viewers still watching at each point. A steep fall at the very start means the opening loses people.</div>`:`<div class="an-note">Retention curves appear for your top videos once the analytics sign-in is set up and a video has enough views.</div>`}</div>`;
+ const tr=d.traffic||[],trTot=tr.reduce((a,r)=>a+(r.views||0),0),A=d.audience||{};
+ const aud=`<div class="card"><h2>Where viewers come from and who they are</h2>${tr.length||Object.keys(A).length?`<div class="an-grid"><div><div class="sub" style="margin-bottom:6px">Traffic sources (views)</div>${barList(tr.slice(0,8).map(r=>[ytSrc(r.source),r.views||0]),r=>nf(r[1])+(trTot?" &middot; "+Math.round(100*r[1]/trTot)+"%":""))}</div><div><div class="sub" style="margin-bottom:6px">Top countries (views)</div>${barList((A.country||[]).slice(0,6))}</div><div><div class="sub" style="margin-bottom:6px">Age (% of viewers)</div>${barList((A.age||[]).slice(0,6).map(r=>[String(r[0]).replace(/^age/,""),r[1]]),r=>Number(r[1]).toFixed(1)+"%")}<div class="sub" style="margin:8px 0 6px">Gender</div>${barList((A.gender||[]).slice(0,3),r=>Number(r[1]).toFixed(1)+"%")}</div></div>`:`<div class="an-note">Traffic sources and audience come from the YouTube Analytics API. They appear after the analytics sign-in and the next collect.</div>`}</div>`;
+ const cm=`<div class="card" id="an-cm"><h2>Comments waiting for a reply</h2>${d.waiting.length?d.waiting.map(w=>`<div style="padding:9px 0;border-bottom:1px solid var(--line2)"><div style="display:flex;gap:8px;align-items:baseline"><b>${esc(w.username)}</b><span class="sub">on ${esc(w.video)} &middot; ${ago(w.posted_at)}</span><a class="sub" style="margin-left:auto" href="${esc(w.url)}" target="_blank" rel="noopener">Open</a></div><div>${esc((w.text||"").slice(0,200))}</div></div>`).join("")+`<div class="sub" style="margin-top:8px">Read only for now. Replying comes next, and will go through your approval step.</div>`:'<div class="sub">Nothing waiting.</div>'}</div>`;
+ const statTxt=st=>Object.entries(st||{}).filter(([k,v])=>typeof v==="number"&&v>0).slice(0,4).map(([k,v])=>v+" "+k.replace(/_/g," ")).join(", ")||"nothing new";
+ const runs=`<div class="card pad0"><div class="ch"><b>Collector runs</b><span class="sub">Database: <span class="mono">${esc(d.db||"")}</span></span></div><table><thead><tr><th>When</th><th>Channel</th><th>Status</th><th>Collected</th><th>Notes</th></tr></thead><tbody>${d.runs.map(r=>`<tr><td>${ago(r.finished_at||r.started_at)}</td><td>${esc(r.label||"")}</td><td>${stChip(r.status)}</td><td class="sub">${esc(statTxt(r.stats))}</td><td class="sub" title="${esc(r.first_error)}">${r.errors?r.errors+" note"+(r.errors>1?"s":"")+": "+esc(r.first_error.slice(0,80)):"none"}</td></tr>`).join("")||'<tr><td colspan="5" class="sub">No runs yet</td></tr>'}</tbody></table></div>`;
+ main.innerHTML=ctl+err+note+kp+recPanel(d)+charts+vids+ret+`<div class="card"><h2>What seems to work</h2>${patBlock}</div>`+aud+cm+runs}
 
 /* settings */
 let ST=null,STB={};
 async function settingsView(refresh){crumb('Operations <span style="margin:0 6px">/</span><b>Settings</b>');const m=document.getElementById("main");if(!ST||refresh){m.innerHTML='<p class="mut">Checking the logins (Instagram, Facebook, YouTube)...</p>';ST=await api("/api/settings"+(refresh?"?refresh=1":""))}drawSettings()}
 function stChip2(x,label){if(!x||!x.present)return `<span class="chip">Not set</span>`;if(x.ok===false)return `<span class="chip bad">${esc(x.error||"not working")}</span>`;const d=x.days_left;return `<span class="chip ok">&#10003; ${label||"Working"}</span>${d!=null?`<span class="chip ${d<10?"warn":""}">${d<0?"expired":d+" days left"}${x.expires?" · "+esc(x.expires):""}</span>`:x.expires==="never"?'<span class="chip">no expiry</span>':""}`}
-async function stDo(act,body,btn){if(btn){btn.disabled=true;btn.textContent="Working..."}const r=await api("/api/settings/"+act,body);if(r.error){alert(r.error);if(btn){btn.disabled=false;btn.textContent="Try again"}return}ST=null;await settingsView(true)}
-function stSave(kind,ty){const i=document.getElementById(`tk_${kind}_${ty}`);if(!i||!i.value.trim())return alert("Paste the token first.");stDo("ig_save",{type:ty,kind:kind,token:i.value.trim()},i.nextElementSibling)}
+async function stDo(act,body,btn){if(btn){btn.disabled=true;btn.textContent="Working..."}const r=await api("/api/settings/"+act,body);if(r.error){toast(r.error);if(btn){btn.disabled=false;btn.textContent="Try again"}return}ST=null;await settingsView(true)}
+function stSave(kind,ty){const i=document.getElementById(`tk_${kind}_${ty}`);if(!i||!i.value.trim())return toast("Paste the token first.");stDo("ig_save",{type:ty,kind:kind,token:i.value.trim()},i.nextElementSibling)}
 function stSecret(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>stDo("yt_secret",{content:r.result});r.readAsText(f)}
-function stAddAccount(){const ty=document.getElementById("na_type").value,h=document.getElementById("na_handle").value,c=document.getElementById("na_channel").value;if(!ty)return alert("Give the content type a short name, e.g. inspiration");stDo("account",{type:ty,handle:h,channel:c})}
+function stAddAccount(){const ty=document.getElementById("na_type").value,h=document.getElementById("na_handle").value,c=document.getElementById("na_channel").value;if(!ty)return toast("Give the content type a short name, e.g. inspiration");stDo("account",{type:ty,handle:h,channel:c})}
 function drawSettings(){const d=ST,m=document.getElementById("main");const J=d.yt_job||{};if(J.running)setTimeout(()=>settingsView(true),4000);
 const G=(n,b)=>`<details class="dtl"><summary>${n}</summary><div class="dtb" style="color:var(--mut2);font-size:13px;line-height:1.6">${b}</div></details>`;
 const igHow=G("How to get an Instagram token (first time, or after it expires)",`<ol style="margin:4px 0 0 18px;padding:0">

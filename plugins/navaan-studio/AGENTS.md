@@ -71,12 +71,12 @@ quote (gate `quote`) -> originality check on the web (gate `originality`) -> bac
 - Inspiration publishes to its own account. Set `accounts.inspiration` in navaan.config.json (`instagram_handle`, `youtube_channel`, `instagram_env`, `youtube_token`, optional `youtube_client_secret`). The login files must not be the NAVAAN ones. Until then every publish step refuses and posts nothing. `navaan.py account inspiration` shows what is missing.
 - Never attach a famous author to a line without the originality check finding two independent sources.
 
-## Instagram analytics and growth advice
+## Instagram and YouTube analytics and growth advice
 
-`scripts/ig_collect.py` (read only collector, SQLite) and `scripts/ig_reco.py` (rules, evidence pack, recommendation store) feed the portal's Analytics page. The same work runs from chat or on a schedule:
+`scripts/ig_collect.py` and `scripts/yt_collect.py` (read only collectors, SQLite), `scripts/ig_reco.py` and `scripts/yt_reco.py` (rules, evidence pack, recommendation store, `--platform instagram|youtube`) feed the portal's Analytics page, which has an Instagram and a YouTube tab. YouTube uses the publishing sign-in for public counts and comments; watch time, retention, traffic and audience need one read only sign-in, `python3 scripts/yt_collect.py auth`. Impressions and click through rate are not in any YouTube API. The same work runs from chat or on a schedule:
 
-- `/navaan-studio:collect [music|inspiration|all]` runs the data-collector role.
-- `/navaan-studio:recommend [account] [--collect] [--no-web]` runs the growth-advisor role with the growth-advice skill: rules write findings, Claude researches the market on the web, stores sourced notes and writes at most 6 recommendations that each cite a finding or note.
-- Both are headless safe: they never ask questions, never write to Instagram, and stop with a plain message on an auth error.
+- `/navaan-studio:collect [instagram|youtube|all] [account]` runs the data-collector role.
+- `/navaan-studio:recommend [instagram|youtube] [account] [--collect] [--no-web]` runs the growth-advisor role with the growth-advice skill: rules write findings, Claude researches the market on the web, stores sourced notes and writes at most 6 recommendations that each cite a finding or note.
+- Both are headless safe: they never ask questions, never write to Instagram or YouTube, and stop with a plain message on an auth error.
 - Organic growth only. Recommendations show in the portal with Done and Dismiss; Done ones are compared with later posts.
 - To schedule, create a Claude scheduled task on the computer that holds your workspace, for example weekly, with the prompt `/navaan-studio:recommend music --collect`. In Codex use the growth-advice skill by name.

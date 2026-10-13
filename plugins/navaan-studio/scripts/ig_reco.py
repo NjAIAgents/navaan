@@ -27,7 +27,7 @@ sys.path.insert(0, HERE)
 import analytics_db as db
 
 UTC = datetime.timezone.utc
-CATEGORIES = ("data", "hook", "content", "timing", "cadence", "hashtags", "caption", "engagement", "audience", "format", "market", "growth")
+CATEGORIES = ("data", "hook", "content", "timing", "cadence", "hashtags", "caption", "engagement", "audience", "format", "market", "growth", "retention", "packaging")
 SEVERITY_PRIORITY = {"high": 1, "medium": 2, "low": 3, "info": 3}
 THRESHOLDS = {
     "target_posts_per_week": 2,
@@ -136,7 +136,7 @@ def load(conn, uid, now):
     D["peers"] = db.rows(conn, "SELECT username, followers_count FROM peers WHERE last_fetched_at IS NOT NULL")
     D["peer_media"] = db.rows(conn, "SELECT username, caption, posted_at, like_count, comments_count FROM peer_media")
     D["tag_media"] = db.rows(conn, "SELECT hashtag, caption, like_count, comments_count FROM hashtag_media WHERE kind = 'top_media'")
-    D["notes"] = db.rows(conn, f"SELECT note_id, topic, summary, source_url, source_title, region, language, confidence, collected_at FROM market_notes WHERE expires_at IS NULL OR expires_at >= {db.PH} ORDER BY collected_at DESC", (now.strftime("%Y-%m-%dT%H:%M:%SZ"),))
+    D["notes"] = db.rows(conn, f"SELECT note_id, topic, summary, source_url, source_title, region, language, confidence, collected_at FROM market_notes WHERE (expires_at IS NULL OR expires_at >= {db.PH}) AND platform IN ('any', 'instagram') ORDER BY collected_at DESC", (now.strftime("%Y-%m-%dT%H:%M:%SZ"),))
     return D
 
 
@@ -445,7 +445,11 @@ def analyze(conn, uid, now=None):
     nowdt = parse_ts(now)
     T, tz = settings()
     D = load(conn, uid, nowdt)
-    found = run_rules(D, T, tz)
+    return analyze_with(conn, uid, run_rules(D, T, tz), advice, now)
+
+
+def analyze_with(conn, uid, found, adviser, now):
+    """Store findings (dicts from f()), resolve the ones that vanished, and write rule based recommendations. Shared by Instagram and YouTube."""
     ids = set()
     for fd in found:
         i = fid(uid, fd["rule_id"], fd["subject"])
@@ -459,7 +463,7 @@ def analyze(conn, uid, now=None):
             conn.execute(f"UPDATE findings SET status = 'resolved', resolved_at = {db.PH} WHERE finding_id = {db.PH}", (now, r["finding_id"]))
     made = 0
     for fd in found:
-        a = advice(fd)
+        a = adviser(fd)
         if not a:
             continue
         rid = "r-" + fid(fd["finding_id"])[:10]
@@ -481,7 +485,14 @@ def analyze(conn, uid, now=None):
     return {"findings": len(found), "open_recommendations": made, "by_severity": {s: len([x for x in found if x["severity"] == s]) for s in ("high", "medium", "low", "info")}}
 
 
+def is_youtube(conn, uid):
+    return bool(db.one(conn, f"SELECT 1 AS ok FROM yt_channels WHERE channel_id = {db.PH}", (uid,)))
+
+
 def metrics_snapshot(conn, uid, now, since=None):
+    if is_youtube(conn, uid):
+        import yt_reco
+        return yt_reco.metrics_snapshot(conn, uid, now, since)
     D = load(conn, uid, now)
     M = [p for p in D["measured"] if p["age"] is not None and p["age"] >= 3]
     if since:
@@ -520,14 +531,15 @@ def outcomes(conn, now=None):
     for r in db.rows(conn, "SELECT rec_id, ig_user_id, done_at, baseline_json FROM recommendations WHERE status = 'done' AND done_at IS NOT NULL"):
         base = json.loads(r["baseline_json"] or "{}")
         after = metrics_snapshot(conn, r["ig_user_id"], parse_ts(now), since=r["done_at"])
-        views, save = pct(after["median_views"], base.get("median_views")), pct(after["median_save_rate_pct"], base.get("median_save_rate_pct"))
+        second = "median_avg_view_pct" if "median_avg_view_pct" in after else "median_save_rate_pct"
+        views, save = pct(after["median_views"], base.get("median_views")), pct(after.get(second), base.get(second))
         fol = None if after["followers"] is None or base.get("followers") is None else after["followers"] - base["followers"]
         if after["posts"] < 2:
             verdict = "too early"
         else:
             moves = [x for x in (views, save) if x is not None]
             verdict = "improved" if moves and min(moves) >= 20 or (moves and sum(moves) / len(moves) >= 20) else "worse" if moves and sum(moves) / len(moves) <= -20 else "flat"
-        out = {"checked_at": now, "posts_after": after["posts"], "before": base, "after": after, "change_pct": {"median_views": views, "median_save_rate": save}, "followers_change": fol, "verdict": verdict,
+        out = {"checked_at": now, "posts_after": after["posts"], "before": base, "after": after, "change_pct": {"median_views": views, "median_save_rate" if second == "median_save_rate_pct" else "median_avg_view_pct": save}, "followers_change": fol, "verdict": verdict,
                "note": "Compares posts made after you marked this done with the 5 posts before. Few posts and other changes mean this is a hint, not proof."}
         conn.execute(f"UPDATE recommendations SET outcome_json = {db.PH} WHERE rec_id = {db.PH}", (json.dumps(out), r["rec_id"]))
         n += 1
@@ -535,7 +547,7 @@ def outcomes(conn, now=None):
     return n
 
 
-def add_notes(conn, topic, summary, url=None, title=None, region=None, language=None, confidence="medium", ttl_days=45, now=None):
+def add_notes(conn, topic, summary, url=None, title=None, region=None, language=None, confidence="medium", ttl_days=45, now=None, platform="any"):
     now = now or db.utcnow()
     if not topic or not summary:
         raise ValueError("topic and summary are required")
@@ -544,9 +556,11 @@ def add_notes(conn, topic, summary, url=None, title=None, region=None, language=
     if confidence not in ("low", "medium", "high"):
         raise ValueError("confidence must be low, medium or high")
     exp = (parse_ts(now) + datetime.timedelta(days=int(ttl_days))).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if platform not in ("any", "instagram", "youtube"):
+        raise ValueError("platform must be any, instagram or youtube")
     nid = "n-" + fid(topic.lower(), url)[:8]
     db.upsert(conn, "market_notes", {"note_id": nid, "topic": topic[:120], "summary": summary[:700], "source_url": url, "source_title": (title or "")[:160], "region": region, "language": language,
-                                     "confidence": confidence, "collected_at": now, "expires_at": exp}, ("note_id",))
+                                     "confidence": confidence, "collected_at": now, "expires_at": exp, "platform": platform}, ("note_id",))
     conn.commit()
     return nid
 
@@ -639,7 +653,12 @@ def pack(conn, uid, now=None):
 
 # ---------------------------------------------------------------- cli
 
-def targets(conn, account):
+def targets(conn, account, platform="instagram"):
+    if platform == "youtube":
+        rows = [r for r in db.rows(conn, "SELECT channel_id AS ig_user_id, label, title AS username FROM yt_channels ORDER BY CASE WHEN label = 'music' THEN 0 ELSE 1 END, label") if account in ("all", r["label"])]
+        if not rows:
+            sys.exit("navaan: no YouTube data yet. Run: python3 scripts/yt_collect.py collect")
+        return rows
     rows = account_rows(conn, account)
     if not rows:
         sys.exit("navaan: no analytics data yet. Run: python3 scripts/ig_collect.py collect")
@@ -648,8 +667,12 @@ def targets(conn, account):
 
 def cmd_analyze(a):
     conn = db.connect(a.db)
-    for r in targets(conn, a.account):
-        res = analyze(conn, r["ig_user_id"])
+    for r in targets(conn, a.account, a.platform):
+        if a.platform == "youtube":
+            import yt_reco
+            res = yt_reco.analyze(conn, r["ig_user_id"])
+        else:
+            res = analyze(conn, r["ig_user_id"])
         outcomes(conn)
         print(f"{r['label']}: {res['findings']} findings {json.dumps(res['by_severity'])}, recommendations refreshed {res['open_recommendations']}")
     try:
@@ -662,8 +685,12 @@ def cmd_analyze(a):
 
 def cmd_pack(a):
     conn = db.connect(a.db)
-    t = targets(conn, a.account)
-    data = [pack(conn, r["ig_user_id"]) for r in t]
+    t = targets(conn, a.account, a.platform)
+    if a.platform == "youtube":
+        import yt_reco
+        data = [yt_reco.pack(conn, r["ig_user_id"]) for r in t]
+    else:
+        data = [pack(conn, r["ig_user_id"]) for r in t]
     out = json.dumps(data[0] if len(data) == 1 else data, indent=2, ensure_ascii=False, default=str)
     if a.out:
         open(a.out, "w", encoding="utf-8").write(out)
@@ -675,14 +702,14 @@ def cmd_pack(a):
 def cmd_note(a):
     conn = db.connect(a.db)
     try:
-        print(add_notes(conn, a.topic, a.summary, a.url, a.title, a.region, a.language, a.confidence, a.ttl_days))
+        print(add_notes(conn, a.topic, a.summary, a.url, a.title, a.region, a.language, a.confidence, a.ttl_days, platform=a.note_platform))
     except ValueError as e:
         sys.exit(f"navaan: {e}")
 
 
 def cmd_add(a):
     conn = db.connect(a.db)
-    t = targets(conn, a.account)
+    t = targets(conn, a.account, a.platform)
     if len(t) != 1:
         sys.exit("navaan: add needs one account: pass --account music or --account inspiration")
     try:
@@ -695,7 +722,7 @@ def cmd_add(a):
 
 def cmd_list(a):
     conn = db.connect(a.db)
-    for r in targets(conn, a.account):
+    for r in targets(conn, a.account, a.platform):
         q = f"SELECT rec_id, source, priority, category, title, status, action FROM recommendations WHERE ig_user_id = {db.PH} AND status != 'superseded'" + ("" if a.status == "all" else f" AND status = {db.PH}") + " ORDER BY priority, updated_at DESC"
         for x in db.rows(conn, q, (r["ig_user_id"],) if a.status == "all" else (r["ig_user_id"], a.status)):
             print(f"[{x['rec_id']}] P{x['priority']} {x['category']:<10} {x['status']:<9} ({x['source']}) {x['title']}\n      {x['action']}")
@@ -717,11 +744,13 @@ def cmd_outcomes(a):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db")
+    ap.add_argument("--platform", default="instagram", choices=["instagram", "youtube"], help="which platform's data (default instagram)")
     sp = ap.add_subparsers(dest="cmd", required=True)
     s = sp.add_parser("analyze"); s.add_argument("--account", default="all"); s.set_defaults(fn=cmd_analyze)
     s = sp.add_parser("pack"); s.add_argument("--account", default="all"); s.add_argument("--out"); s.set_defaults(fn=cmd_pack)
     s = sp.add_parser("note"); s.add_argument("--topic", required=True); s.add_argument("--summary", required=True); s.add_argument("--url"); s.add_argument("--title")
-    s.add_argument("--region"); s.add_argument("--language"); s.add_argument("--confidence", default="medium"); s.add_argument("--ttl-days", type=int, default=45); s.set_defaults(fn=cmd_note)
+    s.add_argument("--region"); s.add_argument("--language"); s.add_argument("--confidence", default="medium"); s.add_argument("--ttl-days", type=int, default=45)
+    s.add_argument("--note-platform", default="any", choices=["any", "instagram", "youtube"], help="which board the note informs"); s.set_defaults(fn=cmd_note)
     s = sp.add_parser("add"); s.add_argument("--file", default="-"); s.add_argument("--account", default="music"); s.set_defaults(fn=cmd_add)
     s = sp.add_parser("list"); s.add_argument("--status", default="open", choices=["open", "done", "dismissed", "all"]); s.add_argument("--account", default="all"); s.set_defaults(fn=cmd_list)
     s = sp.add_parser("status"); s.add_argument("rec_id"); s.add_argument("new_status", choices=["open", "done", "dismissed"]); s.add_argument("--reason"); s.set_defaults(fn=cmd_status)

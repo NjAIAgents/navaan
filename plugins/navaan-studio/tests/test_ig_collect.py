@@ -283,7 +283,7 @@ class MarketTests(Base):
         self.assertGreater(self.count("hashtag_media"), 0)
 
     def test_schema_is_version_2(self):
-        self.assertEqual(db.one(self.conn, "SELECT MAX(version) AS v FROM schema_version")["v"], 2)
+        self.assertEqual(db.one(self.conn, "SELECT MAX(version) AS v FROM schema_version")["v"], 3)
 
 
 class DashboardApiTests(Base):

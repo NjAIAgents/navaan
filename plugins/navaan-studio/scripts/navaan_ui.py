@@ -4,7 +4,7 @@ import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
-import visuals_cfg as V, shots_prep
+import visuals_cfg as V, shots_prep, publish_schedule as PS, besttime
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
@@ -32,7 +32,7 @@ def song_row(s):
     tp = os.path.join(D, "title.txt")
     return {"slug": s, "type": C.item_type(m), "state": m.get("state"), "next": n, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "",
             "album": m.get("album", ""), "status": status, "steps_done": sum(1 for r in rows if r.get("done")), "steps_total": len(rows),
-            "public": public, "ig_enabled": ig_on, "published": public and (bool(pub.get("instagram")) or not ig_on), "private": bool(its) and not public, "instagram": bool(pub.get("instagram")), "instagram_url": (pub.get("instagram") or "") if str(pub.get("instagram") or "").startswith("http") else "", "archived": bool(cl.get("uploaded_at")),
+            "public": public, "scheduled": PS.status_text(m), "ig_enabled": ig_on, "published": public and (bool(pub.get("instagram")) or not ig_on), "private": bool(its) and not public, "instagram": bool(pub.get("instagram")), "instagram_url": (pub.get("instagram") or "") if str(pub.get("instagram") or "").startswith("http") else "", "archived": bool(cl.get("uploaded_at")),
             "verified": cl.get("verified"), "cleaned": bool(m.get("cleanup")), "youtube": (pub.get("youtube_items") or [{}])[0].get("url", ""),
             "audio": os.path.exists(os.path.join(D, "final.mp3")), "cover": os.path.exists(os.path.join(D, "cover_1x1.png")),
             "thumb_pending": bool(pub.get("thumbnail_pending")), "source": m.get("source", ""), "mtime": int(os.path.getmtime(os.path.join(D, "meta.json"))) if os.path.exists(os.path.join(D, "meta.json")) else 0}
@@ -136,6 +136,29 @@ class H(BaseHTTPRequestHandler):
                 q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
                 if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
                 return self._send(200, analytics_api.overview(acc, (q.get("days") or ["30"])[0]))
+            if p == "/api/analytics/youtube":
+                from urllib.parse import parse_qs, urlparse
+                q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
+                if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
+                return self._send(200, analytics_api.yt_overview(acc, (q.get("days") or ["30"])[0]))
+            if p == "/api/besttime":
+                from urllib.parse import parse_qs, urlparse
+                lab = (parse_qs(urlparse(self.path).query).get("type") or ["music"])[0]
+                if not analytics_api.ACCOUNT_OK.match(lab): return self._send(400, {"error": "bad type"})
+                return self._send(200, besttime.for_label(lab))
+            if p == "/api/schedule/options":
+                from urllib.parse import parse_qs, urlparse
+                ty = (parse_qs(urlparse(self.path).query).get("type") or ["music"])[0]; out = []
+                for s in songs():
+                    m = navaan.meta(s)
+                    if C.item_type(m) != ty or navaan.ig_done(m) or m.get("cleanup"): continue
+                    D = C.song_dir(s); ap = m.get("approvals", {}); tp = os.path.join(D, "title.txt")
+                    try: _, nx = navaan.plan(s)
+                    except SystemExit: continue
+                    out.append({"slug": s, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "", "next": nx.get("step") or "done", "public": navaan.public_done(m),
+                                "missing_gates": [g for g in ("go_public", "instagram_caption", "publish_instagram") if not navaan.gate_ok(D, ap, g)],
+                                "schedule": PS.status_text(m)})
+                return self._send(200, {"songs": out})
             if p == "/api/analytics/song":
                 from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); sl = (q.get("slug") or [""])[0]
@@ -180,17 +203,30 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/analytics/link":
                 try: analytics_api.link_post(str(body.get("media_id") or ""), str(body.get("slug") or "")); return self._send(200, {"ok": True})
                 except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/link-video":
+                try: analytics_api.link_video(str(body.get("video_id") or ""), str(body.get("slug") or "")); return self._send(200, {"ok": True})
+                except ValueError as e: return self._send(400, {"error": str(e)})
             if p == "/api/analytics/analyze":
-                try: return self._send(200, {"results": analytics_api.analyze_now(str(body.get("account") or "all"))})
+                try: return self._send(200, {"results": analytics_api.analyze_now(str(body.get("account") or "all"), platform=str(body.get("platform") or "instagram"))})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p == "/api/analytics/ask":
-                try: return self._send(200, {"started": analytics_api.start_ask(str(body.get("account") or "all"))})
+                try: return self._send(200, {"started": analytics_api.start_ask(str(body.get("account") or "all"), str(body.get("platform") or "instagram"))})
                 except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/implement":
+                try: return self._send(200, analytics_api.implement_rec(str(body.get("id") or "")))
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/schedule/set":
+                if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
+                try: return self._send(200, {"ok": True, "schedule": PS.set_schedule(slug, str(body.get("instagram_at") or ""), body.get("youtube_at") or None)})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/schedule/clear":
+                if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
+                PS.clear(slug); return self._send(200, {"ok": True})
             if p == "/api/analytics/rec":
                 try: analytics_api.set_rec_status(str(body.get("id") or ""), str(body.get("status") or ""), body.get("reason")); return self._send(200, {"ok": True})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p == "/api/analytics/collect":
-                try: return self._send(200, {"started": analytics_api.start_collect(str(body.get("account") or "all"))})
+                try: return self._send(200, {"started": analytics_api.start_collect(str(body.get("account") or "all"), str(body.get("platform") or "instagram"))})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p.startswith("/api/settings/"):
                 act = p.rsplit("/", 1)[1]; ct = str(body.get("type") or "music")
@@ -281,7 +317,18 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
 
+def _fire(slug, sid):
+    """A scheduled step starts: show it as a running job in the portal, like a click on Run."""
+    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None)
+    try: rc = navaan.run(slug, step=sid)
+    except SystemExit: rc = 1
+    except Exception: rc = 1
+    JOBS[slug] = {"running": False, "rc": rc}
+    return rc
+
+
 def serve(port=8765):
+    threading.Thread(target=PS.loop, args=(_fire, lambda s: JOBS.get(s, {}).get("running")), daemon=True).start()  # publishes what you scheduled, once its gates are approved
     srv = ThreadingHTTPServer(("127.0.0.1", port), H)
     print(f"NAVAAN Studio UI: http://127.0.0.1:{port}  (project {C.find_root()})  Ctrl+C to stop", flush=True)
     try: srv.serve_forever()

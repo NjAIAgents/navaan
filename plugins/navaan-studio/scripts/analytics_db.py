@@ -10,7 +10,7 @@ import os, re, sqlite3, datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMA_FILE = os.path.join(HERE, "analytics_schema.sql")
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 PH = "?"  # DB-API placeholder. Postgres drivers use %s.
 
 
@@ -41,9 +41,21 @@ def _statements(sql):
     return [s.strip() for s in sql.split(";") if s.strip()]
 
 
+# Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS cannot add them to an existing database. (table, column, definition)
+ADDED_COLUMNS = (("market_notes", "platform", "TEXT NOT NULL DEFAULT 'any'"),)
+
+
+def ensure_columns(conn):
+    for table, col, ddl in ADDED_COLUMNS:
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}   # SQLite only: Postgres uses information_schema.columns
+        if col not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+
+
 def migrate(conn):
     for s in _statements(open(SCHEMA_FILE, encoding="utf-8").read()):
         conn.execute(s)
+    ensure_columns(conn)
     conn.execute(f"INSERT INTO schema_version (version, applied_at) SELECT {PH}, {PH} "
                  f"WHERE NOT EXISTS (SELECT 1 FROM schema_version WHERE version = {PH})", (SCHEMA_VERSION, utcnow(), SCHEMA_VERSION))
     conn.commit()

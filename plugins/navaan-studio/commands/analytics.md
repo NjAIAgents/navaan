@@ -9,7 +9,9 @@ Follow the analytics-loop skill using the analyst role. Say what the numbers sup
 
 Arguments: $ARGUMENTS
 
-Instagram growth advice: `/navaan-studio:recommend` (rules, market research, sourced recommendations). Collection alone: `/navaan-studio:collect`. Both can be scheduled.
+Growth advice: `/navaan-studio:recommend instagram|youtube` (rules, market research, sourced recommendations). Collection alone: `/navaan-studio:collect instagram|youtube|all`. Both can be scheduled.
+
+YouTube collector (read only): `python3 scripts/yt_collect.py collect [--account music] [--only channel,videos,comments,analytics,retention]`, `status`, `link`, and `auth` once for the read only analytics sign-in (watch time, retention, traffic, audience). Tables: `yt_videos`, `yt_snapshots`, `yt_daily`, `yt_traffic`, `yt_audience`, `yt_retention`, `yt_comments`, `yt_runs`. Recommendations use `ig_reco.py --platform youtube`.
 
 Instagram data collector (read only, fills a local SQLite database that the portal's Analytics page reads):
 

@@ -9,6 +9,17 @@ import analytics_db as db
 HERE = os.path.dirname(os.path.abspath(__file__))
 COLLECT = {"running": False, "account": None, "rc": None, "tail": "", "started": 0, "finished": 0}
 ASK = {"running": False, "account": None, "rc": None, "tail": "", "started": 0, "finished": 0}
+YT_COLLECT = {"running": False, "account": None, "rc": None, "tail": "", "started": 0, "finished": 0}
+YT_ASK = {"running": False, "account": None, "rc": None, "tail": "", "started": 0, "finished": 0}
+PLATFORMS = ("instagram", "youtube")
+VIDEO_OK = re.compile(r"^[A-Za-z0-9_-]{2,20}$")
+
+
+def _state(platform):
+    """(collect state, ask state) for a platform. Each platform runs its own collector and advisor at the same time."""
+    if platform not in PLATFORMS:
+        raise ValueError("platform must be instagram or youtube")
+    return (YT_COLLECT, YT_ASK) if platform == "youtube" else (COLLECT, ASK)
 ASK_TOOLS = ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Bash(python3:*)", "Bash(python:*)", "Bash(ls:*)", "Bash(cat:*)"]
 ACCOUNT_OK = re.compile(r"^(all|[a-z0-9_-]{1,30})$")
 SLUG_OK = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
@@ -95,7 +106,11 @@ def overview(account="all", days=30, db_file=None):
         peers = peer_block(conn, uids)
         try: hashtags = hashtag_block(conn, uids)
         except Exception as e: hashtags = {"error": str(e)[:200]}
-        return {"empty": False, "reco": reco, "peers": peers, "hashtags": hashtags, "accounts": accounts, "account": account, "days": days, "kpis": kpis,
+        try:
+            import besttime
+            bt = {a["label"]: besttime.analyze(conn, a["label"]) for a in sel}
+        except Exception as e: bt = {"error": str(e)[:200]}
+        return {"empty": False, "reco": reco, "peers": peers, "hashtags": hashtags, "besttime": bt, "accounts": accounts, "account": account, "days": days, "kpis": kpis,
                 "series": {"followers": followers, "views": series("views"), "reach": series("reach"), "interactions": series("total_interactions")},
                 "posts": posts, "patterns": patterns, "waiting": waiting, "audience": aud, "hours": hours, "runs": runs,
                 "db": db.db_path(db_file), "collect": dict(COLLECT)}
@@ -161,13 +176,17 @@ def song_view(slug, db_file=None):
             for u in unlinked:
                 u["caption"] = (u["caption"] or "").strip().splitlines()[0][:70] if (u["caption"] or "").strip() else ""
         tot = {k: sum((p[k] or 0) for p in posts) for k in ("views", "reach", "saved", "shares", "like_count", "comments_count")}
-        return {"empty": False, "slug": slug, "posts": posts, "totals": tot, "unlinked": unlinked, "collect": dict(COLLECT)}
+        try:
+            yt = yt_song(conn, slug)
+        except Exception:
+            yt = {"videos": [], "unlinked": [], "totals": {}}
+        return {"empty": False, "slug": slug, "posts": posts, "totals": tot, "unlinked": unlinked, "youtube": yt, "collect": dict(COLLECT), "yt_collect": dict(YT_COLLECT)}
     finally:
         conn.close()
 
 
 def by_song(db_file=None):
-    """{slug: {posts, views, reach, saved, likes}} from the latest snapshot of every linked post. Empty dict when there is no database."""
+    """{slug: {posts, views, reach, saved, likes, yt_videos, yt_views}} from the latest snapshot of every linked post and video. Empty dict when there is no database."""
     try:
         conn = db.connect(db_file, readonly=True)
     except Exception:
@@ -180,6 +199,13 @@ def by_song(db_file=None):
             FROM media m LEFT JOIN media_snapshots sn ON sn.media_id = m.media_id AND sn.captured_at = (SELECT MAX(captured_at) FROM media_snapshots WHERE media_id = m.media_id)
             WHERE m.slug IS NOT NULL AND m.deleted_at IS NULL GROUP BY m.slug"""):
             out[r.pop("slug")] = r
+        try:
+            for r in db.rows(conn, f"""SELECT v.slug, COUNT(*) AS videos, SUM(sn.views) AS views FROM yt_videos v {LATEST_YT}
+                WHERE v.slug IS NOT NULL AND v.deleted_at IS NULL GROUP BY v.slug"""):
+                e = out.setdefault(r["slug"], {"posts": 0, "views": None, "reach": None, "saved": None, "likes": None})
+                e["yt_videos"], e["yt_views"] = r["videos"], r["views"]
+        except Exception:
+            pass
         return out
     finally:
         conn.close()
@@ -198,6 +224,164 @@ def link_post(media_id, slug, db_file=None):
         if slug:
             conn.execute(f"INSERT INTO songs (slug, updated_at) VALUES ({db.PH}, {db.PH}) ON CONFLICT (slug) DO NOTHING", (slug, db.utcnow()))
         conn.execute(f"UPDATE media SET slug = {db.PH} WHERE media_id = {db.PH}", (slug or None, media_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+LATEST_YT = ("LEFT JOIN yt_snapshots sn ON sn.video_id = v.video_id AND sn.captured_at = "
+             "(SELECT MAX(captured_at) FROM yt_snapshots WHERE video_id = v.video_id)")
+SNAP_COLS = "sn.captured_at, sn.views, sn.likes, sn.comments, sn.minutes_watched, sn.avg_view_s, sn.avg_view_pct, sn.subs_gained, sn.subs_lost, sn.shares"
+
+
+def yt_url(video_id, kind):
+    return f"https://www.youtube.com/shorts/{video_id}" if kind == "short" else f"https://www.youtube.com/watch?v={video_id}"
+
+
+def yt_overview(account="all", days=30, db_file=None):
+    """Everything the YouTube tab of the Analytics page shows, built from the tables yt_collect.py fills."""
+    days = max(1, min(int(days or 30), 365))
+    collect = dict(YT_COLLECT)
+    try:
+        conn = db.connect(db_file, readonly=True)
+    except Exception as e:
+        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.db_path(db_file), "collect": collect}
+    if conn is None:
+        return {"empty": True, "reason": "no_database", "db": db.db_path(db_file), "collect": collect}
+    try:
+        try:
+            channels = db.rows(conn, "SELECT channel_id, label, title, handle, last_collected_at, analytics_ok FROM yt_channels ORDER BY CASE WHEN label = 'music' THEN 0 ELSE 1 END, label")
+        except Exception:
+            channels = []
+        if not channels:
+            return {"empty": True, "reason": "no_data", "db": db.db_path(db_file), "collect": collect}
+        sel = [c for c in channels if account in ("all", c["label"])] or channels
+        cids = [c["channel_id"] for c in sel]
+        marks = _in(len(cids))
+        start = time.strftime("%Y-%m-%d", time.gmtime(time.time() - days * 86400))
+
+        def series(metric):
+            return [[r["d"], r["v"]] for r in db.rows(conn, f"SELECT period_end AS d, SUM(value) AS v FROM yt_daily WHERE metric = {db.PH} "
+                                                          f"AND channel_id IN ({marks}) AND period_end >= {db.PH} GROUP BY period_end ORDER BY period_end", [metric, *cids, start])]
+        subs, views, minutes, gained = series("subscribers_count"), series("views"), series("minutes_watched"), series("subs_gained")
+        lost = series("subs_lost")
+        total = lambda xs: round(sum(v or 0 for _, v in xs), 1) if xs else None
+        waiting_n = db.one(conn, f"SELECT COUNT(*) AS n FROM yt_comments c WHERE c.parent_id IS NULL AND c.is_own = 0 AND c.video_id IN "
+                                 f"(SELECT video_id FROM yt_videos WHERE channel_id IN ({marks})) AND NOT EXISTS "
+                                 f"(SELECT 1 FROM yt_comments r WHERE r.parent_id = c.comment_id AND r.is_own = 1)", cids)["n"]
+        kpis = {"subscribers": subs[-1][1] if subs else None, "subscribers_change": (subs[-1][1] - subs[0][1]) if len(subs) > 1 else None,
+                "views": total(views), "watch_hours": None if not minutes else round(total(minutes) / 60.0, 1),
+                "subs_gained": total(gained), "subs_net": None if not gained else round((total(gained) or 0) - (total(lost) or 0)), "waiting": waiting_n}
+        videos = db.rows(conn, f"""SELECT v.video_id, v.channel_id, v.slug, v.kind, v.title, v.published_at, v.duration_s, v.privacy, c.label AS account, s.title AS song, s.language, s.genre, {SNAP_COLS}
+            FROM yt_videos v JOIN yt_channels c ON c.channel_id = v.channel_id LEFT JOIN songs s ON s.slug = v.slug {LATEST_YT}
+            WHERE v.deleted_at IS NULL AND v.channel_id IN ({marks}) ORDER BY v.published_at DESC LIMIT 100""", cids)
+        for v in videos:
+            v["name"] = v["song"] or v["title"] or v["video_id"]
+            v["url"] = yt_url(v["video_id"], v["kind"])
+            v["subs_per_1000"] = None if v["subs_gained"] is None or not v["views"] else round(1000.0 * v["subs_gained"] / v["views"], 2)
+            v["trend"] = [r["views"] for r in db.rows(conn, f"SELECT views FROM yt_snapshots WHERE video_id = {db.PH} AND views IS NOT NULL ORDER BY captured_at DESC LIMIT 12", (v["video_id"],))][::-1]
+        patterns = {}
+        for key in ("language", "genre", "kind"):
+            groups = {}
+            for v in videos:
+                if v["views"] is not None and v.get(key) and v["privacy"] == "public":
+                    groups.setdefault(v[key], []).append(v)
+            patterns[key] = sorted(({"name": k, "videos": len(g), "avg_views": round(sum(x["views"] for x in g) / len(g)),
+                                     "avg_view_pct": (lambda ps: round(sum(ps) / len(ps), 1) if ps else None)([x["avg_view_pct"] for x in g if x["avg_view_pct"] is not None])}
+                                    for k, g in groups.items()), key=lambda r: -r["avg_views"])
+        traffic = db.rows(conn, f"""SELECT source, SUM(views) AS views, SUM(minutes) AS minutes FROM yt_traffic t WHERE channel_id IN ({marks})
+            AND captured_on = (SELECT MAX(captured_on) FROM yt_traffic q WHERE q.channel_id = t.channel_id) GROUP BY source ORDER BY views DESC""", cids)
+        aud = {}
+        for r in db.rows(conn, f"""SELECT breakdown, bucket, SUM(value) AS v FROM yt_audience a WHERE channel_id IN ({marks})
+            AND captured_on = (SELECT MAX(captured_on) FROM yt_audience b WHERE b.channel_id = a.channel_id AND b.breakdown = a.breakdown)
+            GROUP BY breakdown, bucket ORDER BY v DESC""", cids):
+            aud.setdefault(r["breakdown"], []).append([r["bucket"], r["v"]])
+        retention, names = [], {v["video_id"]: v for v in videos}
+        for vid in [v["video_id"] for v in sorted(videos, key=lambda x: -(x["views"] or 0))]:
+            pts = db.rows(conn, f"""SELECT ratio, watch_ratio FROM yt_retention WHERE video_id = {db.PH}
+                AND captured_on = (SELECT MAX(captured_on) FROM yt_retention WHERE video_id = {db.PH}) ORDER BY ratio""", (vid, vid))
+            if pts:
+                retention.append({"video_id": vid, "name": names[vid]["name"], "kind": names[vid]["kind"], "points": [[p["ratio"], p["watch_ratio"]] for p in pts]})
+            if len(retention) >= 4:
+                break
+        waiting = db.rows(conn, f"""SELECT c.comment_id, c.username, c.text, c.posted_at, v.video_id, v.kind, COALESCE(s.title, v.title, v.video_id) AS video
+            FROM yt_comments c JOIN yt_videos v ON v.video_id = c.video_id LEFT JOIN songs s ON s.slug = v.slug
+            WHERE c.parent_id IS NULL AND c.is_own = 0 AND v.channel_id IN ({marks})
+            AND NOT EXISTS (SELECT 1 FROM yt_comments r WHERE r.parent_id = c.comment_id AND r.is_own = 1) ORDER BY c.posted_at DESC LIMIT 8""", cids)
+        for w in waiting:
+            w["url"] = yt_url(w["video_id"], w["kind"])
+        runs = db.rows(conn, f"""SELECT r.started_at, r.finished_at, r.status, r.stats_json, r.errors_json, c.label FROM yt_runs r
+            LEFT JOIN yt_channels c ON c.channel_id = r.channel_id WHERE r.channel_id IN ({marks}) ORDER BY r.started_at DESC LIMIT 6""", cids)
+        for r in runs:
+            r["stats"] = json.loads(r.pop("stats_json") or "{}")
+            errs = json.loads(r.pop("errors_json") or "[]")
+            r["errors"] = len(errs)
+            r["first_error"] = (errs[0]["where"] + ": " + errs[0]["error"])[:200] if errs else ""
+        return {"empty": False, "reco": recommendations(conn, cids, "youtube"), "accounts": channels, "account": account, "days": days, "kpis": kpis,
+                "analytics_ok": all(c["analytics_ok"] for c in sel),
+                "series": {"subscribers": subs, "views": views, "watch_hours": [[d, round((v or 0) / 60.0, 1)] for d, v in minutes], "subs_gained": gained},
+                "videos": videos, "patterns": patterns, "traffic": traffic, "audience": aud, "retention": retention, "waiting": waiting, "runs": runs,
+                "db": db.db_path(db_file), "collect": dict(YT_COLLECT)}
+    finally:
+        conn.close()
+
+
+def yt_song(conn, slug):
+    """YouTube numbers for one song: every video linked to it with history, retention, comparison with the channel's same kind of video, comments, findings."""
+    vids = db.rows(conn, f"""SELECT v.video_id, v.channel_id, v.kind, v.title, v.published_at, v.duration_s, v.privacy, c.label AS account, c.title AS channel, {SNAP_COLS}
+        FROM yt_videos v JOIN yt_channels c ON c.channel_id = v.channel_id {LATEST_YT}
+        WHERE v.slug = {db.PH} AND v.deleted_at IS NULL ORDER BY v.published_at""", (slug,))
+    for v in vids:
+        vid, cid = v["video_id"], v["channel_id"]
+        peers = db.rows(conn, f"""SELECT sn.views, sn.avg_view_pct, sn.avg_view_s, sn.subs_gained FROM yt_videos x JOIN yt_snapshots sn ON sn.video_id = x.video_id
+            AND sn.captured_at = (SELECT MAX(captured_at) FROM yt_snapshots WHERE video_id = x.video_id)
+            WHERE x.channel_id = {db.PH} AND x.kind = {db.PH} AND x.privacy = 'public' AND x.deleted_at IS NULL AND x.video_id != {db.PH} AND sn.views IS NOT NULL""", (cid, v["kind"], vid))
+        med_v, med_p = _median([r["views"] for r in peers]), _median([r["avg_view_pct"] for r in peers])
+        better = len([r for r in peers if v["views"] is not None and r["views"] > v["views"]])
+        v["url"] = yt_url(vid, v["kind"])
+        v["subs_per_1000"] = None if v["subs_gained"] is None or not v["views"] else round(1000.0 * v["subs_gained"] / v["views"], 2)
+        v["compare"] = {"same_kind_videos": len(peers) + (1 if v["views"] is not None else 0), "views_rank": (better + 1) if v["views"] is not None else None,
+                        "median_views": med_v, "views_vs_median": round(v["views"] / med_v, 2) if v["views"] is not None and med_v else None,
+                        "median_avg_view_pct": None if med_p is None else round(med_p, 1)}
+        v["history"] = db.rows(conn, f"SELECT captured_at, views, likes, comments, minutes_watched, avg_view_pct FROM yt_snapshots WHERE video_id = {db.PH} ORDER BY captured_at", (vid,))[-60:]
+        v["retention"] = [[r["ratio"], r["watch_ratio"]] for r in db.rows(conn, f"""SELECT ratio, watch_ratio FROM yt_retention WHERE video_id = {db.PH}
+            AND captured_on = (SELECT MAX(captured_on) FROM yt_retention WHERE video_id = {db.PH}) ORDER BY ratio""", (vid, vid))]
+        v["comments_waiting"] = db.rows(conn, f"""SELECT c.username, c.text, c.posted_at FROM yt_comments c WHERE c.video_id = {db.PH} AND c.parent_id IS NULL AND c.is_own = 0
+            AND NOT EXISTS (SELECT 1 FROM yt_comments r WHERE r.parent_id = c.comment_id AND r.is_own = 1) ORDER BY c.posted_at DESC LIMIT 5""", (vid,))
+        v["comments_total"] = db.one(conn, f"SELECT COUNT(*) AS n FROM yt_comments WHERE video_id = {db.PH} AND is_own = 0", (vid,))["n"]
+        try:
+            fs = db.rows(conn, f"SELECT finding_id, rule_id, severity, title, detail FROM findings WHERE subject = {db.PH} AND status = 'open'", (vid,))
+            ids = {f["finding_id"] for f in fs}
+            recs = [r for r in db.rows(conn, f"SELECT rec_id, priority, title, action, status, finding_ids FROM recommendations WHERE ig_user_id = {db.PH} AND status IN ('open','done')", (cid,))
+                    if ids & set(json.loads(r["finding_ids"] or "[]"))]
+            for r in recs:
+                r.pop("finding_ids")
+            v["findings"], v["recommendations"] = fs, recs
+        except Exception:
+            v["findings"], v["recommendations"] = [], []
+    unlinked = []
+    if not vids:
+        unlinked = db.rows(conn, f"""SELECT v.video_id, v.kind, v.title, v.published_at, c.label AS account FROM yt_videos v JOIN yt_channels c ON c.channel_id = v.channel_id
+            WHERE v.slug IS NULL AND v.deleted_at IS NULL ORDER BY v.published_at DESC LIMIT 25""")
+        for u in unlinked:
+            u["url"] = yt_url(u["video_id"], u["kind"])
+    tot = {k: sum((v[k] or 0) for v in vids) for k in ("views", "likes", "comments", "minutes_watched", "subs_gained")}
+    return {"videos": vids, "unlinked": unlinked, "totals": tot}
+
+
+def link_video(video_id, slug, db_file=None):
+    """Tie a YouTube video to a song or short by hand (slug empty to unlink). Survives later collects."""
+    if not VIDEO_OK.match(video_id or ""):
+        raise ValueError("bad video id")
+    if slug and not SLUG_OK.match(slug):
+        raise ValueError("bad slug")
+    conn = db.connect(db_file)
+    try:
+        if not db.one(conn, f"SELECT 1 AS ok FROM yt_videos WHERE video_id = {db.PH}", (video_id,)):
+            raise ValueError("no such video in the database")
+        if slug:
+            conn.execute(f"INSERT INTO songs (slug, updated_at) VALUES ({db.PH}, {db.PH}) ON CONFLICT (slug) DO NOTHING", (slug, db.utcnow()))
+        conn.execute(f"UPDATE yt_videos SET slug = {db.PH} WHERE video_id = {db.PH}", (slug or None, video_id))
         conn.commit()
     finally:
         conn.close()
@@ -314,20 +498,22 @@ def peer_block(conn, uids):
     return {"rows": rows, "own": own}
 
 
-def recommendations(conn, uids):
+def recommendations(conn, uids, platform="instagram"):
     """Open, done and dismissed recommendations with the findings and market notes they cite. Empty lists when the advisor has not run."""
     marks = _in(len(uids))
+    ask_state = _state(platform)[1]
+    owners = "yt_channels a ON a.channel_id" if platform == "youtube" else "accounts a ON a.ig_user_id"
     try:
         recs = db.rows(conn, f"""SELECT r.rec_id, r.source, r.priority, r.category, r.title, r.why, r.action, r.expected_effect, r.confidence, r.status, r.finding_ids, r.note_ids,
-            r.created_at, r.updated_at, r.done_at, r.dismissed_reason, r.outcome_json, a.label AS account FROM recommendations r JOIN accounts a ON a.ig_user_id = r.ig_user_id
+            r.created_at, r.updated_at, r.done_at, r.dismissed_reason, r.outcome_json, a.label AS account FROM recommendations r JOIN {owners} = r.ig_user_id
             WHERE r.ig_user_id IN ({marks}) AND r.status != 'superseded' ORDER BY r.priority, r.updated_at DESC""", uids)
         finds = {r["finding_id"]: r for r in db.rows(conn, f"SELECT finding_id, title, severity, status FROM findings WHERE ig_user_id IN ({marks})", uids)}
-        notes = {r["note_id"]: r for r in db.rows(conn, "SELECT note_id, topic, summary, source_url, source_title, collected_at FROM market_notes")}
+        notes = {r["note_id"]: r for r in db.rows(conn, f"SELECT note_id, topic, summary, source_url, source_title, collected_at FROM market_notes WHERE platform IN ('any', {db.PH})", (platform,))}
         last = db.one(conn, f"SELECT MAX(last_seen_at) AS t FROM findings WHERE ig_user_id IN ({marks})", uids)["t"]
         open_findings = db.one(conn, f"SELECT COUNT(*) AS n FROM findings WHERE ig_user_id IN ({marks}) AND status = 'open'", uids)["n"]
-        fresh_notes = db.one(conn, "SELECT COUNT(*) AS n FROM market_notes")["n"]
+        fresh_notes = db.one(conn, f"SELECT COUNT(*) AS n FROM market_notes WHERE platform IN ('any', {db.PH})", (platform,))["n"]
     except Exception:
-        return {"ready": False, "open": [], "done": [], "dismissed": [], "findings": 0, "notes": 0, "analyzed_at": None, "ask": dict(ASK)}
+        return {"ready": False, "open": [], "done": [], "dismissed": [], "findings": 0, "notes": 0, "analyzed_at": None, "ask": dict(ask_state)}
     out = {"open": [], "done": [], "dismissed": []}
     for r in recs:
         r["outcome"] = json.loads(r.pop("outcome_json") or "null")
@@ -335,16 +521,25 @@ def recommendations(conn, uids):
         r["sources"] = [{"topic": notes[i]["topic"], "summary": notes[i]["summary"], "url": notes[i]["source_url"], "title": notes[i]["source_title"]} for i in json.loads(r.pop("note_ids") or "[]") if i in notes]
         out.get(r["status"], out["open"]).append(r)
     out["done"], out["dismissed"] = out["done"][:20], out["dismissed"][:20]
-    return {"ready": True, **out, "findings": open_findings, "notes": fresh_notes, "analyzed_at": last, "ask": dict(ASK)}
+    return {"ready": True, **out, "findings": open_findings, "notes": fresh_notes, "analyzed_at": last, "ask": dict(ask_state)}
 
 
-def analyze_now(account="all", db_file=None):
+def analyze_now(account="all", db_file=None, platform="instagram"):
     """Run the rules in this process (fast, offline). Returns one summary line per account."""
     import ig_reco
     if not ACCOUNT_OK.match(account or ""):
         raise ValueError("bad account name")
+    _state(platform)
     conn = db.connect(db_file)
     try:
+        if platform == "youtube":
+            import yt_reco
+            rows = [r for r in db.rows(conn, "SELECT channel_id, label FROM yt_channels ORDER BY CASE WHEN label = 'music' THEN 0 ELSE 1 END, label") if account in ("all", r["label"])]
+            if not rows:
+                raise ValueError("no YouTube data yet: press Collect now first")
+            res = [dict(label=r["label"], **yt_reco.analyze(conn, r["channel_id"])) for r in rows]
+            ig_reco.outcomes(conn)
+            return res
         rows = ig_reco.account_rows(conn, account)
         if not rows:
             raise ValueError("no analytics data yet: press Collect now first")
@@ -366,55 +561,116 @@ def set_rec_status(rec_id, status, reason=None, db_file=None):
         ig_reco.set_status(conn, rec_id, status, (reason or "")[:300] or None)
     finally:
         conn.close()
+    if status != "done": _rules_remove(rec_id)  # reopened or dismissed: the standing rule it created goes away
 
 
-def ask_prompt(account):
+def rules_path():
+    import navaan_common as C
+    return os.path.join(os.path.dirname(C.songs_root()), "standing_rules.json")
+
+
+def _rules_load():
+    try: return json.load(open(rules_path(), encoding="utf-8"))
+    except Exception: return []
+
+
+def _rules_save(rules):
+    json.dump(rules, open(rules_path(), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+
+
+def _rules_remove(rec_id):
+    rules = _rules_load()
+    keep = [r for r in rules if r.get("rec_id") != rec_id]
+    if len(keep) != len(rules): _rules_save(keep)
+
+
+def implement_rec(rec_id, db_file=None):
+    """Put a recommendation to work from the Analytics page. Timing: the portal opens the schedule picker. Hashtags: the tag file is refreshed.
+    Everything else becomes a standing rule in standing_rules.json, which the caption, YouTube text and director steps read for every new item.
+    The recommendation is marked done (which also starts its before and after measurement) except timing, which is marked done once a time is scheduled."""
+    import ig_reco, datetime
+    if not re.match(r"^[rc]-[0-9a-f]{6,12}$", rec_id or ""):
+        raise ValueError("bad recommendation id")
+    conn = db.connect(db_file)
+    try:
+        r = db.one(conn, f"""SELECT r.rec_id, r.category, r.title, r.action, r.ig_user_id, COALESCE(a.label, y.label) AS label, CASE WHEN y.channel_id IS NULL THEN 'instagram' ELSE 'youtube' END AS platform
+            FROM recommendations r LEFT JOIN accounts a ON a.ig_user_id = r.ig_user_id LEFT JOIN yt_channels y ON y.channel_id = r.ig_user_id WHERE r.rec_id = {db.PH}""", (rec_id,))
+        if not r: raise ValueError("no such recommendation")
+        if r["category"] == "timing": return {"kind": "schedule", "type": r["label"]}
+        if r["category"] == "hashtags" and r["platform"] == "instagram":
+            uids = [x["ig_user_id"] for x in db.rows(conn, "SELECT ig_user_id FROM accounts")]
+            try: hashtag_block(conn, uids, write=True)
+            except Exception: pass
+        rules = [x for x in _rules_load() if x.get("rec_id") != rec_id]
+        rules.append({"rec_id": rec_id, "account": r["label"], "platform": r["platform"], "category": r["category"], "title": r["title"], "action": r["action"],
+                      "applied_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+        _rules_save(rules)
+        ig_reco.set_status(conn, rec_id, "done")
+    finally:
+        conn.close()
+    msg = {"hashtags": "Done. hashtags.json is refreshed and every new caption now takes two of the peer tags.",
+           "cadence": "Saved as a standing rule. Use Schedule publishing on your next songs to keep the pace."}.get(r["category"],
+           "Saved as a standing rule. The caption, YouTube text and shot list steps follow it for every new item. Reopen the recommendation to remove it.")
+    return {"kind": "rule", "message": msg}
+
+
+def ask_prompt(account, platform="instagram"):
+    scope = "all accounts" if account == "all" else f"the {account} account"
+    if platform == "youtube":
+        return (f"Use the growth-advice skill of the navaan-studio plugin for the YouTube channel of {scope}. Pass --platform youtube to every scripts/ig_reco.py call "
+                "and --note-platform youtube when you store market notes. Do not run a new collect unless the data is more than a day old. "
+                "You run headless: nobody can answer you, never ask a question, state any assumption and continue. Organic growth only. "
+                "Impressions and click through rate are not available from the API, so do not guess them. "
+                "Never write to YouTube, never touch meta.json approvals. Store sourced market notes and at most 6 recommendations through scripts/ig_reco.py, then give a short summary.")
     scope = "both accounts" if account == "all" else f"the {account} account"
     return (f"Use the growth-advice skill of the navaan-studio plugin for {scope}. Do not run a new collect unless the data is more than a day old. "
             "You run headless: nobody can answer you, never ask a question, state any assumption and continue. Organic growth only. "
             "Never write to Instagram, never touch meta.json approvals. Store sourced market notes and at most 6 recommendations through scripts/ig_reco.py, then give a short summary.")
 
 
-def start_ask(account="all"):
-    """Start a headless Claude run that researches the market and writes recommendations. Returns False when one is already going."""
+def start_ask(account="all", platform="instagram"):
+    """Start a headless Claude run that researches the market and writes recommendations. Returns False when one is already going on that platform."""
     import shlex
     if not ACCOUNT_OK.match(account or ""):
         raise ValueError("bad account name")
-    if ASK["running"]:
+    ask = _state(platform)[1]
+    if ask["running"]:
         return False
     base = shlex.split(os.environ.get("NAVAAN_CLAUDE_CMD", "claude -p"))
     flags = shlex.split(os.environ["NAVAAN_CLAUDE_FLAGS"]) if "NAVAAN_CLAUDE_FLAGS" in os.environ else ["--permission-mode", "acceptEdits", "--allowedTools", ",".join(ASK_TOOLS)]
-    cmd = base + [ask_prompt(account)] + flags
-    ASK.update(running=True, account=account, rc=None, tail="", started=int(time.time()), finished=0)
+    cmd = base + [ask_prompt(account, platform)] + flags
+    ask.update(running=True, account=account, rc=None, tail="", started=int(time.time()), finished=0)
 
     def work():
         try:
             p = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=os.environ.get("NAVAAN_ROOT") or os.getcwd())
-            ASK.update(rc=p.returncode, tail=((p.stdout or "") + (p.stderr or "")).strip()[-1800:])
+            ask.update(rc=p.returncode, tail=((p.stdout or "") + (p.stderr or "")).strip()[-1800:])
         except FileNotFoundError:
-            ASK.update(rc=127, tail="The claude command was not found. Install Claude Code, or set NAVAAN_CLAUDE_CMD.")
+            ask.update(rc=127, tail="The claude command was not found. Install Claude Code, or set NAVAAN_CLAUDE_CMD.")
         except Exception as e:
-            ASK.update(rc=2, tail=str(e)[:500])
-        ASK.update(running=False, finished=int(time.time()))
+            ask.update(rc=2, tail=str(e)[:500])
+        ask.update(running=False, finished=int(time.time()))
     threading.Thread(target=work, daemon=True).start()
     return True
 
 
-def start_collect(account="all"):
-    """Start ig_collect.py collect in the background. Returns False when a run is already going."""
+def start_collect(account="all", platform="instagram"):
+    """Start ig_collect.py or yt_collect.py collect in the background. Returns False when a run is already going on that platform."""
     if not ACCOUNT_OK.match(account or ""):
         raise ValueError("bad account name")
-    if COLLECT["running"]:
+    st = _state(platform)[0]
+    if st["running"]:
         return False
-    COLLECT.update(running=True, account=account, rc=None, tail="", started=int(time.time()), finished=0)
+    script = "yt_collect.py" if platform == "youtube" else "ig_collect.py"
+    st.update(running=True, account=account, rc=None, tail="", started=int(time.time()), finished=0)
 
     def work():
         try:
-            p = subprocess.run([sys.executable, os.path.join(HERE, "ig_collect.py"), "collect", "--account", account],
+            p = subprocess.run([sys.executable, os.path.join(HERE, script), "collect", "--account", account],
                                capture_output=True, text=True, timeout=1800, cwd=os.environ.get("NAVAAN_ROOT") or os.getcwd())
-            COLLECT.update(rc=p.returncode, tail=((p.stdout or "") + (p.stderr or "")).strip()[-1500:])
+            st.update(rc=p.returncode, tail=((p.stdout or "") + (p.stderr or "")).strip()[-1500:])
         except Exception as e:
-            COLLECT.update(rc=2, tail=str(e)[:500])
-        COLLECT.update(running=False, finished=int(time.time()))
+            st.update(rc=2, tail=str(e)[:500])
+        st.update(running=False, finished=int(time.time()))
     threading.Thread(target=work, daemon=True).start()
     return True

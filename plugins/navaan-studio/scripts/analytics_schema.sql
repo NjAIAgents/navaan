@@ -243,3 +243,117 @@ CREATE TABLE IF NOT EXISTS recommendations (
 
 CREATE INDEX IF NOT EXISTS idx_findings_account ON findings (ig_user_id, status);
 CREATE INDEX IF NOT EXISTS idx_recs_account ON recommendations (ig_user_id, status);
+
+-- v3: YouTube. findings and recommendations are shared with Instagram: their ig_user_id column holds the account id, which is the channel id for YouTube.
+CREATE TABLE IF NOT EXISTS yt_channels (
+  channel_id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  title TEXT,
+  handle TEXT,
+  uploads_playlist TEXT,
+  created_at TEXT NOT NULL,
+  last_collected_at TEXT,
+  analytics_ok INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS yt_videos (
+  video_id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  slug TEXT,
+  kind TEXT,
+  title TEXT,
+  published_at TEXT,
+  duration_s INTEGER,
+  privacy TEXT,
+  thumbnail_url TEXT,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ytv_channel ON yt_videos (channel_id, published_at);
+CREATE INDEX IF NOT EXISTS idx_ytv_slug ON yt_videos (slug);
+
+CREATE TABLE IF NOT EXISTS yt_snapshots (
+  video_id TEXT NOT NULL,
+  captured_at TEXT NOT NULL,
+  views INTEGER,
+  likes INTEGER,
+  comments INTEGER,
+  minutes_watched REAL,
+  avg_view_s REAL,
+  avg_view_pct REAL,
+  subs_gained INTEGER,
+  subs_lost INTEGER,
+  shares INTEGER,
+  PRIMARY KEY (video_id, captured_at)
+);
+
+CREATE TABLE IF NOT EXISTS yt_daily (
+  channel_id TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  metric TEXT NOT NULL,
+  value REAL,
+  collected_at TEXT NOT NULL,
+  PRIMARY KEY (channel_id, period_end, metric)
+);
+
+CREATE TABLE IF NOT EXISTS yt_traffic (
+  channel_id TEXT NOT NULL,
+  captured_on TEXT NOT NULL,
+  source TEXT NOT NULL,
+  views INTEGER,
+  minutes REAL,
+  PRIMARY KEY (channel_id, captured_on, source)
+);
+
+CREATE TABLE IF NOT EXISTS yt_audience (
+  channel_id TEXT NOT NULL,
+  captured_on TEXT NOT NULL,
+  breakdown TEXT NOT NULL,
+  bucket TEXT NOT NULL,
+  value REAL,
+  PRIMARY KEY (channel_id, captured_on, breakdown, bucket)
+);
+
+CREATE TABLE IF NOT EXISTS yt_retention (
+  video_id TEXT NOT NULL,
+  captured_on TEXT NOT NULL,
+  ratio REAL NOT NULL,
+  watch_ratio REAL,
+  relative REAL,
+  PRIMARY KEY (video_id, captured_on, ratio)
+);
+
+CREATE TABLE IF NOT EXISTS yt_comments (
+  comment_id TEXT PRIMARY KEY,
+  video_id TEXT NOT NULL,
+  parent_id TEXT,
+  username TEXT,
+  author_channel_id TEXT,
+  text TEXT,
+  posted_at TEXT,
+  like_count INTEGER,
+  is_own INTEGER NOT NULL DEFAULT 0,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  category TEXT,
+  language TEXT,
+  sentiment TEXT,
+  tagged_at TEXT,
+  reply_status TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ytc_video ON yt_comments (video_id, posted_at);
+CREATE INDEX IF NOT EXISTS idx_ytc_parent ON yt_comments (parent_id);
+
+CREATE TABLE IF NOT EXISTS yt_runs (
+  run_id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  collectors TEXT,
+  status TEXT NOT NULL,
+  stats_json TEXT,
+  errors_json TEXT
+);
