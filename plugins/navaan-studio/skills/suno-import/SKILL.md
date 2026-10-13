@@ -14,13 +14,17 @@ Use this when the song was already generated on Suno. It spends no generation cr
 
 A short share link is resolved to the song id when Suno allows it. If `meta.json` has no `suno.id`, open the link in the browser, read the song id from the address it lands on (`/song/<id>`), and pass it to ingest with `--suno-id`.
 
+## Text and cover come from a script, only the audio needs the browser
+
+`suno_import.py init` already ran `fetch`, which reads the title, lyrics, style prompt, model and cover from Suno's public song data over HTTPS and writes `title.txt`, `lyrics.txt`, `style.txt`, `cover_suno.jpeg`, and `suno_model` and `suno.display_tags` in `meta.json`. Check `meta.json` for `suno.fetched_at`. If it is there, the text is done: do not read it again from the page, and collect only the audio below. If it is missing (a private song, or Suno did not answer), run `python scripts/suno_import.py fetch <slug>` once; if that also fails, collect the pieces from the page as described next. Compare nothing by hand: the fetched lyrics are the entered lyrics, so if the page shows different sung text, tell the user.
+
 ## Collect from Suno (browser, user's own logged in account)
 
 Open the song page in a tab. If a Suno tab is already open, reuse it: do not open a second one or go back to the Suno home address, because the signed in account is tied to that tab. Work at a human pace and only read and download. Do not press Create, Remix, Extend or anything that spends credits. If you hit a login, a CAPTCHA, a file picker or any choice only the user can make, do not end with a chat message: follow "When you need the user" below.
 
 The audio download uses one unit of the plan's download allowance (the dialog may say "Unlock & Download" and show a counter such as "22 left"). That is covered by the `suno_download` gate: the pipeline does not start this step until the user has approved it in the web UI, so when this step runs the approval exists. It allows one download of one file, nothing more. If the dialog asks for a payment, an upgrade or a purchase, stop and ask (below). Do not use a public stream link or any workaround to get the audio.
 
-Collect, in a scratch folder outside the song folder:
+Collect, in a scratch folder outside the song folder (skip items 1, 2, 3 and 5 when `fetch` already wrote them):
 
 1. Title.
 2. Lyrics exactly as shown on the song page. If the page shows both the entered lyrics and the sung text, keep the sung text. Save as `lyrics.txt`.
@@ -30,7 +34,7 @@ Collect, in a scratch folder outside the song folder:
 
 ## Ingest
 
-Run `python scripts/suno_import.py ingest <slug> --audio <file> --title "<title>" --lyrics-file <lyrics.txt> --style-file <style.txt> --model <vX> --theme "<one line story or theme>" --mood "<mood>" --genre "<genre>" --language "<language>" [--cover <image>]`. Read the theme, mood and language from the lyrics and the style prompt, in your own short words, and do not invent anything the lyrics do not say. It fills `brief.md` and the blank fields of `tags.json` (title, artist, album, genre, year, language and so on) from these and from the artist profile; values already there are kept. It converts the audio to `final.mp3`, keeps the original in `takes/`, writes the text files and updates `meta.json`. It rejects audio shorter than 10 seconds. If it prints a warning about an empty file, collect that piece and run ingest again.
+Run `python scripts/suno_import.py ingest <slug> --audio <file>` and add `--title "<title>" --lyrics-file <lyrics.txt> --style-file <style.txt> --model <vX>` only for pieces `fetch` did not write, and always add `--theme "<one line story or theme>" --mood "<mood>" --genre "<genre>" --language "<language>" [--cover <image>]`. Read the theme, mood and language from the lyrics and the style prompt, in your own short words, and do not invent anything the lyrics do not say. It fills `brief.md` and the blank fields of `tags.json` (title, artist, album, genre, year, language and so on) from these and from the artist profile; values already there are kept. It converts the audio to `final.mp3`, keeps the original in `takes/`, writes the text files and updates `meta.json`. It rejects audio shorter than 10 seconds. If it prints a warning about an empty file, collect that piece and run ingest again.
 
 ## Then
 

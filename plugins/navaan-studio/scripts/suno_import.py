@@ -2,12 +2,13 @@
 """suno_import.py  bring a song that already exists on Suno into the NAVAAN pipeline. Standard library plus ffmpeg.
 
   suno_import.py init <suno-url-or-id> [slug]     create the song folder (slug defaults to the next song-NNN), record the Suno link, mark it as an import
+  suno_import.py fetch <slug>                     read title, lyrics, style, model, duration and cover from Suno's public song data, no browser (public songs only)
   suno_import.py ingest <slug> --audio FILE [--title T] [--lyrics-file F] [--style-file F] [--model v5] [--cover FILE] [--suno-id ID]
          [--theme T] [--mood M] [--genre G] [--language L]   (fill brief.md)
                                                   copy the browser-collected pieces into the song folder; audio is converted to final.mp3
 
-The browser part (opening the Suno song page, reading title, lyrics, style prompt and model, downloading audio and cover) is done by the
-suno-import skill. This script holds the parts that can be checked: link parsing, folder layout, ffmpeg conversion, meta.json.
+For a public song, fetch reads the text pieces and the cover over plain HTTPS. The browser part that remains (downloading the audio with the
+user's own signed in account, and reading the pieces of a private song) is done by the suno-import skill. This script holds the parts that can be checked: link parsing, folder layout, ffmpeg conversion, meta.json.
 Importing spends no Suno credits. The orchestrator then continues with visuals, captions, video and publishing.
 """
 import os, re, sys, json, shutil, subprocess, datetime, argparse
@@ -71,6 +72,8 @@ def init(src, slug=None):
     if sid: m.setdefault("suno", {})["id"] = sid
     m.setdefault("history", []).append(f"{now()} import started from Suno {sid or url}")
     save(mp, m)
+    try: fetch(slug)  # a public song needs no browser for its text and cover
+    except Exception as e: print(f"fetch skipped: {e}")
     print(slug)  # last line is the slug so callers can capture it
     return slug
 
@@ -91,7 +94,7 @@ def write_brief(D, m, a):
     lyrics, style = rd("lyrics.txt"), rd("style.txt")
     model = m.get("suno_model") or ""
     lines = ["# Brief", "", "Imported from Suno, collected automatically." + (f" Source: {m['suno_url']}" if m.get("suno_url") else ""), "",
-             f"- Theme or story: {a.theme or ''}", f"- Mood: {a.mood or ''}", f"- Genre: {a.genre or style}",
+             f"- Theme or story: {a.theme or ''}", f"- Mood: {a.mood or ''}", f"- Genre: {a.genre or m.get('suno', {}).get('display_tags') or style}",
              f"- Language: {a.language or script_language(lyrics)}", "- References (style only, no copying): ", f"- Suno model: {model}"]
     open(bp, "w", encoding="utf-8").write("\n".join(lines) + "\n")
     if not (a.theme and a.mood): print("note: brief.md has no theme or mood. Add them with --theme and --mood, read from the lyrics, and run ingest again.")
@@ -103,14 +106,14 @@ def short_language(text):
     return t if t and len(t) < 20 and "confirm" not in t.lower() else ""
 
 
-def write_tags(D, a):
+def write_tags(D, a, m=None):
     """Fill the blank fields of tags.json from the imported song and the artist profile. Values already set are kept."""
     import datetime
     tp = os.path.join(D, "tags.json"); t = load_json(tp, default={}) if os.path.exists(tp) else {}
     rd = lambda n: open(os.path.join(D, n), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, n)) else ""
     title = rd("title.txt").splitlines()[0] if rd("title.txt") else ""
     artist = cfg("artist.name") or "NAVAAN"
-    genre = a.genre or rd("style.txt").split(",")[0].strip()[:60]
+    genre = a.genre or ((m or {}).get("suno", {}).get("display_tags") or rd("style.txt").split(",")[0]).strip()[:60]
     lang = short_language(a.language) or short_language(script_language(rd("lyrics.txt")))
     want = {"title": title, "artist": artist, "album": title, "album_artist": cfg("artist.album_artist") or artist, "track": "1/1",
             "genre": genre, "label": cfg("artist.label") or "", "year": str(datetime.date.today().year), "language": lang,
@@ -119,6 +122,48 @@ def write_tags(D, a):
     for k, v in want.items():
         if not t.get(k): t[k] = v
     json.dump(t, open(tp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
+
+API = "https://studio-api.prod.suno.com/api/clip/"
+
+
+def clean_title(t):
+    """Drop the wrapping quotes and trailing emoji or symbols that Suno titles often carry, keep the words in every script."""
+    import unicodedata
+    t = "".join(c for c in (t or "") if unicodedata.category(c) not in ("So", "Sk", "Cf") and c != "\ufe0f")
+    t = t.replace("\u201c", "").replace("\u201d", "").replace('"', "").strip()
+    return re.sub(r"\s+", " ", t)
+
+
+def fetch(slug, dest=None):
+    """Write title.txt, lyrics.txt, style.txt, cover_suno.jpeg and the model into the song folder from Suno's public clip data.
+    Returns True when the song is public and the text was collected, False when the agent must read the page in the browser."""
+    import urllib.request, urllib.error
+    D = dest or song_dir(slug); mp = os.path.join(D, "meta.json"); m = load_json(mp, default={}); sid = m.get("suno", {}).get("id")
+    if not sid: print("fetch: no Suno song id in meta.json, the agent reads the page instead"); return False
+    try:
+        req = urllib.request.Request(API + sid, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=20) as r: c = json.load(r)
+    except (urllib.error.URLError, ValueError, OSError) as e:
+        print(f"fetch: Suno did not return public data ({e}). The song may be private, the agent reads the page instead."); return False
+    md = c.get("metadata") or {}; lyrics, style = (md.get("prompt") or "").strip(), (md.get("tags") or "").strip()
+    if not c.get("title") or not lyrics:
+        print("fetch: the data had no title or lyrics, the agent reads the page instead."); return False
+    open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write(clean_title(c["title"]) + "\n")
+    open(os.path.join(D, "lyrics.txt"), "w", encoding="utf-8").write(lyrics + "\n")
+    open(os.path.join(D, "style.txt"), "w", encoding="utf-8").write(style + "\n")
+    img = c.get("image_large_url") or c.get("image_url")
+    if img:
+        try:
+            with urllib.request.urlopen(urllib.request.Request(img, headers={"User-Agent": "Mozilla/5.0"}), timeout=30) as r, open(os.path.join(D, "cover_suno.jpeg"), "wb") as f: shutil.copyfileobj(r, f)
+        except OSError as e: print(f"fetch: cover not saved ({e})")
+    m["suno_model"] = c.get("major_model_version") or c.get("model_name") or ""
+    su = m.setdefault("suno", {}); su.update({"duration": round(float(md.get("duration") or c.get("duration")), 1) if (md.get("duration") or c.get("duration")) else su.get("duration"),
+                                              "display_tags": c.get("display_tags") or "", "creator": c.get("display_name") or "", "fetched_at": now()})
+    m.setdefault("history", []).append(f"{now()} suno text and cover fetched without a browser (model {m['suno_model']})")
+    save(mp, m)
+    print(f"fetched from Suno: title, lyrics ({len(lyrics)} chars), style ({len(style)} chars), model {m['suno_model']}, cover. Only the audio is left.")
+    return True
 
 
 def ingest(slug, a):
@@ -144,7 +189,7 @@ def ingest(slug, a):
             open(os.path.join(D, need), "w", encoding="utf-8").write("")
             print(f"warning: {need} was not collected, it is empty. Fill it in before captions and publishing.")
     if a.model: m["suno_model"] = a.model
-    write_brief(D, m, a); write_tags(D, a)
+    write_brief(D, m, a); write_tags(D, a, m)
     if a.suno_id:
         m["suno_url"] = f"https://suno.com/song/{parse_ref(a.suno_id)[0]}"; m.setdefault("suno", {})["id"] = parse_ref(a.suno_id)[0]
     m.setdefault("suno", {}).update({"duration": round(dur, 1), "imported_at": now()})
@@ -155,8 +200,9 @@ def ingest(slug, a):
 
 
 def main(argv):
-    if len(argv) < 2 or argv[0] not in ("init", "ingest"): print(__doc__); return 2
+    if len(argv) < 2 or argv[0] not in ("init", "ingest", "fetch"): print(__doc__); return 2
     if argv[0] == "init": init(argv[1], argv[2] if len(argv) > 2 else None); return 0
+    if argv[0] == "fetch": return 0 if fetch(argv[1]) else 1
     p = argparse.ArgumentParser(); p.add_argument("slug"); p.add_argument("--audio", required=True)
     for k in ("title", "lyrics-file", "style-file", "model", "cover", "suno-id", "theme", "mood", "genre", "language"): p.add_argument("--" + k)
     ingest(argv[1], p.parse_args(argv[1:])); return 0
