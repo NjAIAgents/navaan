@@ -50,3 +50,7 @@ Access gate (basic auth in front, or Tailscale only), Postgres yes or no, Claude
 
 ## Spec Kit
 Initialised in the repo root (`specify init --here --integration claude --script sh`): skills in `.claude/skills/speckit-*`, files in `.specify/`. The constitution (v1.0.0, 11 principles) is `.specify/memory/constitution.md`. Next: `/speckit-specify` for "Run NAVAAN on the Oracle VM at navaan.njlabs.dev", then `/speckit-clarify`, `/speckit-plan` (start from the plan above), `/speckit-tasks`, `/speckit-implement`.
+
+## Decisions (2026-10-13)
+- Scope is NAVAAN only. EngageHub and Relayent stay on their ignorelist.com names for now.
+- TLS: a single-host certificate for `navaan.njlabs.dev` through the existing webroot (`/var/www/certbot`). No wildcard, so no Vercel API token on the VM.
