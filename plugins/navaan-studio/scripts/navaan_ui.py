@@ -28,7 +28,10 @@ def detail(slug):
         lg = open(lp, encoding="utf-8", errors="ignore").read()[-4000:]
     logs = {}
     for lp in glob.glob(os.path.join(D, "logs", "*.log")):
-        logs[os.path.basename(lp)[:-4]] = open(lp, encoding="utf-8", errors="ignore").read()[-2500:]
+        raw = open(lp, encoding="utf-8", errors="ignore").read()
+        # The agent command line carries the whole prompt and fills the box. Show a short marker instead, so the real output is visible.
+        raw = re.sub(r"(?s)\$ claude -p '.*?'(?= --(?:permission-mode|allowedTools|add-dir|chrome))", "$ claude -p <prompt hidden>", raw)
+        logs[os.path.basename(lp)[:-4]] = raw[-6000:]
     rn = dict(navaan.RUN.get(slug) or {})
     if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
     rn.pop("started", None)

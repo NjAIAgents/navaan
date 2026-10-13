@@ -27,7 +27,7 @@ h2{font-size:15px;margin:0 0 8px}.mut{color:var(--mut)}
 @keyframes sp{to{transform:rotate(360deg)}}@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(168,106,0,.2)}}
 .nb{flex:1;min-width:0}.nt{display:flex;gap:8px;align-items:center;cursor:pointer;min-height:28px}.nt b{font-weight:600}.node.pending .nt b,.node.gate.pending .nt b{color:var(--mut);font-weight:500}
 .node.gate .nt b{font-weight:500;font-size:14px}.sub{color:var(--mut);font-size:12px}.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 4px}.bar i{display:block;height:100%;background:var(--ok);transition:width .4s}
-.nb pre{overflow-wrap:anywhere;margin:6px 0 0;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:220px}.chip.failed{color:#b3261e;border-color:#b3261e}.chip.running{color:var(--acc);border-color:var(--acc)}
+.nb pre{overflow-wrap:anywhere;margin:6px 0 0;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:320px}.chip.failed{color:#b3261e;border-color:#b3261e}.chip.running{color:var(--acc);border-color:var(--acc)}
 @media(max-width:700px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
 </style></head><body>
 <header><h1>NAVAAN STUDIO</h1><span class="mut">local, nothing leaves this computer except what you approve</span></header>
@@ -80,7 +80,7 @@ const l=document.getElementById("vl");if(l)l.textContent=MUTE?"muted":Math.round
 function setVol(v){VOL=v/100;MUTE=false;try{localStorage.setItem("navaan_vol",VOL);localStorage.setItem("navaan_mute","0")}catch(e){}applyVol()}
 function toggleMute(){MUTE=!MUTE;try{localStorage.setItem("navaan_mute",MUTE?"1":"0")}catch(e){}applyVol()}
 let shown=null;
-function setSec(id,html){const main=document.getElementById("main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){el.innerHTML=html;el.dataset.h=html}}
+function setSec(id,html){const main=document.getElementById("main");let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;main.appendChild(el)}if(el.dataset.h!==html){const sv=[...el.querySelectorAll("pre")].map(p=>({t:p.scrollTop,bot:p.scrollHeight-p.scrollTop-p.clientHeight<24}));el.innerHTML=html;el.dataset.h=html;el.querySelectorAll("pre").forEach((p,i)=>{const o=sv[i];p.scrollTop=(!o||o.bot)?p.scrollHeight:o.t})}}
 async function render(){if(!cur)return;const d=await api("/api/song/"+cur);if(d.error){document.getElementById("main").innerHTML=esc(d.error);shown=null;return}
 if(shown!==cur){document.getElementById("main").innerHTML="";shown=cur}
 IMP=d.meta.source==="suno_import";fast=!!d.job.running;const f=d.files,m=n=>`/media/${cur}/${n}?v=${f[n]||0}`;
