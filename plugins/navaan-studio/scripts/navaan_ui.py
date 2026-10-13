@@ -143,8 +143,9 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, analytics_api.yt_overview(acc, (q.get("days") or ["30"])[0]))
             if p == "/api/besttime":
                 from urllib.parse import parse_qs, urlparse
-                lab = (parse_qs(urlparse(self.path).query).get("type") or ["music"])[0]
+                q = parse_qs(urlparse(self.path).query); lab = (q.get("type") or ["music"])[0]
                 if not analytics_api.ACCOUNT_OK.match(lab): return self._send(400, {"error": "bad type"})
+                if (q.get("platform") or ["instagram"])[0] == "youtube": return self._send(200, besttime.for_label_youtube(lab))
                 return self._send(200, besttime.for_label(lab))
             if p == "/api/schedule/options":
                 from urllib.parse import parse_qs, urlparse

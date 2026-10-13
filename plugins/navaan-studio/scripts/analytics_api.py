@@ -317,7 +317,11 @@ def yt_overview(account="all", days=30, db_file=None):
             errs = json.loads(r.pop("errors_json") or "[]")
             r["errors"] = len(errs)
             r["first_error"] = (errs[0]["where"] + ": " + errs[0]["error"])[:200] if errs else ""
-        return {"empty": False, "reco": recommendations(conn, cids, "youtube"), "accounts": channels, "account": account, "days": days, "kpis": kpis,
+        try:
+            import besttime
+            bt = {c["label"]: besttime.analyze_youtube(conn, c["label"]) for c in sel}
+        except Exception as e: bt = {"error": str(e)[:200]}
+        return {"empty": False, "reco": recommendations(conn, cids, "youtube"), "besttime": bt, "accounts": channels, "account": account, "days": days, "kpis": kpis,
                 "analytics_ok": all(c["analytics_ok"] for c in sel),
                 "series": {"subscribers": subs, "views": views, "watch_hours": [[d, round((v or 0) / 60.0, 1)] for d, v in minutes], "subs_gained": gained},
                 "videos": videos, "patterns": patterns, "traffic": traffic, "audience": aud, "retention": retention, "waiting": waiting, "runs": runs,
