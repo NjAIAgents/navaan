@@ -95,8 +95,8 @@ def make_pngs(D, T, tmp):
         draw_text(im, (W // 2, y + 20), T["author"]["text"], pil_font(int(size * 0.5), has_dev(T["author"]["text"])), (255, 255, 255, 235))
         ap = os.path.join(tmp, "author.png"); im.save(ap)
     wm = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    wf = pil_font(34, False)
-    draw_text(wm, (W // 2, H - 150), (" ".join(T.get("watermark", "NAVAAN").upper()) if not T.get("watermark", "").startswith("@") else T["watermark"]), wf, (255, 255, 255, 170), shadow=False)
+    wf = pil_font(42, False)
+    draw_text(wm, (W // 2, H - 490), (" ".join(T.get("watermark", "NAVAAN").upper()) if not T.get("watermark", "").startswith("@") else T["watermark"]), wf, (255, 255, 255, 225), shadow=False)
     wp = os.path.join(tmp, "wm.png"); wm.save(wp)
     return os.path.join(tmp, "scrim.png"), paths, ap, wp
 

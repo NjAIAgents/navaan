@@ -79,7 +79,7 @@ export const Quote: React.FC<QuoteProps> = (props) => {
           <span style={{fontFamily: FONT, fontSize: Math.round(size * 0.5), color: 'rgba(255,255,255,0.92)', textShadow: shadow}}>{props.author.text}</span>
         </div>
       ) : null}
-      <div style={{position: 'absolute', left: 0, width, bottom: 130, textAlign: 'center', fontFamily: FONT, fontSize: 34, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.68)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
+      <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: FONT, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
         {props.watermark.startsWith('@') ? props.watermark : props.watermark.toUpperCase()}
       </div>
       {props.music ? <Audio src={staticFile(props.music)} volume={props.voiceover ? 0.35 : 0.9} /> : null}
