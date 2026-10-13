@@ -29,7 +29,8 @@ API = "https://www.googleapis.com/youtube/v3"
 ANA = "https://youtubeanalytics.googleapis.com/v2/reports"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 SCOPE_ANALYTICS = "https://www.googleapis.com/auth/yt-analytics.readonly"
-READ_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly", SCOPE_ANALYTICS]
+# youtube.force-ssl is what commentThreads.list needs (youtube.readonly gets a 403 insufficientPermissions). It can also write, but this collector only ever reads.
+READ_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly", "https://www.googleapis.com/auth/youtube.force-ssl", SCOPE_ANALYTICS]
 ALL_COLLECTORS = ("channel", "videos", "comments", "analytics", "retention")
 UTC = datetime.timezone.utc
 SHORT_MAX_S = 60            # without meta.json to say otherwise, a video this short or shorter is treated as a Short
