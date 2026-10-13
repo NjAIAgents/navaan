@@ -121,7 +121,7 @@ def cfg(key, default=None):
     return d
 
 
-GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public")
+GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "visuals_mode", "shots", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public")
 
 
 CONTENT_TYPES = ("music", "inspiration", "explainer")  # every item has one; it picks the pipeline steps, prompts and checks

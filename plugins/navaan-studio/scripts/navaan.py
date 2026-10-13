@@ -19,7 +19,7 @@
   navaan.py answer <slug> [--choice ID] [--text TEXT]   answer it (the web UI shows the same question as a card)
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
-Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, youtube_meta, publish_youtube (private), youtube_short (private), instagram_caption, go_public (video and Short public), publish_instagram, archive (uploads the whole song and records the bucket URLs in meta.json), cleanup (last: deletes the local media after the bucket is checked).
+Steps: lyrics, suno (or suno_import for an imported song), visuals_mode (your own pictures, the default, or Flow; with own pictures the steps are shots, a director's shot list you approve, then a local render, see docs/VISUALS.md), visuals (Flow), captions (only when captions.enabled is true, off by default), video, youtube_meta, publish_youtube (private), youtube_short (private), instagram_caption, go_public (video and Short public), publish_instagram, archive (uploads the whole song and records the bucket URLs in meta.json), cleanup (last: deletes the local media after the bucket is checked).
 Gates (human only): lyrics, suno_download, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload, local_cleanup, go_public. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
@@ -42,7 +42,7 @@ def public_done(m):
     p = m.get("published", {}); its = list(p.get("youtube_items", [])) + ([p["youtube_short"]] if p.get("youtube_short", {}).get("id") else [])
     return bool(its) and all(i.get("privacy") == "public" for i in its)
 def ig_done(m): return bool(m.get("published", {}).get("instagram"))
-SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json"}  # these approvals are tied to the file's hash, so an edit after approval needs a new approval
+SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json", "shots": "shots.json"}  # these approvals are tied to the file's hash, so an edit after approval needs a new approval
 def file_sha(D, name):
     p = os.path.join(D, name)
     return hashlib.sha256(open(p, encoding="utf-8").read().strip().encode("utf-8")).hexdigest() if os.path.exists(p) else None
@@ -75,6 +75,19 @@ def music_steps(slug, D):
         dict(id="suno", outputs=['final.mp3'], label="Generate the song on Suno", kind="claude", skill="suno-generate", chrome=True, before="credits", state="lyrics_ok",
              done=lambda m: has(D, "final.mp3"), after="listen", sets="accepted"),
     ]
+    VJ = load_json(os.path.join(D, "visuals.json"), default={}) or {}
+    vmode = VJ.get("mode")  # "own" (the user's pictures, rendered here, the default) or "flow" (Google Flow clips); songs from before this choice count as flow
+    has_visuals = len(files(D, "clips/*.mp4")) > 0 or has(D, "final_16x9.mp4") or has(D, "cover_1x1.png") or bool(load_json(os.path.join(D, "meta.json"), default={}).get("cleanup"))
+    choose = dict(id="visuals_mode", outputs=["visuals.json"], label="Choose the visuals: your own pictures (default) or Flow", kind="script", before="visuals_mode",
+                  cmds=[sc("visuals_cfg.py", slug)], done=lambda m: bool(vmode) or has_visuals)
+    own_static = VJ.get("layout") == "static"
+    own_steps = ([] if own_static else [
+        dict(id="shots", outputs=["shots.json", "shots_context.json", "shots_props.json"], label="Director's shot list from the lyrics (you approve or edit it)", kind="claude", skill="director-shots", chrome=False,
+             done=lambda m: has(D, "shots.json"), after="shots")]) + [
+        dict(id="video", outputs=["final_16x9.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
+             cmds=[sc("shots_render.py", slug), sc("tag_mp3.py", slug)],
+             done=lambda m: fresh(D, ["final_16x9.mp4", "final_tagged.mp3"], ["visuals.json", "images/*"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
+    ]
     CAP = bool(cfg("captions.enabled", False))  # lyric captions over the video are off unless the profile turns them on
     cap_steps = [
         dict(id="captions", outputs=['caption_cues.json', 'reel_start.json', '.cache'], label="Measure lyric timing", kind="script", before=(None if setup_captions.ready() else "captions_setup"),
@@ -82,15 +95,17 @@ def music_steps(slug, D):
              done=lambda m: has(D, "caption_cues.json", "reel_start.json")),
     ] if CAP else []
     REELS = bool(cfg("video.make_reel", False))  # YouTube makes Shorts from the full video in its editor, so a separate vertical reel is optional
-    FULL = "final_16x9_cap.mp4" if CAP else "final_16x9.mp4"
+    FULL = "final_16x9_cap.mp4" if (CAP and vmode != "own") else "final_16x9.mp4"
     REEL = "final_reel_cap.mp4" if CAP else "final_reel_sync.mp4"
-    return head + [
+    flow_steps = [
         dict(id="visuals", outputs=['clips/*.mp4', 'cover_1x1.png', 'cover_16x9.png', 'cover_flow.jpg', 'cover_art.*', 'thumb_16x9.jpg', 'scenes/*.txt'], label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, before="credits",
              done=lambda m: len(files(D, "clips/*.mp4")) > 0 and has(D, "cover_1x1.png")),
         *cap_steps,
         dict(id="video", outputs=['final_16x9*.mp4', 'final_reel*.mp4', 'final_tagged.mp3'], label=("Render videos, captions, tags" if CAP else ("Render videos and tags" if REELS else "Render the video and tags")), kind="script", sets_after="media_ready",
              cmds=[sc("clipvideo.py", slug, "16x9")] + ([sc("clipvideo.py", slug, "reel")] if REELS else []) + ([sc("caption_clips.py", slug, "16x9")] + ([sc("caption_clips.py", slug, "reel")] if REELS else []) if CAP else []) + [sc("tag_mp3.py", slug)],
              done=lambda m: fresh(D, [FULL] + ([REEL] if REELS else []) + ["final_tagged.mp3"], ["clips/*.mp4"]), after="media", sets="approved"),
+    ]
+    tail = [
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube title, description and tags from the lyrics", kind="claude", skill="youtube-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
         dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
@@ -109,6 +124,7 @@ def music_steps(slug, D):
         dict(id="cleanup", outputs=[], redo=False, label="Clean up the local copy (last step, only after the bucket is checked)", kind="script", before="local_cleanup", optional_cloud=True,
              cmds=[sc("cleanup.py", slug, "--yes")], done=lambda m: bool(m.get("cleanup", {}).get("at"))),
     ]
+    return head + [choose] + (own_steps if vmode == "own" else flow_steps) + tail
 
 
 def brief_opt(D, key, default=""):

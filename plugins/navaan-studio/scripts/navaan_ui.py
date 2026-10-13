@@ -4,11 +4,12 @@ import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
+import visuals_cfg as V, shots_prep
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
-READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json"}
+READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
@@ -89,6 +90,7 @@ def detail(slug):
     rn.pop("started", None)
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
             "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
+            "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D),
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -148,7 +150,7 @@ class H(BaseHTTPRequestHandler):
         except SystemExit as e: return self._send(404, {"error": str(e)})
         self._send(404, {"error": "not found"})
     def _media(self, slug, name):
-        D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else os.path.join(D, os.path.basename(name))
+        D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
         if os.path.splitext(f)[1].lower() not in MEDIA_EXT or not os.path.isfile(f): return self._send(404, {"error": "no file"})
         size = os.path.getsize(f); ct = mimetypes.guess_type(f)[0] or "application/octet-stream"
         rng = self.headers.get("Range"); start, end = 0, size - 1; code = 200
@@ -238,6 +240,38 @@ class H(BaseHTTPRequestHandler):
                 if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
+            if p.startswith("/api/visuals/"):
+                act = p.rsplit("/", 1)[1]; D = C.song_dir(slug)
+                try:
+                    if act == "upload": return self._send(200, {"path": V.add_image(D, body.get("name"), str(body.get("data") or ""))})
+                    if act == "remove": V.remove_image(D, body.get("path")); return self._send(200, {"ok": True})
+                    if act == "save":
+                        v = V.save(D, str(body.get("mode") or ""), body.get("layout"), body.get("camera", ""), body.get("scene", ""))
+                        m = navaan.meta(slug); navaan.log_hist(m, f"visuals chosen via ui: {v['mode']}{' ' + v.get('layout', '') if v['mode'] == 'own' else ''}"); navaan.save_meta(slug, m)
+                        return self._send(200, {"ok": True, "visuals": v})
+                    return self._send(404, {"error": "unknown visuals action"})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/shots/save":
+                D = C.song_dir(slug); imgs = set(V.own_images(D)); out = []
+                try:
+                    dur = float((C.load_json(os.path.join(D, "shots.json"), default={}) or {}).get("duration") or 0)
+                    for i, s in enumerate(body.get("shots") or []):
+                        st, en = float(s["start"]), float(s["end"])
+                        if s.get("image") not in imgs: raise ValueError(f"shot {i + 1}: pick one of your pictures")
+                        if s.get("camera") not in shots_prep.CAMERAS: raise ValueError(f"shot {i + 1}: unknown camera move")
+                        if not (0 <= st < en): raise ValueError(f"shot {i + 1}: end must be after start")
+                        f = s.get("focus") or [0.5, 0.5]
+                        out.append({"id": i + 1, "label": str(s.get("label", ""))[:60], "start": round(st, 2), "end": round(en, 2), "image": s["image"], "camera": s["camera"],
+                                    "focus": [min(1, max(0, float(f[0]))), min(1, max(0, float(f[1])))], "scene": str(s.get("scene", ""))[:300], "lyric": str(s.get("lyric", ""))[:200]})
+                except (KeyError, TypeError, IndexError) as e: raise ValueError("shot list is malformed: " + str(e))
+                if not out or len(out) > 80: raise ValueError("between 1 and 80 shots")
+                out.sort(key=lambda s: s["start"])
+                for a, b in zip(out, out[1:]):
+                    if b["start"] < a["end"] - 0.05: raise ValueError(f"shots {a['id']} and {b['id']} overlap")
+                for k, s in enumerate(out): s["id"] = k + 1
+                json.dump({"duration": dur or out[-1]["end"], "shots": out, "notes": str(body.get("notes", ""))[:600]}, open(os.path.join(D, "shots.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+                open(os.path.join(D, "shots.json"), "a").write("\n")
+                return self._send(200, {"ok": True})
             if p == "/api/save":
                 n = body.get("file")
                 if n not in EDITABLE: return self._send(400, {"error": "file not editable"})
