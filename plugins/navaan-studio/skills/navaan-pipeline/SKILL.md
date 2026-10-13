@@ -40,8 +40,8 @@ If the song was already generated on Suno, use the suno-import skill instead of 
 | video | video-build, shorts, tagging | visual-director | after: media (user approves the videos) |
 | publish_youtube | youtube-publish | publisher | before: publish_youtube |
 | youtube_short | youtube-short | publisher | before: publish_short |
-| instagram_caption | instagram-caption | publisher | after: instagram_caption (caption printed for approval; edits clear the approval) |
 | archive | upload_cloud.py | publisher | before: cloud_upload |
+| instagram_caption | instagram-caption | publisher | after: instagram_caption (caption printed for approval; edits clear the approval) |
 | publish_instagram | instagram-publish | publisher | before: publish_instagram |
 | later | analytics-loop | analyst | none |
 
@@ -53,5 +53,5 @@ If the song was already generated on Suno, use the suno-import skill instead of 
 4. Publishing, deleting a public video, spending Suno or Flow credits, and sending any message for the user each need their explicit yes in chat as well as the recorded gate.
 5. Delegate to the specialist agent for the step when the tool supports subagents. Give it the slug, the step, and the files it may touch. Otherwise do the step yourself with the skill.
 6. After each step the orchestrator or you append a short history line to `meta.json`. Keep `state` honest: draft, lyrics_ok, generated, accepted, media_ready, approved, published.
-7. Never put secrets in the project. The user logs in to Suno, Flow, Google and Meta themselves. Stop at any login, CAPTCHA or file picker.
+7. Never put secrets in the project. The user logs in to Suno, Flow, Google and Meta themselves. Stop at any login, CAPTCHA or file picker: in a headless step write `question.json` (see AGENTS.md) so the user can answer in the web portal.
 8. Report plainly: what changed, which file, what you need next.

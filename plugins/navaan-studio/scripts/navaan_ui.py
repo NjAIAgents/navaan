@@ -34,7 +34,7 @@ def detail(slug):
     rn.pop("started", None)
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
             "gates": C.GATES, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
-            "profile": bool(C.profile()),
+            "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
 
 
@@ -123,6 +123,9 @@ class H(BaseHTTPRequestHandler):
                 if sid and body["gate"] == "credits":
                     m.pop("redo_pending", None); navaan.save_meta(slug, m); started = start_job(slug, False, sid)
                 return self._send(200, {"ok": True, "started": started})
+            if p == "/api/answer":
+                qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
+                return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, "ui"); return self._send(200, {"ok": True})
             if p == "/api/redo":
                 if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})

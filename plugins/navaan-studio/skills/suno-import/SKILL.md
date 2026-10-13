@@ -5,7 +5,7 @@ description: Import a song that already exists on the user's Suno account (title
 
 # Suno import
 
-Use this when the song was already generated on Suno. It spends no credits and skips the lyrics and generate steps. The pipeline continues with the listen gate, then visuals, captions, video and publishing.
+Use this when the song was already generated on Suno. It spends no generation credits (the audio download does use one unit of the plan's download allowance, see below) and skips the lyrics and generate steps. The pipeline continues with the listen gate, then visuals, captions, video and publishing.
 
 ## Start
 
@@ -16,7 +16,9 @@ A short share link is resolved to the song id when Suno allows it. If `meta.json
 
 ## Collect from Suno (browser, user's own logged in account)
 
-Open the song page in a tab. If a Suno tab is already open, reuse it: do not open a second one or go back to the Suno home address, because the signed in account is tied to that tab. Stop at any login or CAPTCHA and ask the user. Work at a human pace and only read and download. Do not press Create, Remix, Extend or anything that spends credits.
+Open the song page in a tab. If a Suno tab is already open, reuse it: do not open a second one or go back to the Suno home address, because the signed in account is tied to that tab. Work at a human pace and only read and download. Do not press Create, Remix, Extend or anything that spends credits. If you hit a login, a CAPTCHA, a file picker or any choice only the user can make, do not end with a chat message: follow "When you need the user" below.
+
+The audio download uses one unit of the plan's download allowance (the dialog may say "Unlock & Download" and show a counter such as "22 left"). That is covered by the `suno_download` gate: the pipeline does not start this step until the user has approved it in the web UI, so when this step runs the approval exists. It allows one download of one file, nothing more. If the dialog asks for a payment, an upgrade or a purchase, stop and ask (below). Do not use a public stream link or any workaround to get the audio.
 
 Collect, in a scratch folder outside the song folder:
 
@@ -35,3 +37,11 @@ Run `python scripts/suno_import.py ingest <slug> --audio <file> --title "<title>
 Show the user the title, lyrics, style, length and the first lines of `final.mp3` to listen to. The next gate is `listen`. The user approves it themselves in the web UI or with `navaan.py approve <slug> listen`. Never record it for them. After that run `navaan.py next <slug>` and continue the normal pipeline.
 
 Lyrics may be in another language than the profile default. Keep the text as Suno has it. Do not translate or rewrite it. Captions need the sung text, so if the page lyrics differ from what is sung, tell the user and ask for the sung version.
+
+## When you need the user
+
+You run headless, so nobody reads a chat reply. Write `songs/<slug>/question.json` and stop:
+
+`{"text": "one plain question", "options": [{"id": "done", "label": "I signed in, continue"}, {"id": "skip", "label": "Cancel the import"}], "allow_text": false}`
+
+The web portal shows it as a card with the buttons (set `allow_text` to true for a free text box, for example to ask for a filename). The step runs again after the user answers, and the prompt then includes the answer. Never write to `approvals` or `answers` in `meta.json` yourself. Ask one question at a time, and do not ask what an answer you already have covers.

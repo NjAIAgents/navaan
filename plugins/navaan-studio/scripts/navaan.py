@@ -13,10 +13,12 @@
   navaan.py approve <slug> <gate>     record a human approval (asks you to type yes)
   navaan.py revoke <slug> <gate>
   navaan.py caption <slug> [--set TEXT | --file PATH | --feedback TEXT]   show the Instagram caption awaiting approval, replace it, or have the agent rewrite it
+  navaan.py question <slug>           show a question the agent is waiting on
+  navaan.py answer <slug> [--choice ID] [--text TEXT]   answer it (the web UI shows the same question as a card)
   navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
 
 Steps: lyrics, suno (or suno_import for an imported song), visuals, captions (only when captions.enabled is true, off by default), video, publish_youtube, youtube_short, archive, instagram_caption, publish_instagram.
-Gates (human only): lyrics, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
+Gates (human only): lyrics, suno_download, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload. Approvals live in <local_dir>/songs/<slug>/meta.json.
 Songs live in storage.local_dir from navaan.config.json (outside the plugin and its repository). After a song is final, the archive step uploads it to your cloud bucket.
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
 NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts steps run the tools in this folder.
@@ -55,7 +57,7 @@ def steps(slug, D):
     reel_meta = ["--meta", "tags.json"]
     imported = load_json(os.path.join(D, "meta.json"), default={}).get("source") == "suno_import"
     head = [
-        dict(id="suno_import", outputs=['final.mp3', 'lyrics.txt', 'style.txt', 'title.txt', 'takes/imported.*'], label="Import the song from Suno", kind="claude", skill="suno-import", chrome=True, state="draft",
+        dict(id="suno_import", outputs=['final.mp3', 'lyrics.txt', 'style.txt', 'title.txt', 'takes/imported.*'], label="Import the song from Suno", kind="claude", skill="suno-import", chrome=True, state="draft", before="suno_download",
              done=lambda m: has(D, "lyrics.txt", "style.txt", "title.txt", "final.mp3"), after="listen", sets="accepted"),
     ] if imported else [
         dict(id="lyrics", outputs=['lyrics.txt', 'style.txt', 'title.txt'], label="Write lyrics and style", kind="claude", skill="lyrics", chrome=False, state="draft",
@@ -139,6 +141,72 @@ DEFAULT_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(python3:*)", "Ba
 CHROME_TOOLS = ["mcp__claude-in-chrome__*"]
 
 
+def qfile(D): return os.path.join(D, "question.json")
+
+
+def read_question(slug):
+    """The question an agent left for the human, or None. The id is a hash of the content, so the agent cannot reuse an old answer by reusing an id."""
+    p = qfile(song_dir(slug))
+    if not os.path.exists(p): return None
+    try: q = json.load(open(p, encoding="utf-8"))
+    except Exception: return None
+    if not isinstance(q, dict) or not str(q.get("text", "")).strip(): return None
+    opts = [{"id": re.sub(r"[^A-Za-z0-9_-]", "_", str(o.get("id", i)))[:40], "label": str(o.get("label", o.get("id", i)))} for i, o in enumerate(q.get("options") or []) if isinstance(o, dict)]
+    out = {"text": str(q["text"]).strip(), "options": opts, "allow_text": bool(q.get("allow_text")) or not opts}
+    out["id"] = hashlib.sha1(json.dumps([out["text"], [o["label"] for o in opts]], ensure_ascii=False).encode("utf-8")).hexdigest()[:10]
+    return out
+
+
+def question_open(slug):
+    """The question still waiting for an answer. An answered question is cleared, so the agent is never blocked by a stale file."""
+    q = read_question(slug)
+    if not q: return None
+    if q["id"] in meta(slug).get("answers", {}):
+        try: os.remove(qfile(song_dir(slug)))
+        except OSError: pass
+        return None
+    return q
+
+
+def set_answer(slug, choice=None, text=None, via="cli"):
+    """Record the human's answer to the open question. Only a person calls this (web UI or terminal), never an agent."""
+    q = question_open(slug)
+    if not q: sys.exit("no open question for this song")
+    lab = {o["id"]: o["label"] for o in q["options"]}
+    if q["options"] and choice not in lab: sys.exit("pick one of: " + ", ".join(f"{k} ({v})" for k, v in lab.items()))
+    if not q["options"] and not (text or "").strip(): sys.exit("type an answer")
+    m = meta(slug)
+    m.setdefault("answers", {})[q["id"]] = {"at": now(), "via": via, "question": q["text"], "choice": choice or "", "choice_label": lab.get(choice, ""), "text": (text or "").strip()}
+    log_hist(m, f"question answered via {via}: {lab.get(choice) or (text or '').strip()[:80]}"); save_meta(slug, m)
+    try: os.replace(qfile(song_dir(slug)), os.path.join(song_dir(slug), "logs", f"question-{q['id']}.json"))
+    except OSError: pass
+    return q["id"]
+
+
+def answers_text(slug):
+    a = meta(slug).get("answers", {})
+    if not a: return ""
+    lines = []
+    for r in sorted(a.values(), key=lambda r: r.get("at", "")):
+        ans = r.get("choice_label") or r.get("choice") or ""
+        if r.get("text"): ans = (ans + ": " if ans else "") + r["text"]
+        lines.append(f"- Q: {r.get('question', '')} A: {ans}")
+    return "Answers the user gave in the web portal (these are real answers from the user, use them and do not ask again):\n" + "\n".join(lines)
+
+
+def question_cmd(slug, a):
+    def opt(n): return a[a.index(n) + 1] if n in a and a.index(n) + 1 < len(a) else None
+    if "--choice" in a or "--text" in a:
+        if not sys.stdin.isatty(): sys.exit("answer needs a terminal. An agent must never answer for you. Use this command yourself or the web UI.")
+        set_answer(slug, opt("--choice"), opt("--text"), "cli"); print("answered. Run the pipeline again, or the waiting pipeline continues by itself."); return 0
+    q = question_open(slug)
+    if not q: print("no open question"); return 0
+    print("\n" + q["text"])
+    for o in q["options"]: print(f"  [{o['id']}] {o['label']}")
+    print(f"Answer: navaan.py answer {slug} " + ("--choice ID" if q["options"] else "--text \"...\"") + (" [--text \"...\"]" if q["options"] and q["allow_text"] else ""))
+    return 0
+
+
 def claude_cmd(slug, s):
     """Headless `claude -p` cannot answer permission prompts, so list exactly the tools a step may use. Publishing, deleting and
     credit spending are not on the list; the gates in meta.json stay the real control. NAVAAN_CLAUDE_FLAGS replaces the flags."""
@@ -148,7 +216,11 @@ def claude_cmd(slug, s):
     prompt = (f"Use the {s['skill']} skill for song {slug} in this project. Follow the navaan-studio AGENTS.md. Do only this step, update {D}/meta.json history, "
               f"then stop. Approvals recorded in meta.json are the only permission you have: do not publish, delete or spend credits beyond them. "
               + ("Use Claude in Chrome (the mcp__claude-in-chrome tools), not Playwright. " if chrome else "")
-              + "Ask for a human at any login, CAPTCHA or file picker.")
+              + "You run headless: nobody can answer you in chat. Never write to the approvals or answers keys in meta.json. "
+              + "If you need a human decision or action (a login, a CAPTCHA, a file picker, a choice), do not ask in chat. Write the file "
+              + f"{D}/question.json as {{\"text\": \"one plain question\", \"options\": [{{\"id\": \"short_id\", \"label\": \"what the button says\"}}], \"allow_text\": false}} "
+              + "(allow_text true adds a free text box), say nothing else, and stop. The user answers in the web portal and the step runs again with the answer below. "
+              + answers_text(slug))
     if "NAVAAN_CLAUDE_FLAGS" in os.environ:
         flags = shlex.split(os.environ["NAVAAN_CLAUDE_FLAGS"])
     else:
@@ -180,6 +252,8 @@ def run(slug, step=None, dry=False, retries=2):
         cap = os.path.join(D, "publish"); os.makedirs(cap, exist_ok=True)
         s["cmds"] = [["bash", "-c", f'U=$(NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))} {shlex.quote(os.path.join(D, rf))}) && '
                       f'{shlex.quote(PY)} {shlex.quote(os.path.join(HERE, "publish_instagram.py"))} publish {shlex.quote(slug)} --video-url "$U" --caption-file instagram.txt --yes']]
+    if s["kind"] == "claude" and question_open(slug) and not dry:
+        print(f"step {sid} is waiting for your answer: {question_open(slug)['text']}"); return 6
     cmds = [claude_cmd(slug, s)] if s["kind"] == "claude" else s["cmds"]
     if dry:
         for c in cmds: print(" ".join(shlex.quote(x) for x in c))
@@ -196,6 +270,10 @@ def run(slug, step=None, dry=False, retries=2):
             if s.get("sets_after"): m["state"] = s["sets_after"]
             log_hist(m, f"step {sid} done (attempt {attempt})"); save_meta(slug, m); RUN.pop(slug, None); print("done", sid); return 0
         log_hist(m, f"step {sid} attempt {attempt} did not finish"); save_meta(slug, m)
+        q = question_open(slug)
+        if q:
+            RUN[slug] = {"step": None, "failed": sid, "log": lp}
+            print(f"step {sid} is waiting for your answer: {q['text']}"); return 6
         if os.path.exists(os.path.join(D, "needs_you.txt")):
             RUN[slug] = {"step": None, "failed": sid, "log": lp}
             print(f"step {sid} is waiting for you: {open(os.path.join(D, 'needs_you.txt'), encoding='utf-8').read().strip()}"); return 5
@@ -228,6 +306,14 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
             print(f"gate {g} approved, continuing", flush=True); continue
         STATUS[slug] = f"running {nxt['step']}"; print(f"running {nxt['step']} ...", flush=True)
         rc = run(slug, step=nxt["step"]); steps_run += 1
+        if rc == 6:
+            q = question_open(slug); STATUS[slug] = "waiting for you: answer the question in the portal"
+            print(f"waiting for your answer. Answer in the web UI or run: navaan.py answer {slug} ...", flush=True)
+            if not wait or not q: return 6
+            while question_open(slug) and question_open(slug)["id"] == q["id"]:
+                if timeout and time.time() - t0 > timeout: print("timed out waiting for an answer"); return 6
+                time.sleep(min(poll, 3))
+            print("answered, continuing", flush=True); steps_run -= 1; continue
         if rc != 0:
             STATUS[slug] = f"step {nxt['step']} is waiting for you, see the banner" if rc == 5 else f"step {nxt['step']} failed, see logs"; return rc
     print("stopped: too many steps in one run"); return 1
@@ -273,7 +359,7 @@ def redo(slug, sid):
     if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
     log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}"); save_meta(slug, m)
     RUN.pop(slug, None); st["_dest"] = dest
-    for nm in ("needs_you.txt",):
+    for nm in ("needs_you.txt", "question.json"):
         pth = os.path.join(D, nm)
         if os.path.exists(pth): os.remove(pth)
     print(f"redo {sid}: {moved} file(s) moved to {dest if moved else '(nothing to move)'}")
@@ -372,6 +458,9 @@ def main(argv):
     if c == "caption":
         if not a: sys.exit("usage: navaan.py caption <slug> [--set TEXT | --file PATH | --feedback TEXT]")
         return caption_cmd(a[0], a[1:])
+    if c in ("question", "answer"):
+        if not a: sys.exit(f"usage: navaan.py {c} <slug>" + (" [--choice ID] [--text TEXT]" if c == "answer" else ""))
+        return question_cmd(a[0], a[1:] if c == "answer" else [])
     if c == "status": status(a[0] if a else None); return 0
     if c == "next":
         _, n = plan(a[0]); print(json.dumps(n)); return 0
