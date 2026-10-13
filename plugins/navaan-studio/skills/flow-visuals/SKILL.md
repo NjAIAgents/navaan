@@ -18,10 +18,36 @@ Flow TV is Google's free viewing channel of clips made with Veo. You cannot gene
 
 ## Budget first
 
-1. Read `navaan.config.json`: `visual.mode` (default scene), `visual.look`, `visual.palette`, `visual.motifs`, `visual.flow_model` (lite, fast or quality), `visual.flow_credit_budget`, `visual.scene_count` (scene and loop modes), plus things to avoid. Run artist-setup if the file is missing.
-2. Open Flow, pick the model and read the credit cost Flow shows on the Generate button. Do not trust a remembered number: prices change. As of late 2026, public sources list Veo 3.1 Lite at 10 credits for a 4, 6 or 8 second clip, Fast at 20 and Quality at 100 (about half on Ultra plans). Pass these as a hint only.
-3. Work out how many generations fit: `floor(budget / cost shown)`. In story mode the plan also needs the character reference images and a few regenerates, so count them. If that is zero, stop and tell the user the budget is too low for the chosen model, with the cost you saw. Never go over the budget. Each regenerate also counts.
-4. Tell the user the plan in chat: model, cost per clip, number of clips, total credits. The credits gate and an explicit yes in chat are both needed before you press Generate.
+1. Read `navaan.config.json`: `visual.mode` (default scene), `visual.look`, `visual.palette`, `visual.motifs`, `visual.flow_model` (auto by default, or lite, fast, quality to force one), `visual.flow_credit_budget`, `visual.scene_count` (scene and loop modes), plus things to avoid. Run artist-setup if the file is missing.
+2. Open Flow, open the model picker and read every model it offers with the credit cost shown for it on the Generate button. Do not trust a remembered number: prices change and the list changes. As of late 2026, public sources list Veo 3.1 Lite at 10 credits for a 4, 6 or 8 second clip, Fast at 20 and Quality at 100 (about half on Ultra plans). Pass these as a hint only.
+3. Choose the model for each clip from its complexity (next section), then work out what fits: the sum of the chosen clip costs must be at most the budget. In story mode the plan also needs the character reference images and a few regenerates, so count them. If not even one clip of the cheapest model fits, stop and tell the user the budget is too low, with the cost you saw. Never go over the budget. Each regenerate also counts.
+4. Tell the user the plan in chat: for each clip the model, why, its cost, and the total credits. The credits gate and an explicit yes in chat are both needed before you press Generate.
+
+## Pick the model by scene complexity
+
+Applies when `visual.flow_model` is `auto` (the default). If it is `lite`, `fast` or `quality`, use that model for every clip and skip this section.
+
+Default to the cheapest model that can do the clip well. Step up only when the scene needs it, and only if the budget still pays for it.
+
+Cheapest model (Lite) is enough when the clip is simple:
+- Landscape, sky, water, mist, birds, leaves, light changes, a city skyline at dusk.
+- One slow motion, a locked or very slow camera, no close faces.
+- A person only as a silhouette, from behind or far away.
+
+A stronger model (Fast) is worth the extra credits when the clip is complex:
+- A person visible at medium distance whose body, hands or cloth must move believably.
+- Several things moving at once (crowd, traffic, flowing water plus birds plus a figure).
+- Reflections, rain, fire, fine detail, or text on a sign that must stay readable.
+- A moving camera (push in, orbit) that must stay stable.
+
+Quality (the top model) is for a user decision only. It costs about the whole budget by itself, so never choose it on your own. Offer it in chat with its cost, and use it only on an explicit yes, and only if it fits.
+
+Rules:
+1. Judge each clip on its own. Clip 1 (hero) and clip 2 (changed moment) can use different models: a simple clip 2 can be Lite even if clip 1 is Fast.
+2. Always fit the budget first. If the preferred plan does not fit (for example Fast plus Lite is 30 against a budget of 20), downgrade the clip that gains least, or simplify the scene until Lite handles it. Do not shorten the budget check.
+3. Prefer two cheap clips over one dear one when the scene allows, because the second clip adds variety to the loop.
+4. If a new cheaper model appears in the picker, read its cost and use it for simple clips. Do not assume it matches the quality of the others: if its first result looks wrong, say so and ask before spending on a regenerate.
+5. Record the choice in `scenes/plan.md`, one line per clip: model, cost shown, one sentence on why this complexity needs it.
 
 ## One tab, never a new one
 
@@ -47,8 +73,8 @@ Flow uses whichever Google account the browser is signed in with by default. Bef
 The goal: a moving wallpaper that a viewer reads as this song in two seconds, made with one or two clips. Think of a cinematic still that breathes: wind in a scarf, birds crossing a sunset, mist lifting off a lake, leaves moving over a quiet figure. The full video is the song playing over this scene, so the scene sets the feeling and the lyrics carry the story.
 
 Budget rules (they come first):
-- Count `floor(visual.flow_credit_budget / credit cost shown on the Generate button)`. At Lite (10 credits) and a budget of 20 that is two clips, and no spare for a regenerate or for reference images. At Fast (20) it is one clip. Do not make reference images, extra angles or test clips: every generation counts.
-- Plan the exact number of clips before you open the Generate button, write it in `scenes/plan.md` (model, cost per clip, clips, total, budget) and tell the user. Never go over the budget.
+- Fit the clips to `visual.flow_credit_budget` using the cost shown on the Generate button for the model each clip needs (see "Pick the model by scene complexity"). At Lite (10 credits) and a budget of 20 that is two clips, and no spare for a regenerate or for reference images. One Fast clip (20) uses it all; Fast plus Lite does not fit. Do not make reference images, extra angles or test clips: every generation counts.
+- Plan the exact number of clips before you open the Generate button, write it in `scenes/plan.md` (per clip: model, cost, reason; then total and budget) and tell the user. Never go over the budget.
 - Use clip 1 for the hero scene. If budget remains, clip 2 is the same place and person in a changed moment (golden hour to dusk, wide to closer, eyes open to looking away), with the same wording for the person and place so they match. The builder cross fades from clip 1 to clip 2 at the start of the second half or at the first chorus (`at`).
 
 How to design the scene from the lyrics:
