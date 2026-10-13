@@ -6,7 +6,7 @@ checks Business Discovery with a test lookup, and writes NAVAAN_IG_MARKET_USER_I
 NAVAAN_IG_MARKET_HOST into the login file (default ~/.config/navaan/instagram.env, or --env PATH). The token is never printed.
 
 How to get the token: developers.facebook.com/tools/explorer, pick the app, User Token, permissions instagram_basic,
-pages_show_list, pages_read_engagement, business_management. Generate, then in the Access Token Debugger press
+pages_show_list, pages_read_engagement, instagram_manage_insights (Business Discovery needs it), business_management. Generate, then in the Access Token Debugger press
 Extend Access Token so it lasts 60 days.
 """
 import os, sys, json, getpass, urllib.request, urllib.parse, urllib.error
@@ -39,7 +39,7 @@ def main(argv):
     page = linked[0]; ig = page["instagram_business_account"]
     print(f"signed in as {me.get('name')}; Page '{page['name']}' is linked to @{ig.get('username')} (business id ends with ...{str(ig['id'])[-4:]})")
     scopes = get("debug_token", tok, input_token=tok).get("data", {}).get("scopes", [])
-    need = ["instagram_basic", "pages_show_list", "pages_read_engagement", "business_management"]
+    need = ["instagram_basic", "instagram_manage_insights", "pages_read_engagement", "pages_show_list"]
     print("token scopes:", ", ".join(scopes) or "(none)")
     miss = [x for x in need if x not in scopes]
     if miss: sys.exit("navaan: the token lacks " + ", ".join(miss) + ". In the Graph API Explorer add them under Add a Permission, press Generate Access Token again, allow the Page, extend, rerun.")
