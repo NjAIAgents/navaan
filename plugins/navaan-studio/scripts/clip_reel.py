@@ -6,6 +6,8 @@ Reads songs/<slug>/reel_clip.json:
    "bg": "final_16x9.mp4", "crop_x": [560, 760]}
   start, end   seconds in the full song. The lyric lines come from caption_cues.json between them.
   bg           the full video the pictures are taken from (default final_16x9.mp4, the one without captions).
+  show_lyrics  true (default) | false | "english"   false hides the lyric lines on the picture, "english" shows only the English lines (acts, grade, camera and the end card stay).
+  lyric_font, lyric_size   font family and pixel size of the English lyric lines (default Avenir Next, 58).
   bg_image     a still picture in the song folder to use instead of the video (it gets the same slow push-in and grading).
   crop_x       left edge of the 9:16 window cut out of the 16:9 picture, at the start and the end (a slow drift). Default centred.
 Writes final_reel_9x16.mp4 (1080x1920, 30 fps), thumb_9x16.jpg (the Reel cover) and reel_clip_report.json.
@@ -71,6 +73,11 @@ def main(slug):
     props = {"width": 1080, "height": 1920, "fps": 30, "duration": dur, "bg": bg_image or "reel_bg.mp4", "bg_is_image": bool(bg_image), "audio": "reel_audio.mp3", "cues": rel, "title": title,
              "hook": cc.get("hook") or rel[0]["text"], "handle": {"text": handle, "icon": "instagram", "start": handle_s},
              "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.42}, "mode": "reel", "acts": acts}
+    if cc.get("lyric_font"): props["lyricFont"] = cc["lyric_font"]
+    if cc.get("lyric_size"): props["lyricSize"] = cc["lyric_size"]
+    sl = cc.get("show_lyrics", True)  # the lines always decide the acts and the length, this only picks which are drawn
+    if sl is False: props["cues"] = []
+    elif sl == "english": props["cues"] = [c for c in rel if _lang(c["text"]) == "en"]
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w"), indent=2, ensure_ascii=False)
     cp = dict(props, bg=bg_image or "reel_cover_bg.jpg", bg_is_image=True, audio=None, mode="cover"); cpp = os.path.join(D, "reel_cover_props.json"); json.dump(cp, open(cpp, "w"), indent=2, ensure_ascii=False)
     rd = R.remotion_dir()

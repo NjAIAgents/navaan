@@ -84,8 +84,8 @@ def main(argv):
     if prov in ("none", None, ""): print("Cloud upload is off. Set storage.cloud_provider in navaan.config.json (python scripts/setup_profile.py --edit)."); return 4
     D = song_dir(slug)
     cmds, uri = storage.upload_commands(prov, cfg("storage.cloud_bucket"), cfg("storage.cloud_prefix", ""), cfg("storage.cloud_region", ""), D, slug)
-    total = sum(os.path.getsize(os.path.join(r, f)) for r, ds, fs in os.walk(D) if not any(x in r.split(os.sep) for x in storage.EXCLUDES) for f in fs)
-    print(f"from {D} ({total/1e6:.0f} MB, without .cache and logs)\nto   {uri}")
+    total = sum(storage.local_files(D).values())
+    print(f"from {D} ({total/1e6:.0f} MB: audio, images and text, no videos, .cache or logs)\nto   {uri}")
     for c in cmds: print("  $", " ".join(c))
     if not yes: print("\nDRY RUN. Nothing sent. Re-run with --yes after you approve the cloud_upload gate."); return 0
     require_approval(slug, "cloud_upload")

@@ -19,6 +19,8 @@ export type LyricsProps = {
   mode?: 'reel' | 'cover';
   acts?: Act[];
   textY?: number;
+  lyricFont?: string;
+  lyricSize?: number;
 };
 
 export const lyricsDefaults: LyricsProps = {
@@ -28,6 +30,7 @@ export const lyricsDefaults: LyricsProps = {
 };
 
 const FONT = `"Kohinoor Devanagari","Noto Serif Devanagari","Noto Sans Devanagari","Georgia","Noto Serif","DejaVu Serif",serif`;
+const RAPFONT = `"Avenir Next","Helvetica Neue","Inter","Arial","Noto Sans",sans-serif`;
 const ease = Easing.bezier(0.22, 1, 0.36, 1);
 const shadow = '0 6px 28px rgba(0,0,0,0.7), 0 0 2px rgba(0,0,0,0.5)';
 const dev = (s: string) => /[ऀ-ॿ]/.test(s);
@@ -117,14 +120,15 @@ export const Lyrics: React.FC<LyricsProps> = (p) => {
             const rap = a.kind === 'confess';
             const k = fadeIn(c.start, rap ? 0.3 : a.kind === 'hope' ? 0.9 : 0.8);
             const out = interpolate(t, [c.end - (rap ? 0.25 : 0.55), c.end], [1, 0], clamp01);
-            const size = dev(c.text) ? 84 : rap ? 88 : 76;
+            const size = dev(c.text) ? 84 : rap ? (p.lyricSize ?? 58) : 76;
+            const fam = rap && !dev(c.text) ? (p.lyricFont ?? RAPFONT) : FONT;
             const isLast = hope && i === p.cues.length - 1;
             // slow drift in on the final line
             const finalScale = isLast ? interpolate(t, [c.start, c.end], [1, 1.07], clamp01) : 1;
             const words = c.text.split(' ');
             return (
               <div key={i} style={{position: 'absolute', left: 0, width, top: Math.round(height * (p.textY ?? 0.5) - 230), height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: out * (rap ? 1 : k), transform: rap ? undefined : `translateY(${(1 - k) * 30}px) scale(${finalScale})`}}>
-                <div style={{fontFamily: FONT, fontSize: size, lineHeight: 1.3, textAlign: 'center', color: p.style.color, textShadow: shadow, maxWidth: width - 150, fontWeight: dev(c.text) ? 600 : rap ? 700 : 400, textWrap: 'balance' as const, letterSpacing: rap ? 0.5 : 0}}>
+                <div style={{fontFamily: fam, fontSize: size, lineHeight: 1.3, textAlign: 'center', color: p.style.color, textShadow: shadow, maxWidth: width - 190, fontWeight: dev(c.text) ? 600 : rap ? 600 : 400, textWrap: 'balance' as const, letterSpacing: rap ? 1 : 0}}>
                   {rap
                     ? words.map((w, wi) => {
                         const step = Math.min(0.2, ((c.end - c.start) * 0.5) / Math.max(1, words.length));

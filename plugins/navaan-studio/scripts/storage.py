@@ -11,6 +11,8 @@ from navaan_common import plugin_dir, plugin_repo_root
 PROVIDERS = ("none", "oci", "s3", "gcs")
 CLI = {"oci": "oci", "s3": "aws", "gcs": "gcloud"}
 EXCLUDES = (".cache", "logs")
+# Videos are not archived: they are already on YouTube and Instagram, and they are the heavy files. Audio, images, text and json are.
+VIDEO_EXT = (".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi")
 
 
 def _inside(child, parent):
@@ -147,13 +149,15 @@ def upload_commands(provider, bucket, prefix, region, src_dir, slug):
         if not ns: raise RuntimeError(f"oci is not configured: {err[:200]}")
         cmd = ["oci", "os", "object", "bulk-upload", "-ns", ns, "-bn", bucket, "--src-dir", src_dir, "--object-prefix", dest_prefix, "--overwrite"]
         for e in EXCLUDES: cmd += ["--exclude", f"{e}/*"]
+        for e in VIDEO_EXT: cmd += ["--exclude", f"*{e}"]
         return [cmd], f"oci://{ns}/{bucket}/{dest_prefix}"
     if provider == "s3":
         cmd = ["aws"] + (["--region", region] if region else []) + ["s3", "sync", src_dir, f"s3://{bucket}/{dest_prefix}"]
         for e in EXCLUDES: cmd += ["--exclude", f"{e}/*"]
+        for e in VIDEO_EXT: cmd += ["--exclude", f"*{e}"]
         return [cmd], f"s3://{bucket}/{dest_prefix}"
     if provider == "gcs":
-        return [["gcloud", "storage", "rsync", "--recursive", "--exclude", "^(\\.cache|logs)/.*", src_dir, f"gs://{bucket}/{dest_prefix}"]], f"gs://{bucket}/{dest_prefix}"
+        return [["gcloud", "storage", "rsync", "--recursive", "--exclude", "^(\\.cache|logs)/.*|.*(" + "|".join(e.replace(".", "\\.") for e in VIDEO_EXT) + ")$", src_dir, f"gs://{bucket}/{dest_prefix}"]], f"gs://{bucket}/{dest_prefix}"
     raise RuntimeError("cloud upload is off. Set storage.cloud_provider in the profile.")
 
 
@@ -190,12 +194,13 @@ def list_objects(provider, bucket, prefix, region=""):
 
 
 def local_files(src_dir):
-    """Relative paths and sizes of what the archive uploads (everything except .cache and logs)."""
+    """Relative paths and sizes of what the archive uploads (everything except .cache, logs and videos)."""
     res = {}
     for r, ds, fs in os.walk(src_dir):
         rel = os.path.relpath(r, src_dir)
         if rel.split(os.sep)[0] in EXCLUDES: ds[:] = []; continue
         for f in fs:
+            if f.lower().endswith(VIDEO_EXT): continue  # videos are not archived
             full = os.path.join(r, f); res[os.path.normpath(os.path.join(rel, f)).replace(os.sep, "/")] = os.path.getsize(full)
     return res
 

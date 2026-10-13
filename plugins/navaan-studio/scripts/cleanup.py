@@ -4,7 +4,7 @@
   cleanup.py <slug> [--yes]     dry run by default; --yes deletes (needs the local_cleanup gate approved by you)
 
 Before anything is deleted the bucket is listed again, and every local file must be there with the same size. The song must be
-published (YouTube, and Instagram when it is set up). Deleted: audio, video, images and clips. Kept: all text and json (lyrics,
+published (YouTube, and Instagram when it is set up). Deleted: the archived audio and images (videos are not archived, so they stay). Kept: all text and json (lyrics,
 meta.json with the cloud URLs, youtube.json, instagram.txt, plans) and logs. Nothing outside the song folder is touched.
 """
 import os, sys, json, datetime
