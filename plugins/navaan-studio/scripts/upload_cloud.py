@@ -41,6 +41,40 @@ def record(slug, uploaded_at=None, uri=None):
     return 0 if m["cloud"]["verified"] else 1
 
 
+
+STALL_S = int(os.environ.get("NAVAAN_UPLOAD_STALL", "420"))  # seconds without any output before an upload is treated as hung
+TRIES = 4
+
+
+def run_watched(cmd):
+    """Run an upload command. A big file can hang in the CLI with dead connections (seen with oci multipart), so if it prints nothing for
+    STALL_S seconds it is killed and started again. Retries skip objects that already uploaded."""
+    import threading, time, signal
+    for n in range(1, TRIES + 1):
+        c = list(cmd)
+        if n > 1 and "--overwrite" in c: c[c.index("--overwrite")] = "--no-overwrite"  # keep what is already in the bucket
+        env = dict(os.environ); env["PYTHONUNBUFFERED"] = "1"
+        p = subprocess.Popen(c, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, env=env, start_new_session=True)
+        last = [time.time()]
+        def pump():
+            for line in p.stdout:
+                last[0] = time.time(); print(line, end="", flush=True)
+        t = threading.Thread(target=pump, daemon=True); t.start()
+        hung = False
+        while p.poll() is None:
+            time.sleep(5)
+            if time.time() - last[0] > STALL_S:
+                hung = True; print(f"upload stalled for {STALL_S}s, stopping it (try {n} of {TRIES})", flush=True)
+                try: os.killpg(p.pid, signal.SIGTERM)
+                except Exception: p.terminate()
+                try: p.wait(timeout=20)
+                except Exception: p.kill()
+                break
+        t.join(timeout=5)
+        if not hung: return p.returncode
+    return 1
+
+
 def main(argv):
     if "--verify" in argv: return verify("--write" in argv)
     if "--record" in argv and argv and not argv[0].startswith("-"): return record(argv[0])
@@ -56,7 +90,7 @@ def main(argv):
     if not yes: print("\nDRY RUN. Nothing sent. Re-run with --yes after you approve the cloud_upload gate."); return 0
     require_approval(slug, "cloud_upload")
     for c in cmds:
-        rc = subprocess.call(c)
+        rc = run_watched(c)
         if rc: print("upload failed, exit", rc); return 1
     up = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print("uploaded", uri, "verifying against the bucket")
