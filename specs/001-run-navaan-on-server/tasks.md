@@ -41,7 +41,7 @@
   - Note: two mounts (vhost and htpasswd) plus one network, not one mount; nginx reads the hash from a file. Stage-1 `navaan-acme.conf` lets certbot issue the cert before the full vhost needs it.
 - [ ] T014 [US1] (VM) Back up `/opt/engagehub/docker-compose.yml`, apply the README edit, `docker compose up -d nginx`, `docker exec engagehub-nginx nginx -t`, confirm EngageHub and Relayent health URLs still answer.
 - [ ] T015 [US1] (VM) Issue the cert: `certbot certonly --webroot -w /var/www/certbot -d navaan.njlabs.dev --deploy-hook "docker exec engagehub-nginx nginx -s reload"`, then `certbot renew --cert-name navaan.njlabs.dev --dry-run`.
-- [ ] T016 [US1] (Nj) Create the shared gate password and store it in Vault per `contracts/vault-layout.md`. Never paste it in chat.
+- [X] T016 [US1] (Nj) Create the shared gate password and store it in Vault per `contracts/vault-layout.md`. Never paste it in chat.
 - [ ] T017 [US1] (VM) Bring up the container, run quickstart steps 6 to 8: 401 without gate, 200 with gate, API 401 without session, cookie flags, first-time setup with the code from the container, sign in with TOTP, recovery code, passkey on the real domain, throttle test.
 
 **Checkpoint**: MVP. Studio reachable and protected, no publishing yet.
@@ -59,7 +59,8 @@
 - [X] T022 [US3] Add a Claude credential indicator in `plugins/navaan-studio/scripts/ui.html` and `settings_api.py`: show token type in use, and missing, expired or rate limited states (FR-012, FR-018).
 - [X] T023 [US3] (Nj) Run the Vault setup from `deploy/vault/setup.md` with own admin login. Have 2 unseal keys ready.
   - Done 2026-10-13: mount `navaan/` (kv-v2), policy `navaan`, AppRole `navaan` created with the stored admin login; role id and secret id in `/opt/navaan/secrets/` (uid 10001, mode 400, never printed). Checked by an AppRole login and `vault_sync.py pull` from the `navaan:local` image on `engagehub-network`: `secrets: ok (0 files)`. The admin token file was removed from the Vault container afterwards.
-- [ ] T024 [US3] (Nj) Push secrets from the Mac using `vault_sync.py push`. Confirm no credential files in the data volume.
+- [X] T024 [US3] (Nj) Push secrets from the Mac using `vault_sync.py push`. Confirm no credential files in the data volume.
+  - Done 2026-10-13/14: 7 platform files pushed from the Mac; `claude.env` (one `CLAUDE_CODE_OAUTH_TOKEN` line, generated on the server) pushed from the VM as the navaan AppRole with a one-off container (`vault_sync.py pull` pushes a local known file Vault lacks). A clean container then pulled all 8 files, mode 600. `gate.htpasswd` is in Vault too (user `gate`). The server copy `/home/ods/.config/navaan/claude.env` is outside Vault and can be deleted.
 - [ ] T025 [US3] (VM) Sealed-Vault drill (quickstart step 9): seal, restart container, page shows waiting, unseal, status `ok` within 1 minute.
 
 ## Phase 5: User Story 2, scheduled posts with the Mac off (P1)
