@@ -13,7 +13,7 @@ export type QuoteProps = {
   lines: Line[];
   hold_until: number;
   author: {text: string; start: number; end: number} | null;
-  brand?: {text: string; start: number; end: number} | null;
+  brand?: {text: string; start: number; end: number; icon?: string} | null;
   camera: 'push_in' | 'pull_out' | 'pan_left' | 'pan_right' | 'drift';
   transition: 'rise' | 'fade' | 'blur';
   style: {color: string; accent: string; dim: number};
@@ -82,11 +82,21 @@ export const Quote: React.FC<QuoteProps> = (props) => {
       ) : null}
       {props.brand ? (() => {
         const k = interpolate(t, [props.brand.start, props.brand.start + 0.9], [0, 1], {easing: ease, extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-        const bs = Math.min(84, Math.floor((width - 160) / (Array.from(props.brand.text).length * 0.62)));
+        const bs = Math.min(76, Math.floor((width - 260) / (Array.from(props.brand.text).length * 0.62)));
+        const ic = Math.round(bs * 0.95);
         return (
           <div style={{position: 'absolute', left: 0, width, top: Math.round(height * 0.44 - bs), height: bs * 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: k, transform: `translateY(${(1 - k) * 30}px)`}}>
             <div style={{height: 4, width: 90 * k, background: props.style.accent, marginBottom: 34, borderRadius: 2}} />
-            <span style={{fontFamily: FONT, fontSize: bs, letterSpacing: 3, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{props.brand.text}</span>
+            <div style={{display: 'flex', alignItems: 'center', gap: Math.round(bs * 0.38)}}>
+              {props.brand.icon === 'instagram' ? (
+                <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none" stroke={props.style.color} strokeWidth={1.9} strokeLinecap="round" style={{filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.6))'}}>
+                  <rect x="3" y="3" width="18" height="18" rx="5.2" />
+                  <circle cx="12" cy="12" r="4.1" />
+                  <circle cx="17.3" cy="6.7" r="0.6" fill={props.style.color} />
+                </svg>
+              ) : null}
+              <span style={{fontFamily: FONT, fontSize: bs, letterSpacing: 3, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{props.brand.text}</span>
+            </div>
           </div>
         );
       })() : null}

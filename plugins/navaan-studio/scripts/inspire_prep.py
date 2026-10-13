@@ -172,7 +172,7 @@ def brand_name(slug):
     t = C.item_type(C.load_json(os.path.join(C.song_dir(slug), "meta.json")))
     if t == "music": return ""
     h = (C.account(t).get("handle") or "").strip()
-    return ("@" + h.lstrip("@")) if h else ""
+    return h.lstrip("@")
 
 
 def watermark(slug):
@@ -231,7 +231,7 @@ def main(slug):
         "slug": slug, "width": W, "height": H, "fps": FPS, "duration": round(dur, 2),
         "background": bg, "music": os.path.basename(mfile) if mfile else None, "voiceover": os.path.basename(voice) if voice else None,
         "lines": out_lines, "hold_until": hold_end,
-        "brand": ({"text": brand, "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
+        "brand": ({"text": brand, "icon": "instagram", "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),
         "camera": cam, "transition": tr, "language": q.get("language", ""),
         "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},

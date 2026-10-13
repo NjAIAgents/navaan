@@ -101,11 +101,22 @@ def make_pngs(D, T, tmp):
     bp = None
     if T.get("brand"):
         im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
-        txt = T["brand"]["text"]; bs = min(84, int((W - 160) / (len(txt) * 0.62)))
+        txt = T["brand"]["text"]; bs = min(76, int((W - 260) / (len(txt) * 0.62)))
         yy = int(H * 0.44)
         acc = tuple(int(T["style"]["accent"].lstrip("#")[k:k + 2], 16) for k in (0, 2, 4)) + (255,)
         d.rectangle((W // 2 - 45, yy - bs // 2 - 40, W // 2 + 45, yy - bs // 2 - 36), fill=acc)
-        draw_text(im, (W // 2, yy + 10), txt, pil_font(bs, has_dev(txt)), (255, 255, 255, 255))
+        bf = pil_font(bs, has_dev(txt)); tw = int(d.textlength(txt, font=bf))
+        if T["brand"].get("icon") == "instagram":
+            ic = int(bs * 0.95); gap = int(bs * 0.38); x0 = (W - (ic + gap + tw)) // 2; cy = yy + 10
+            lw = max(3, ic // 12)
+            d.rounded_rectangle((x0, cy - ic // 2, x0 + ic, cy + ic // 2), radius=int(ic * 0.28), outline=(255, 255, 255, 255), width=lw)
+            r = int(ic * 0.22); cx = x0 + ic // 2
+            d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(255, 255, 255, 255), width=lw)
+            dr = max(2, ic // 20); dx, dy = x0 + int(ic * 0.72), cy - int(ic * 0.28)
+            d.ellipse((dx - dr, dy - dr, dx + dr, dy + dr), fill=(255, 255, 255, 255))
+            draw_text(im, (x0 + ic + gap + tw // 2, cy), txt, bf, (255, 255, 255, 255))
+        else:
+            draw_text(im, (W // 2, yy + 10), txt, bf, (255, 255, 255, 255))
         bp = os.path.join(tmp, "brand.png"); im.save(bp)
     return os.path.join(tmp, "scrim.png"), paths, ap, wp, bp
 
