@@ -54,6 +54,14 @@ def service():
     return build("youtube", "v3", credentials=creds)
 
 
+def auth(a):
+    """Open the browser sign-in, save the token, and print which channel it belongs to."""
+    yt = service()
+    items = yt.channels().list(part="snippet", mine=True).execute().get("items", [])
+    print(f"token saved: {TOKEN}")
+    print("signed in to channel: " + (items[0]["snippet"]["title"] if items else "(no channel yet, create one in YouTube first)"))
+
+
 def body_from(meta, privacy):
     lang = meta.get("language", "")
     lang = LANG.get(lang.lower(), lang) if lang else ""
@@ -215,5 +223,6 @@ if __name__ == "__main__":
     th = sp.add_parser("thumb"); th.add_argument("slug"); th.add_argument("video_id"); th.add_argument("--file"); th.set_defaults(fn=thumb)
     gp = sp.add_parser("go-public"); gp.add_argument("slug"); gp.add_argument("--yes", action="store_true"); gp.set_defaults(fn=go_public)
     p = sp.add_parser("privacy"); p.add_argument("slug"); p.add_argument("video_id"); p.add_argument("status", choices=["private", "unlisted", "public"]); p.add_argument("--yes", action="store_true"); p.set_defaults(fn=privacy)
+    au = sp.add_parser("auth", help="sign in once and save the token (uses NAVAAN_YT_TOKEN and NAVAAN_YT_CLIENT_SECRETS)"); au.set_defaults(fn=auth)
     s = sp.add_parser("stats"); s.add_argument("video_ids", nargs="+"); s.set_defaults(fn=stats)
     a = ap.parse_args(); a.fn(a)
