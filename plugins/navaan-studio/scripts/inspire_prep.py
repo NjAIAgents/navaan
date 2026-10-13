@@ -168,9 +168,11 @@ def snap(t, bts, lo, hi, tol=0.4):
 
 
 def brand_name(slug):
-    """Display name of the account this item posts to (accounts.<type>.youtube_channel). Music items have none, so no end card."""
+    """Text of the end card: the handle of the account this item posts to. Music items post to NAVAAN, so they get no end card."""
     t = C.item_type(C.load_json(os.path.join(C.song_dir(slug), "meta.json")))
-    return (C.account(t).get("youtube_channel") or "").strip() if t != "music" else ""
+    if t == "music": return ""
+    h = (C.account(t).get("handle") or "").strip()
+    return ("@" + h.lstrip("@")) if h else ""
 
 
 def watermark(slug):

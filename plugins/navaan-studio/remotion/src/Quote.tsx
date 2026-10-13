@@ -90,9 +90,9 @@ export const Quote: React.FC<QuoteProps> = (props) => {
           </div>
         );
       })() : null}
-      <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: FONT, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
+      {props.brand ? null : <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: FONT, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, props.brand ? [props.brand.start + 0.3, props.brand.start + 1.1] : [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
         {props.watermark.startsWith('@') ? props.watermark : props.watermark.toUpperCase()}
-      </div>
+      </div>}
       {props.music ? <Audio src={staticFile(props.music)} volume={props.voiceover ? 0.35 : 0.9} /> : null}
       {props.voiceover ? <Audio src={staticFile(props.voiceover)} volume={1} /> : null}
     </AbsoluteFill>

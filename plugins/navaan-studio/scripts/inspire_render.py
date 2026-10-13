@@ -148,7 +148,9 @@ def render_ffmpeg(D, T, out):
             s = layer(k, ln["start"], hold, f"t{i}", T["transition"] == "rise"); g.append(s.format(cur=cur)); cur = f"t{i}"; k += 1
         if ap:
             a = T["author"]; s = layer(k, a["start"], hold, "au", T["transition"] == "rise"); g.append(s.format(cur=cur)); cur = "au"; k += 1
-        s = layer(k, 0.4, dur - 0.1, "wm", False); g.append(s.format(cur=cur)); cur = "wm"; k += 1
+        if not T.get("brand"):  # with an end card the handle is shown there, not all the way through
+            s = layer(k, 0.4, dur - 0.1, "wm", False); g.append(s.format(cur=cur)); cur = "wm"
+        k += 1
         if bp:
             b = T["brand"]; s = layer(k, b["start"], dur - 0.1, "br", T["transition"] == "rise"); g.append(s.format(cur=cur)); cur = "br"; k += 1
         g.append(f"[{cur}]fade=t=in:st=0:d=0.5,fade=t=out:st={dur - 0.6:.2f}:d=0.6[vout]")
