@@ -167,6 +167,12 @@ def snap(t, bts, lo, hi, tol=0.4):
     return min(cand, key=lambda b: abs(b - t)) if cand else t
 
 
+def brand_name(slug):
+    """Display name of the account this item posts to (accounts.<type>.youtube_channel). Music items have none, so no end card."""
+    t = C.item_type(C.load_json(os.path.join(C.song_dir(slug), "meta.json")))
+    return (C.account(t).get("youtube_channel") or "").strip() if t != "music" else ""
+
+
 def watermark(slug):
     """The handle shown at the bottom is the account this item posts to (accounts.<type>), never the NAVAAN one."""
     h = (C.account(C.item_type(C.load_json(os.path.join(C.song_dir(slug), "meta.json")))).get("handle") or "").strip()
@@ -186,7 +192,9 @@ def main(slug):
     voice = next((p for p in sorted(glob.glob(os.path.join(D, "voiceover.*"))) if os.path.splitext(p)[1].lower() in (".mp3", ".wav", ".m4a", ".aac")), None)
     if opt(D, "voiceover", "none").lower() == "file" and not voice:
         sys.exit("navaan: brief says voiceover: file but voiceover.mp3 is not in the folder. Add it, or set voiceover: none.")
-    intro, tail_hold = 1.0, 2.2 + (1.6 if author else 0.0)
+    brand = brand_name(slug)  # the account name is shown on its own end card for the last seconds
+    brand_tail = 3.4 if brand else 0.0
+    intro, tail_hold = 1.0, 2.2 + (1.6 if author else 0.0) + brand_tail
     if voice:
         vd = probe_dur(voice); body = max(3.0, vd); dur = min(MAX_S, max(MIN_S, intro + body + tail_hold))
     else:
@@ -209,7 +217,7 @@ def main(slug):
     for i in range(1, len(starts)):
         starts[i] = max(starts[i - 1] + 0.9, snap(starts[i], bts, starts[i - 1] + 0.9, dur - tail_hold - 0.5))
     # the whole quote stays on screen: each line appears, then all lines fade out together at hold_end
-    hold_end = round(dur - (1.2 if author else 0.8), 2)
+    hold_end = round(dur - brand_tail - (1.2 if author else 0.8), 2)
     out_lines = [{"text": l, "start": round(s, 2), "end": hold_end} for l, s in zip(lines, starts)]
     h = int(hashlib.sha1(slug.encode()).hexdigest(), 16)
     presets = ["push_in", "pan_left", "pull_out", "pan_right", "drift"]
@@ -221,6 +229,7 @@ def main(slug):
         "slug": slug, "width": W, "height": H, "fps": FPS, "duration": round(dur, 2),
         "background": bg, "music": os.path.basename(mfile) if mfile else None, "voiceover": os.path.basename(voice) if voice else None,
         "lines": out_lines, "hold_until": hold_end,
+        "brand": ({"text": brand, "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),
         "camera": cam, "transition": tr, "language": q.get("language", ""),
         "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},

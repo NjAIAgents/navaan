@@ -13,6 +13,7 @@ export type QuoteProps = {
   lines: Line[];
   hold_until: number;
   author: {text: string; start: number; end: number} | null;
+  brand?: {text: string; start: number; end: number} | null;
   camera: 'push_in' | 'pull_out' | 'pan_left' | 'pan_right' | 'drift';
   transition: 'rise' | 'fade' | 'blur';
   style: {color: string; accent: string; dim: number};
@@ -21,7 +22,7 @@ export type QuoteProps = {
 
 export const defaultProps: QuoteProps = {
   width: 1080, height: 1920, fps: 30, duration: 10, background: 'background.jpg', music: null, voiceover: null,
-  lines: [{text: 'Your words here', start: 1, end: 8}], hold_until: 8.5, author: null,
+  lines: [{text: 'Your words here', start: 1, end: 8}], hold_until: 8.5, author: null, brand: null,
   camera: 'push_in', transition: 'rise', style: {color: '#FFFFFF', accent: '#FF4D7E', dim: 0.45}, watermark: 'NAVAAN',
 };
 
@@ -79,6 +80,16 @@ export const Quote: React.FC<QuoteProps> = (props) => {
           <span style={{fontFamily: FONT, fontSize: Math.round(size * 0.5), color: 'rgba(255,255,255,0.92)', textShadow: shadow}}>{props.author.text}</span>
         </div>
       ) : null}
+      {props.brand ? (() => {
+        const k = interpolate(t, [props.brand.start, props.brand.start + 0.9], [0, 1], {easing: ease, extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        const bs = Math.min(84, Math.floor((width - 160) / (Array.from(props.brand.text).length * 0.62)));
+        return (
+          <div style={{position: 'absolute', left: 0, width, top: Math.round(height * 0.44 - bs), height: bs * 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: k, transform: `translateY(${(1 - k) * 30}px)`}}>
+            <div style={{height: 4, width: 90 * k, background: props.style.accent, marginBottom: 34, borderRadius: 2}} />
+            <span style={{fontFamily: FONT, fontSize: bs, letterSpacing: 3, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{props.brand.text}</span>
+          </div>
+        );
+      })() : null}
       <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: FONT, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
         {props.watermark.startsWith('@') ? props.watermark : props.watermark.toUpperCase()}
       </div>

@@ -98,7 +98,16 @@ def make_pngs(D, T, tmp):
     wf = pil_font(42, False)
     draw_text(wm, (W // 2, H - 490), (" ".join(T.get("watermark", "NAVAAN").upper()) if not T.get("watermark", "").startswith("@") else T["watermark"]), wf, (255, 255, 255, 225), shadow=False)
     wp = os.path.join(tmp, "wm.png"); wm.save(wp)
-    return os.path.join(tmp, "scrim.png"), paths, ap, wp
+    bp = None
+    if T.get("brand"):
+        im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+        txt = T["brand"]["text"]; bs = min(84, int((W - 160) / (len(txt) * 0.62)))
+        yy = int(H * 0.44)
+        acc = tuple(int(T["style"]["accent"].lstrip("#")[k:k + 2], 16) for k in (0, 2, 4)) + (255,)
+        d.rectangle((W // 2 - 45, yy - bs // 2 - 40, W // 2 + 45, yy - bs // 2 - 36), fill=acc)
+        draw_text(im, (W // 2, yy + 10), txt, pil_font(bs, has_dev(txt)), (255, 255, 255, 255))
+        bp = os.path.join(tmp, "brand.png"); im.save(bp)
+    return os.path.join(tmp, "scrim.png"), paths, ap, wp, bp
 
 
 def cam_exprs(T):
@@ -118,11 +127,11 @@ def render_ffmpeg(D, T, out):
     import tempfile
     ff = C.tool("ffmpeg"); tmp = tempfile.mkdtemp(prefix="inspire_")
     try:
-        scrim, lines, ap, wp = make_pngs(D, T, tmp)
+        scrim, lines, ap, wp, bp = make_pngs(D, T, tmp)
         z, x, y, F = cam_exprs(T); fps = T["fps"]; dur = T["duration"]; hold = T["hold_until"]
         cmd = [ff, "-y", "-v", "error", "-i", os.path.join(D, T["background"])]
         n = 1
-        extra = [scrim] + lines + ([ap] if ap else []) + [wp]
+        extra = [scrim] + lines + ([ap] if ap else []) + [wp] + ([bp] if bp else [])
         for p in extra: cmd += ["-loop", "1", "-framerate", str(fps), "-t", f"{dur:.2f}", "-i", p]
         ai = []
         if T.get("music"): cmd += ["-i", os.path.join(D, T["music"])]; ai.append("m")
@@ -140,6 +149,8 @@ def render_ffmpeg(D, T, out):
         if ap:
             a = T["author"]; s = layer(k, a["start"], hold, "au", T["transition"] == "rise"); g.append(s.format(cur=cur)); cur = "au"; k += 1
         s = layer(k, 0.4, dur - 0.1, "wm", False); g.append(s.format(cur=cur)); cur = "wm"; k += 1
+        if bp:
+            b = T["brand"]; s = layer(k, b["start"], dur - 0.1, "br", T["transition"] == "rise"); g.append(s.format(cur=cur)); cur = "br"; k += 1
         g.append(f"[{cur}]fade=t=in:st=0:d=0.5,fade=t=out:st={dur - 0.6:.2f}:d=0.6[vout]")
         ib = k
         if len(ai) == 2: g.append(f"[{ib}:a]volume=0.35[m];[{ib + 1}:a]volume=1.0[vo];[m][vo]amix=inputs=2:duration=longest:dropout_transition=0,volume=1.9[aout]")
