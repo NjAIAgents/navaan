@@ -38,6 +38,7 @@ def detail(slug):
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
             "gates": C.GATES, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
+            "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
 
 

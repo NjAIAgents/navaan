@@ -4,6 +4,7 @@
   upload <slug> --file final_reel_cap.mp4 [--meta tags.json] [--privacy private|unlisted|public]
          [--thumbnail thumb_16x9.jpg] [--playlist "Name"] [--yes]
   update <slug> <videoId> [--meta youtube.json] [--thumbnail thumb_16x9.jpg] [--yes]   fix metadata of an uploaded video
+  thumb <slug> <videoId> [--file thumb_16x9.jpg]   set the thumbnail alone (channel needs phone verification at youtube.com/verify)
   privacy <slug> <videoId> <private|unlisted|public> --yes
   stats <videoId> [<videoId> ...]
 
@@ -73,13 +74,29 @@ def find_playlist(yt, name):
         if not tok: return None
 
 
-def set_thumb(yt, vid, path):
-    """Custom thumbnails need a phone verified channel. A refusal must not fail the run, the video is already up."""
+def set_thumb(yt, vid, path, slug=None):
+    """Custom thumbnails need a phone verified channel. A refusal must not fail the run, the video is already up.
+    The refusal is recorded in meta.json (published.thumbnail_pending) so the portal and the next run can show it."""
     from googleapiclient.http import MediaFileUpload
     from googleapiclient.errors import HttpError
-    try: yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(path)).execute()
+    mp = os.path.join(song_dir(slug), "meta.json") if slug else None
+    def mark(add):
+        if not (mp and os.path.exists(mp)): return
+        m = json.load(open(mp, encoding="utf-8")); pend = [x for x in m.setdefault("published", {}).get("thumbnail_pending", []) if x["id"] != vid]
+        if add: pend.append({"id": vid, "file": os.path.basename(path)})
+        m["published"]["thumbnail_pending"] = pend
+        if not pend: m["published"].pop("thumbnail_pending")
+        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    try:
+        yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(path)).execute(); mark(False); print("thumbnail set")
     except HttpError as e:
-        print(f"warning: thumbnail not set ({e.resp.status}). Verify the channel at youtube.com/verify, then upload {os.path.basename(path)} in Studio or re-run update.")
+        mark(True)
+        print(f"warning: thumbnail not set ({e.resp.status}). Verify the channel by phone at youtube.com/verify, then run: publish_youtube.py thumb {slug or '<slug>'} {vid}")
+
+
+def thumb(a):
+    D = song_dir(a.slug); f = a.file or "thumb_16x9.jpg"
+    set_thumb(service(), a.video_id, f if os.path.isabs(f) else os.path.join(D, f), a.slug)
 
 
 def upload(a):
@@ -108,7 +125,7 @@ def upload(a):
     pl = a.playlist or meta.get("playlist")
     if a.thumbnail:
         tp = a.thumbnail if os.path.isabs(a.thumbnail) else os.path.join(D, a.thumbnail)
-        set_thumb(yt, vid, tp)
+        set_thumb(yt, vid, tp, a.slug)
     if pl:
         pid = find_playlist(yt, pl)
         if pid: yt.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": vid}}}).execute()
@@ -135,7 +152,7 @@ def update(a):
     yt.videos().update(part="snippet", body={"id": a.video_id, "snippet": sn}).execute()
     if a.thumbnail:
         tp = a.thumbnail if os.path.isabs(a.thumbnail) else os.path.join(D, a.thumbnail)
-        set_thumb(yt, a.video_id, tp)
+        set_thumb(yt, a.video_id, tp, a.slug)
     pl = a.playlist or meta.get("playlist")
     if pl:
         pid = find_playlist(yt, pl)
@@ -170,6 +187,7 @@ if __name__ == "__main__":
     u = sp.add_parser("upload"); u.add_argument("slug"); u.add_argument("--file", required=True); u.add_argument("--meta", default="tags.json")
     u.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"]); u.add_argument("--thumbnail"); u.add_argument("--playlist"); u.add_argument("--publish-at", help="RFC 3339 time such as 2026-10-20T15:00:00Z, schedules a private upload"); u.add_argument("--yes", action="store_true"); u.set_defaults(fn=upload)
     up = sp.add_parser("update"); up.add_argument("slug"); up.add_argument("video_id"); up.add_argument("--meta", default="youtube.json"); up.add_argument("--thumbnail"); up.add_argument("--playlist"); up.add_argument("--yes", action="store_true"); up.set_defaults(fn=update)
+    th = sp.add_parser("thumb"); th.add_argument("slug"); th.add_argument("video_id"); th.add_argument("--file"); th.set_defaults(fn=thumb)
     p = sp.add_parser("privacy"); p.add_argument("slug"); p.add_argument("video_id"); p.add_argument("status", choices=["private", "unlisted", "public"]); p.add_argument("--yes", action="store_true"); p.set_defaults(fn=privacy)
     s = sp.add_parser("stats"); s.add_argument("video_ids", nargs="+"); s.set_defaults(fn=stats)
     a = ap.parse_args(); a.fn(a)
