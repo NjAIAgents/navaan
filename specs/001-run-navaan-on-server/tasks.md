@@ -24,7 +24,8 @@
 - [X] T008 Run `python3 plugins/navaan-studio/tests/test_auth.py` and fix failures. Must pass before any story starts.
 - [X] T009 Write `deploy/Dockerfile` (arm64: python 3.13, node 22, ffmpeg, Chrome libs, `claude` CLI, plugin installed from the repo, `cryptography`; no config or data baked in).
 - [X] T010 Write `deploy/compose.yml` (project `navaan`, service `navaan`, network `navaan-network`, named volume for data, tmpfs for secrets, Docker secret for the AppRole secret id, no credentials in the file, port bound to the internal network only).
-- [ ] T011 (VM) Build the image on the VM and render the synthetic test song (quickstart step 2). Confirms headless Chrome on ARM (open item 4). Expect mp4 with audio under 10 minutes for 30 s.
+- [X] T011 (VM) Build the image on the VM and render the synthetic test song (quickstart step 2). Confirms headless Chrome on ARM (open item 4). Expect mp4 with audio under 10 minutes for 30 s.
+  - Done 2026-10-13 on the VM: image built (about 5 minutes), 30 s synthetic render in 148 s with `--cpus 2 --memory 4g`, h264 1080x1920 plus aac, 30.0 s. Headless Chrome for linux-arm64 works (open item 4 closed).
   - Status: image built and a 30 s synthetic render passed in Docker on an arm64 Mac (19 s, h264 + aac). The real check on the VM is still Nj's.
 
 **Checkpoint**: portal code is env-safe, tests pass, image builds and renders.
@@ -101,6 +102,7 @@
 - [ ] T041 [US6] (VM) Run snapshot before T014 and after T017; diff must be empty.
 - [ ] T042 [US6] (VM) Rollback drill (quickstart step 13): remove mount and network, `docker compose up -d nginx`, neighbours answer, Mac studio works.
 - [ ] T043 [US6] (Nj) Check the `relayent.ignorelist.com` cert (expires 2026-10-14 21:04 UTC, renewal looked broken). Not ours, flagged only.
+  - Update 2026-10-13: the cert was renewed in the meantime (now valid to 2027-01-11, snapshot in `/opt/navaan/before.txt`). The renewal config may still say `standalone`; check with `sudo grep authenticator /etc/letsencrypt/renewal/relayent.ignorelist.com.conf`.
 
 ## Phase 9: Polish
 

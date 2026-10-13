@@ -37,7 +37,7 @@ Commits so far: 1cd9700 auth module, c013f68 per-IP and https auth, c5f5a1b Spec
 - `deploy/`: Dockerfile and compose (built and run on arm64 Docker, 30 s Remotion render passed), `vault_sync.py` and `vault/setup.md` (run against a dev Vault: push, pull, write-back, seal and unseal), `entrypoint.sh`, `nginx/` (vhost tested in nginx:alpine: gate 401/200, throttle 429), `backup/backup.sh` (dry run), `migrate.md`, `check-neighbours.sh`, `README.md`.
 
 ## What is not done (needs the VM or Nj)
-T011 (real render on the VM), T014 to T017 (nginx edit, cert, gate password, first sign in), T023 to T025 (Vault setup, push, sealed drill on the real Vault), T029, T033, T034, T037 to T039, T041 to T043, T046, T047. Step by step: `deploy/README.md`.
+T014 to T017 (nginx edit, cert, gate password, first sign in), T023 to T025 (Vault setup, push, sealed drill on the real Vault), T029, T033, T034, T037 to T039, T041 to T043, T046, T047. Step by step: `deploy/README.md`.
 
 Changes to the plan found while building: nginx gets two mounts (vhost and htpasswd) plus one network; the container needs a rw mount of the single htpasswd file; `claude.env` is read per Claude step, not exported at start; compose defaults `NAVAAN_SCHEDULER=off`.
 
@@ -51,8 +51,8 @@ Env contract is in `contracts/environment.md`. Vault layout is in `contracts/vau
 - Not ours: cert `relayent.ignorelist.com` expires 2026-10-14 21:04 UTC and renewal looked broken. Nj was told to check.
 
 ## VM facts (T002, T003 done 2026-10-13, details in `specs/001-run-navaan-on-server/research.md` R10)
-- Vault is only on `engagehub-network`; NAVAAN joins it (compose default). Compose is v5.1.4, nginx vhosts are mounted by absolute host path, certbot has no reload hooks (NAVAAN's cert gets one). Still open: T011, whether headless Chrome renders on the VM (the image renders on arm64 Docker on the Mac).
-- **Urgent, not ours**: `relayent.ignorelist.com` is on `standalone` renewal and fails every run; it expires 2026-10-14 21:04 UTC. One-liner in R10.
+- Vault is only on `engagehub-network`; NAVAAN joins it (compose default). Compose is v5.1.4, nginx vhosts are mounted by absolute host path, certbot has no reload hooks (NAVAAN's cert gets one). T011 done: image builds on the VM and a 30 s render takes 148 s with 2 CPUs.
+- Not ours: `relayent.ignorelist.com` was on `standalone` renewal; its cert has been renewed since (valid to 2027-01-11) but check the setting (T043).
 
 ## Other pending items for Nj
 - YouTube token refresh before about Oct 19. Instagram token renewal around Dec 12.
