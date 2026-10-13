@@ -10,20 +10,22 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Commit only the auth hunks of `plugins/navaan-studio/scripts/navaan_ui.py` and `plugins/navaan-studio/scripts/ui.html`, leaving the other session's analytics hunks unstaged (constitution IX). Use `git add -p`, never `git checkout`.
+- [X] T001 Commit only the auth hunks of `plugins/navaan-studio/scripts/navaan_ui.py` and `plugins/navaan-studio/scripts/ui.html`, leaving the other session's analytics hunks unstaged (constitution IX). Use `git add -p`, never `git checkout`.
+  - Status: done. The other session's analytics hunks in `ui.html` went in their own commit (e31ac73), then this work in one commit; no `git add -p` was possible (non-interactive), so hunks were split by patch.
 - [ ] T002 [P] (VM) Verify open item 1: which Docker network `engagehub-vault` is on (`docker inspect engagehub-vault`). Record answer in `specs/001-run-navaan-on-server/research.md`.
 - [ ] T003 [P] (VM) Verify open items 2 and 3: certbot deploy hook (`cat /etc/letsencrypt/renewal/*.conf`), `docker compose version`, and how `/opt/engagehub/docker-compose.yml` declares Relayent's external network. Record in `research.md`.
-- [ ] T004 [P] Create `deploy/` skeleton with `deploy/README.md` (install, update, rollback outline) and empty subfolders `deploy/nginx`, `deploy/backup`, `deploy/vault`.
+- [X] T004 [P] Create `deploy/` skeleton with `deploy/README.md` (install, update, rollback outline) and empty subfolders `deploy/nginx`, `deploy/backup`, `deploy/vault`.
 
 ## Phase 2: Foundational (blocks all stories)
 
-- [ ] T005 Add env-driven switches to `plugins/navaan-studio/scripts/navaan_ui.py` per `contracts/environment.md`: `NAVAAN_PUBLIC_HOST` (extra allowed Host and https-aware Origin check), `NAVAAN_TRUST_PROXY` (client IP from `X-Real-IP`, scheme from `X-Forwarded-Proto`), `NAVAAN_BIND`. Defaults keep localhost behaviour.
-- [ ] T006 Pass `ip=` and `https=` from `navaan_ui.py` into `auth.state()` and `auth.handle_post()` in `plugins/navaan-studio/scripts/navaan_ui.py` so throttle keys on the real client and cookies get `Secure`.
-- [ ] T007 [P] Promote the scratch auth suite into `plugins/navaan-studio/tests/test_auth.py`: setup code, password plus TOTP, replay, recovery code, throttle per IP, cookie flags under `https=True`, 12 h and 2 h expiry.
-- [ ] T008 Run `python3 plugins/navaan-studio/tests/test_auth.py` and fix failures. Must pass before any story starts.
-- [ ] T009 Write `deploy/Dockerfile` (arm64: python 3.13, node 22, ffmpeg, Chrome libs, `claude` CLI, plugin installed from the repo, `cryptography`; no config or data baked in).
-- [ ] T010 Write `deploy/compose.yml` (project `navaan`, service `navaan`, network `navaan-network`, named volume for data, tmpfs for secrets, Docker secret for the AppRole secret id, no credentials in the file, port bound to the internal network only).
+- [X] T005 Add env-driven switches to `plugins/navaan-studio/scripts/navaan_ui.py` per `contracts/environment.md`: `NAVAAN_PUBLIC_HOST` (extra allowed Host and https-aware Origin check), `NAVAAN_TRUST_PROXY` (client IP from `X-Real-IP`, scheme from `X-Forwarded-Proto`), `NAVAAN_BIND`. Defaults keep localhost behaviour.
+- [X] T006 Pass `ip=` and `https=` from `navaan_ui.py` into `auth.state()` and `auth.handle_post()` in `plugins/navaan-studio/scripts/navaan_ui.py` so throttle keys on the real client and cookies get `Secure`.
+- [X] T007 [P] Promote the scratch auth suite into `plugins/navaan-studio/tests/test_auth.py`: setup code, password plus TOTP, replay, recovery code, throttle per IP, cookie flags under `https=True`, 12 h and 2 h expiry.
+- [X] T008 Run `python3 plugins/navaan-studio/tests/test_auth.py` and fix failures. Must pass before any story starts.
+- [X] T009 Write `deploy/Dockerfile` (arm64: python 3.13, node 22, ffmpeg, Chrome libs, `claude` CLI, plugin installed from the repo, `cryptography`; no config or data baked in).
+- [X] T010 Write `deploy/compose.yml` (project `navaan`, service `navaan`, network `navaan-network`, named volume for data, tmpfs for secrets, Docker secret for the AppRole secret id, no credentials in the file, port bound to the internal network only).
 - [ ] T011 (VM) Build the image on the VM and render the synthetic test song (quickstart step 2). Confirms headless Chrome on ARM (open item 4). Expect mp4 with audio under 10 minutes for 30 s.
+  - Status: image built and a 30 s synthetic render passed in Docker on an arm64 Mac (19 s, h264 + aac). The real check on the VM is still Nj's.
 
 **Checkpoint**: portal code is env-safe, tests pass, image builds and renders.
 
@@ -32,8 +34,10 @@
 **Goal**: only the sign-in page is visible at https://navaan.njlabs.dev, behind a shared password, over valid TLS.
 **Independent test**: quickstart steps 4 to 8.
 
-- [ ] T012 [P] [US1] Write `deploy/nginx/navaan.conf`: port 80 ACME webroot plus redirect, port 443 vhost for `navaan.njlabs.dev` only, `auth_basic` with `/run/navaan/htpasswd`, per-IP rate limit (30 req/min without session cookie), proxy headers `X-Real-IP` and `X-Forwarded-Proto`, long timeouts for uploads.
-- [ ] T013 [P] [US1] Write `deploy/nginx/README.md`: exact edit to `/opt/engagehub/docker-compose.yml` (one bind mount, one network), backup command, `nginx -t` check, rollback.
+- [X] T012 [P] [US1] Write `deploy/nginx/navaan.conf`: port 80 ACME webroot plus redirect, port 443 vhost for `navaan.njlabs.dev` only, `auth_basic` with `/run/navaan/htpasswd`, per-IP rate limit (30 req/min without session cookie), proxy headers `X-Real-IP` and `X-Forwarded-Proto`, long timeouts for uploads.
+  - Note: two throttle zones (strict without a session-shaped cookie, loose for everyone) so a forged cookie cannot bypass the gate throttle. Tested in nginx:alpine: 401 without gate, 200 with, 429 after the burst.
+- [X] T013 [P] [US1] Write `deploy/nginx/README.md`: exact edit to `/opt/engagehub/docker-compose.yml` (one bind mount, one network), backup command, `nginx -t` check, rollback.
+  - Note: two mounts (vhost and htpasswd) plus one network, not one mount; nginx reads the hash from a file. Stage-1 `navaan-acme.conf` lets certbot issue the cert before the full vhost needs it.
 - [ ] T014 [US1] (VM) Back up `/opt/engagehub/docker-compose.yml`, apply the README edit, `docker compose up -d nginx`, `docker exec engagehub-nginx nginx -t`, confirm EngageHub and Relayent health URLs still answer.
 - [ ] T015 [US1] (VM) Issue the cert: `certbot certonly --webroot -w /var/www/certbot -d navaan.njlabs.dev --deploy-hook "docker exec engagehub-nginx nginx -s reload"`, then `certbot renew --cert-name navaan.njlabs.dev --dry-run`.
 - [ ] T016 [US1] (Nj) Create the shared gate password and store it in Vault per `contracts/vault-layout.md`. Never paste it in chat.
@@ -46,11 +50,12 @@
 **Goal**: platform tokens and the Claude token live in Vault, refreshed tokens persist.
 **Independent test**: quickstart steps 3 and 9.
 
-- [ ] T018 [P] [US3] Write `deploy/vault/setup.md`: enable `navaan/` kv-v2 mount, policy `navaan`, AppRole `navaan` (token TTL 1 h, max 4 h), write role id and secret id to `/opt/navaan/secrets/` with mode 600. Commands only, no values.
-- [ ] T019 [P] [US3] Write `deploy/vault_sync.py` (urllib only): AppRole login, pull `navaan/data/*` to tmpfs with stored mode, watch files and push changed ones back, write status file, retry with backoff when Vault is sealed or unreachable.
-- [ ] T020 [US3] Write `deploy/entrypoint.sh`: wait for Vault, pull secrets, build htpasswd from the gate secret, start the watcher, export `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, start the portal.
-- [ ] T021 [US3] Add secrets status to `plugins/navaan-studio/scripts/navaan_ui.py`: read `NAVAAN_SECRETS_STATUS`, expose on `/auth/state` and the status area so the sign-in page shows "secrets waiting" when sealed.
-- [ ] T022 [US3] Add a Claude credential indicator in `plugins/navaan-studio/scripts/ui.html` and `settings_api.py`: show token type in use, and missing, expired or rate limited states (FR-012, FR-018).
+- [X] T018 [P] [US3] Write `deploy/vault/setup.md`: enable `navaan/` kv-v2 mount, policy `navaan`, AppRole `navaan` (token TTL 1 h, max 4 h), write role id and secret id to `/opt/navaan/secrets/` with mode 600. Commands only, no values.
+- [X] T019 [P] [US3] Write `deploy/vault_sync.py` (urllib only): AppRole login, pull `navaan/data/*` to tmpfs with stored mode, watch files and push changed ones back, write status file, retry with backoff when Vault is sealed or unreachable.
+- [X] T020 [US3] Write `deploy/entrypoint.sh`: wait for Vault, pull secrets, build htpasswd from the gate secret, start the watcher, export `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, start the portal.
+  - Note: `claude.env` is not exported by the entrypoint; the portal reads it each time a Claude step starts (`navaan_common.load_claude_env`), so a late or renewed token needs no restart.
+- [X] T021 [US3] Add secrets status to `plugins/navaan-studio/scripts/navaan_ui.py`: read `NAVAAN_SECRETS_STATUS`, expose on `/auth/state` and the status area so the sign-in page shows "secrets waiting" when sealed.
+- [X] T022 [US3] Add a Claude credential indicator in `plugins/navaan-studio/scripts/ui.html` and `settings_api.py`: show token type in use, and missing, expired or rate limited states (FR-012, FR-018).
 - [ ] T023 [US3] (Nj) Run the Vault setup from `deploy/vault/setup.md` with own admin login. Have 2 unseal keys ready.
 - [ ] T024 [US3] (Nj) Push secrets from the Mac using `vault_sync.py push`. Confirm no credential files in the data volume.
 - [ ] T025 [US3] (VM) Sealed-Vault drill (quickstart step 9): seal, restart container, page shows waiting, unseal, status `ok` within 1 minute.
@@ -60,9 +65,9 @@
 **Goal**: server publishes on schedule exactly once.
 **Independent test**: quickstart step 11.
 
-- [ ] T026 [US2] Add `NAVAAN_SCHEDULER` (`on` default, `off` stops the scheduler thread) in `plugins/navaan-studio/scripts/navaan_ui.py` and `navaan.py`; show scheduler state in the UI.
-- [ ] T027 [US2] Verify and, if needed, harden publish-once: check how a fired item is recorded so a second instance skips it. Add a test in `plugins/navaan-studio/tests/test_scheduler_once.py`.
-- [ ] T028 [US2] Document the cutover order in `deploy/README.md`: turn Mac scheduler off, then server on, never both.
+- [X] T026 [US2] Add `NAVAAN_SCHEDULER` (`on` default, `off` stops the scheduler thread) in `plugins/navaan-studio/scripts/navaan_ui.py` and `navaan.py`; show scheduler state in the UI.
+- [X] T027 [US2] Verify and, if needed, harden publish-once: check how a fired item is recorded so a second instance skips it. Add a test in `plugins/navaan-studio/tests/test_scheduler_once.py`.
+- [X] T028 [US2] Document the cutover order in `deploy/README.md`: turn Mac scheduler off, then server on, never both.
 - [ ] T029 [US2] (VM) Quickstart step 11: Mac scheduler off, schedule a test item minutes ahead, approve gates, sleep the Mac, confirm one publish and a history line. Check missed-approval case shows "waiting for approval".
 
 ## Phase 6: User Story 4, run the pipeline on the server (P2)
@@ -70,9 +75,9 @@
 **Goal**: Claude steps and render work on the server, Mac-only steps are clearly marked.
 **Independent test**: run a short song with own pictures from lyrics through render.
 
-- [ ] T030 [P] [US4] Add `NAVAAN_HEADLESS` handling in `plugins/navaan-studio/scripts/navaan.py`: Chrome-driven steps (Suno import, Flow visuals) print a Mac-only hint and the upload instructions instead of launching Chrome.
-- [ ] T031 [P] [US4] In `plugins/navaan-studio/scripts/settings_api.py` and `ui.html`, hide local-browser sign-in buttons when headless and show the Mac command instead.
-- [ ] T032 [US4] Show a "Do this on the Mac, then upload the result" card on the song page for Mac-only steps in `ui.html`, reusing the existing upload path.
+- [X] T030 [P] [US4] Add `NAVAAN_HEADLESS` handling in `plugins/navaan-studio/scripts/navaan.py`: Chrome-driven steps (Suno import, Flow visuals) print a Mac-only hint and the upload instructions instead of launching Chrome.
+- [X] T031 [P] [US4] In `plugins/navaan-studio/scripts/settings_api.py` and `ui.html`, hide local-browser sign-in buttons when headless and show the Mac command instead.
+- [X] T032 [US4] Show a "Do this on the Mac, then upload the result" card on the song page for Mac-only steps in `ui.html`, reusing the existing upload path.
 - [ ] T033 [US4] (VM) Run a synthetic song end to end: Claude lyrics and caption step with the subscription token, render, check output. Confirm Mac-only steps show guidance.
 - [ ] T034 [US4] (Nj) Check Anthropic terms for always-on subscription use (FR-018) and decide subscription vs API key. Documented switch lives in `deploy/README.md`.
 
@@ -81,8 +86,8 @@
 **Goal**: all songs, approvals, schedules, config and analytics history on the server, Mac still works.
 **Independent test**: quickstart steps 10 and 12.
 
-- [ ] T035 [P] [US5] Write `deploy/backup/backup.sh`: nightly tar of the data volume to the OCI bucket, retention 14 days, restore instructions in `deploy/README.md`.
-- [ ] T036 [P] [US5] Write `deploy/migrate.md` (or a section in `deploy/README.md`): rsync commands for `songs/`, `analytics.db`, `navaan.config.json` with a dry run first. Config contains credentials references, so route credentials through Vault, not rsync.
+- [X] T035 [P] [US5] Write `deploy/backup/backup.sh`: nightly tar of the data volume to the OCI bucket, retention 14 days, restore instructions in `deploy/README.md`.
+- [X] T036 [P] [US5] Write `deploy/migrate.md` (or a section in `deploy/README.md`): rsync commands for `songs/`, `analytics.db`, `navaan.config.json` with a dry run first. Config contains credentials references, so route credentials through Vault, not rsync.
 - [ ] T037 [US5] (VM) Run the migration, compare `ls songs | wc -l` and `sqlite3 analytics.db 'select count(*) from media'` with the Mac, open and play a migrated song.
 - [ ] T038 [US5] (VM) Install the backup cron or timer, run once, restore to a scratch dir, compare file counts.
 - [ ] T039 [US5] Refresh platform tokens: YouTube token before about Oct 19, Instagram renewal around Dec 12. Confirm refreshed values land in Vault.
@@ -92,15 +97,15 @@
 **Goal**: other apps untouched, NAVAAN removable.
 **Independent test**: before/after health and cert checks, rollback drill.
 
-- [ ] T040 [P] [US6] Add a before/after snapshot script `deploy/check-neighbours.sh`: health URLs and cert fingerprints for EngageHub and Relayent.
+- [X] T040 [P] [US6] Add a before/after snapshot script `deploy/check-neighbours.sh`: health URLs and cert fingerprints for EngageHub and Relayent.
 - [ ] T041 [US6] (VM) Run snapshot before T014 and after T017; diff must be empty.
 - [ ] T042 [US6] (VM) Rollback drill (quickstart step 13): remove mount and network, `docker compose up -d nginx`, neighbours answer, Mac studio works.
 - [ ] T043 [US6] (Nj) Check the `relayent.ignorelist.com` cert (expires 2026-10-14 21:04 UTC, renewal looked broken). Not ours, flagged only.
 
 ## Phase 9: Polish
 
-- [ ] T044 [P] Update `plugins/navaan-studio/docs/DEPLOY_HANDOFF.md` and `docs/AUTH.md` to match what was built.
-- [ ] T045 [P] Finish `deploy/README.md` (install, update, rollback, env table, VM reboot note: Vault seals, 2 unseal keys needed).
+- [X] T044 [P] Update `plugins/navaan-studio/docs/DEPLOY_HANDOFF.md` and `docs/AUTH.md` to match what was built.
+- [X] T045 [P] Finish `deploy/README.md` (install, update, rollback, env table, VM reboot note: Vault seals, 2 unseal keys needed).
 - [ ] T046 Run all quickstart steps 1 to 13 top to bottom and record results in `specs/001-run-navaan-on-server/quickstart.md`.
 - [ ] T047 Run `/speckit-analyze` for a consistency pass across spec, plan and tasks.
 

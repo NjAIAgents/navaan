@@ -1,0 +1,30 @@
+# Build context is the repo root (deploy/compose.yml). Keep data, secrets and dev folders out of the image.
+.git
+.venv
+.claude
+.continuity
+.specify
+specs
+songs
+publish
+review
+_prev
+Claude outputs
+scripts
+graphify-out
+**/node_modules
+**/__pycache__
+**/*.pyc
+.DS_Store
+navaan.config.json
+hashtags.json
+standing_rules.json
+style-notes.md
+*.mp3
+*.mp4
+*.wav
+*.m4a
+*.mov
+*.env
+*.pem
+*.key

@@ -4,7 +4,7 @@ Project root: env NAVAAN_ROOT, else the nearest parent of the current directory 
 Tools: ffmpeg and ffprobe are found on PATH, with common macOS locations as fallback (env NAVAAN_FFMPEG, NAVAAN_FFPROBE override).
 Font for captions: env NAVAAN_FONT (path[:index]), else a Devanagari capable system font.
 """
-import os, shutil, subprocess, sys, json
+import os, re, shutil, subprocess, sys, json, time
 
 
 def find_root():
@@ -24,6 +24,31 @@ def find_root():
                 break
             d = p
     return start
+
+
+def headless(): return os.environ.get("NAVAAN_HEADLESS", "0") == "1"  # the server: no local Chrome, so Chrome-driven steps run on the Mac
+
+
+CLAUDE_STATE = {"problem": "", "at": 0}  # last Claude step outcome: "" ok, "rate_limited" or "expired"
+
+
+def load_claude_env():
+    """Pick up the Claude credential delivered from Vault (~/.config/navaan/claude.env: CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY).
+    Read each time a Claude step starts, so a late or renewed token needs no restart. No file: the environment stays as it is."""
+    try:
+        for line in open(os.path.join(os.path.expanduser("~/.config/navaan"), "claude.env"), encoding="utf-8"):
+            k, _, v = line.strip().partition("=")
+            if k in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY") and v.strip(): os.environ[k] = v.strip().strip("\"'")
+    except OSError: pass
+
+
+def note_claude_result(ok, log_tail=""):
+    """Remember why a Claude step failed so Settings can say rate limited or expired instead of a bare failure."""
+    t = (log_tail or "").lower(); prob = ""
+    if not ok:
+        if re.search(r"rate.?limit|usage limit|limit reached|too many requests|overloaded|\b429\b", t): prob = "rate_limited"
+        elif re.search(r"expired|invalid (api key|token|x-api-key)|authentication|not logged in|/login|\b401\b|unauthorized", t): prob = "expired"
+    CLAUDE_STATE.update(problem=prob, at=int(time.time()) if prob else 0)
 
 
 def plugin_dir():

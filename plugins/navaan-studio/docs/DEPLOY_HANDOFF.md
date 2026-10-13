@@ -1,6 +1,6 @@
 # NAVAAN studio: deploy to the Oracle VM (handoff for Claude Code)
 
-Updated 2026-10-13. Spec, plan and tasks are done and committed. Next step is `/speckit-implement`.
+Updated 2026-10-13. Spec, plan and tasks are committed. All code and docs tasks are built (see `tasks.md`, 25 of 47 checked). What is left is the VM and Nj steps.
 
 ## Goal
 Run the portal (`plugins/navaan-studio/scripts/navaan.py serve`) in Docker on Nj's Oracle VM at https://navaan.njlabs.dev. Credentials live in the existing HashiCorp Vault. Scheduled publishing then works with the Mac off.
@@ -32,12 +32,14 @@ Commits so far: 1cd9700 auth module, c013f68 per-IP and https auth, c5f5a1b Spec
 - Portal login is built: scrypt password, TOTP, recovery codes, passkeys, 12 h session, 2 h idle. See `plugins/navaan-studio/docs/AUTH.md`.
 - Server files go in a new top level `deploy/`. Plugin changes are small and env driven, defaults keep localhost behaviour.
 
-## What is not done
-Everything in `tasks.md` is unchecked. In short:
-- Phase 1 and 2: commit own hunks (T001), env switches in `navaan_ui.py` (`NAVAAN_PUBLIC_HOST`, `NAVAAN_TRUST_PROXY`, `NAVAAN_BIND`, pass `ip=` and `https=` to auth), promote tests to `plugins/navaan-studio/tests/test_auth.py`, `deploy/Dockerfile`, `deploy/compose.yml`, ARM render test.
-- Phase 3 (MVP): `deploy/nginx/navaan.conf` and README, nginx compose edit, cert, gate password, first sign in.
-- Phase 4: `deploy/vault/setup.md`, `deploy/vault_sync.py`, `deploy/entrypoint.sh`, secrets status in the UI, Claude credential indicator.
-- Phase 5 to 9: `NAVAAN_SCHEDULER`, `NAVAAN_HEADLESS` Mac-only hints, backup script, migration, neighbour checks, rollback drill, docs.
+## What is built (Mac side, tested locally)
+- Portal env switches (`NAVAAN_PUBLIC_HOST`, `NAVAAN_TRUST_PROXY`, `NAVAAN_BIND`, `NAVAAN_SCHEDULER`, `NAVAAN_HEADLESS`), per-IP and https-aware auth, secrets status on `/auth/state` and the sign-in page, scheduler `on|off|paused`, Claude credential card, Mac-only step note. Tests: `plugins/navaan-studio/tests/` (`test_auth.py`, `test_scheduler_once.py`, `test_headless.py`).
+- `deploy/`: Dockerfile and compose (built and run on arm64 Docker, 30 s Remotion render passed), `vault_sync.py` and `vault/setup.md` (run against a dev Vault: push, pull, write-back, seal and unseal), `entrypoint.sh`, `nginx/` (vhost tested in nginx:alpine: gate 401/200, throttle 429), `backup/backup.sh` (dry run), `migrate.md`, `check-neighbours.sh`, `README.md`.
+
+## What is not done (needs the VM or Nj)
+T002/T003 (VM facts), T011 (real render on the VM), T014 to T017 (nginx edit, cert, gate password, first sign in), T023 to T025 (Vault setup, push, sealed drill on the real Vault), T029, T033, T034, T037 to T039, T041 to T043, T046, T047. Step by step: `deploy/README.md`.
+
+Changes to the plan found while building: nginx gets two mounts (vhost and htpasswd) plus one network; the container needs a rw mount of the single htpasswd file; `claude.env` is read per Claude step, not exported at start; compose defaults `NAVAAN_SCHEDULER=off`.
 
 Env contract is in `contracts/environment.md`. Vault layout is in `contracts/vault-layout.md`.
 

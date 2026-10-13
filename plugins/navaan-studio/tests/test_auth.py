@@ -1,0 +1,242 @@
+"""Tests for the portal login (auth.py): setup code, password plus TOTP, replay, recovery code, per-IP throttle, cookie flags, expiry.
+Run: python3 -W ignore -m unittest test_auth   (from this folder)"""
+import os, sys, tempfile, unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+import auth
+
+PW = "correct horse battery"
+H = "localhost:8765"
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        auth.DIR = self.tmp.name
+        auth.FILE = os.path.join(self.tmp.name, "auth.json")
+        auth.CODE_FILE = os.path.join(self.tmp.name, "auth_setup_code")
+        for m in (auth.SESSIONS, auth.TICKETS, auth.PENDING, auth.THROTTLE): m.clear()
+        os.environ.pop("NAVAAN_AUTH", None)
+
+    def tearDown(self): self.tmp.cleanup()
+
+    def post(self, path, body, ck=None, ip="1.1.1.1", https=False):
+        return auth.handle_post(path, body, ck, H, ip=ip, https=https)
+
+    def setup_login(self, ip="1.1.1.1", https=False):
+        """Run first-time setup. Returns (cookie header, totp secret, recovery codes)."""
+        auth.ensure_setup_code()
+        c, j, _ = self.post("/auth/setup/start", {"code": auth.setup_code(), "user": "nj", "password": PW}, ip=ip, https=https)
+        self.assertEqual(c, 200, j)
+        sec = j["secret"]
+        c, j, ck = self.post("/auth/setup/finish", {"code": auth.totp(sec, int(auth.now() // 30))}, ip=ip, https=https)
+        self.assertEqual(c, 200, j)
+        return ck[0].split(";")[0], sec, j["recovery"]
+
+    def login(self, code, ip="1.1.1.1", https=False):
+        c, j, _ = self.post("/auth/login", {"user": "nj", "password": PW}, ip=ip, https=https)
+        self.assertEqual(c, 200, j)
+        return self.post("/auth/mfa", {"ticket": j["ticket"], "code": code}, ip=ip, https=https)
+
+
+class Setup(Base):
+    def test_wrong_setup_code(self):
+        auth.ensure_setup_code()
+        c, _, _ = self.post("/auth/setup/start", {"code": "0000-0000-0000", "user": "nj", "password": PW})
+        self.assertEqual(c, 403)
+
+    def test_weak_password(self):
+        auth.ensure_setup_code()
+        c, _, _ = self.post("/auth/setup/start", {"code": auth.setup_code(), "user": "nj", "password": "short"})
+        self.assertEqual(c, 400)
+
+    def test_setup_signs_in_and_removes_code(self):
+        ck, _, rec = self.setup_login()
+        self.assertTrue(auth.configured())
+        self.assertFalse(os.path.exists(auth.CODE_FILE))
+        self.assertEqual(len(rec), 10)
+        self.assertEqual(auth.state(ck, H)["state"], "authed")
+
+    def test_no_second_setup(self):
+        self.setup_login()
+        c, _, _ = self.post("/auth/setup/start", {"code": "x", "user": "nj", "password": PW})
+        self.assertEqual(c, 403)
+
+    def test_login_file_mode(self):
+        self.setup_login()
+        self.assertEqual(os.stat(auth.FILE).st_mode & 0o777, 0o600)
+
+
+class SignIn(Base):
+    def test_password_then_totp(self):
+        _, sec, _ = self.setup_login()
+        step = int(auth.now() // 30) + 1  # next window: setup already used the current one
+        c, j, ck = self.login(auth.totp(sec, step))
+        self.assertEqual(c, 200, j)
+        self.assertEqual(auth.state(ck[0].split(";")[0], H)["state"], "authed")
+
+    def test_totp_replay_refused(self):
+        _, sec, _ = self.setup_login()
+        code = auth.totp(sec, int(auth.now() // 30) + 1)
+        self.assertEqual(self.login(code)[0], 200)
+        self.assertEqual(self.login(code)[0], 401)
+
+    def test_wrong_password(self):
+        self.setup_login()
+        c, _, _ = self.post("/auth/login", {"user": "nj", "password": "wrong wrong wrong"})
+        self.assertEqual(c, 401)
+
+    def test_recovery_code_once(self):
+        _, _, rec = self.setup_login()
+        self.assertEqual(self.login(rec[0])[0], 200)
+        self.assertEqual(self.login(rec[0])[0], 401)
+
+    def test_not_signed_in(self):
+        self.setup_login()
+        self.assertEqual(auth.state(None, H)["state"], "login")
+        self.assertIsNone(auth.session(None))
+
+    def test_logout(self):
+        ck, _, _ = self.setup_login()
+        c, _, _ = self.post("/auth/logout", {}, ck=ck)
+        self.assertEqual(c, 200)
+        self.assertIsNone(auth.session(ck))
+
+
+class Throttle(Base):
+    def test_lockout_is_per_ip(self):
+        self.setup_login()
+        for _ in range(5): self.post("/auth/login", {"user": "nj", "password": "wrong wrong wrong"}, ip="9.9.9.9")
+        c, j, _ = self.post("/auth/login", {"user": "nj", "password": PW}, ip="9.9.9.9")
+        self.assertEqual(c, 429, j)
+        c, _, _ = self.post("/auth/login", {"user": "nj", "password": PW}, ip="2.2.2.2")  # a stranger cannot lock out the owner
+        self.assertEqual(c, 200)
+
+    def test_state_reports_lock(self):
+        self.setup_login()
+        for _ in range(5): self.post("/auth/login", {"user": "nj", "password": "wrong wrong wrong"}, ip="9.9.9.9")
+        self.assertGreater(auth.state(None, H, ip="9.9.9.9")["locked"], 0)
+        self.assertEqual(auth.state(None, H, ip="2.2.2.2")["locked"], 0)
+
+
+class Cookies(Base):
+    def test_flags_plain_http(self):
+        h = auth.cookie_header("tok")
+        self.assertIn("HttpOnly", h); self.assertIn("SameSite=Strict", h); self.assertNotIn("Secure", h)
+
+    def test_secure_under_https(self):
+        auth.state(None, H, https=True)
+        self.assertIn("; Secure", auth.cookie_header("tok"))
+        self.assertIn("; Secure", auth.cookie_header("", clear=True))
+
+    def test_setup_cookie_secure_under_https(self):
+        auth.ensure_setup_code()
+        c, j, _ = self.post("/auth/setup/start", {"code": auth.setup_code(), "user": "nj", "password": PW}, https=True)
+        _, _, ck = self.post("/auth/setup/finish", {"code": auth.totp(j["secret"], int(auth.now() // 30))}, https=True)
+        self.assertIn("; Secure", ck[0])
+
+    def test_passkey_origin_follows_scheme(self):
+        auth.CTX.https = True
+        self.assertEqual(auth.rp_of("navaan.njlabs.dev"), ("navaan.njlabs.dev", "https://navaan.njlabs.dev"))
+        auth.CTX.https = False
+        self.assertEqual(auth.rp_of("localhost:8765"), ("localhost", "http://localhost:8765"))
+
+
+class Expiry(Base):
+    def test_twelve_hour_limit(self):
+        ck, _, _ = self.setup_login()
+        tok = auth.token_from(ck)
+        auth.SESSIONS[tok]["created"] -= auth.SESSION_MAX + 1
+        self.assertIsNone(auth.session(ck))
+
+    def test_two_hour_idle(self):
+        ck, _, _ = self.setup_login()
+        tok = auth.token_from(ck)
+        auth.SESSIONS[tok]["last"] -= auth.SESSION_IDLE + 1
+        self.assertIsNone(auth.session(ck))
+
+    def test_activity_keeps_session(self):
+        ck, _, _ = self.setup_login()
+        tok = auth.token_from(ck)
+        auth.SESSIONS[tok]["last"] -= auth.SESSION_IDLE - 60
+        self.assertIsNotNone(auth.session(ck))
+
+
+class Disabled(Base):
+    def test_auth_off(self):
+        os.environ["NAVAAN_AUTH"] = "off"
+        try: self.assertEqual(auth.state(None, H)["state"], "authed")
+        finally: os.environ.pop("NAVAAN_AUTH", None)
+
+
+class Edge(unittest.TestCase):
+    """navaan_ui env switches: public host, trusted proxy headers. Defaults keep localhost behaviour."""
+    def handler(self, **hdr):
+        import navaan_ui
+        h = object.__new__(navaan_ui.H)
+        h.headers = hdr; h.client_address = ("172.18.0.5", 1234)
+        return h
+
+    def setUp(self):
+        for k in ("NAVAAN_PUBLIC_HOST", "NAVAAN_TRUST_PROXY"): os.environ.pop(k, None)
+
+    tearDown = setUp
+
+    def test_defaults_localhost_only(self):
+        self.assertTrue(self.handler(Host="localhost:8765")._host_ok())
+        self.assertFalse(self.handler(Host="navaan.njlabs.dev")._host_ok())
+
+    def test_public_host_allowed_when_set(self):
+        os.environ["NAVAAN_PUBLIC_HOST"] = "navaan.njlabs.dev"
+        self.assertTrue(self.handler(Host="navaan.njlabs.dev")._host_ok())
+        self.assertFalse(self.handler(Host="evil.example")._host_ok())
+
+    def test_proxy_headers_ignored_by_default(self):
+        h = self.handler(Host="localhost", **{"X-Real-IP": "8.8.8.8", "X-Forwarded-Proto": "https"})
+        self.assertEqual(h._ip(), "172.18.0.5"); self.assertFalse(h._https())
+
+    def test_proxy_headers_trusted_when_set(self):
+        os.environ["NAVAAN_TRUST_PROXY"] = "1"
+        h = self.handler(Host="localhost", **{"X-Real-IP": "8.8.8.8", "X-Forwarded-Proto": "https"})
+        self.assertEqual(h._ip(), "8.8.8.8"); self.assertTrue(h._https())
+        self.assertEqual(self.handler(Host="localhost")._ip(), "172.18.0.5")  # no header: fall back to the socket
+
+
+class SecretsStatus(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.f = os.path.join(self.tmp.name, "secrets.status")
+        os.environ["NAVAAN_SECRETS_STATUS"] = self.f; os.environ.pop("NAVAAN_VAULT_ADDR", None)
+
+    def tearDown(self):
+        os.environ.pop("NAVAAN_SECRETS_STATUS", None); os.environ.pop("NAVAAN_VAULT_ADDR", None); self.tmp.cleanup()
+
+    def test_no_vault_no_file_is_none(self):
+        import navaan_ui
+        self.assertIsNone(navaan_ui.secrets_status())
+
+    def test_vault_configured_but_no_file_is_waiting(self):
+        import navaan_ui
+        os.environ["NAVAAN_VAULT_ADDR"] = "http://vault:8200"
+        self.assertEqual(navaan_ui.secrets_status()["status"], "waiting")
+
+    def test_ok_and_stale(self):
+        import navaan_ui, json, time
+        json.dump({"status": "ok", "detail": "", "at": int(time.time())}, open(self.f, "w"))
+        self.assertEqual(navaan_ui.secrets_status()["status"], "ok")
+        json.dump({"status": "ok", "detail": "", "at": int(time.time()) - 600}, open(self.f, "w"))
+        self.assertEqual(navaan_ui.secrets_status()["status"], "waiting")  # watcher died: do not trust an old ok
+
+
+    def test_scheduler_states(self):
+        import navaan_ui, json, time
+        os.environ.pop("NAVAAN_SCHEDULER", None)
+        self.assertEqual(navaan_ui.scheduler_state(), "on")
+        os.environ["NAVAAN_SCHEDULER"] = "off"
+        try: self.assertEqual(navaan_ui.scheduler_state(), "off")
+        finally: os.environ.pop("NAVAAN_SCHEDULER", None)
+        json.dump({"status": "sealed", "detail": "", "at": int(time.time())}, open(self.f, "w"))
+        self.assertEqual(navaan_ui.scheduler_state(), "paused")
+
+
+if __name__ == "__main__":
+    unittest.main()

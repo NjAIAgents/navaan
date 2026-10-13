@@ -1,12 +1,34 @@
-"""Local web UI for NAVAAN Studio. Bound to 127.0.0.1 only. Standard library only.
+"""Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
 import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
 import visuals_cfg as V, shots_prep, publish_schedule as PS, besttime, analytics_auto
+import auth
 
 TOKEN = secrets.token_urlsafe(24)
+PUBLIC_HOST = lambda: os.environ.get("NAVAAN_PUBLIC_HOST", "").strip().lower()  # extra allowed Host, e.g. navaan.njlabs.dev
+TRUST_PROXY = lambda: os.environ.get("NAVAAN_TRUST_PROXY", "0") == "1"  # only behind nginx on a private network
+def secrets_status():
+    """Vault sync state written by deploy/vault_sync.py: {"status": ok|waiting|sealed, "detail"}; None when this portal does not use Vault (the Mac)."""
+    f = os.environ.get("NAVAAN_SECRETS_STATUS") or os.path.expanduser("~/.config/navaan/secrets.status")
+    try:
+        d = json.load(open(f, encoding="utf-8"))
+        if time.time() - d.get("at", 0) > 120: d.update(status="waiting", detail="sync stopped")
+        return d
+    except (OSError, ValueError):
+        return {"status": "waiting", "detail": "no status yet"} if os.environ.get("NAVAAN_VAULT_ADDR") else None
+
+
+def scheduler_on(): return os.environ.get("NAVAAN_SCHEDULER", "on").lower() != "off"  # off on the Mac once the server owns the schedule
+def scheduler_state():
+    """on | off | paused (secrets not ok: publishing needs the tokens from Vault)."""
+    if not scheduler_on(): return "off"
+    sec = secrets_status()
+    return "paused" if sec and sec["status"] != "ok" else "on"
+
+
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
@@ -119,10 +141,22 @@ class H(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(b)
     def _host_ok(self):
         h = (self.headers.get("Host") or "").split(":")[0]
-        return h in ("127.0.0.1", "localhost")
+        return h in ("127.0.0.1", "localhost") or (bool(PUBLIC_HOST()) and h == PUBLIC_HOST())
+    def _ip(self):  # real client address; X-Real-IP only when a trusted proxy sits in front (NAVAAN_TRUST_PROXY=1)
+        return (self.headers.get("X-Real-IP") or "").strip() if TRUST_PROXY() and self.headers.get("X-Real-IP") else self.client_address[0]
+    def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
     def do_GET(self):
         if not self._host_ok(): return self._send(403, {"error": "bad host"})
         p = self.path.split("?")[0]
+        ck = self.headers.get("Cookie")
+        if p == "/auth/state":
+            st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
+            if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
+            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
+            return self._send(200, st)
+        if not auth.session(ck):  # not signed in: only the sign in page is served
+            if p == "/": return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
+            return self._send(401, {"error": "sign in", "login": True})
         try:
             if p == "/":
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
@@ -211,7 +245,19 @@ class H(BaseHTTPRequestHandler):
                     self.wfile.write(chunk); left -= len(chunk)
         except (BrokenPipeError, ConnectionResetError): pass
     def do_POST(self):
-        if not self._host_ok() or self.headers.get("X-Navaan-Token") != TOKEN: return self._send(403, {"error": "forbidden"})
+        if not self._host_ok(): return self._send(403, {"error": "forbidden"})
+        org = self.headers.get("Origin")
+        if org and org != ("https://" if self._https() else "http://") + (self.headers.get("Host") or ""): return self._send(403, {"error": "forbidden origin"})
+        ck = self.headers.get("Cookie")
+        if self.path.startswith("/auth/"):
+            sec = secrets_status()
+            if self.path.startswith("/auth/setup") and sec and sec["status"] != "ok": return self._send(503, {"error": "Secrets are waiting for Vault. The login is restored from Vault once it is unsealed; try again then."})
+            try: b = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            except Exception: return self._send(400, {"error": "bad json"})
+            code, obj, cookies = auth.handle_post(self.path.split("?")[0], b, ck, self.headers.get("Host"), ip=self._ip(), https=self._https())
+            return self._send(code, obj, extra={"Set-Cookie": cookies[0]} if cookies else None)
+        if not auth.session(ck): return self._send(401, {"error": "sign in", "login": True})
+        if self.headers.get("X-Navaan-Token") != TOKEN: return self._send(403, {"error": "forbidden"})
         try: body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path
@@ -370,9 +416,14 @@ def _fire(slug, sid):
 
 def serve(port=8765):
     threading.Thread(target=analytics_auto.loop, daemon=True).start()  # refreshes the analytics on the schedule set on the Analytics page
-    threading.Thread(target=PS.loop, args=(_fire, lambda s: JOBS.get(s, {}).get("running")), daemon=True).start()  # publishes what you scheduled, once its gates are approved
-    srv = ThreadingHTTPServer(("127.0.0.1", port), H)
-    print(f"NAVAAN Studio UI: http://127.0.0.1:{port}  (project {C.find_root()})  Ctrl+C to stop", flush=True)
+    if scheduler_on(): threading.Thread(target=PS.loop, args=(_fire, lambda s: JOBS.get(s, {}).get("running") or scheduler_state() == "paused"), daemon=True).start()  # publishes what you scheduled, once its gates are approved
+    else: print("Scheduler is off (NAVAAN_SCHEDULER=off): this portal will not publish on schedule.", flush=True)
+    cf = auth.ensure_setup_code()
+    if auth.disabled(): print("WARNING: NAVAAN_AUTH=off, the portal has no login", flush=True)
+    elif cf: print(f"First run: open the portal and create your login. Setup code is in {cf}", flush=True)
+    bind = os.environ.get("NAVAAN_BIND", "127.0.0.1")
+    srv = ThreadingHTTPServer((bind, port), H)
+    print(f"NAVAAN Studio UI: http://{bind}:{port}  (project {C.find_root()})  Ctrl+C to stop", flush=True)
     try: srv.serve_forever()
     except KeyboardInterrupt: print("stopped")
     return 0

@@ -637,12 +637,13 @@ def ask_prompt(account, platform="instagram"):
 
 def start_ask(account="all", platform="instagram"):
     """Start a headless Claude run that researches the market and writes recommendations. Returns False when one is already going on that platform."""
-    import shlex
+    import shlex, navaan_common as C
     if not ACCOUNT_OK.match(account or ""):
         raise ValueError("bad account name")
     ask = _state(platform)[1]
     if ask["running"]:
         return False
+    C.load_claude_env()
     base = shlex.split(os.environ.get("NAVAAN_CLAUDE_CMD", "claude -p"))
     flags = shlex.split(os.environ["NAVAAN_CLAUDE_FLAGS"]) if "NAVAAN_CLAUDE_FLAGS" in os.environ else ["--permission-mode", "acceptEdits", "--allowedTools", ",".join(ASK_TOOLS)]
     cmd = base + [ask_prompt(account, platform)] + flags

@@ -119,9 +119,21 @@ def _yt_status(path):
     return out
 
 
+headless = C.headless
+
+
+def claude_status():
+    """Which credential the Claude steps use and whether the last step could use it. Never the value itself."""
+    C.load_claude_env()
+    kind = "API key" if os.environ.get("ANTHROPIC_API_KEY") else "subscription token" if os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") else ""
+    if not kind and not headless(): kind = "this computer's Claude login"
+    st = C.CLAUDE_STATE["problem"] or ("ok" if kind else "missing")
+    return {"credential": kind, "state": st, "since": C.CLAUDE_STATE["at"], "headless": headless()}
+
+
 def status(force=False):
     if not force and _cache["data"] and time.time() - _cache["at"] < 600:
-        d = dict(_cache["data"]); d["yt_job"] = dict(YT); return d
+        d = dict(_cache["data"]); d["yt_job"] = dict(YT); d["claude"] = claude_status(); return d
     types = ["music"] + sorted(k for k in (C.cfg("accounts") or {}).keys() if k != "music")
     accounts = []
     for t in types:
@@ -133,7 +145,7 @@ def status(force=False):
     data = {"accounts": accounts, "cloud": {"provider": C.cfg("storage.cloud_provider", "none"), "bucket": C.cfg("storage.cloud_bucket", ""), "region": C.cfg("storage.cloud_region", "")},
             "secret_present": os.path.exists(os.path.join(HOME, "youtube_client_secret.json")), "checked_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     _cache.update(at=time.time(), data=data)
-    d = dict(data); d["yt_job"] = dict(YT); return d
+    d = dict(data); d["yt_job"] = dict(YT); d["claude"] = claude_status(); return d
 
 
 def ig_refresh(ctype, kind="login"):

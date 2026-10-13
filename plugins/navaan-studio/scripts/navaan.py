@@ -29,6 +29,7 @@ import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secret
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import setup_captions
 from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root, item_type, account
+import navaan_common as C
 import publish_schedule as PS
 import datetime
 
@@ -378,6 +379,7 @@ def claude_cmd(slug, s):
     """Headless `claude -p` cannot answer permission prompts, so list exactly the tools a step may use. Publishing, deleting and
     credit spending are not on the list; the gates in meta.json stay the real control. NAVAAN_CLAUDE_FLAGS replaces the flags."""
     D = song_dir(slug)
+    C.load_claude_env()
     base = shlex.split(os.environ.get("NAVAAN_CLAUDE_CMD", "claude -p"))
     chrome = bool(s.get("chrome"))
     prompt = (f"Use the {s['skill']} skill for item {slug} in this project. Follow the navaan-studio AGENTS.md. Do only this step, update {D}/meta.json history, "
@@ -417,7 +419,12 @@ def _run(slug, step=None, dry=False, retries=2):
     if ap_msg and not dry:
         open(nyp, "w", encoding="utf-8").write(ap_msg + "\n"); RUN[slug] = {"step": None, "failed": sid, "log": None}
         print(ap_msg); return 5
-    if os.path.exists(nyp) and open(nyp, encoding="utf-8").read().startswith("ACCOUNT:"): os.remove(nyp)  # the account is fine now
+    if os.path.exists(nyp) and open(nyp, encoding="utf-8").read().startswith(("ACCOUNT:", "MAC:")): os.remove(nyp)  # the account is fine now, or the step moved on
+    if s.get("chrome") and C.headless() and not dry:  # the server has no Chrome to drive: say what to do on the Mac instead of failing
+        msg = (f"MAC: step {sid} ({s['label']}) drives Chrome, which this server cannot do. Run it on the Mac, then copy the result into songs/{slug}/ here "
+               f"and press Run again (deploy/README.md, Mac-only steps).")
+        open(nyp, "w", encoding="utf-8").write(msg + "\n"); RUN[slug] = {"step": None, "failed": sid, "log": None}
+        print(msg); return 5
     if bg and not gate_ok(D, meta(slug).get("approvals", {}), bg):
         show_gate(slug, bg); print(f"waiting for your approval: gate '{bg}' (step {sid}). Run: navaan.py approve {slug} {bg}"); return 3
     hw = PS.hold(meta(slug), sid) if not dry else None
@@ -456,6 +463,7 @@ def _run(slug, step=None, dry=False, retries=2):
         with open(lp, "a", encoding="utf-8") as lf:
             lf.write(f"\n=== {now()} {sid} attempt {attempt} ===\n")
             ok = all(run_cmd(c, lf, env) == 0 for c in cmds)
+        if s["kind"] == "claude": C.note_claude_result(ok, open(lp, encoding="utf-8", errors="replace").read()[-2000:] if not ok else "")
         m = meta(slug)
         if ok and s["done"](m):
             if s.get("sets_after"): m["state"] = s["sets_after"]

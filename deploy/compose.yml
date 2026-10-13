@@ -1,0 +1,52 @@
+# NAVAAN Studio on the Oracle VM. Project "navaan". Run from /opt/navaan/repo:
+#   VAULT_NETWORK=<network of engagehub-vault> docker compose -f deploy/compose.yml up -d --build
+# No credential is in this file. Secrets come from Vault at start (deploy/vault_sync.py).
+name: navaan
+
+services:
+  navaan:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: navaan:local
+    container_name: navaan
+    restart: unless-stopped
+    environment:
+      NAVAAN_PUBLIC_HOST: navaan.njlabs.dev
+      NAVAAN_TRUST_PROXY: "1"            # nginx sets X-Real-IP and X-Forwarded-Proto; the port is reachable only on navaan-network
+      NAVAAN_SCHEDULER: ${NAVAAN_SCHEDULER:-off}   # off until cutover: only one place may run the scheduler (deploy/README.md)
+      NAVAAN_VAULT_ADDR: ${NAVAAN_VAULT_ADDR:-http://engagehub-vault:8200}
+      NAVAAN_VAULT_ROLE_ID_FILE: /run/secrets/vault_role_id
+      NAVAAN_VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id
+    secrets: [vault_role_id, vault_secret_id]
+    volumes:
+      - /opt/navaan/data/songs:/app/songs
+      - /opt/navaan/data/state:/home/navaan/.local/share/navaan
+      - /opt/navaan/data/navaan.config.json:/app/navaan.config.json
+      - /opt/navaan/nginx/htpasswd:/gate/htpasswd          # shared password hash for nginx, written from Vault in place
+    tmpfs:
+      - /home/navaan/.config/navaan:mode=0700,uid=10001,gid=10001,size=16m   # materialised secrets and auth.json, memory only
+      - /tmp:size=2g
+    networks: [navaan-network, vault]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/auth/state', timeout=5)"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 90s   # the entrypoint waits up to 60 s for Vault before starting the portal
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+networks:
+  navaan-network:
+    name: navaan-network      # engagehub-nginx joins this one (deploy/nginx/README.md)
+  vault:
+    external: true
+    name: ${VAULT_NETWORK:?set VAULT_NETWORK to the Docker network of engagehub-vault (task T002)}
+
+secrets:
+  vault_role_id:
+    file: /opt/navaan/secrets/vault_role_id
+  vault_secret_id:
+    file: /opt/navaan/secrets/vault_secret_id
