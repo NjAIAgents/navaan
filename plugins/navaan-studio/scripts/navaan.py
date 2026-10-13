@@ -244,7 +244,7 @@ def plan(slug):
             continue
         skip = (legacy or cleaned) and s["id"] not in ("archive", "cleanup")
         if s["id"] in ("instagram_caption", "publish_instagram") and not ig_done(m): skip = False  # never posted, so there is still a caption to write and approve
-        reel_made = os.path.exists(os.path.join(D, "reel_clip.json")) and s["id"] in ("instagram_caption", "publish_instagram")  # a reel was cut for Instagram from this older song, so those two steps are live again
+        reel_made = os.path.exists(os.path.join(D, "reel_clip.json")) and (s["id"] in ("instagram_caption", "publish_instagram") or (s["id"] in ("archive", "cleanup") and ig_done(m)))  # a reel was cut for Instagram from this older song, so those steps are live again, and once it is posted the song can be archived and cleaned up
         notused = legacy and s["id"] in ("instagram_caption", "publish_instagram", "archive", "cleanup") and not s["done"](m) and not reel_made  # older song, finished before these steps existed
         if notused: skip = True
         d = s["done"](m) or skip
