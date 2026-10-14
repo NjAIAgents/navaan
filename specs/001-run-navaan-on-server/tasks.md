@@ -73,7 +73,8 @@
 - [X] T026 [US2] Add `NAVAAN_SCHEDULER` (`on` default, `off` stops the scheduler thread) in `plugins/navaan-studio/scripts/navaan_ui.py` and `navaan.py`; show scheduler state in the UI.
 - [X] T027 [US2] Verify and, if needed, harden publish-once: check how a fired item is recorded so a second instance skips it. Add a test in `plugins/navaan-studio/tests/test_scheduler_once.py`.
 - [X] T028 [US2] Document the cutover order in `deploy/README.md`: turn Mac scheduler off, then server on, never both.
-- [ ] T029 [US2] (VM) Quickstart step 11: Mac scheduler off, schedule a test item minutes ahead, approve gates, sleep the Mac, confirm one publish and a history line. Check missed-approval case shows "waiting for approval".
+- [X] T029 [US2] (VM) Quickstart step 11: Mac scheduler off, schedule a test item minutes ahead, approve gates, sleep the Mac, confirm one publish and a history line. Check missed-approval case shows "waiting for approval".
+  - Cutover done 2026-10-14: Mac portal (pid 91451, no jobs running, no scheduled items) stopped and restarted with `NAVAAN_SCHEDULER=off` (log `/tmp/navaan-serve.log`; the Mac sessions are new because the restart loaded the new auth code); server container recreated with `NAVAAN_SCHEDULER=on` (compose default). No item is scheduled yet, so the end-to-end check (schedule a test item minutes ahead, approve its gates, confirm one publish) is still to do by hand.
 
 ## Phase 6: User Story 4, run the pipeline on the server (P2)
 
