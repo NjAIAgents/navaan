@@ -58,17 +58,21 @@ rsync -av songs/<slug>/ ods@njPRD:/opt/navaan/data/songs/<slug>/     # return; t
 Google sign in is also Mac only: run `publish_youtube.py auth` on the Mac, then `python3 deploy/vault_sync.py push`.
 
 ## Backup and restore
-Nightly (as a user that can read `/opt/navaan/data` and use the bucket through instance principals):
-```sh
-echo '17 3 * * * NAVAAN_BACKUP_BUCKET=<bucket> /opt/navaan/repo/deploy/backup/backup.sh >> /var/log/navaan-backup.log 2>&1' | crontab -
+`deploy/backup/backup.sh` runs nightly at 03:17 UTC as root (`/etc/cron.d/navaan-backup`, log `/var/log/navaan-backup.log`). It always keeps a local copy (newest 7 in `/opt/navaan/backups`, mode 700) and uploads to the OCI bucket `navaan` (prefix `navaan-backup/`, 14 days kept) through the VM's instance principal, using the `ghcr.io/oracle/oci-cli` container because the VM has no `oci` CLI. Exit code 3 means the local copy exists but the upload failed.
+
+**One-time OCI setup (console, your admin)**: the VM may not touch the bucket until a policy says so (today it gets `BucketNotFound`, OCI's answer for "not authorised"). Create a dynamic group `navaan-vm` with the rule `instance.id = 'ocid1.instance.oc1.us-chicago-1.anxxeljrvifbjuickimx2xi33prlm3krgd6ih7feo43t4cvyi2icgy3ilrgq'` (the VM, `ods-instance`), then a policy in the root compartment (the bucket lives there):
 ```
-Restore to a scratch folder and compare:
-```sh
-oci os object get --auth instance_principal --bucket-name <bucket> --name navaan-backup/<file>.tar.gz --file /tmp/restore.tar.gz
-mkdir /tmp/restore && tar -C /tmp/restore -xzf /tmp/restore.tar.gz
-find /tmp/restore/navaan-data/songs -type f | wc -l ; find /opt/navaan/data/songs -type f | wc -l
+Allow dynamic-group navaan-vm to manage objects in tenancy where target.bucket.name = 'navaan'
+Allow dynamic-group navaan-vm to read buckets in tenancy where target.bucket.name = 'navaan'
 ```
-To restore for real: stop the container, replace `/opt/navaan/data` with `navaan-data/`, `chown -R 10001`, start it.
+Check: `sudo NAVAAN_BACKUP_BUCKET=navaan /opt/navaan/repo/deploy/backup/backup.sh` ends with `backup: uploaded to navaan/navaan-backup/...`.
+
+Restore (verified 2026-10-14: 291 files and the database, integrity ok, matched the live data):
+```sh
+sudo tar -C /tmp -xzf /opt/navaan/backups/navaan-data-<stamp>.tar.gz     # or fetch the archive from the bucket first
+find /tmp/navaan-data/songs -type f | wc -l ; find /opt/navaan/data/songs -type f | wc -l
+```
+To restore for real: stop the container (`docker compose -f deploy/compose.yml down`), replace `/opt/navaan/data` with `navaan-data/`, `sudo chown -R 10001:10001 /opt/navaan/data`, start it.
 
 ## After a VM reboot
 Vault comes back sealed. Enter two unseal keys (have them ready before rebooting). Until then the sign-in page says "secrets waiting", the scheduler is `paused`, and a new login cannot be created. The container notices within 15 seconds of the unseal.
