@@ -15,7 +15,7 @@ services:
       NAVAAN_PUBLIC_HOST: navaan.njlabs.dev
       OCI_CLI_AUTH: instance_principal     # the Cloud storage tab runs `oci` with the VM's own identity (no key file on the server)
       NAVAAN_TRUST_PROXY: "1"            # nginx sets X-Real-IP and X-Forwarded-Proto; the port is reachable only on navaan-network
-      NAVAAN_SCHEDULER: ${NAVAAN_SCHEDULER:-off}   # off until cutover: only one place may run the scheduler (deploy/README.md)
+      NAVAAN_SCHEDULER: ${NAVAAN_SCHEDULER:-on}    # the server owns the schedule since 2026-10-14; the Mac runs with NAVAAN_SCHEDULER=off (deploy/README.md)
       NAVAAN_VAULT_ADDR: ${NAVAAN_VAULT_ADDR:-http://engagehub-vault:8200}
       NAVAAN_VAULT_ROLE_ID_FILE: /run/secrets/vault_role_id
       NAVAAN_VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id

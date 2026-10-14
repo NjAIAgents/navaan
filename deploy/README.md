@@ -19,7 +19,7 @@ One container (`navaan`) runs the portal and the scheduler, behind the VM's exis
 | `NAVAAN_TRUST_PROXY` | `1` | take client IP and scheme from nginx (the port is only on `navaan-network`) |
 | `NAVAAN_BIND` | `0.0.0.0` | inside the container only |
 | `NAVAAN_HEADLESS` | `1` | Chrome-driven steps and local-browser sign-ins are Mac only |
-| `NAVAAN_SCHEDULER` | `off` until cutover, then `on` | which machine publishes on schedule |
+| `NAVAAN_SCHEDULER` | `on` (cutover done 2026-10-14) | which machine publishes on schedule; the Mac must run with `off` |
 | `NAVAAN_VAULT_*` | see `compose.yml` | Vault address and the AppRole files |
 
 ## Install (first time)
