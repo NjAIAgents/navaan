@@ -7,7 +7,7 @@ brief to `voiceover: file` and `music: none` (the narration carries its own musi
   narration.py <slug> <audio file> <srt file>     the same thing from a terminal
   narration.py <slug> --remove                     back to no voiceover and the generated music bed
 """
-import os, sys, re, glob, base64, tempfile
+import os, sys, re, glob, json, base64, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 
@@ -38,6 +38,23 @@ def check_srt(text):
     return cues
 
 
+def write_quote(D, cues):
+    """quote.json and title.txt from the narration's own words, so Claude does not write a quote for a narration you made."""
+    lines = [" ".join(c["text"].split()) for c in cues if c["text"].strip()]
+    text = " ".join(lines)
+    lang = "hi" if re.search(r"[ऀ-ॿ]", text) else "en"
+    q = {"text": text, "lines": lines, "author": "", "kind": "original", "language": lang, "source": "", "notes": "the words of the uploaded narration"}
+    with open(os.path.join(D, "quote.json"), "w", encoding="utf-8") as f: json.dump(q, f, indent=2, ensure_ascii=False); f.write("\n")
+    title = " ".join(text.replace("…", " ").split())[:60].rstrip(" ,.;:-")
+    open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write(title + "\n")
+    bp = os.path.join(D, "brief.md")
+    if os.path.exists(bp):  # the brief shows the narration text where the idea goes
+        b = open(bp, encoding="utf-8").read()
+        b2 = re.sub(r"(## Idea\s*\n\s*\n).*?(\n\s*\n## Options)", lambda m: m.group(1) + text + m.group(2), b, count=1, flags=re.S)
+        open(bp, "w", encoding="utf-8").write(b2)
+    return text
+
+
 def save(D, audio_name, audio, srt_text):
     """audio is bytes or a base64 string (a data: URL is fine). Returns {"audio", "cues", "seconds"}."""
     ext = os.path.splitext(str(audio_name or ""))[1].lower()
@@ -50,6 +67,7 @@ def save(D, audio_name, audio, srt_text):
     open(os.path.join(D, "voiceover" + ext), "wb").write(bytes(raw))
     open(os.path.join(D, "voiceover.srt"), "w", encoding="utf-8").write(str(srt_text).strip() + "\n")
     set_options(D, {"voiceover": "file", "music": "none"})
+    write_quote(D, cues)
     return {"audio": "voiceover" + ext, "cues": len(cues), "seconds": round(cues[-1]["end"], 1)}
 
 
