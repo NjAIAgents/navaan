@@ -160,6 +160,11 @@ def inspiration_steps(slug, D):
     FINAL = "final_reel_9x16.mp4"
     gen = brief_opt(D, "background", "generate").lower() == "generate"
     has_bg = lambda m: any(glob.glob(os.path.join(D, f"background.{e}")) for e in ("jpg", "jpeg", "png", "webp"))
+    # a narration uploaded as audio only: its lines are timed against the voice (pauses first, Whisper when they do not fit)
+    narr = any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac"))
+    need_w = bool((load_json(os.path.join(D, "narration_sync.json"), default={}) or {}).get("needs_whisper")) and not setup_captions.ready()
+    narr_step = dict(id="narration", outputs=["voiceover.srt"], label="Time the narration lines to the voice", kind="script", before=("captions_setup" if need_w else None),
+                     cmds=([sc("setup_captions.py", "--yes")] if need_w else []) + [sc("narration_sync.py", slug)], done=lambda m: has(D, "voiceover.srt"))
     return [
         dict(id="quote", outputs=["quote.json", "title.txt"], label="Write or pick the quote", kind="claude", skill="inspiration-quote", chrome=False, state="draft",
              done=lambda m: has(D, "quote.json", "title.txt"), after="quote", sets="quote_ok"),
@@ -167,6 +172,7 @@ def inspiration_steps(slug, D):
              done=lambda m: has(D, "originality.json"), after="originality"),
         dict(id="background", outputs=["background.*", "scenes/background.txt"], label=("Create the background image (Flow)" if gen else "Pick the background image"), kind="claude", skill="inspiration-visual", chrome=gen,
              before=("credits" if gen else None), done=has_bg),
+        *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
              done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),
         dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 10 to 30 s)", kind="script", sets_after="media_ready",
