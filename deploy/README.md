@@ -51,8 +51,7 @@ When a login stops working the portal opens a popup ("Logins that need you", als
 | Login | Command (run where) | Paste | Check before saving |
 |-------|---------------------|-------|---------------------|
 | Claude (`claude.env`) | `claude setup-token`, on any computer where Claude Code is signed in | the token (`sk-ant-oat...`), or an API key (`sk-ant-api...`, which wins if both exist) | one tiny `claude -p` call with it |
-| YouTube publishing | `python3 plugins/navaan-studio/scripts/publish_youtube.py auth`, on the Mac, then `cat ~/.config/navaan/youtube_token.json \| pbcopy` | the whole file | Google refreshes it and returns the channel name |
-| YouTube analytics | `python3 plugins/navaan-studio/scripts/yt_collect.py auth --account music`, then the same for `youtube_analytics_token.json` | the whole file | the same |
+| YouTube publishing and analytics | **Sign in with Google** in the popup: it opens Google in your own browser, you allow access, Google sends you to a `localhost` page that cannot open, and you paste that address back (the server needs no browser). Or, on a Mac terminal: `publish_youtube.py auth` / `yt_collect.py auth --account music`, then `cat ~/.config/navaan/<file> \| pbcopy` | the address, or the whole file | the code is exchanged here, then Google refreshes the token and returns the channel name |
 | Instagram | nothing to run: **Refresh now** extends a login token by 60 days (shown 10 days before it ends) | | Instagram answers `/me` |
 
 The inspiration account uses `NAVAAN_YT_TOKEN=~/.config/navaan/youtube_token_inspiration.json` in front of the YouTube command; the popup writes it out for you.

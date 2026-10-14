@@ -195,6 +195,54 @@ def yt_save(ctype, which, text):
     return {"ok": True, "channel": st.get("channel")}
 
 
+def _flow_cls():
+    from google_auth_oauthlib.flow import Flow
+    return Flow
+
+
+YT_FLOWS = {}  # state -> {"flow", "type", "which", "exp"}: sign ins started from the portal, valid 15 minutes
+YT_REDIRECT = "http://localhost:51234/"  # a loopback address is what a Desktop client allows; the page does not open and the person copies its address back
+
+
+def _yt_scopes(which):
+    if which == "publish":
+        from publish_youtube import SCOPES
+        return SCOPES
+    from yt_collect import READ_SCOPES
+    return READ_SCOPES
+
+
+def yt_oauth_start(ctype, which):
+    """Step 1 of a Google sign in without a terminal: the link the person opens in their own browser."""
+    if which not in ("publish", "analytics"): raise ValueError("which must be publish or analytics")
+    secret = (C.account(ctype).get("yt_secret") or "") or os.path.join(HOME, "youtube_client_secret.json")
+    secret = os.path.expanduser(secret)
+    if not os.path.exists(secret): raise ValueError("The Google OAuth client file is missing. Add it under Settings, Google OAuth client.")
+    now = time.time()
+    for k in [k for k, v in YT_FLOWS.items() if v["exp"] < now]: YT_FLOWS.pop(k, None)
+    flow = _flow_cls().from_client_secrets_file(secret, scopes=_yt_scopes(which), redirect_uri=YT_REDIRECT)
+    url, state = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="false")
+    YT_FLOWS[state] = {"flow": flow, "type": ctype, "which": which, "exp": now + 900}
+    return {"url": url}
+
+
+def yt_oauth_finish(ctype, which, pasted):
+    """Step 2: the address the browser ended on (http://localhost:51234/?state=...&code=...). The code is exchanged here, then the token is checked and saved like a pasted file."""
+    q = urllib.parse.parse_qs(urllib.parse.urlparse((pasted or "").strip()).query)
+    code, state = (q.get("code") or [""])[0], (q.get("state") or [""])[0]
+    if (q.get("error") or [""])[0]: raise ValueError("Google reported: " + q["error"][0] + ". Start the sign in again.")
+    if not code or not state: raise ValueError("Paste the whole address from the browser's address bar. It looks like http://localhost:51234/?state=...&code=...")
+    f = YT_FLOWS.get(state)
+    if f and f["exp"] < time.time(): YT_FLOWS.pop(state, None); f = None
+    if not f or (f["type"], f["which"]) != (ctype, which): raise ValueError("That sign in is not the one this page started, or it took longer than 15 minutes. Press Sign in with Google again.")
+    YT_FLOWS.pop(state, None)  # single use
+    try: f["flow"].fetch_token(code=code)
+    except Exception as e: raise ValueError("Google did not accept the code: " + str(e)[:160] + " Start the sign in again.")
+    info = json.loads(f["flow"].credentials.to_json())
+    if not info.get("refresh_token"): raise ValueError("Google gave no long-lived token. Remove the app at myaccount.google.com/permissions and sign in again.")
+    return yt_save(ctype, which, json.dumps(info))
+
+
 def alerts():
     """What needs the person now, from the cached login checks. Each item: id, kind (claude, yt, ig), title, message, a command to run, and where to run it."""
     out = []; cl = claude_status()
@@ -216,7 +264,7 @@ def alerts():
                 else:
                     cmd, f = f"python3 plugins/navaan-studio/scripts/yt_collect.py auth --account {t}", os.path.basename(a.get("yt_analytics_token") or "youtube_analytics_token.json")
                 out.append({"id": f"yt:{t}:{which}", "kind": "yt", "type": t, "which": which, "title": f"YouTube {'publishing' if which == 'publish' else 'analytics'} sign in expired ({label})",
-                            "message": y.get("error") or "Google no longer accepts this sign in. In Testing mode Google ends it every 7 days.",
+                            "message": (y.get("error") or "Google no longer accepts this sign in.") + " Sign in again from your own browser; no terminal needed.",
                             "command": cmd, "where": f"on your Mac, in the project folder. A browser opens for the Google sign in. Then copy the new file: cat ~/.config/navaan/{f} | pbcopy"})
         for kind, key in (("login", "ig"), ("market", "market")):
             g = a.get(key) or {}

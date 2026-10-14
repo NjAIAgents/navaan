@@ -88,6 +88,53 @@ class Youtube(unittest.TestCase):
         with self.assertRaises(ValueError): S.yt_save("music", "other", self.good)
 
 
+class YoutubeBrowserSignIn(unittest.TestCase):
+    """Sign in from the person's own browser: a link out, the localhost address pasted back."""
+    class FakeFlow:
+        calls = []
+        def __init__(self): self.credentials = type("C", (), {"to_json": lambda c: json.dumps({"refresh_token": "r", "client_id": "c", "client_secret": "s", "token": "t"})})()
+        @classmethod
+        def from_client_secrets_file(cls, path, scopes=None, redirect_uri=None):
+            f = cls(); f.scopes, f.redirect_uri = scopes, redirect_uri; cls.calls.append((path, scopes, redirect_uri)); return f
+        def authorization_url(self, **kw): self.kw = kw; return "https://accounts.google.com/o/oauth2/auth?x=1&state=ST1", "ST1"
+        def fetch_token(self, code=None): self.code = code
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.home = S.HOME; S.HOME = self.tmp.name
+        open(os.path.join(self.tmp.name, "youtube_client_secret.json"), "w").write("{}")
+        self.o = (S._flow_cls, S.yt_save, S._yt_scopes); S._flow_cls = lambda: self.FakeFlow; self.saved = []
+        S.yt_save = lambda ct, w, text: self.saved.append((ct, w, json.loads(text))) or {"ok": True, "channel": "NAVAAN"}
+        S._yt_scopes = lambda w: ["scope-" + w]; S.YT_FLOWS.clear()
+
+    def tearDown(self): S.HOME = self.home; S._flow_cls, S.yt_save, S._yt_scopes = self.o; self.tmp.cleanup()
+
+    def test_start_returns_the_link_and_asks_for_a_long_lived_token(self):
+        r = S.yt_oauth_start("music", "publish")
+        self.assertTrue(r["url"].startswith("https://accounts.google.com/"))
+        f = S.YT_FLOWS["ST1"]["flow"]
+        self.assertEqual((f.redirect_uri, f.scopes, f.kw["access_type"], f.kw["prompt"]), (S.YT_REDIRECT, ["scope-publish"], "offline", "consent"))
+
+    def test_finish_exchanges_the_code_and_saves(self):
+        S.yt_oauth_start("music", "publish")
+        r = S.yt_oauth_finish("music", "publish", "http://localhost:51234/?state=ST1&code=4%2Fabc&scope=x")
+        self.assertEqual(r["channel"], "NAVAAN"); self.assertEqual(self.saved[0][:2], ("music", "publish"))
+        self.assertNotIn("ST1", S.YT_FLOWS)  # single use
+
+    def test_wrong_state_other_account_expired_and_garbage_are_refused(self):
+        S.yt_oauth_start("music", "publish")
+        for url in ("", "nonsense", "http://localhost:51234/?code=abc", "http://localhost:51234/?state=OTHER&code=abc", "http://localhost:51234/?error=access_denied&state=ST1"):
+            with self.assertRaises(ValueError): S.yt_oauth_finish("music", "publish", url)
+        with self.assertRaises(ValueError): S.yt_oauth_finish("inspiration", "publish", "http://localhost:51234/?state=ST1&code=abc")
+        self.assertIn("ST1", S.YT_FLOWS)  # a wrong attempt does not use up the real one
+        S.YT_FLOWS["ST1"]["exp"] = 0
+        with self.assertRaises(ValueError): S.yt_oauth_finish("music", "publish", "http://localhost:51234/?state=ST1&code=abc")
+        self.assertEqual(self.saved, [])
+
+    def test_missing_client_file(self):
+        os.remove(os.path.join(self.tmp.name, "youtube_client_secret.json"))
+        with self.assertRaises(ValueError): S.yt_oauth_start("music", "publish")
+
+
 class Alerts(unittest.TestCase):
     def setUp(self):
         self.o = (S.claude_status, S.status)
