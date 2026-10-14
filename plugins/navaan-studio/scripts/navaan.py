@@ -89,19 +89,20 @@ def music_steps(slug, D):
     choose = dict(id="visuals_mode", outputs=["visuals.json"], label="Choose the visuals: your own pictures (default) or Flow", kind="script", before="visuals_mode",
                   cmds=[sc("visuals_cfg.py", slug)], done=lambda m: bool(vmode) or has_visuals)
     own_static = VJ.get("layout") == "static"
+    cap_step = dict(id="captions", outputs=['caption_cues.json', 'reel_start.json', '.cache'], label="Measure lyric timing", kind="script", before=(None if setup_captions.ready() else "captions_setup"),
+                    cmds=([sc("setup_captions.py", "--yes")] if not setup_captions.ready() else []) + [sc("captions_run.py", slug)],
+                    done=lambda m: has(D, "caption_cues.json", "reel_start.json"))
+    CAP = bool(cfg("captions.enabled", False))  # lyric captions over the video are off unless the profile turns them on
+    cap_steps = [cap_step] if CAP else []
+    CAPR = bool(cfg("captions.reel", True)) and vmode == "own"  # lyric captions burned onto the vertical reel of an own-pictures song (Instagram). The full YouTube video never gets them, viewers use CC
     own_steps = ([] if own_static else [
         dict(id="shots", outputs=["shots.json", "shots_context.json", "shots_props.json"], label="Director's shot list from the lyrics (you approve or edit it)", kind="claude", skill="director-shots", chrome=False,
              done=lambda m: has(D, "shots.json"), after="shots")]) + [
-        dict(id="video", outputs=["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video and the vertical reel here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
-             cmds=[sc("shots_render.py", slug), sc("shots_render.py", slug, "--reel"), sc("tag_mp3.py", slug)],
-             done=lambda m: fresh(D, ["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3"], ["visuals.json", "images/*"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
+        *([cap_step] if CAPR else []),
+        dict(id="video", outputs=["final_16x9.mp4", "final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video and the vertical reel here from your pictures" + (", burn the lyrics onto the reel" if CAPR else "") + " and tag the mp3", kind="script", sets_after="media_ready",
+             cmds=[sc("shots_render.py", slug), sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []) + [sc("tag_mp3.py", slug)],
+             done=lambda m: fresh(D, ["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else [])), after="media", sets="approved"),
     ]
-    CAP = bool(cfg("captions.enabled", False))  # lyric captions over the video are off unless the profile turns them on
-    cap_steps = [
-        dict(id="captions", outputs=['caption_cues.json', 'reel_start.json', '.cache'], label="Measure lyric timing", kind="script", before=(None if setup_captions.ready() else "captions_setup"),
-             cmds=([sc("setup_captions.py", "--yes")] if not setup_captions.ready() else []) + [sc("captions_run.py", slug)],
-             done=lambda m: has(D, "caption_cues.json", "reel_start.json")),
-    ] if CAP else []
     REELS = bool(cfg("video.make_reel", False))  # YouTube makes Shorts from the full video in its editor, so a separate vertical reel is optional
     FULL = "final_16x9_cap.mp4" if (CAP and vmode != "own") else "final_16x9.mp4"
     REEL = "final_reel_cap.mp4" if CAP else "final_reel_sync.mp4"
@@ -448,7 +449,7 @@ def _run(slug, step=None, dry=False, retries=2):
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
-        cands = ["final_reel_9x16.mp4"] + (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]  # the tuned reel first, the YouTube Studio clip as fallback
+        cands = ["final_reel_9x16_cap.mp4", "final_reel_9x16.mp4"] + (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]  # the captioned reel when it exists, then the tuned reel, the YouTube Studio clip as fallback
         rf = next((c for c in cands if os.path.exists(os.path.join(D, c))), None)
         if not rf: print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
         if not gate_ok(D, meta(slug).get("approvals", {}), "instagram_caption"): show_gate(slug, "instagram_caption"); print("The Instagram caption is missing or changed since you approved it. Approve gate 'instagram_caption' again."); return 3
