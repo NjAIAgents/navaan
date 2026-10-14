@@ -148,6 +148,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._host_ok(): return self._send(403, {"error": "bad host"})
         p = self.path.split("?")[0]
+        if p in ("/privacy", "/terms"):  # public on purpose: Google asks for these links on the OAuth consent screen
+            return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
@@ -162,6 +164,9 @@ class H(BaseHTTPRequestHandler):
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
+            if p == "/api/alerts":
+                try: return self._send(200, {"alerts": settings_api.alerts()})
+                except Exception as e: return self._send(500, {"error": str(e)[:300]})
             if p == "/api/settings":
                 try: return self._send(200, settings_api.status("refresh=1" in self.path))
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})
@@ -224,6 +229,7 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
     def _media(self, slug, name):
         D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
+        if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
         if os.path.splitext(f)[1].lower() not in MEDIA_EXT or not os.path.isfile(f): return self._send(404, {"error": "no file"})
         size = os.path.getsize(f); ct = mimetypes.guess_type(f)[0] or "application/octet-stream"
         rng = self.headers.get("Range"); start, end = 0, size - 1; code = 200
@@ -321,6 +327,10 @@ class H(BaseHTTPRequestHandler):
                     if act == "ig_refresh": return self._send(200, settings_api.ig_refresh(ct, str(body.get("kind") or "login")))
                     if act == "ig_save": return self._send(200, settings_api.ig_save(ct, str(body.get("kind") or "login"), str(body.get("token") or "")))
                     if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
+                    if act == "claude_save": return self._send(200, settings_api.claude_save(str(body.get("token") or "")))
+                    if act == "yt_oauth_start": return self._send(200, settings_api.yt_oauth_start(ct, str(body.get("which") or "publish")))
+                    if act == "yt_oauth_finish": return self._send(200, settings_api.yt_oauth_finish(ct, str(body.get("which") or "publish"), str(body.get("url") or "")))
+                    if act == "yt_save": return self._send(200, settings_api.yt_save(ct, str(body.get("which") or "publish"), str(body.get("content") or "")))
                     if act == "yt_secret": return self._send(200, settings_api.save_secret(str(body.get("content") or "")))
                     if act == "account": return self._send(200, settings_api.add_account(ct, body.get("handle"), body.get("channel")))
                     return self._send(404, {"error": "unknown settings action"})

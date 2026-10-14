@@ -88,6 +88,7 @@ def set_thumb(yt, vid, path, slug=None):
     The refusal is recorded in meta.json (published.thumbnail_pending) so the portal and the next run can show it."""
     from googleapiclient.http import MediaFileUpload
     from googleapiclient.errors import HttpError
+    import storage; storage.fetch_missing(path)  # the file may only be in the bucket after a local cleanup
     mp = os.path.join(song_dir(slug), "meta.json") if slug else None
     def mark(add):
         if not (mp and os.path.exists(mp)): return
@@ -111,6 +112,7 @@ def thumb(a):
 def upload(a):
     D = song_dir(a.slug); meta = load_json(os.path.join(D, a.meta) if not os.path.isabs(a.meta) else a.meta)
     f = a.file if os.path.isabs(a.file) else os.path.join(D, a.file)
+    import storage; storage.fetch_missing(f)  # the file may only be in the bucket after a local cleanup
     if not os.path.exists(f): sys.exit(f"navaan: missing {f}")
     if "_cap" not in os.path.basename(f) and cfg("captions.enabled", False):
         print("warning: file name has no _cap, captions may be missing. Check before publishing.")

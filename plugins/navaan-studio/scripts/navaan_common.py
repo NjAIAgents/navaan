@@ -32,11 +32,11 @@ def headless(): return os.environ.get("NAVAAN_HEADLESS", "0") == "1"  # the serv
 CLAUDE_STATE = {"problem": "", "at": 0}  # last Claude step outcome: "" ok, "rate_limited" or "expired"
 
 
-def load_claude_env():
+def load_claude_env(conf_dir=None):
     """Pick up the Claude credential delivered from Vault (~/.config/navaan/claude.env: CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY).
     Read each time a Claude step starts, so a late or renewed token needs no restart. No file: the environment stays as it is."""
     try:
-        for line in open(os.path.join(os.path.expanduser("~/.config/navaan"), "claude.env"), encoding="utf-8"):
+        for line in open(os.path.join(conf_dir or os.path.expanduser("~/.config/navaan"), "claude.env"), encoding="utf-8"):
             k, _, v = line.strip().partition("=")
             if k in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY") and v.strip(): os.environ[k] = v.strip().strip("\"'")
     except OSError: pass

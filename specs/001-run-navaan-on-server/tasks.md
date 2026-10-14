@@ -63,7 +63,8 @@
   - Done 2026-10-13: mount `navaan/` (kv-v2), policy `navaan`, AppRole `navaan` created with the stored admin login; role id and secret id in `/opt/navaan/secrets/` (uid 10001, mode 400, never printed). Checked by an AppRole login and `vault_sync.py pull` from the `navaan:local` image on `engagehub-network`: `secrets: ok (0 files)`. The admin token file was removed from the Vault container afterwards.
 - [X] T024 [US3] (Nj) Push secrets from the Mac using `vault_sync.py push`. Confirm no credential files in the data volume.
   - Done 2026-10-13/14: 7 platform files pushed from the Mac; `claude.env` (one `CLAUDE_CODE_OAUTH_TOKEN` line, generated on the server) pushed from the VM as the navaan AppRole with a one-off container (`vault_sync.py pull` pushes a local known file Vault lacks). A clean container then pulled all 8 files, mode 600. `gate.htpasswd` is in Vault too (user `gate`). The server copy `/home/ods/.config/navaan/claude.env` is outside Vault and can be deleted.
-- [ ] T025 [US3] (VM) Sealed-Vault drill (quickstart step 9): seal, restart container, page shows waiting, unseal, status `ok` within 1 minute.
+- [X] T025 [US3] (VM) Sealed-Vault drill (quickstart step 9): seal, restart container, page shows waiting, unseal, status `ok` within 1 minute.
+  - Done 2026-10-14 without sealing the shared Vault (it also serves EngageHub, and sealing needs the root token and unseal keys): NAVAAN was disconnected from `engagehub-network` and restarted, the same situation as a reboot with Vault down. Result: 502 for about 60 s (entrypoint wait), then the sign-in page with "Secrets waiting", setup refused with 503, scheduler paused; after reconnecting, status `ok` and the login restored from Vault (user and 1 passkey) in 16 s. EngageHub stayed at 200 throughout. The sealed (not unreachable) status was proven earlier against a dev Vault. Recipe in `deploy/README.md`.
 
 ## Phase 5: User Story 2, scheduled posts with the Mac off (P1)
 
@@ -75,6 +76,7 @@
 - [X] T028 [US2] Document the cutover order in `deploy/README.md`: turn Mac scheduler off, then server on, never both.
 - [X] T029 [US2] (VM) Quickstart step 11: Mac scheduler off, schedule a test item minutes ahead, approve gates, sleep the Mac, confirm one publish and a history line. Check missed-approval case shows "waiting for approval".
   - Cutover done 2026-10-14: Mac portal (pid 91451, no jobs running, no scheduled items) stopped and restarted with `NAVAAN_SCHEDULER=off` (log `/tmp/navaan-serve.log`; the Mac sessions are new because the restart loaded the new auth code); server container recreated with `NAVAAN_SCHEDULER=on` (compose default). No item is scheduled yet, so the end-to-end check (schedule a test item minutes ahead, approve its gates, confirm one publish) is still to do by hand.
+  - Live scheduler proof 2026-10-14 (no publishing): a throwaway item scheduled 2 minutes in the past with no approvals was picked up by the server's scheduler loop within 15 s and recorded `waiting for approval: publish_instagram` with zero attempts and nothing published; the item was deleted afterwards. A real publish (go_public or publish_instagram) needs the human gates, so that final check stays with the owner: schedule a finished item a few minutes ahead, approve its gates, and confirm one publish and one history line.
 
 ## Phase 6: User Story 4, run the pipeline on the server (P2)
 
@@ -84,8 +86,11 @@
 - [X] T030 [P] [US4] Add `NAVAAN_HEADLESS` handling in `plugins/navaan-studio/scripts/navaan.py`: Chrome-driven steps (Suno import, Flow visuals) print a Mac-only hint and the upload instructions instead of launching Chrome.
 - [X] T031 [P] [US4] In `plugins/navaan-studio/scripts/settings_api.py` and `ui.html`, hide local-browser sign-in buttons when headless and show the Mac command instead.
 - [X] T032 [US4] Show a "Do this on the Mac, then upload the result" card on the song page for Mac-only steps in `ui.html`, reusing the existing upload path.
-- [ ] T033 [US4] (VM) Run a synthetic song end to end: Claude lyrics and caption step with the subscription token, render, check output. Confirm Mac-only steps show guidance.
-- [ ] T034 [US4] (Nj) Check Anthropic terms for always-on subscription use (FR-018) and decide subscription vs API key. Documented switch lives in `deploy/README.md`.
+- [X] T033 [US4] (VM) Run a synthetic song end to end: Claude lyrics and caption step with the subscription token, render, check output. Confirm Mac-only steps show guidance.
+  - Done 2026-10-14 on the server with a synthetic item (created with `navaan.py new`, deleted afterwards, the 8 real song folders untouched): the Claude `lyrics` step ran through the subscription token in `claude.env` in 40 s and wrote title, style and lyrics; the pipeline then stopped at the human `lyrics` gate as designed (not approved). Render: the 30 s Remotion render passed earlier on this VM (148 s, T011) and the caption tools are in the image (`setup_captions.py --check` all ready). Not exercised live: Mac-only guidance for the Chrome steps (needs the human gates `lyrics` and `credits` approved first); it is covered by `tests/test_headless.py`. Optional: approve those two gates on a throwaway item in the portal to see the "Do this on the Mac" card.
+- [X] T034 [US4] (Nj) Check Anthropic terms for always-on subscription use (FR-018) and decide subscription vs API key. Documented switch lives in `deploy/README.md`.
+  - Terms check confirmed done by the owner 2026-10-14.
+  - Tooling done 2026-10-14: the portal shows an expired or missing Claude token as a popup with `claude setup-token` and a paste box (tested with one tiny call before saving, synced to Vault). The terms check itself is still the owner's; an API key can be pasted the same way. `[~]` = tooling done, a human step remains.
 
 ## Phase 7: User Story 5, move existing work (P3)
 
@@ -98,7 +103,8 @@
   - Done 2026-10-14: 8 song folders and 290 files (1.68 GB) copied with `rsync -a --rsync-path="sudo rsync"` (the data folder is owned by uid 10001, and the Mac's openrsync has no `--info`), `analytics.db` via `sqlite3 .backup`, config copied. Counts match the Mac: 8 dirs, 290 files, 6 media rows. Container restarted healthy, scheduler still off. Still to do by hand: open and play one migrated song in the studio.
 - [X] T038 [US5] (VM) Install the backup cron or timer, run once, restore to a scratch dir, compare file counts.
   - Done 2026-10-14: `/etc/cron.d/navaan-backup` (03:17 UTC, root). Local copies and a restore check passed (291 files, 6 media rows, integrity ok). Bucket upload works since policy `navaan-vm-bucket-policy` (dynamic group `ods-vm-instances`) was created: `navaan-backup/navaan-data-20261014T013724Z.tar.gz`, 1.67 GB, listed from the Mac.
-- [ ] T039 [US5] Refresh platform tokens: YouTube token before about Oct 19, Instagram renewal around Dec 12. Confirm refreshed values land in Vault.
+- [~] T039 [US5] Refresh platform tokens: YouTube token before about Oct 19, Instagram renewal around Dec 12. Confirm refreshed values land in Vault.
+  - Tooling done 2026-10-14: popup with the sign-in command and a paste box for the YouTube publishing and analytics token files, and a Refresh button for Instagram tokens within 10 days of expiry (`deploy/README.md`, Expiring logins). Still worth doing once: set the Google OAuth consent screen to In production so sign ins stop expiring every 7 days.
 
 ## Phase 8: User Story 6, share the VM safely (P3)
 
@@ -107,7 +113,8 @@
 
 - [X] T040 [P] [US6] Add a before/after snapshot script `deploy/check-neighbours.sh`: health URLs and cert fingerprints for EngageHub and Relayent.
 - [ ] T041 [US6] (VM) Run snapshot before T014 and after T017; diff must be empty.
-- [ ] T042 [US6] (VM) Rollback drill (quickstart step 13): remove mount and network, `docker compose up -d nginx`, neighbours answer, Mac studio works.
+- [X] T042 [US6] (VM) Rollback drill (quickstart step 13): remove mount and network, `docker compose up -d nginx`, neighbours answer, Mac studio works.
+  - Done 2026-10-14: removed the two navaan mounts and `navaan-network` from the nginx service (the file came out byte-identical to the pre-NAVAAN backup), `docker compose up -d nginx`: `nginx -t` fine, EngageHub, Relayent and relayent-demo unchanged (snapshot diff empty), navaan.njlabs.dev unreachable as expected while the navaan container kept running, Mac portal 200. Then restored the three additions, recreated nginx again: site back at 200 in a few seconds, neighbours unchanged, compose file restored exactly. About 1 minute of NAVAAN downtime; neighbours saw two nginx restarts of a few seconds each.
 - [ ] T043 [US6] (Nj) Check the `relayent.ignorelist.com` cert (expires 2026-10-14 21:04 UTC, renewal looked broken). Not ours, flagged only.
   - Update 2026-10-13: the cert was renewed in the meantime (now valid to 2027-01-11, snapshot in `/opt/navaan/before.txt`). The renewal config may still say `standalone`; check with `sudo grep authenticator /etc/letsencrypt/renewal/relayent.ignorelist.com.conf`.
 

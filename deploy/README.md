@@ -22,6 +22,34 @@ One container (`navaan`) runs the portal and the scheduler, behind the VM's exis
 | `NAVAAN_SCHEDULER` | `on` (cutover done 2026-10-14) | which machine publishes on schedule; the Mac must run with `off` |
 | `NAVAAN_VAULT_*` | see `compose.yml` | Vault address and the AppRole files |
 
+## Branches and the release pipeline
+`feat/*` branches merge into **`develop`** (integration); **`main`** is production. A pull request from `develop` into `main`, once merged, releases to https://navaan.njlabs.dev. Nothing else touches production.
+
+| Trigger | Workflow | What runs |
+|---------|----------|-----------|
+| pull request into `develop` or `main`, push to `develop` | `.github/workflows/ci.yml` | unit tests (`plugins/navaan-studio/tests`), `bash -n` on the deploy scripts, `docker compose config` |
+| push to `main` (a merge), or run by hand | `.github/workflows/deploy-prod.yml` | the same tests, then the release: the runner sends `git archive` of the repo over SSH, the VM builds the image, rolls it out, waits for healthy, smoke tests `/auth/state` through nginx and **rolls back to the previous image if either fails**; finally the runner checks `/auth/state` and `/privacy` from outside |
+
+Releases never overlap (`concurrency: prod-deploy`) and a running release is never cancelled. The last deployed commit is in `/opt/navaan/DEPLOYED` on the VM; the release log is `/var/log/navaan-deploy.log`.
+
+**How the VM side is locked down.** The pipeline's SSH key belongs to the user `navaan-deploy` (no password, no shell). Its `authorized_keys` line is `restrict,command="/opt/navaan/bin/deploy-entry" ssh-ed25519 ...`, so the key can only run `ping` or `deploy <40 hex sha>`; anything else is refused, and port forwarding and a terminal are off. `deploy-entry` runs `sudo /opt/navaan/bin/deploy-run <sha>` (one sudoers line: `navaan-deploy ALL=(root) NOPASSWD: /opt/navaan/bin/deploy-run *`). Both scripts are **owned by root and are not updated by the pipeline**: the pipeline can change what is built, never the release script. After editing `deploy/deploy-run.sh` or `deploy/deploy-entry.sh`, an admin reinstalls them:
+```sh
+sudo install -m 755 -o root -g root deploy/deploy-run.sh   /opt/navaan/bin/deploy-run
+sudo install -m 755 -o root -g root deploy/deploy-entry.sh /opt/navaan/bin/deploy-entry
+```
+
+**GitHub settings** (repo `NjAIAgents/navaan`): secret `DEPLOY_SSH_KEY` (the private key); variables `DEPLOY_HOST`, `DEPLOY_USER` (`navaan-deploy`) and `DEPLOY_KNOWN_HOSTS` (the VM's ed25519 host key, checked against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`; the runner refuses any other host).
+
+**Rotate the key:** `ssh-keygen -t ed25519 -N "" -f key`, put the public half into `/home/navaan-deploy/.ssh/authorized_keys` behind the same `restrict,command=...` prefix, `gh secret set DEPLOY_SSH_KEY < key`, delete `key` locally.
+
+**Known limit:** branch protection and rulesets need GitHub Pro for a private repo, so `main` is protected by convention (merge through a pull request) rather than by a rule. The deploy workflow still runs the tests before it releases anything.
+
+**Manual release or rollback** (same path the pipeline uses, from a machine that has the key):
+```sh
+git archive HEAD .claude-plugin plugins deploy .dockerignore | ssh -i key navaan-deploy@163.192.110.178 "deploy $(git rev-parse HEAD)"
+```
+To go back to the previous image by hand on the VM: `docker tag navaan:previous navaan:local && cd /opt/navaan/repo && docker compose -f deploy/compose.yml up -d`.
+
 ## Install (first time)
 1. **Vault**: `vault/setup.md` (mount, policy, AppRole, secret files), then push the secrets from the Mac.
 2. **Data folder**: `sudo install -d -o 10001 /opt/navaan/data/songs /opt/navaan/data/state`, then `migrate.md`.
@@ -45,17 +73,32 @@ Only one portal may run the scheduler. Cutover order, exactly:
 2. On the server: set `NAVAAN_SCHEDULER=on` (`NAVAAN_SCHEDULER=on docker compose -f deploy/compose.yml up -d`).
 Never both. The header chip in the studio shows `scheduler on|off|paused`. `paused` means Vault is sealed or unreachable: nothing publishes until it is back, because the tokens are not there.
 
-## Claude credential
-The `claude` steps use `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token from `claude setup-token`) or `ANTHROPIC_API_KEY`, both read from the Vault file `claude.env`; if both are present the API key is used. Switch by editing that one secret (push a new `claude.env` from the Mac); no restart is needed, the next Claude step reads it. Whether always-on subscription use fits Anthropic's terms is yours to check (T034); the API key is the fallback. Settings shows which one is in use and whether the last step was refused or rate limited.
+## Expiring logins: renew them in the portal
+When a login stops working the portal opens a popup ("Logins that need you", also a header button, and **Settings**) that shows the command to run, a Copy button and a box to paste the result. Nothing is stored until the pasted value has been checked, so a wrong paste never replaces a working login. On the server the saved file goes to Vault within 30 seconds. No restart is needed.
+
+| Login | Command (run where) | Paste | Check before saving |
+|-------|---------------------|-------|---------------------|
+| Claude (`claude.env`) | `claude setup-token`, on any computer where Claude Code is signed in | the token (`sk-ant-oat...`), or an API key (`sk-ant-api...`, which wins if both exist) | one tiny `claude -p` call with it |
+| YouTube publishing and analytics | **Sign in with Google** in the popup: it opens Google in your own browser, you allow access, Google sends you to a `localhost` page that cannot open, and you paste that address back (the server needs no browser). Or, on a Mac terminal: `publish_youtube.py auth` / `yt_collect.py auth --account music`, then `cat ~/.config/navaan/<file> \| pbcopy` | the address, or the whole file | the code is exchanged here, then Google refreshes the token and returns the channel name |
+| Instagram | nothing to run: **Refresh now** extends a login token by 60 days (shown 10 days before it ends) | | Instagram answers `/me` |
+
+The inspiration account uses `NAVAAN_YT_TOKEN=~/.config/navaan/youtube_token_inspiration.json` in front of the YouTube command; the popup writes it out for you.
+
+**Google ends sign ins every 7 days while the OAuth consent screen is in Testing.** To stop that, set the app to **In production** (Google Cloud console, APIs and Services, OAuth consent screen, Publish app). For one user's own account no review is needed; Google only shows an "unverified app" screen at sign in. Then the YouTube popup should rarely appear.
+
+Whether always-on use of a Claude subscription token fits Anthropic's terms is yours to check (T034). An API key in the same box is the fallback; no other change is needed.
 
 ## Mac-only steps
-Steps that drive Chrome (Suno import and generate, Flow visuals, the YouTube Short in Studio) cannot run on the server. The studio shows "Do this on the Mac, then upload the result". Copy the song folder to the Mac, run the step there, copy the new files back:
+Suno import of a public song no longer needs a browser: the server reads the public clip data and downloads the audio itself (`suno_import.py auto <slug>`). It falls back to the Chrome step, which cannot run on the server, only for a private song or when `suno.auto_failed` is set in meta.json. Steps that drive Chrome (Suno generate, Flow visuals, the YouTube Short in Studio, the Suno import fallback) cannot run on the server. The studio shows "Do this on the Mac, then upload the result". Copy the song folder to the Mac, run the step there, copy the new files back:
 ```sh
 rsync -av ods@njPRD:/opt/navaan/data/songs/<slug>/ songs/<slug>/     # fetch
 # ... run the step on the Mac ...
 rsync -av songs/<slug>/ ods@njPRD:/opt/navaan/data/songs/<slug>/     # return; then press Run on the server
 ```
 Google sign in is also Mac only: run `publish_youtube.py auth` on the Mac, then `python3 deploy/vault_sync.py push`.
+
+## Cleaned songs: files come back from the bucket on demand
+After a song is archived and cleaned locally, its pictures and audio are only in the bucket. The portal fetches a missing picture or audio file for a song that has a recorded cloud copy the first time something asks for it (covers in the library, `/media/...`), and the YouTube upload and thumbnail steps fetch the file they need. Each fetch is one `oci os object get` of that single file (about 2 s), the key comes from the song's own `cloud.prefix`, paths outside a song folder are refused, and a file that is not in the bucket is remembered for an hour so it is not asked for again. Videos are not fetched by the picture route (too big for a page load); the upload step still fetches the one video it needs. Fetched files stay on the server's disk until the next local cleanup.
 
 ## Backup and restore
 `deploy/backup/backup.sh` runs nightly at 03:17 UTC as root (`/etc/cron.d/navaan-backup`, log `/var/log/navaan-backup.log`). It always keeps a local copy (newest 7 in `/opt/navaan/backups`, mode 700) and uploads to the OCI bucket `navaan` (prefix `navaan-backup/`, 14 days kept) through the VM's instance principal, using the `ghcr.io/oracle/oci-cli` container because the VM has no `oci` CLI. Exit code 3 means the local copy exists but the upload failed.
@@ -76,8 +119,18 @@ find /tmp/navaan-data/songs -type f | wc -l ; find /opt/navaan/data/songs -type 
 ```
 To restore for real: stop the container (`docker compose -f deploy/compose.yml down`), replace `/opt/navaan/data` with `navaan-data/`, `sudo chown -R 10001:10001 /opt/navaan/data`, start it.
 
-## After a VM reboot
-Vault comes back sealed. Enter two unseal keys (have them ready before rebooting). Until then the sign-in page says "secrets waiting", the scheduler is `paused`, and a new login cannot be created. The container notices within 15 seconds of the unseal.
+## After a VM reboot, and the Vault drill
+Vault comes back sealed (unseal with the existing script or your keys). Until then NAVAAN behaves like this (drilled 2026-10-14, see below):
+- the site answers **502 for up to 60 seconds** after the container starts (the entrypoint waits that long for Vault so your login arrives before the portal starts);
+- then the sign-in page shows **"Secrets waiting"**, creating a new login is refused (503), and the scheduler is `paused`;
+- within about **16 seconds of Vault being reachable** the status is `ok`, your login (and passkey) are restored from Vault, and the scheduler resumes.
+
+**Repeatable drill that does not touch Vault** (EngageHub shares it, so never seal it for a test): cut only NAVAAN's path to it, restart, look, restore.
+```sh
+docker network disconnect engagehub-network navaan && docker restart navaan
+curl -s https://navaan.njlabs.dev/auth/state            # {"state": "setup", "secrets": {"status": "waiting"}} after the 60 s wait
+docker network connect engagehub-network navaan         # recovers in about 16 s
+```
 
 ## Rollback
 Remove the two navaan mounts and the `navaan-network` network from the `engagehub-nginx` service, `cd /opt/engagehub && docker compose up -d nginx`, delete `/opt/navaan/nginx/navaan.conf`. DNS and the certificate can stay. `docker compose -f deploy/compose.yml down` stops NAVAAN. The Mac portal keeps working; set its `NAVAAN_SCHEDULER` back to `on` only after the server's is `off`.

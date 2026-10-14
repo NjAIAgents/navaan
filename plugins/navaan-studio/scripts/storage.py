@@ -89,6 +89,36 @@ def _oci_ns():
     return (out if rc == 0 else None), err
 
 
+_MISSING = {}  # path -> time of the last failed fetch, so a file that is not in the bucket is not asked for on every request
+_FETCHING = set()
+
+
+def fetch_missing(path, retry_after=3600):
+    """One file of a song that was archived and then cleaned locally, brought back from the bucket. True when the file exists afterwards.
+    Only paths inside a song folder whose meta.json records a cloud copy; the bucket key comes from that record (cloud.prefix). oci only."""
+    import time, navaan_common as C
+    if os.path.exists(path): return True
+    root = os.path.abspath(C.songs_root()); full = os.path.abspath(path)
+    parts = os.path.relpath(full, root).split(os.sep)
+    if full == root or len(parts) < 2 or any(x in ("", ".", "..") for x in parts) or not full.startswith(root + os.sep): return False
+    if time.time() - _MISSING.get(full, 0) < retry_after or full in _FETCHING: return False
+    try: cl = (json.load(open(os.path.join(root, parts[0], "meta.json"), encoding="utf-8")).get("cloud") or {})
+    except (OSError, ValueError): return False
+    if cl.get("provider") != "oci" or not (cl.get("bucket") and cl.get("namespace") and cl.get("uploaded_at")): return False
+    key = (cl.get("prefix") or "").strip("/") + "/" + "/".join(parts[1:])
+    tmp = full + ".part"; _FETCHING.add(full)
+    try:
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        rc, _, err = _run(["oci", "os", "object", "get", "-ns", cl["namespace"], "-bn", cl["bucket"], "--name", key, "--file", tmp], timeout=300)
+        if rc == 0 and os.path.exists(tmp): os.replace(tmp, full); return True
+        _MISSING[full] = time.time(); return False
+    finally:
+        _FETCHING.discard(full)
+        if os.path.exists(tmp):
+            try: os.remove(tmp)
+            except OSError: pass
+
+
 def check_cloud(provider, bucket, prefix="", region="", write=False):
     """Check the cloud location with the provider CLI. write=True also puts and deletes a tiny test object."""
     if provider in (None, "", "none"):

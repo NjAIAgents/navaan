@@ -30,6 +30,11 @@ class Pages(unittest.TestCase):
                 r = subprocess.run([node, "-e", "new Function(require('fs').readFileSync(0,'utf8'))"], input=m.group(1), capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, f"{n} script {i}: {r.stderr[:200]}")
 
+    def test_public_legal_pages_exist_and_say_what_google_checks(self):
+        pv, tm = self.read("privacy.html"), self.read("terms.html")
+        for needle in ("Google API Services User Data Policy", "Limited Use", "YouTube", "revoke"): self.assertIn(needle, pv)
+        self.assertIn("/privacy", tm); self.assertNotIn("@gmail.com", pv + tm)  # no personal email on a public page
+
     def test_branding_present(self):
         for n in ("auth.html", "ui.html"):
             self.assertIn("NJLABS", self.read(n))
