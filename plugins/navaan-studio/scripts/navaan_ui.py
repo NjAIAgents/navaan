@@ -162,6 +162,9 @@ class H(BaseHTTPRequestHandler):
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
+            if p == "/api/alerts":
+                try: return self._send(200, {"alerts": settings_api.alerts()})
+                except Exception as e: return self._send(500, {"error": str(e)[:300]})
             if p == "/api/settings":
                 try: return self._send(200, settings_api.status("refresh=1" in self.path))
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})
@@ -321,6 +324,8 @@ class H(BaseHTTPRequestHandler):
                     if act == "ig_refresh": return self._send(200, settings_api.ig_refresh(ct, str(body.get("kind") or "login")))
                     if act == "ig_save": return self._send(200, settings_api.ig_save(ct, str(body.get("kind") or "login"), str(body.get("token") or "")))
                     if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
+                    if act == "claude_save": return self._send(200, settings_api.claude_save(str(body.get("token") or "")))
+                    if act == "yt_save": return self._send(200, settings_api.yt_save(ct, str(body.get("which") or "publish"), str(body.get("content") or "")))
                     if act == "yt_secret": return self._send(200, settings_api.save_secret(str(body.get("content") or "")))
                     if act == "account": return self._send(200, settings_api.add_account(ct, body.get("handle"), body.get("channel")))
                     return self._send(404, {"error": "unknown settings action"})

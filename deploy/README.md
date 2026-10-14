@@ -45,8 +45,21 @@ Only one portal may run the scheduler. Cutover order, exactly:
 2. On the server: set `NAVAAN_SCHEDULER=on` (`NAVAAN_SCHEDULER=on docker compose -f deploy/compose.yml up -d`).
 Never both. The header chip in the studio shows `scheduler on|off|paused`. `paused` means Vault is sealed or unreachable: nothing publishes until it is back, because the tokens are not there.
 
-## Claude credential
-The `claude` steps use `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token from `claude setup-token`) or `ANTHROPIC_API_KEY`, both read from the Vault file `claude.env`; if both are present the API key is used. Switch by editing that one secret (push a new `claude.env` from the Mac); no restart is needed, the next Claude step reads it. Whether always-on subscription use fits Anthropic's terms is yours to check (T034); the API key is the fallback. Settings shows which one is in use and whether the last step was refused or rate limited.
+## Expiring logins: renew them in the portal
+When a login stops working the portal opens a popup ("Logins that need you", also a header button, and **Settings**) that shows the command to run, a Copy button and a box to paste the result. Nothing is stored until the pasted value has been checked, so a wrong paste never replaces a working login. On the server the saved file goes to Vault within 30 seconds. No restart is needed.
+
+| Login | Command (run where) | Paste | Check before saving |
+|-------|---------------------|-------|---------------------|
+| Claude (`claude.env`) | `claude setup-token`, on any computer where Claude Code is signed in | the token (`sk-ant-oat...`), or an API key (`sk-ant-api...`, which wins if both exist) | one tiny `claude -p` call with it |
+| YouTube publishing | `python3 plugins/navaan-studio/scripts/publish_youtube.py auth`, on the Mac, then `cat ~/.config/navaan/youtube_token.json \| pbcopy` | the whole file | Google refreshes it and returns the channel name |
+| YouTube analytics | `python3 plugins/navaan-studio/scripts/yt_collect.py auth --account music`, then the same for `youtube_analytics_token.json` | the whole file | the same |
+| Instagram | nothing to run: **Refresh now** extends a login token by 60 days (shown 10 days before it ends) | | Instagram answers `/me` |
+
+The inspiration account uses `NAVAAN_YT_TOKEN=~/.config/navaan/youtube_token_inspiration.json` in front of the YouTube command; the popup writes it out for you.
+
+**Google ends sign ins every 7 days while the OAuth consent screen is in Testing.** To stop that, set the app to **In production** (Google Cloud console, APIs and Services, OAuth consent screen, Publish app). For one user's own account no review is needed; Google only shows an "unverified app" screen at sign in. Then the YouTube popup should rarely appear.
+
+Whether always-on use of a Claude subscription token fits Anthropic's terms is yours to check (T034). An API key in the same box is the fallback; no other change is needed.
 
 ## Mac-only steps
 Steps that drive Chrome (Suno import and generate, Flow visuals, the YouTube Short in Studio) cannot run on the server. The studio shows "Do this on the Mac, then upload the result". Copy the song folder to the Mac, run the step there, copy the new files back:

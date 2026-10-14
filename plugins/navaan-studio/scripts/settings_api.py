@@ -8,7 +8,7 @@ ig_save(ctype, kind, token)    validate a pasted token and write it into the acc
 yt_signin(ctype)               start publish_youtube.py auth for that account in the background (it opens the browser on this Mac).
 Tokens are only ever written to the login files under ~/.config/navaan with mode 600. They are never returned to the page.
 """
-import os, sys, json, time, datetime, subprocess, threading, urllib.request, urllib.parse, urllib.error
+import os, re, sys, json, time, shlex, datetime, subprocess, threading, urllib.request, urllib.parse, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 
@@ -124,11 +124,106 @@ headless = C.headless
 
 def claude_status():
     """Which credential the Claude steps use and whether the last step could use it. Never the value itself."""
-    C.load_claude_env()
+    C.load_claude_env(HOME)
     kind = "API key" if os.environ.get("ANTHROPIC_API_KEY") else "subscription token" if os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") else ""
     if not kind and not headless(): kind = "this computer's Claude login"
     st = C.CLAUDE_STATE["problem"] or ("ok" if kind else "missing")
     return {"credential": kind, "state": st, "since": C.CLAUDE_STATE["at"], "headless": headless()}
+
+
+def _atomic_write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".new"; fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f: f.write(text)
+    os.replace(tmp, path); os.chmod(path, 0o600)
+
+
+def _claude_test(var, token):
+    """One tiny `claude -p` call with the candidate credential, so a wrong or expired paste never replaces a working token."""
+    env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN")}; env[var] = token
+    try:
+        p = subprocess.run(shlex.split(os.environ.get("NAVAAN_CLAUDE_CMD", "claude -p")) + ["Reply with the single word OK."], capture_output=True, text=True, timeout=120, env=env, cwd=(os.path.expanduser("~") if os.path.isdir(os.path.expanduser("~")) else None))
+    except FileNotFoundError: return False, "The claude command was not found on this server."
+    except subprocess.TimeoutExpired: return False, "Claude did not answer within 2 minutes. Try again."
+    out = ((p.stdout or "") + (p.stderr or "")).replace(token, "<token>").strip()
+    if p.returncode == 0 and "ok" in out.lower(): return True, ""
+    C.note_claude_result(False, out)
+    why = {"rate_limited": "Claude is rate limited right now (usage limit). The token may be fine; try again later.", "expired": "Claude refused this token: it is expired, revoked or not valid."}.get(C.CLAUDE_STATE["problem"], "Claude did not accept it: " + out[-200:])
+    return False, why
+
+
+def claude_save(token):
+    """Paste a token from `claude setup-token` (or an API key). Tested first, then written to claude.env (mode 600); the next Claude step uses it, no restart.
+    On the server the file is synced to Vault within 30 seconds."""
+    t = (token or "").strip().strip("\"'")
+    if "=" in t: t = t.split("=", 1)[1].strip().strip("\"'")  # a pasted CLAUDE_CODE_OAUTH_TOKEN=... line
+    if not re.fullmatch(r"sk-ant-[A-Za-z0-9_\-]{20,500}", t): raise ValueError("That does not look like a Claude token. It starts with sk-ant- and has no spaces or line breaks.")
+    var = "ANTHROPIC_API_KEY" if t.startswith("sk-ant-api") else "CLAUDE_CODE_OAUTH_TOKEN"
+    ok, why = _claude_test(var, t)
+    if not ok: raise ValueError(why)
+    _atomic_write(os.path.join(HOME, "claude.env"), f"{var}={t}\n")
+    for k in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"): os.environ.pop(k, None)
+    C.load_claude_env(HOME); C.note_claude_result(True)
+    return dict(claude_status(), ok=True)
+
+
+def yt_token_path(ctype, which):
+    if which == "publish": return _yt_path(ctype)
+    from yt_collect import token_paths
+    return token_paths(ctype)[0]
+
+
+def yt_save(ctype, which, text):
+    """Paste the content of a Google token file made on a computer with a browser. It is refreshed and used to read the channel before it replaces the old one."""
+    if which not in ("publish", "analytics"): raise ValueError("which must be publish or analytics")
+    path = yt_token_path(ctype, which)
+    if not path: raise ValueError("no token file is configured for this account")
+    text = (text or "").strip()
+    if len(text) > 20000: raise ValueError("That is too long to be a token file.")
+    try: info = json.loads(text)
+    except ValueError: raise ValueError("That is not the token file. Paste the whole content of the file, starting with {")
+    if not isinstance(info, dict) or not all(info.get(k) for k in ("refresh_token", "client_id", "client_secret")):
+        raise ValueError("That token file is missing refresh_token, client_id or client_secret. Run the sign in command again and paste the new file.")
+    tmp = path + ".check"; _atomic_write(tmp, json.dumps(info))
+    try: st = _yt_status(tmp)
+    except Exception as e: st = {"ok": False, "error": str(e)[:200]}
+    if not st.get("ok"):
+        try: os.remove(tmp)
+        except OSError: pass
+        raise ValueError("Google did not accept that token: " + (st.get("error") or "unknown error") + (" Sign in again and paste the new file." if "sign in" in (st.get("error") or "") else ""))
+    os.replace(tmp, path); os.chmod(path, 0o600); _cache["at"] = 0
+    return {"ok": True, "channel": st.get("channel")}
+
+
+def alerts():
+    """What needs the person now, from the cached login checks. Each item: id, kind (claude, yt, ig), title, message, a command to run, and where to run it."""
+    out = []; cl = claude_status()
+    if cl["state"] in ("expired", "missing"):
+        out.append({"id": "claude", "kind": "claude", "title": "Claude token " + ("expired" if cl["state"] == "expired" else "missing"),
+                    "message": "Steps that use Claude (lyrics, captions text, recommendations) cannot run until a new token is saved.",
+                    "command": "claude setup-token", "where": "on any computer where Claude Code is signed in with your account. Copy the token it prints (it starts with sk-ant-)."})
+    try: d = status()
+    except Exception: d = {"accounts": []}
+    for a in d.get("accounts", []):
+        t = a["type"]; label = t.capitalize()
+        for which, key in (("publish", "yt"), ("analytics", "yt_analytics")):
+            y = a.get(key) or {}
+            if y.get("present") and y.get("ok") is False:
+                base = os.path.basename(a.get("yt_token") or "youtube_token.json")
+                if which == "publish":
+                    env = "" if t == "music" else f"NAVAAN_YT_TOKEN=~/.config/navaan/{base} "
+                    cmd, f = f"{env}python3 plugins/navaan-studio/scripts/publish_youtube.py auth", base
+                else:
+                    cmd, f = f"python3 plugins/navaan-studio/scripts/yt_collect.py auth --account {t}", os.path.basename(a.get("yt_analytics_token") or "youtube_analytics_token.json")
+                out.append({"id": f"yt:{t}:{which}", "kind": "yt", "type": t, "which": which, "title": f"YouTube {'publishing' if which == 'publish' else 'analytics'} sign in expired ({label})",
+                            "message": y.get("error") or "Google no longer accepts this sign in. In Testing mode Google ends it every 7 days.",
+                            "command": cmd, "where": f"on your Mac, in the project folder. A browser opens for the Google sign in. Then copy the new file: cat ~/.config/navaan/{f} | pbcopy"})
+        for kind, key in (("login", "ig"), ("market", "market")):
+            g = a.get(key) or {}
+            if g.get("present") and (g.get("ok") is False or (g.get("days_left") is not None and g["days_left"] <= 10)):
+                out.append({"id": f"ig:{t}:{kind}", "kind": "ig", "type": t, "ikind": kind, "title": f"Instagram token {'expires in ' + str(g['days_left']) + ' days' if g.get('ok') else 'is not valid'} ({label})",
+                            "message": g.get("error") or "A fresh 60 day token is one click away.", "command": "", "where": ""})
+    return out
 
 
 def status(force=False):
@@ -138,10 +233,12 @@ def status(force=False):
     accounts = []
     for t in types:
         a = C.account(t); env_path = _env_path(t); env = _read_env(env_path); yt_path = _yt_path(t)
+        try: ana_path = yt_token_path(t, "analytics")
+        except Exception: ana_path = None
         accounts.append({"type": t, "handle": a.get("handle") or "", "youtube_channel": a.get("youtube_channel") or "", "configured": a["configured"],
                          "ig_env": env_path, "ig": _ig_status(env, "NAVAAN_IG_HOST", "NAVAAN_IG_USER_ID", "NAVAAN_IG_TOKEN", "NAVAAN_IG_TOKEN_EXPIRES"),
                          "market": _ig_status(env, "NAVAAN_IG_MARKET_HOST", "NAVAAN_IG_MARKET_USER_ID", "NAVAAN_IG_MARKET_TOKEN", "NAVAAN_IG_MARKET_EXPIRES"),
-                         "yt_token": yt_path, "yt": _yt_status(yt_path)})
+                         "yt_token": yt_path, "yt": _yt_status(yt_path), "yt_analytics_token": ana_path, "yt_analytics": _yt_status(ana_path) if ana_path else {"present": False}})
     data = {"accounts": accounts, "cloud": {"provider": C.cfg("storage.cloud_provider", "none"), "bucket": C.cfg("storage.cloud_bucket", ""), "region": C.cfg("storage.cloud_region", "")},
             "secret_present": os.path.exists(os.path.join(HOME, "youtube_client_secret.json")), "checked_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     _cache.update(at=time.time(), data=data)

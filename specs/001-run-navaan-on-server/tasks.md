@@ -85,7 +85,8 @@
 - [X] T031 [P] [US4] In `plugins/navaan-studio/scripts/settings_api.py` and `ui.html`, hide local-browser sign-in buttons when headless and show the Mac command instead.
 - [X] T032 [US4] Show a "Do this on the Mac, then upload the result" card on the song page for Mac-only steps in `ui.html`, reusing the existing upload path.
 - [ ] T033 [US4] (VM) Run a synthetic song end to end: Claude lyrics and caption step with the subscription token, render, check output. Confirm Mac-only steps show guidance.
-- [ ] T034 [US4] (Nj) Check Anthropic terms for always-on subscription use (FR-018) and decide subscription vs API key. Documented switch lives in `deploy/README.md`.
+- [~] T034 [US4] (Nj) Check Anthropic terms for always-on subscription use (FR-018) and decide subscription vs API key. Documented switch lives in `deploy/README.md`.
+  - Tooling done 2026-10-14: the portal shows an expired or missing Claude token as a popup with `claude setup-token` and a paste box (tested with one tiny call before saving, synced to Vault). The terms check itself is still the owner's; an API key can be pasted the same way. `[~]` = tooling done, a human step remains.
 
 ## Phase 7: User Story 5, move existing work (P3)
 
@@ -98,7 +99,8 @@
   - Done 2026-10-14: 8 song folders and 290 files (1.68 GB) copied with `rsync -a --rsync-path="sudo rsync"` (the data folder is owned by uid 10001, and the Mac's openrsync has no `--info`), `analytics.db` via `sqlite3 .backup`, config copied. Counts match the Mac: 8 dirs, 290 files, 6 media rows. Container restarted healthy, scheduler still off. Still to do by hand: open and play one migrated song in the studio.
 - [X] T038 [US5] (VM) Install the backup cron or timer, run once, restore to a scratch dir, compare file counts.
   - Done 2026-10-14: `/etc/cron.d/navaan-backup` (03:17 UTC, root). Local copies and a restore check passed (291 files, 6 media rows, integrity ok). Bucket upload works since policy `navaan-vm-bucket-policy` (dynamic group `ods-vm-instances`) was created: `navaan-backup/navaan-data-20261014T013724Z.tar.gz`, 1.67 GB, listed from the Mac.
-- [ ] T039 [US5] Refresh platform tokens: YouTube token before about Oct 19, Instagram renewal around Dec 12. Confirm refreshed values land in Vault.
+- [~] T039 [US5] Refresh platform tokens: YouTube token before about Oct 19, Instagram renewal around Dec 12. Confirm refreshed values land in Vault.
+  - Tooling done 2026-10-14: popup with the sign-in command and a paste box for the YouTube publishing and analytics token files, and a Refresh button for Instagram tokens within 10 days of expiry (`deploy/README.md`, Expiring logins). Still worth doing once: set the Google OAuth consent screen to In production so sign ins stop expiring every 7 days.
 
 ## Phase 8: User Story 6, share the VM safely (P3)
 
