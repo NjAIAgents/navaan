@@ -76,6 +76,7 @@
 - [X] T028 [US2] Document the cutover order in `deploy/README.md`: turn Mac scheduler off, then server on, never both.
 - [X] T029 [US2] (VM) Quickstart step 11: Mac scheduler off, schedule a test item minutes ahead, approve gates, sleep the Mac, confirm one publish and a history line. Check missed-approval case shows "waiting for approval".
   - Cutover done 2026-10-14: Mac portal (pid 91451, no jobs running, no scheduled items) stopped and restarted with `NAVAAN_SCHEDULER=off` (log `/tmp/navaan-serve.log`; the Mac sessions are new because the restart loaded the new auth code); server container recreated with `NAVAAN_SCHEDULER=on` (compose default). No item is scheduled yet, so the end-to-end check (schedule a test item minutes ahead, approve its gates, confirm one publish) is still to do by hand.
+  - Live scheduler proof 2026-10-14 (no publishing): a throwaway item scheduled 2 minutes in the past with no approvals was picked up by the server's scheduler loop within 15 s and recorded `waiting for approval: publish_instagram` with zero attempts and nothing published; the item was deleted afterwards. A real publish (go_public or publish_instagram) needs the human gates, so that final check stays with the owner: schedule a finished item a few minutes ahead, approve its gates, and confirm one publish and one history line.
 
 ## Phase 6: User Story 4, run the pipeline on the server (P2)
 
