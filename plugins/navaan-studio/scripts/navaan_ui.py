@@ -373,6 +373,16 @@ class H(BaseHTTPRequestHandler):
                 if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
+            if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
+                import narration
+                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
+                D = C.song_dir(slug)
+                try:
+                    if p.endswith("remove"): narration.remove(D); r = {}
+                    else: r = narration.save(D, body.get("audio_name"), str(body.get("audio") or ""), str(body.get("srt") or ""))
+                    m = navaan.meta(slug); navaan.log_hist(m, "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines")); navaan.save_meta(slug, m)
+                    return self._send(200, {"ok": True, **r})
+                except ValueError as e: return self._send(400, {"error": str(e)})
             if p.startswith("/api/visuals/"):
                 act = p.rsplit("/", 1)[1]; D = C.song_dir(slug)
                 try:

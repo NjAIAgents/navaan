@@ -47,6 +47,10 @@ Lyric captions over the video are switched off. The pipeline skips the Measure l
 
 Songs made from your own pictures get the lyrics burned onto the vertical reel, because Instagram's own Lyrics button and API cannot do it for audio that is not in its music library. The Measure lyric timing step (Whisper on the server, one time tool download behind the `captions_setup` gate) writes `caption_cues.json`, then the video step writes `final_reel_9x16_cap.mp4` next to the clean `final_reel_9x16.mp4`. Instagram posts the captioned file when it exists. The YouTube Short and the full video stay clean, viewers use CC there. Set `captions.reel` to false in the profile to skip the step.
 
+## Narration you already made
+
+The New inspiration short dialog has two optional pickers: the narration audio and its subtitle file (.srt). When both are chosen the portal saves them as `voiceover.<ext>` and `voiceover.srt` in the item's folder and sets the brief to `voiceover: file` and `music: none`, so the video follows the voice line by line. The dialog opened from the Library creates songs, the one opened from the Inspiration page creates inspiration shorts; they no longer share one window.
+
 ## No captions, no separate Short by default
 
 YouTube makes captions and Shorts itself, so the pipeline renders only the full 16:9 video and uploads that. Set `video.make_reel` to true for a vertical reel (Instagram needs it) and `captions.enabled` to true to burn lyrics in.
