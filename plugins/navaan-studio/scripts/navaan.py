@@ -28,6 +28,7 @@ NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts 
 import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import setup_captions
+import media_cfg
 from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root, item_type, account
 import navaan_common as C
 import publish_schedule as PS
@@ -155,6 +156,20 @@ def ig_enabled(m):
     return item_type(m) == "inspiration" or bool(cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
 
 
+def background_steps(slug, D, gen, has_bg):
+    """Flow (a Chrome step on the Mac) or, when Settings says openai, a prompt step the agent does without spending plus one OpenAI picture behind the credits gate."""
+    if gen and media_cfg.load()["image_provider"] == "openai":
+        return [
+            dict(id="background_prompt", outputs=["scenes/background.txt"], label="Write the background picture prompt", kind="claude", skill="inspiration-visual", chrome=False,
+                 hint="The picture will be made by the OpenAI image API, not Flow. Write only scenes/background.txt (the prompt) and stop. Do not open a browser and do not make the image.",
+                 done=lambda m: has_bg(m) or has(D, "scenes/background.txt")),
+            dict(id="background", outputs=["background.*"], label="Create the background image (OpenAI)", kind="script", cmds=[sc("image_openai.py", slug)],
+                 before="credits", done=has_bg),
+        ]
+    return [dict(id="background", outputs=["background.*", "scenes/background.txt"], label=("Create the background image (Flow)" if gen else "Pick the background image"), kind="claude", skill="inspiration-visual", chrome=gen,
+                 before=("credits" if gen else None), done=has_bg)]
+
+
 def inspiration_steps(slug, D):
     """Quote, originality check, background, typography and music, render, review, then publish to YouTube Shorts and Instagram from the item's own account."""
     FINAL = "final_reel_9x16.mp4"
@@ -170,8 +185,7 @@ def inspiration_steps(slug, D):
              done=lambda m: has(D, "quote.json", "title.txt"), after="quote", sets="quote_ok"),
         dict(id="originality", outputs=["originality.json"], label="Check originality and attribution on the web", kind="claude", skill="inspiration-check", chrome=False, tools=["WebSearch", "WebFetch"],
              done=lambda m: has(D, "originality.json"), after="originality"),
-        dict(id="background", outputs=["background.*", "scenes/background.txt"], label=("Create the background image (Flow)" if gen else "Pick the background image"), kind="claude", skill="inspiration-visual", chrome=gen,
-             before=("credits" if gen else None), done=has_bg),
+        *background_steps(slug, D, gen, has_bg),
         *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
              done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),
@@ -405,6 +419,7 @@ def claude_cmd(slug, s):
               + "If you need a human decision or action (a login, a CAPTCHA, a file picker, a choice), do not ask in chat. Write the file "
               + f"{D}/question.json as {{\"text\": \"one plain question\", \"options\": [{{\"id\": \"short_id\", \"label\": \"what the button says\"}}], \"allow_text\": false}} "
               + "(allow_text true adds a free text box; set \"text\": true on the option that needs what the user types, such as a filename), say nothing else, and stop. The user answers in the web portal and the step runs again with the answer below. "
+              + (s["hint"] + " " if s.get("hint") else "")
               + answers_text(slug))
     if "NAVAAN_CLAUDE_FLAGS" in os.environ:
         flags = shlex.split(os.environ["NAVAAN_CLAUDE_FLAGS"])
