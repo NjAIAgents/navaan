@@ -93,7 +93,8 @@
 
 - [X] T035 [P] [US5] Write `deploy/backup/backup.sh`: nightly tar of the data volume to the OCI bucket, retention 14 days, restore instructions in `deploy/README.md`.
 - [X] T036 [P] [US5] Write `deploy/migrate.md` (or a section in `deploy/README.md`): rsync commands for `songs/`, `analytics.db`, `navaan.config.json` with a dry run first. Config contains credentials references, so route credentials through Vault, not rsync.
-- [ ] T037 [US5] (VM) Run the migration, compare `ls songs | wc -l` and `sqlite3 analytics.db 'select count(*) from media'` with the Mac, open and play a migrated song.
+- [X] T037 [US5] (VM) Run the migration, compare `ls songs | wc -l` and `sqlite3 analytics.db 'select count(*) from media'` with the Mac, open and play a migrated song.
+  - Done 2026-10-14: 8 song folders and 290 files (1.68 GB) copied with `rsync -a --rsync-path="sudo rsync"` (the data folder is owned by uid 10001, and the Mac's openrsync has no `--info`), `analytics.db` via `sqlite3 .backup`, config copied. Counts match the Mac: 8 dirs, 290 files, 6 media rows. Container restarted healthy, scheduler still off. Still to do by hand: open and play one migrated song in the studio.
 - [ ] T038 [US5] (VM) Install the backup cron or timer, run once, restore to a scratch dir, compare file counts.
 - [ ] T039 [US5] Refresh platform tokens: YouTube token before about Oct 19, Instagram renewal around Dec 12. Confirm refreshed values land in Vault.
 

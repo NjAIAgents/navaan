@@ -2,7 +2,7 @@
 
 Run on the Mac, from the repo root. Credentials do not travel this way: they go through Vault (`deploy/vault/setup.md`, section 4). `navaan.config.json` holds only paths such as `~/.config/navaan/instagram_inspiration.env`, which resolve inside the container to the same names Vault delivers, so it is safe to copy.
 
-Replace `ods@njPRD` with however you reach the VM. `songs/` is about 1.6 GB on the Mac; add `--exclude='*.mp4'` if the finished videos already live in the bucket.
+Replace `ods@njPRD` with however you reach the VM. The data folder is owned by the container user (uid 10001), so the copy uses `sudo rsync` on the VM; the Mac's built-in rsync has no `--info` flag, so use `--stats`. `songs/` is about 1.6 GB on the Mac; add `--exclude='*.mp4'` if the finished videos already live in the bucket.
 
 ## 0. Stop writers
 Stop the Mac portal (or at least make sure no step is running: `job.running` false for every song) so nothing changes mid copy.
@@ -15,7 +15,7 @@ Read the list. `-n` copies nothing.
 
 ## 2. Copy
 ```sh
-rsync -av songs/ ods@njPRD:/opt/navaan/data/songs/
+rsync -a --stats --rsync-path="sudo rsync" songs/ ods@njPRD:/opt/navaan/data/songs/
 scp navaan.config.json ods@njPRD:/opt/navaan/data/navaan.config.json
 
 # the analytics database: take a consistent copy, then send it
