@@ -88,8 +88,18 @@ find /tmp/navaan-data/songs -type f | wc -l ; find /opt/navaan/data/songs -type 
 ```
 To restore for real: stop the container (`docker compose -f deploy/compose.yml down`), replace `/opt/navaan/data` with `navaan-data/`, `sudo chown -R 10001:10001 /opt/navaan/data`, start it.
 
-## After a VM reboot
-Vault comes back sealed. Enter two unseal keys (have them ready before rebooting). Until then the sign-in page says "secrets waiting", the scheduler is `paused`, and a new login cannot be created. The container notices within 15 seconds of the unseal.
+## After a VM reboot, and the Vault drill
+Vault comes back sealed (unseal with the existing script or your keys). Until then NAVAAN behaves like this (drilled 2026-10-14, see below):
+- the site answers **502 for up to 60 seconds** after the container starts (the entrypoint waits that long for Vault so your login arrives before the portal starts);
+- then the sign-in page shows **"Secrets waiting"**, creating a new login is refused (503), and the scheduler is `paused`;
+- within about **16 seconds of Vault being reachable** the status is `ok`, your login (and passkey) are restored from Vault, and the scheduler resumes.
+
+**Repeatable drill that does not touch Vault** (EngageHub shares it, so never seal it for a test): cut only NAVAAN's path to it, restart, look, restore.
+```sh
+docker network disconnect engagehub-network navaan && docker restart navaan
+curl -s https://navaan.njlabs.dev/auth/state            # {"state": "setup", "secrets": {"status": "waiting"}} after the 60 s wait
+docker network connect engagehub-network navaan         # recovers in about 16 s
+```
 
 ## Rollback
 Remove the two navaan mounts and the `navaan-network` network from the `engagehub-nginx` service, `cd /opt/engagehub && docker compose up -d nginx`, delete `/opt/navaan/nginx/navaan.conf`. DNS and the certificate can stay. `docker compose -f deploy/compose.yml down` stops NAVAAN. The Mac portal keeps working; set its `NAVAAN_SCHEDULER` back to `on` only after the server's is `off`.

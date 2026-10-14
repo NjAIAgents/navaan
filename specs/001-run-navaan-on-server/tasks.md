@@ -63,7 +63,8 @@
   - Done 2026-10-13: mount `navaan/` (kv-v2), policy `navaan`, AppRole `navaan` created with the stored admin login; role id and secret id in `/opt/navaan/secrets/` (uid 10001, mode 400, never printed). Checked by an AppRole login and `vault_sync.py pull` from the `navaan:local` image on `engagehub-network`: `secrets: ok (0 files)`. The admin token file was removed from the Vault container afterwards.
 - [X] T024 [US3] (Nj) Push secrets from the Mac using `vault_sync.py push`. Confirm no credential files in the data volume.
   - Done 2026-10-13/14: 7 platform files pushed from the Mac; `claude.env` (one `CLAUDE_CODE_OAUTH_TOKEN` line, generated on the server) pushed from the VM as the navaan AppRole with a one-off container (`vault_sync.py pull` pushes a local known file Vault lacks). A clean container then pulled all 8 files, mode 600. `gate.htpasswd` is in Vault too (user `gate`). The server copy `/home/ods/.config/navaan/claude.env` is outside Vault and can be deleted.
-- [ ] T025 [US3] (VM) Sealed-Vault drill (quickstart step 9): seal, restart container, page shows waiting, unseal, status `ok` within 1 minute.
+- [X] T025 [US3] (VM) Sealed-Vault drill (quickstart step 9): seal, restart container, page shows waiting, unseal, status `ok` within 1 minute.
+  - Done 2026-10-14 without sealing the shared Vault (it also serves EngageHub, and sealing needs the root token and unseal keys): NAVAAN was disconnected from `engagehub-network` and restarted, the same situation as a reboot with Vault down. Result: 502 for about 60 s (entrypoint wait), then the sign-in page with "Secrets waiting", setup refused with 503, scheduler paused; after reconnecting, status `ok` and the login restored from Vault (user and 1 passkey) in 16 s. EngageHub stayed at 200 throughout. The sealed (not unreachable) status was proven earlier against a dev Vault. Recipe in `deploy/README.md`.
 
 ## Phase 5: User Story 2, scheduled posts with the Mac off (P1)
 
