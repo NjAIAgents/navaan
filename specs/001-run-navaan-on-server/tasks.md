@@ -137,3 +137,7 @@
 2. Add US3 (Vault), then US2 (scheduler): this is the point where the server is worth having.
 3. US4, US5, US6, then polish.
 4. Stop after each checkpoint and let Nj verify on the VM before going on.
+
+
+## Amendment 2026-10-14
+The shared-password gate (FR-017, T012/T016 gate parts) was switched off at the owner's request. The studio login (password + second factor, lockout per IP) and the nginx throttles remain. Re-enable instructions: `deploy/nginx/navaan.conf`. The login also now lasts 7 days across restarts (`sessions.json`).

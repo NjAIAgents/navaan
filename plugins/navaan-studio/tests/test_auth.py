@@ -206,6 +206,20 @@ class Remembered(Base):
         self.assertIn("Max-Age=604800", auth.cookie_header("tok"))
 
 
+class UserName(Base):
+    def test_email_as_user_name_works_at_sign_in(self):
+        auth.ensure_setup_code()
+        c, j, _ = self.post("/auth/setup/start", {"code": auth.setup_code(), "user": "me.name@gmail.com", "password": PW})
+        self.assertEqual(c, 200, j)
+        c, j, _ = self.post("/auth/setup/finish", {"code": auth.totp(j["secret"], int(auth.now() // 30))})
+        self.assertEqual(auth.load()["user"], "me.namegmail.com")   # '@' is dropped at setup
+        for typed in ("me.name@gmail.com", "me.namegmail.com", "  me.name@gmail.com "):
+            c, j, _ = self.post("/auth/login", {"user": typed, "password": PW})
+            self.assertEqual(c, 200, typed)
+        c, _, _ = self.post("/auth/login", {"user": "someone.else@gmail.com", "password": PW})
+        self.assertEqual(c, 401)
+
+
 class Disabled(Base):
     def test_auth_off(self):
         os.environ["NAVAAN_AUTH"] = "off"

@@ -64,8 +64,10 @@ docker exec engagehub-nginx nginx -t && docker exec engagehub-nginx nginx -s rel
 ```
 The htpasswd file is written in place by the navaan container (`vault_sync.py`) from the Vault secret `gate.htpasswd`, through a read-write bind mount of that one file. Until it has content, every request gets 401.
 
-## Throttle, honestly
-`limit_req` runs before the password check, so guessing the shared password is slowed to 30 requests a minute per IP, or 300 a minute if the attacker forges a session-shaped cookie. nginx cannot count failed attempts, so there is no lockout (a deviation from FR-017 wording, recorded in plan.md). The studio's own login behind it does lock out per IP.
+## Gate and throttle
+Since 2026-10-14 there is no shared password at nginx (owner's decision: the studio login has a second factor). To switch it back on add `auth_basic "NAVAAN"; auth_basic_user_file /run/navaan/htpasswd;` to the 443 server block; the hash is still written from the Vault key `gate.htpasswd`.
+
+`limit_req` slows guessing of the studio login to 30 requests a minute per IP (300 a minute if the client sends a session-shaped cookie). The studio itself locks out per IP after 5 wrong tries.
 
 ## Rollback
 Remove the two mounts and the network from the nginx service, `cd /opt/engagehub && docker compose up -d nginx`, delete `/opt/navaan/nginx/navaan.conf`. DNS and the certificate can stay.

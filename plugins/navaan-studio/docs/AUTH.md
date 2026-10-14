@@ -12,7 +12,7 @@ The portal needs a sign in: password, then a second step (authenticator app code
 
 ## On the server (https://navaan.njlabs.dev)
 
-- Two layers: nginx asks for a shared password first (`auth_basic`, user `gate`, hash from Vault), then the studio's own login above. nginx cannot count failures, so it throttles per IP instead (30 requests a minute without a session cookie). See `deploy/nginx/README.md`.
+- One gate, the studio's own login above (password plus a second step, lockout per client IP). The shared nginx password (`auth_basic`, user `gate`) was switched off on 2026-10-14 because it added little next to the second factor and made the browser prompt twice; nginx still throttles per IP (30 requests a minute without a session cookie, 300 with). To switch it back on, see the note in `deploy/nginx/navaan.conf`. The user name is cleaned the same way at setup and sign in (only letters, digits, `.`, `_`, `-` are kept), so typing an email address works.
 - `NAVAAN_PUBLIC_HOST` lets the portal accept that host name. `NAVAAN_TRUST_PROXY=1` takes the client address from `X-Real-IP` (so the lockout is per real visitor) and the scheme from `X-Forwarded-Proto` (so cookies get `Secure` and passkeys use `https://navaan.njlabs.dev`). Set it only behind nginx on a private network; with it off the headers are ignored.
 - `auth.json` lives in Vault (`navaan/data/auth.json`) and is copied to the container's memory-only folder; changes (new recovery codes, a passkey) are written back within 30 seconds. First run: `docker exec navaan cat /home/navaan/.config/navaan/auth_setup_code`.
 - If Vault is sealed after a reboot, the sign-in page shows "Secrets waiting" and creating a new login is refused until Vault is unsealed, so a fresh login can never replace the real one.

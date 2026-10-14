@@ -31,6 +31,7 @@ CTX = threading.local()  # per request: .ip and .https, set by state() and handl
 
 def disabled(): return os.environ.get("NAVAAN_AUTH", "").lower() == "off"
 def now(): return time.time()
+def clean_user(u): return re.sub(r"[^A-Za-z0-9._-]", "", str(u or "").strip())[:32]  # the same cleanup at setup and at sign in, so an email address works as a user name
 def b64u(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 def unb64u(s): return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
@@ -367,7 +368,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             if locked(): return err(429, f"Too many tries. Wait {locked()} s.")
             code = setup_code()
             if not code or not hmac.compare_digest(code.encode(), str(body.get("code", "")).strip().encode()): fail(); return err(403, "Wrong setup code. It is in the file ~/.config/navaan/auth_setup_code on this computer.")
-            user = re.sub(r"[^A-Za-z0-9._-]", "", str(body.get("user", "")))[:32] or "navaan"
+            user = clean_user(body.get("user")) or "navaan"
             pw = str(body.get("password", "")); prob = pw_problem(pw)
             if prob: return err(400, prob)
             sec = new_secret()
@@ -390,7 +391,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
         # ---- sign in ----
         if path == "/auth/login":
             if locked(): return err(429, f"Too many tries. Wait {locked()} s.", locked=locked())
-            if hmac.compare_digest(str(body.get("user", "")).encode(), d["user"].encode()) & check_pw(str(body.get("password", "")), d["pw"]):
+            if hmac.compare_digest(clean_user(body.get("user")).encode(), d["user"].encode()) & check_pw(str(body.get("password", "")), d["pw"]):
                 tk = secrets.token_urlsafe(24)
                 with LOCK: TICKETS[tk] = {"exp": now() + TICKET_TTL, "user": d["user"], "tries": 0, "challenge": "", "kind": "login"}
                 return 200, {"ticket": tk, "passkeys": bool(d.get("passkeys"))}, []
