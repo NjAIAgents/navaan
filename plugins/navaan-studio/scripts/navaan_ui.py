@@ -148,6 +148,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._host_ok(): return self._send(403, {"error": "bad host"})
         p = self.path.split("?")[0]
+        if p in ("/privacy", "/terms"):  # public on purpose: Google asks for these links on the OAuth consent screen
+            return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
