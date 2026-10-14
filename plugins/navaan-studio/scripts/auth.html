@@ -27,6 +27,8 @@ button:disabled{opacity:.5;cursor:wait}.err{color:var(--bad);font-size:13px;min-
 .eq{position:absolute;left:0;right:0;bottom:0;height:110px;display:flex;align-items:flex-end;justify-content:center;gap:5px;padding:0 2vw;opacity:.22;-webkit-mask-image:linear-gradient(to top,#000,transparent);mask-image:linear-gradient(to top,#000,transparent)}
 .eq i{flex:1;max-width:14px;height:100%;border-radius:6px 6px 0 0;background:linear-gradient(to top,var(--acc),var(--vio));transform-origin:bottom;transform:scaleY(.15);animation:eq var(--t) ease-in-out var(--dl) infinite alternate}
 @keyframes eq{to{transform:scaleY(var(--h))}}
+h1.brand::after{content:"by NJLABS";display:block;margin-top:3px;font-size:11px;font-weight:600;letter-spacing:.22em;color:var(--mut);background:linear-gradient(90deg,var(--acc),var(--vio));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.cr{position:fixed;left:0;right:0;bottom:10px;z-index:2;text-align:center;font-size:12px;color:#B9B9CC;text-shadow:0 1px 6px #0B0B10,0 0 2px #0B0B10;pointer-events:none}
 .box{position:relative;z-index:1;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 @media (prefers-reduced-motion:reduce){.orb,.f,.f svg,.eq i{animation:none}.f{bottom:auto;top:var(--y);opacity:var(--o)}.eq i{transform:scaleY(var(--h))}}
 </style></head><body><div id="bg" aria-hidden="true"><i class="orb o1"></i><i class="orb o2"></i><div id="fl"></div><div class="eq" id="eq"></div></div>
@@ -39,13 +41,14 @@ button:disabled{opacity:.5;cursor:wait}.err{color:var(--bad);font-size:13px;min-
 <symbol id="heart" viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.8-8 11-8 11z"/></symbol>
 </defs></svg>
 <div class="box" id="box"><p class="sub">Loading...</p></div>
+<footer class="cr">NAVAAN Studio, built by NJLABS &nbsp;&middot;&nbsp; &copy; <span id="cry"></span> NJLABS. All rights reserved.</footer>
 <script>
 const $=id=>document.getElementById(id);const box=$("box");let TK="";
 const post=(p,b)=>fetch(p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})}).then(async r=>({s:r.status,j:await r.json().catch(()=>({error:"bad reply"}))}));
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function err(m){const e=$("err");if(e)e.textContent=m||""}
 async function start(){const r=await fetch("/auth/state").then(r=>r.json());const sc=r.secrets;if(sc&&sc.status!=="ok"){const b=document.createElement("div");b.className="small";b.style.cssText="text-align:center;padding:10px;color:#FFB020";b.textContent="Secrets waiting ("+(sc.status==="sealed"?"Vault is sealed":"Vault not reachable")+"). Publishing and Claude steps pause until it clears.";document.body.prepend(b)}if(r.state==="authed")return location.replace("/");r.state==="setup"?setup1():login(r)}
-function setup1(){box.innerHTML=`<h1>NAVAAN</h1><p class="sub">First run: create your login. You will use a password plus an authenticator app.</p>
+function setup1(){box.innerHTML=`<h1 class="brand">NAVAAN</h1><p class="sub">First run: create your login. You will use a password plus an authenticator app.</p>
 <label>Setup code <span class="small">(in the file ~/.config/navaan/auth_setup_code on this computer)</span></label><input id="c" autocomplete="off" placeholder="xxxx-xxxx-xxxx">
 <label>User name</label><input id="u" value="navjyot" autocomplete="username">
 <label>Password (12 characters or more)</label><input id="p" type="password" autocomplete="new-password">
@@ -62,7 +65,7 @@ function setup3(codes){box.innerHTML=`<h1>Save your recovery codes</h1><p class=
 $("cp").onclick=()=>{navigator.clipboard.writeText(codes.join("\n")).then(()=>$("cp").textContent="Copied")};$("go").onclick=()=>location.replace("/")}
 async function pkLogin(){err("");try{const o=await post("/auth/passkey/begin",{});if(o.s!==200)return err(o.j.error);const c=await navigator.credentials.get({publicKey:{challenge:u2b(o.j.challenge),rpId:o.j.rpId,timeout:o.j.timeout,userVerification:"required",allowCredentials:o.j.allowCredentials.map(a=>({type:a.type,id:u2b(a.id)}))}});
 const r=await post("/auth/passkey/login",{ticket:o.j.ticket,id:b2u(c.rawId),clientDataJSON:b2u(c.response.clientDataJSON),authenticatorData:b2u(c.response.authenticatorData),signature:b2u(c.response.signature)});if(r.s!==200)return err(r.j.error);location.replace("/")}catch(e){err("Passkey cancelled or failed: "+(e.name||e))}}
-function login(st){const pk=st.passkey_ready&&window.PublicKeyCredential;box.innerHTML=`<h1>NAVAAN</h1><p class="sub">Sign in to the studio.</p>${pk?'<button id="pk" type="button">Sign in with passkey</button><div class="small" style="text-align:center;margin:14px 0 2px">or use your password</div>':""}<label>User name</label><input id="u" autocomplete="username"><label>Password</label><input id="p" type="password" autocomplete="current-password">
+function login(st){const pk=st.passkey_ready&&window.PublicKeyCredential;box.innerHTML=`<h1 class="brand">NAVAAN</h1><p class="sub">Sign in to the studio.</p>${pk?'<button id="pk" type="button">Sign in with passkey</button><div class="small" style="text-align:center;margin:14px 0 2px">or use your password</div>':""}<label>User name</label><input id="u" autocomplete="username"><label>Password</label><input id="p" type="password" autocomplete="current-password">
 <div class="err" id="err">${st.locked?"Locked for "+st.locked+" s after too many tries.":""}</div><button id="go">Continue</button>`;
 if(pk)$("pk").onclick=pkLogin;$("u").focus();[$("u"),$("p")].forEach(i=>i.onkeydown=e=>{if(e.key==="Enter")$("go").click()});
 $("go").onclick=async()=>{$("go").disabled=true;const r=await post("/auth/login",{user:$("u").value,password:$("p").value});$("go").disabled=false;if(r.s!==200)return err(r.j.error);TK=r.j.ticket;mfa(r.j.passkeys,st.passkey_ready)}}
@@ -80,6 +83,7 @@ const r=await post("/auth/passkey/login",{ticket:TK,id:b2u(c.rawId),clientDataJS
 start();
 </script>
 <script>
+document.getElementById("cry").textContent=new Date().getFullYear();
 (function(){var R=Math.random,P=["#FF4D7E","#8B5CF6","#B79CFF","#FF86A6","#F3F3F7"],T=["note","note1","note","yt","ig","reel","heart"],fl=document.getElementById("fl"),eq=document.getElementById("eq");
 if(!fl||!eq)return;var n=window.innerWidth<600?14:26,h="";
 for(var i=0;i<n;i++){var t=T[Math.floor(R()*T.length)],s=26+Math.floor(R()*(t==="yt"||t==="reel"?46:38)),d=16+R()*22;
