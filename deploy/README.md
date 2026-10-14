@@ -22,6 +22,34 @@ One container (`navaan`) runs the portal and the scheduler, behind the VM's exis
 | `NAVAAN_SCHEDULER` | `on` (cutover done 2026-10-14) | which machine publishes on schedule; the Mac must run with `off` |
 | `NAVAAN_VAULT_*` | see `compose.yml` | Vault address and the AppRole files |
 
+## Branches and the release pipeline
+`feat/*` branches merge into **`develop`** (integration); **`main`** is production. A pull request from `develop` into `main`, once merged, releases to https://navaan.njlabs.dev. Nothing else touches production.
+
+| Trigger | Workflow | What runs |
+|---------|----------|-----------|
+| pull request into `develop` or `main`, push to `develop` | `.github/workflows/ci.yml` | unit tests (`plugins/navaan-studio/tests`), `bash -n` on the deploy scripts, `docker compose config` |
+| push to `main` (a merge), or run by hand | `.github/workflows/deploy-prod.yml` | the same tests, then the release: the runner sends `git archive` of the repo over SSH, the VM builds the image, rolls it out, waits for healthy, smoke tests `/auth/state` through nginx and **rolls back to the previous image if either fails**; finally the runner checks `/auth/state` and `/privacy` from outside |
+
+Releases never overlap (`concurrency: prod-deploy`) and a running release is never cancelled. The last deployed commit is in `/opt/navaan/DEPLOYED` on the VM; the release log is `/var/log/navaan-deploy.log`.
+
+**How the VM side is locked down.** The pipeline's SSH key belongs to the user `navaan-deploy` (no password, no shell). Its `authorized_keys` line is `restrict,command="/opt/navaan/bin/deploy-entry" ssh-ed25519 ...`, so the key can only run `ping` or `deploy <40 hex sha>`; anything else is refused, and port forwarding and a terminal are off. `deploy-entry` runs `sudo /opt/navaan/bin/deploy-run <sha>` (one sudoers line: `navaan-deploy ALL=(root) NOPASSWD: /opt/navaan/bin/deploy-run *`). Both scripts are **owned by root and are not updated by the pipeline**: the pipeline can change what is built, never the release script. After editing `deploy/deploy-run.sh` or `deploy/deploy-entry.sh`, an admin reinstalls them:
+```sh
+sudo install -m 755 -o root -g root deploy/deploy-run.sh   /opt/navaan/bin/deploy-run
+sudo install -m 755 -o root -g root deploy/deploy-entry.sh /opt/navaan/bin/deploy-entry
+```
+
+**GitHub settings** (repo `NjAIAgents/navaan`): secret `DEPLOY_SSH_KEY` (the private key); variables `DEPLOY_HOST`, `DEPLOY_USER` (`navaan-deploy`) and `DEPLOY_KNOWN_HOSTS` (the VM's ed25519 host key, checked against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`; the runner refuses any other host).
+
+**Rotate the key:** `ssh-keygen -t ed25519 -N "" -f key`, put the public half into `/home/navaan-deploy/.ssh/authorized_keys` behind the same `restrict,command=...` prefix, `gh secret set DEPLOY_SSH_KEY < key`, delete `key` locally.
+
+**Known limit:** branch protection and rulesets need GitHub Pro for a private repo, so `main` is protected by convention (merge through a pull request) rather than by a rule. The deploy workflow still runs the tests before it releases anything.
+
+**Manual release or rollback** (same path the pipeline uses, from a machine that has the key):
+```sh
+git archive HEAD .claude-plugin plugins deploy .dockerignore | ssh -i key navaan-deploy@163.192.110.178 "deploy $(git rev-parse HEAD)"
+```
+To go back to the previous image by hand on the VM: `docker tag navaan:previous navaan:local && cd /opt/navaan/repo && docker compose -f deploy/compose.yml up -d`.
+
 ## Install (first time)
 1. **Vault**: `vault/setup.md` (mount, policy, AppRole, secret files), then push the secrets from the Mac.
 2. **Data folder**: `sudo install -d -o 10001 /opt/navaan/data/songs /opt/navaan/data/state`, then `migrate.md`.
