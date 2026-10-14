@@ -257,7 +257,7 @@ const lab=g=>g==='credits'&&IMP?'I approve spending Flow credits for visuals (th
 const OPEN={};const fmt=n=>n>=60?Math.floor(n/60)+"m "+(n%60)+"s":n+"s";
 const sz=n=>n>=1e6?(n/1e6).toFixed(1)+" MB":Math.max(1,Math.round(n/1e3))+" KB";
 const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
-function cov(s,px){const h=hue(s.slug);return `<div class="cv" style="width:${px}px;height:${px}px;background:linear-gradient(135deg,hsl(${h},80%,55%),hsl(${(h+70)%360},70%,25%))">${artImg(s.slug,s.cleaned?[ytThumb(s.youtube)]:[s.cover?"cover_1x1.png":"","thumb_9x16.jpg","background.png",ytThumb(s.youtube)])}</div>`}
+function cov(s,px){const h=hue(s.slug);return `<div class="cv" style="width:${px}px;height:${px}px;background:linear-gradient(135deg,hsl(${h},80%,55%),hsl(${(h+70)%360},70%,25%))">${artImg(s.slug,[s.cover?"cover_1x1.png":"","thumb_9x16.jpg","background.png",ytThumb(s.youtube)])}</div>`}
 function wave(w,h,n,seed){let r="";const bw=w/n;for(let i=0;i<n;i++){const v=Math.abs(Math.sin(i*.55+seed)*.55+Math.sin(i*1.37+seed*2)*.35)+.12,bh=Math.max(3,Math.min(h,v*h));r+=`<rect x="${(i*bw+bw*.2).toFixed(1)}" y="${((h-bh)/2).toFixed(1)}" width="${(bw*.6).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bw*.3).toFixed(1)}"/>`}
 return `<svg class="wave" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs><linearGradient id="wg${seed}" x1="0" x2="1"><stop offset="0" stop-color="#FF4D7E"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><g fill="url(#wg${seed})">${r}</g></svg>`}
 function bars(n,seed,h){let r="";for(let i=0;i<n;i++){const v=Math.abs(Math.sin(i*.55+seed)*.55+Math.sin(i*1.37+seed*2)*.35)+.15;r+=`<i style="--h:${Math.round(Math.max(4,v*h))}px;--i:${i}"></i>`}return r}

@@ -229,6 +229,7 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
     def _media(self, slug, name):
         D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
+        if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
         if os.path.splitext(f)[1].lower() not in MEDIA_EXT or not os.path.isfile(f): return self._send(404, {"error": "no file"})
         size = os.path.getsize(f); ct = mimetypes.guess_type(f)[0] or "application/octet-stream"
         rng = self.headers.get("Range"); start, end = 0, size - 1; code = 200
