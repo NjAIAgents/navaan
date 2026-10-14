@@ -60,12 +60,14 @@ Google sign in is also Mac only: run `publish_youtube.py auth` on the Mac, then 
 ## Backup and restore
 `deploy/backup/backup.sh` runs nightly at 03:17 UTC as root (`/etc/cron.d/navaan-backup`, log `/var/log/navaan-backup.log`). It always keeps a local copy (newest 7 in `/opt/navaan/backups`, mode 700) and uploads to the OCI bucket `navaan` (prefix `navaan-backup/`, 14 days kept) through the VM's instance principal, using the `ghcr.io/oracle/oci-cli` container because the VM has no `oci` CLI. Exit code 3 means the local copy exists but the upload failed.
 
-**One-time OCI setup (console, your admin)**: the VM may not touch the bucket until a policy says so (today it gets `BucketNotFound`, OCI's answer for "not authorised"). Create a dynamic group `navaan-vm` with the rule `instance.id = 'ocid1.instance.oc1.us-chicago-1.anxxeljrvifbjuickimx2xi33prlm3krgd6ih7feo43t4cvyi2icgy3ilrgq'` (the VM, `ods-instance`), then a policy in the root compartment (the bucket lives there):
+**OCI access (done 2026-10-14)**: the VM is covered by the existing dynamic group `ods-vm-instances` (all instances in the ODS sandbox compartment). The policy `navaan-vm-bucket-policy` in the root compartment (the bucket lives there) adds two statements, so the `ods-pg-backup-policy` and the others stay untouched:
 ```
-Allow dynamic-group navaan-vm to manage objects in tenancy where target.bucket.name = 'navaan'
-Allow dynamic-group navaan-vm to read buckets in tenancy where target.bucket.name = 'navaan'
+Allow dynamic-group ods-vm-instances to manage objects in tenancy where target.bucket.name = 'navaan'
+Allow dynamic-group ods-vm-instances to read buckets in tenancy where target.bucket.name = 'navaan'
 ```
-Check: `sudo NAVAAN_BACKUP_BUCKET=navaan /opt/navaan/repo/deploy/backup/backup.sh` ends with `backup: uploaded to navaan/navaan-backup/...`.
+First upload worked the same day (`navaan-backup/navaan-data-20261014T013724Z.tar.gz`, 1.67 GB). It does not allow bucket-level actions such as pre-authenticated links (the Cloud storage tab's "open a link" button), by design: that would need `manage buckets`.
+
+The portal's Cloud storage tab runs `oci` inside the container with `OCI_CLI_AUTH=instance_principal` (the image contains `oci-cli`), so no API key lives on the server.
 
 Restore (verified 2026-10-14: 291 files and the database, integrity ok, matched the live data):
 ```sh

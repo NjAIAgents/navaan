@@ -96,7 +96,7 @@
 - [X] T037 [US5] (VM) Run the migration, compare `ls songs | wc -l` and `sqlite3 analytics.db 'select count(*) from media'` with the Mac, open and play a migrated song.
   - Done 2026-10-14: 8 song folders and 290 files (1.68 GB) copied with `rsync -a --rsync-path="sudo rsync"` (the data folder is owned by uid 10001, and the Mac's openrsync has no `--info`), `analytics.db` via `sqlite3 .backup`, config copied. Counts match the Mac: 8 dirs, 290 files, 6 media rows. Container restarted healthy, scheduler still off. Still to do by hand: open and play one migrated song in the studio.
 - [X] T038 [US5] (VM) Install the backup cron or timer, run once, restore to a scratch dir, compare file counts.
-  - Done locally 2026-10-14: `/etc/cron.d/navaan-backup` (03:17 UTC, root), local copies work and a restore matched (291 files, 6 media rows, integrity ok). **Bucket upload is blocked**: the instance principal works but gets `BucketNotFound` on `navaan` (no policy). Needs the OCI dynamic group and policy in `deploy/README.md`, then the nightly run uploads by itself.
+  - Done 2026-10-14: `/etc/cron.d/navaan-backup` (03:17 UTC, root). Local copies and a restore check passed (291 files, 6 media rows, integrity ok). Bucket upload works since policy `navaan-vm-bucket-policy` (dynamic group `ods-vm-instances`) was created: `navaan-backup/navaan-data-20261014T013724Z.tar.gz`, 1.67 GB, listed from the Mac.
 - [ ] T039 [US5] Refresh platform tokens: YouTube token before about Oct 19, Instagram renewal around Dec 12. Confirm refreshed values land in Vault.
 
 ## Phase 8: User Story 6, share the VM safely (P3)
