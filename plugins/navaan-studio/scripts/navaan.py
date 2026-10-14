@@ -69,8 +69,13 @@ def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 def music_steps(slug, D):
     reel_meta = ["--meta", "tags.json"]
     imported = load_json(os.path.join(D, "meta.json"), default={}).get("source") == "suno_import"
-    head = [
-        dict(id="suno_import", outputs=['final.mp3', 'lyrics.txt', 'style.txt', 'title.txt', 'takes/imported.*'], label="Import the song from Suno", kind="claude", skill="suno-import", chrome=True, state="draft", before="suno_download",
+    auto_failed = bool(load_json(os.path.join(D, "meta.json"), default={}).get("suno", {}).get("auto_failed"))
+    head = [  # a public song is imported over HTTPS with no browser and no plan download; only a private song, or a failure, uses the browser step
+        dict(id="suno_import", outputs=['final.mp3', 'lyrics.txt', 'style.txt', 'title.txt', 'takes/imported.*'], label="Import the song from Suno", kind="script", state="draft",
+             cmds=[sc("suno_import.py", "auto", slug)],
+             done=lambda m: has(D, "lyrics.txt", "style.txt", "title.txt", "final.mp3"), after="listen", sets="accepted"),
+    ] if (imported and not auto_failed) else [
+        dict(id="suno_import", outputs=['final.mp3', 'lyrics.txt', 'style.txt', 'title.txt', 'takes/imported.*'], label="Import the song from Suno (browser, Mac)", kind="claude", skill="suno-import", chrome=True, state="draft", before="suno_download",
              done=lambda m: has(D, "lyrics.txt", "style.txt", "title.txt", "final.mp3"), after="listen", sets="accepted"),
     ] if imported else [
         dict(id="lyrics", outputs=['lyrics.txt', 'style.txt', 'title.txt'], label="Write lyrics and style", kind="claude", skill="lyrics", chrome=False, state="draft",

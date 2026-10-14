@@ -61,7 +61,7 @@ The inspiration account uses `NAVAAN_YT_TOKEN=~/.config/navaan/youtube_token_ins
 Whether always-on use of a Claude subscription token fits Anthropic's terms is yours to check (T034). An API key in the same box is the fallback; no other change is needed.
 
 ## Mac-only steps
-Steps that drive Chrome (Suno import and generate, Flow visuals, the YouTube Short in Studio) cannot run on the server. The studio shows "Do this on the Mac, then upload the result". Copy the song folder to the Mac, run the step there, copy the new files back:
+Suno import of a public song no longer needs a browser: the server reads the public clip data and downloads the audio itself (`suno_import.py auto <slug>`). It falls back to the Chrome step, which cannot run on the server, only for a private song or when `suno.auto_failed` is set in meta.json. Steps that drive Chrome (Suno generate, Flow visuals, the YouTube Short in Studio, the Suno import fallback) cannot run on the server. The studio shows "Do this on the Mac, then upload the result". Copy the song folder to the Mac, run the step there, copy the new files back:
 ```sh
 rsync -av ods@njPRD:/opt/navaan/data/songs/<slug>/ songs/<slug>/     # fetch
 # ... run the step on the Mac ...
