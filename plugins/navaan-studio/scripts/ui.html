@@ -13,7 +13,7 @@ code,.mono,pre,textarea,input.m{font-family:"IBM Plex Mono",ui-monospace,Menlo,m
 .app{display:flex;min-height:100vh}
 .sb{flex:0 0 232px;background:var(--sb);display:flex;flex-direction:column;padding:16px 12px;gap:2px;position:sticky;top:0;height:100vh;overflow:auto}
 .logo{display:flex;align-items:center;gap:10px;padding:4px 12px 14px}.logo i{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--vio));display:flex;align-items:center;justify-content:center}
-.logo b{color:#fff;font-size:15px;letter-spacing:.06em;display:block}.logo small{color:#8E8EA6;font-size:12px}
+.logo b{color:#fff;font-size:15px;letter-spacing:.06em;display:block}.logo small{color:#8E8EA6;font-size:12px}.logo .st{font:italic 700 17px/1 "Snell Roundhand","Brush Script MT","Segoe Script","Apple Chancery","Lucida Handwriting",cursive;letter-spacing:0;background:linear-gradient(90deg,var(--acc),var(--vio));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}.logo .st::after{content:" \266A";font-style:normal;font-size:13px}
 .sec{font-size:11px;font-weight:600;letter-spacing:.08em;color:#7C7C94;padding:16px 12px 6px}
 .nav{display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-radius:6px;color:#CFCFE0;text-decoration:none;cursor:pointer}
 .nav:hover{background:#14141E;color:#fff;text-decoration:none}.nav.on{background:#20202D;color:#fff}
@@ -185,7 +185,7 @@ button.ib{padding:5px 7px;min-width:30px;display:inline-flex;align-items:center;
 </style></head><body>
 <div class="app">
 <aside class="sb">
- <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 20V10M9 20V4M13 20V12M17 20V7M21 20V14"/></svg></i><div><b>NAVAAN</b><small>Studio &middot; by NJLABS</small></div></div>
+ <div class="logo"><i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 20V10M9 20V4M13 20V12M17 20V7M21 20V14"/></svg></i><div><b>NAVAAN <span class="st">Studio</span></b><small>by NJLABS</small></div></div>
  <div class="sec">WORKSPACE</div>
  <a class="nav" data-v="dashboard" href="#/dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</a>
  <a class="nav" data-v="analytics" href="#/analytics"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Analytics</a>
