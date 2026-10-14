@@ -379,8 +379,8 @@ class H(BaseHTTPRequestHandler):
                 D = C.song_dir(slug)
                 try:
                     if p.endswith("remove"): narration.remove(D); r = {}
-                    else: r = narration.save(D, body.get("audio_name"), str(body.get("audio") or ""), str(body.get("srt") or ""))
-                    m = navaan.meta(slug); navaan.log_hist(m, "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines")); navaan.save_meta(slug, m)
+                    else: r = narration.save(D, body.get("audio_name"), str(body.get("audio") or ""), str(body.get("srt") or ""), str(body.get("text") or ""))
+                    m = navaan.meta(slug); navaan.log_hist(m, "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines" + (", timing pending" if r.get("timing") else ""))); navaan.save_meta(slug, m)
                     return self._send(200, {"ok": True, **r})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p.startswith("/api/visuals/"):
