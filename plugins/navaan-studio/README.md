@@ -49,7 +49,7 @@ Songs made from your own pictures get the lyrics burned onto the vertical reel, 
 
 ## Narration you already made
 
-The New inspiration short dialog has two optional pickers: the narration audio and its subtitle file (.srt). When both are chosen the portal saves them as `voiceover.<ext>` and `voiceover.srt` in the item's folder and sets the brief to `voiceover: file` and `music: none`, so the video follows the voice line by line. The dialog opened from the Library creates songs, the one opened from the Inspiration page creates inspiration shorts; they no longer share one window.
+The New inspiration short dialog has two optional pickers: the narration audio and its subtitle file (.srt). With both, the portal saves them as `voiceover.<ext>` and `voiceover.srt` in the item's folder and sets the brief to `voiceover: file` and `music: none`, so the video follows the voice line by line. With only the audio (the usual case when you made the voice in Suno), write the narration text in the idea box, one line per row. The pipeline then runs a `narration` step before typesetting: `narration_sync.py` matches your lines to the pauses in the audio (instant, nothing to download, needs a voice that pauses between lines and not much music) and writes `voiceover.srt`. When the pauses do not fit your lines, it transcribes the audio with Whisper timestamps instead; that needs the caption tools and asks for the `captions_setup` gate once. Nothing is generated or paid for. You can still hand edit `voiceover.srt` afterwards. The dialog opened from the Library creates songs, the one opened from the Inspiration page creates inspiration shorts; they no longer share one window.
 
 ## No captions, no separate Short by default
 

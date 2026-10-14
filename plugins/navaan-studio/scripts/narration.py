@@ -5,6 +5,7 @@ Used by the portal's New inspiration dialog. Writes voiceover.<ext> and voiceove
 brief to `voiceover: file` and `music: none` (the narration carries its own music). Nothing is generated and nothing is spent.
 
   narration.py <slug> <audio file> <srt file>     the same thing from a terminal
+  narration.py <slug> <audio file> --text <file>  audio plus the words (one line per row), no .srt: the timing is made by narration_sync.py
   narration.py <slug> --remove                     back to no voiceover and the generated music bed
 """
 import os, sys, re, glob, json, base64, tempfile
@@ -40,7 +41,10 @@ def check_srt(text):
 
 def write_quote(D, cues):
     """quote.json and title.txt from the narration's own words, so Claude does not write a quote for a narration you made."""
-    lines = [" ".join(c["text"].split()) for c in cues if c["text"].strip()]
+    return write_lines(D, [" ".join(c["text"].split()) for c in cues if c["text"].strip()])
+
+
+def write_lines(D, lines):
     text = " ".join(lines)
     lang = "hi" if re.search(r"[ऀ-ॿ]", text) else "en"
     q = {"text": text, "lines": lines, "author": "", "kind": "original", "language": lang, "source": "", "notes": "the words of the uploaded narration"}
@@ -55,18 +59,33 @@ def write_quote(D, cues):
     return text
 
 
-def save(D, audio_name, audio, srt_text):
-    """audio is bytes or a base64 string (a data: URL is fine). Returns {"audio", "cues", "seconds"}."""
+def text_lines(text):
+    """One subtitle line per row of the text box. Blank rows are dropped."""
+    return [" ".join(l.split()) for l in str(text or "").splitlines() if l.strip()]
+
+
+def save(D, audio_name, audio, srt_text, text=""):
+    """audio is bytes or a base64 string (a data: URL is fine). With the .srt, the timing is known: returns {"audio", "cues", "seconds"}.
+    Without it the words come from `text` (one line per row) and the timing is made later by narration_sync.py: returns {"audio", "cues": len(lines), "seconds": None, "timing": "pending"}."""
     ext = os.path.splitext(str(audio_name or ""))[1].lower()
     if ext not in AUDIO_EXT: raise ValueError("the narration must be an mp3, wav, m4a or aac file")
     raw = audio if isinstance(audio, (bytes, bytearray)) else base64.b64decode(str(audio).split(",", 1)[-1])
     if not raw: raise ValueError("the audio file is empty")
     if len(raw) > MAX_AUDIO: raise ValueError("the audio is over 20 MB")
-    cues = check_srt(str(srt_text or ""))
-    for old in glob.glob(os.path.join(D, "voiceover.*")): os.remove(old)
+    have_srt = bool(str(srt_text or "").strip())
+    if have_srt: cues = check_srt(str(srt_text))
+    else:
+        lines = text_lines(text)
+        if not lines: raise ValueError("write the narration text, one line per row, or pick the .srt subtitle file")
+        if len(lines) > 40: raise ValueError("the narration text has more than 40 lines")
+    for old in glob.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:
+        if os.path.exists(old): os.remove(old)
     open(os.path.join(D, "voiceover" + ext), "wb").write(bytes(raw))
-    open(os.path.join(D, "voiceover.srt"), "w", encoding="utf-8").write(str(srt_text).strip() + "\n")
     set_options(D, {"voiceover": "file", "music": "none"})
+    if not have_srt:
+        write_lines(D, lines)
+        return {"audio": "voiceover" + ext, "cues": len(lines), "seconds": None, "timing": "pending"}
+    open(os.path.join(D, "voiceover.srt"), "w", encoding="utf-8").write(str(srt_text).strip() + "\n")
     write_quote(D, cues)
     return {"audio": "voiceover" + ext, "cues": len(cues), "seconds": round(cues[-1]["end"], 1)}
 
@@ -81,8 +100,9 @@ def main(a):
     D = C.song_dir(a[0])
     if a[1] == "--remove": remove(D); print("narration removed"); return 0
     if len(a) < 3: sys.exit(__doc__)
-    r = save(D, os.path.basename(a[1]), open(a[1], "rb").read(), open(a[2], encoding="utf-8").read())
-    print(f"narration attached: {r['audio']}, {r['cues']} lines, {r['seconds']} s"); return 0
+    if a[2] == "--text" and len(a) > 3: r = save(D, os.path.basename(a[1]), open(a[1], "rb").read(), "", open(a[3], encoding="utf-8").read())
+    else: r = save(D, os.path.basename(a[1]), open(a[1], "rb").read(), open(a[2], encoding="utf-8").read())
+    print(f"narration attached: {r['audio']}, {r['cues']} lines" + (f", {r['seconds']} s" if r.get("seconds") else ", timing is made when the item runs")); return 0
 
 
 if __name__ == "__main__":
