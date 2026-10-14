@@ -123,9 +123,14 @@ def run(cmd):
     subprocess.run(cmd, check=True)
 
 
-def load_json(path, default=None):
+_NO_DEFAULT = object()
+
+
+def load_json(path, default=_NO_DEFAULT):
+    """The parsed file. A missing file exits with a message unless a default is given, and default=None means "return None" (it used to mean
+    "no default", so callers that asked for None, like prompt_pack.load and the reel start lookup, exited on a missing file)."""
     if not os.path.exists(path):
-        if default is not None:
+        if default is not _NO_DEFAULT:
             return default
         sys.exit(f"navaan: missing {path}")
     return json.load(open(path, encoding="utf-8"))
