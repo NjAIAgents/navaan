@@ -87,7 +87,8 @@
 - [X] T032 [US4] Show a "Do this on the Mac, then upload the result" card on the song page for Mac-only steps in `ui.html`, reusing the existing upload path.
 - [X] T033 [US4] (VM) Run a synthetic song end to end: Claude lyrics and caption step with the subscription token, render, check output. Confirm Mac-only steps show guidance.
   - Done 2026-10-14 on the server with a synthetic item (created with `navaan.py new`, deleted afterwards, the 8 real song folders untouched): the Claude `lyrics` step ran through the subscription token in `claude.env` in 40 s and wrote title, style and lyrics; the pipeline then stopped at the human `lyrics` gate as designed (not approved). Render: the 30 s Remotion render passed earlier on this VM (148 s, T011) and the caption tools are in the image (`setup_captions.py --check` all ready). Not exercised live: Mac-only guidance for the Chrome steps (needs the human gates `lyrics` and `credits` approved first); it is covered by `tests/test_headless.py`. Optional: approve those two gates on a throwaway item in the portal to see the "Do this on the Mac" card.
-- [~] T034 [US4] (Nj) Check Anthropic terms for always-on subscription use (FR-018) and decide subscription vs API key. Documented switch lives in `deploy/README.md`.
+- [X] T034 [US4] (Nj) Check Anthropic terms for always-on subscription use (FR-018) and decide subscription vs API key. Documented switch lives in `deploy/README.md`.
+  - Terms check confirmed done by the owner 2026-10-14.
   - Tooling done 2026-10-14: the portal shows an expired or missing Claude token as a popup with `claude setup-token` and a paste box (tested with one tiny call before saving, synced to Vault). The terms check itself is still the owner's; an API key can be pasted the same way. `[~]` = tooling done, a human step remains.
 
 ## Phase 7: User Story 5, move existing work (P3)
