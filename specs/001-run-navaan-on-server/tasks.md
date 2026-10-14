@@ -112,7 +112,8 @@
 
 - [X] T040 [P] [US6] Add a before/after snapshot script `deploy/check-neighbours.sh`: health URLs and cert fingerprints for EngageHub and Relayent.
 - [ ] T041 [US6] (VM) Run snapshot before T014 and after T017; diff must be empty.
-- [ ] T042 [US6] (VM) Rollback drill (quickstart step 13): remove mount and network, `docker compose up -d nginx`, neighbours answer, Mac studio works.
+- [X] T042 [US6] (VM) Rollback drill (quickstart step 13): remove mount and network, `docker compose up -d nginx`, neighbours answer, Mac studio works.
+  - Done 2026-10-14: removed the two navaan mounts and `navaan-network` from the nginx service (the file came out byte-identical to the pre-NAVAAN backup), `docker compose up -d nginx`: `nginx -t` fine, EngageHub, Relayent and relayent-demo unchanged (snapshot diff empty), navaan.njlabs.dev unreachable as expected while the navaan container kept running, Mac portal 200. Then restored the three additions, recreated nginx again: site back at 200 in a few seconds, neighbours unchanged, compose file restored exactly. About 1 minute of NAVAAN downtime; neighbours saw two nginx restarts of a few seconds each.
 - [ ] T043 [US6] (Nj) Check the `relayent.ignorelist.com` cert (expires 2026-10-14 21:04 UTC, renewal looked broken). Not ours, flagged only.
   - Update 2026-10-13: the cert was renewed in the meantime (now valid to 2027-01-11, snapshot in `/opt/navaan/before.txt`). The renewal config may still say `standalone`; check with `sudo grep authenticator /etc/letsencrypt/renewal/relayent.ignorelist.com.conf`.
 
