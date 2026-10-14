@@ -56,7 +56,7 @@ const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number}> 
   const m = move(shot.camera, p, shot.focus || [0.5, 0.5]);
   return (
     <AbsoluteFill style={{opacity: op}}>
-      <Img src={staticFile(shot.image)} style={{width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${m.x}%, ${m.y}%) scale(${m.s})`, transformOrigin: '50% 50%'}} />
+      <Img src={staticFile(shot.image)} style={{width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${(shot.focus?.[0] ?? 0.5) * 100}% ${(shot.focus?.[1] ?? 0.5) * 100}%`, transform: `translate(${m.x}%, ${m.y}%) scale(${m.s})`, transformOrigin: '50% 50%'}} />
     </AbsoluteFill>
   );
 };

@@ -43,6 +43,10 @@ Use the Redo button on any finished or failed step in the web UI, or run `navaan
 Lyric captions over the video are switched off. The pipeline skips the Measure lyric timing step and the caption burn, and the video step only renders `final_16x9.mp4`, `final_reel_sync.mp4` and the tagged mp3. YouTube uploads `final_reel_sync.mp4`. To turn captions back on, set `captions.enabled` to true in the profile (the tools need a one time download and the render is slow).
 
 
+## Lyrics on the Instagram reel
+
+Songs made from your own pictures get the lyrics burned onto the vertical reel, because Instagram's own Lyrics button and API cannot do it for audio that is not in its music library. The Measure lyric timing step (Whisper on the server, one time tool download behind the `captions_setup` gate) writes `caption_cues.json`, then the video step writes `final_reel_9x16_cap.mp4` next to the clean `final_reel_9x16.mp4`. Instagram posts the captioned file when it exists. The YouTube Short and the full video stay clean, viewers use CC there. Set `captions.reel` to false in the profile to skip the step.
+
 ## No captions, no separate Short by default
 
 YouTube makes captions and Shorts itself, so the pipeline renders only the full 16:9 video and uploads that. Set `video.make_reel` to true for a vertical reel (Instagram needs it) and `captions.enabled` to true to burn lyrics in.

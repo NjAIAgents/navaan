@@ -5,6 +5,8 @@ description: After the full video is on YouTube, make a Short from it in YouTube
 
 # YouTube Short from the uploaded video
 
+Only for songs that use Flow visuals. Songs with their own pictures get the Short from `shots_render.py <slug> --reel` and an API upload, with no browser (see deploy/README.md).
+
 Runs after `publish_youtube`. The agent uses Claude in Chrome on the user's own signed in Studio. The user handles login and CAPTCHA.
 
 1. Read `meta.json` for `published.youtube_items` and take the full video id. Stop if there is none.
