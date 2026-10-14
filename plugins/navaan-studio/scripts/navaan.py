@@ -92,9 +92,9 @@ def music_steps(slug, D):
     own_steps = ([] if own_static else [
         dict(id="shots", outputs=["shots.json", "shots_context.json", "shots_props.json"], label="Director's shot list from the lyrics (you approve or edit it)", kind="claude", skill="director-shots", chrome=False,
              done=lambda m: has(D, "shots.json"), after="shots")]) + [
-        dict(id="video", outputs=["final_16x9.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
-             cmds=[sc("shots_render.py", slug), sc("tag_mp3.py", slug)],
-             done=lambda m: fresh(D, ["final_16x9.mp4", "final_tagged.mp3"], ["visuals.json", "images/*"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
+        dict(id="video", outputs=["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video and the vertical reel here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
+             cmds=[sc("shots_render.py", slug), sc("shots_render.py", slug, "--reel"), sc("tag_mp3.py", slug)],
+             done=lambda m: fresh(D, ["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3"], ["visuals.json", "images/*"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
     ]
     CAP = bool(cfg("captions.enabled", False))  # lyric captions over the video are off unless the profile turns them on
     cap_steps = [
@@ -119,8 +119,12 @@ def music_steps(slug, D):
         dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
              cmds=[sc("publish_youtube.py", "upload", slug, "--file", FULL, "--meta", "youtube.json", *(["--thumbnail", "thumb_16x9.jpg"] if has(D, "thumb_16x9.jpg") and cfg("publish.youtube_thumbnail", True) else []), "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
-        dict(id="youtube_short", outputs=[], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
-             done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4")),
+        *([dict(id="youtube_short", outputs=[], redo=False, label="Upload the Short to YouTube (API, private)", kind="script", before="publish_short",
+                cmds=[sc("short_meta.py", slug), sc("publish_youtube.py", "upload", slug, "--file", "final_reel_9x16.mp4", "--meta", "youtube_short.json", "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
+                done=lambda m: any(i.get("file") == "final_reel_9x16.mp4" for i in m.get("published", {}).get("youtube_items", [])), sets_after="published")]
+          if vmode == "own" else  # the Short is cut on the server from the song's own pictures and uploaded with the API, like the inspiration videos
+          [dict(id="youtube_short", outputs=[], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
+                done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4"))]),
         dict(id="go_public", outputs=[], redo=False, label="Make the YouTube video and Short public", kind="script", before="go_public",
              cmds=[sc("publish_youtube.py", "go-public", slug, "--yes")], done=lambda m: public_done(m)),
         dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption from the lyrics (you review and can edit it)", kind="claude", skill="instagram-caption", optional=True, after="instagram_caption",
