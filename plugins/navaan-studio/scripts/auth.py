@@ -2,7 +2,8 @@
 """auth.py  login for the NAVAAN portal: password, then a second factor (authenticator app code, passkey, or a recovery code).
 
 Everything lives in ~/.config/navaan/auth.json (mode 600), never in the project: a scrypt password hash, the TOTP secret,
-hashes of the recovery codes and the passkey public keys. Sessions live in memory: 12 hours at most, 2 hours idle, and a restart signs everyone out.
+hashes of the recovery codes and the passkey public keys. Sessions last 7 days and survive a restart: only a hash of each session token is kept,
+in sessions.json (mode 600) next to analytics.db in ~/.local/share/navaan (env NAVAAN_SESSIONS_DIR).
 Standard library only; passkeys also need the `cryptography` package (the rest works without it).
 
 First run: the portal shows a setup page. It asks for the setup code that is written to ~/.config/navaan/auth_setup_code
@@ -16,11 +17,12 @@ DIR = os.environ.get("NAVAAN_AUTH_DIR") or os.path.expanduser("~/.config/navaan"
 FILE = os.path.join(DIR, "auth.json")
 CODE_FILE = os.path.join(DIR, "auth_setup_code")
 COOKIE = "navaan_session"
-SESSION_MAX = 12 * 3600
-SESSION_IDLE = 2 * 3600
+SESSION_MAX = 7 * 24 * 3600   # the browser stays signed in for a week
+SESSION_IDLE = 7 * 24 * 3600
 TICKET_TTL = 300
 LOCK = threading.Lock()
-SESSIONS = {}   # token -> {"created", "last", "user"}
+SESSIONS = {}   # sha256(token) -> {"created", "last", "user"}; mirrored to sessions.json so a restart does not sign you out
+_LOADED = False
 TICKETS = {}    # ticket -> {"exp", "user", "tries", "challenge"}
 PENDING = {}    # setup in progress: {"exp", "user", "pw", "secret"}
 THROTTLE = {}   # ip -> {"fails", "until"}; one counter per client address so a stranger cannot lock you out
@@ -142,9 +144,38 @@ def ok_reset(): THROTTLE.pop(_ip(), None)
 
 
 # ---------- sessions ----------
+def skey(token): return hashlib.sha256(token.encode()).hexdigest()
+
+
+def sess_file(): return os.path.join(os.environ.get("NAVAAN_SESSIONS_DIR") or os.path.expanduser("~/.local/share/navaan"), "sessions.json")
+
+
+def _persist():
+    """Write the session hashes (caller holds LOCK). A failed write only means a restart signs you out."""
+    try:
+        p = sess_file(); os.makedirs(os.path.dirname(p), exist_ok=True)
+        fd = os.open(p + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f: json.dump(SESSIONS, f)
+        os.replace(p + ".tmp", p); os.chmod(p, 0o600)
+    except OSError: pass
+
+
+def _load():
+    """Read sessions.json once per process (caller holds LOCK)."""
+    global _LOADED
+    if _LOADED: return
+    _LOADED = True
+    try:
+        with open(sess_file(), encoding="utf-8") as f: d = json.load(f)
+        n = now()
+        for k, v in d.items():
+            if isinstance(v, dict) and n - v.get("created", 0) <= SESSION_MAX and n - v.get("last", 0) <= SESSION_IDLE: SESSIONS.setdefault(k, v)
+    except (OSError, ValueError): pass
+
+
 def start_session(user):
     t = secrets.token_urlsafe(32); n = now()
-    with LOCK: SESSIONS[t] = {"created": n, "last": n, "user": user}
+    with LOCK: _load(); SESSIONS[skey(t)] = {"created": n, "last": n, "user": user}; _persist()
     return t
 
 
@@ -164,23 +195,26 @@ def token_from(cookie_hdr):
 def session(cookie_hdr):
     """The live session for this Cookie header, or None. Touches the idle clock."""
     if disabled(): return {"user": "local"}
-    t = token_from(cookie_hdr); n = now()
+    t = skey(token_from(cookie_hdr)); n = now()
     with LOCK:
+        _load()
         s = SESSIONS.get(t)
         if not s: return None
-        if n - s["created"] > SESSION_MAX or n - s["last"] > SESSION_IDLE: SESSIONS.pop(t, None); return None
+        if n - s["created"] > SESSION_MAX or n - s["last"] > SESSION_IDLE: SESSIONS.pop(t, None); _persist(); return None
         s["last"] = n; return s
 
 
 def end_session(cookie_hdr):
-    with LOCK: SESSIONS.pop(token_from(cookie_hdr), None)
+    with LOCK: _load(); SESSIONS.pop(skey(token_from(cookie_hdr)), None); _persist()
 
 
 def _gc():
     n = now()
     with LOCK:
         for k in [k for k, v in TICKETS.items() if v["exp"] < n]: TICKETS.pop(k, None)
-        for k in [k for k, v in SESSIONS.items() if n - v["created"] > SESSION_MAX or n - v["last"] > SESSION_IDLE]: SESSIONS.pop(k, None)
+        _load(); gone = [k for k, v in SESSIONS.items() if n - v["created"] > SESSION_MAX or n - v["last"] > SESSION_IDLE]
+        for k in gone: SESSIONS.pop(k, None)
+        if gone: _persist()
         if PENDING.get("exp", 1e18) < n: PENDING.clear()
 
 
@@ -405,9 +439,10 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
                 new = str(body.get("new", "")); prob = pw_problem(new)
                 if prob: return err(400, prob)
                 d["pw"] = hash_pw(new); save(d)
-                keep = token_from(cookie_hdr)
+                keep = skey(token_from(cookie_hdr))
                 with LOCK:
                     for k in [k for k in SESSIONS if k != keep]: SESSIONS.pop(k, None)  # other sessions are signed out
+                    _persist()
                 return 200, {"ok": True}, []
             codes, hashes = new_recovery(); d["recovery"] = hashes; save(d)
             return 200, {"ok": True, "recovery": codes}, []
@@ -426,7 +461,7 @@ def main(a):
         if configured(): print("login is already set up; use `reset` first if you lost access"); return 1
         ensure_setup_code(); print(setup_code()); return 0
     if a[0] == "reset":
-        for f in (FILE,):
+        for f in (FILE, sess_file()):  # the login and every remembered session
             try: os.remove(f)
             except OSError: pass
         print("login removed. The next portal start asks for a new setup code; restart the portal."); return 0

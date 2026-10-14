@@ -15,10 +15,17 @@ class Base(unittest.TestCase):
         auth.DIR = self.tmp.name
         auth.FILE = os.path.join(self.tmp.name, "auth.json")
         auth.CODE_FILE = os.path.join(self.tmp.name, "auth_setup_code")
+        os.environ["NAVAAN_SESSIONS_DIR"] = self.tmp.name; auth._LOADED = False
         for m in (auth.SESSIONS, auth.TICKETS, auth.PENDING, auth.THROTTLE): m.clear()
         os.environ.pop("NAVAAN_AUTH", None)
 
-    def tearDown(self): self.tmp.cleanup()
+    def tearDown(self):
+        os.environ.pop("NAVAAN_SESSIONS_DIR", None); self.tmp.cleanup()
+
+    def restart(self):
+        """What a portal restart does to memory: everything gone, then sessions.json is read on first use."""
+        for m in (auth.SESSIONS, auth.TICKETS, auth.PENDING, auth.THROTTLE): m.clear()
+        auth._LOADED = False
 
     def post(self, path, body, ck=None, ip="1.1.1.1", https=False):
         return auth.handle_post(path, body, ck, H, ip=ip, https=https)
@@ -143,23 +150,60 @@ class Cookies(Base):
 
 
 class Expiry(Base):
-    def test_twelve_hour_limit(self):
+    def test_seven_day_limit(self):
         ck, _, _ = self.setup_login()
-        tok = auth.token_from(ck)
+        tok = auth.skey(auth.token_from(ck))
         auth.SESSIONS[tok]["created"] -= auth.SESSION_MAX + 1
         self.assertIsNone(auth.session(ck))
 
-    def test_two_hour_idle(self):
+    def test_idle_limit(self):
         ck, _, _ = self.setup_login()
-        tok = auth.token_from(ck)
+        tok = auth.skey(auth.token_from(ck))
         auth.SESSIONS[tok]["last"] -= auth.SESSION_IDLE + 1
         self.assertIsNone(auth.session(ck))
 
     def test_activity_keeps_session(self):
         ck, _, _ = self.setup_login()
-        tok = auth.token_from(ck)
+        tok = auth.skey(auth.token_from(ck))
         auth.SESSIONS[tok]["last"] -= auth.SESSION_IDLE - 60
         self.assertIsNotNone(auth.session(ck))
+
+
+class Remembered(Base):
+    def test_session_survives_restart(self):
+        ck, _, _ = self.setup_login()
+        self.restart()
+        self.assertEqual(auth.state(ck, H)["state"], "authed")
+
+    def test_file_holds_hashes_not_tokens_and_is_private(self):
+        ck, _, _ = self.setup_login()
+        raw = open(auth.sess_file()).read()
+        self.assertNotIn(auth.token_from(ck), raw)
+        self.assertIn(auth.skey(auth.token_from(ck)), raw)
+        self.assertEqual(os.stat(auth.sess_file()).st_mode & 0o777, 0o600)
+
+    def test_logout_is_forgotten_after_restart(self):
+        ck, _, _ = self.setup_login()
+        self.post("/auth/logout", {}, ck=ck); self.restart()
+        self.assertIsNone(auth.session(ck))
+
+    def test_expired_session_not_restored(self):
+        ck, _, _ = self.setup_login()
+        auth.SESSIONS[auth.skey(auth.token_from(ck))]["created"] -= auth.SESSION_MAX + 1
+        with auth.LOCK: auth._persist()
+        self.restart()
+        self.assertIsNone(auth.session(ck))
+
+    def test_password_change_signs_out_other_sessions_even_after_restart(self):
+        ck, sec, _ = self.setup_login()
+        c, j, ck2 = self.login(auth.totp(sec, int(auth.now() // 30) + 1))
+        ck2 = ck2[0].split(";")[0]
+        self.post("/auth/password", {"password": PW, "new": "another long password 1"}, ck=ck2)
+        self.restart()
+        self.assertIsNone(auth.session(ck)); self.assertIsNotNone(auth.session(ck2))
+
+    def test_cookie_lasts_a_week(self):
+        self.assertIn("Max-Age=604800", auth.cookie_header("tok"))
 
 
 class Disabled(Base):
