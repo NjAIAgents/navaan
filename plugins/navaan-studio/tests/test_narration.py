@@ -19,6 +19,20 @@ class T(unittest.TestCase):
         b = open(os.path.join(D, "brief.md")).read()
         self.assertIn("- voiceover: file", b); self.assertIn("- music: none", b); self.assertIn("- tone: relatable", b)
 
+    def test_quote_and_title_come_from_the_narration(self):
+        D = folder(); N.save(D, "a.mp3", b"1", SRT)
+        q = json.load(open(os.path.join(D, "quote.json")))
+        self.assertEqual(q["lines"], ["Some people leave…", "but the life you imagined stays."])
+        self.assertEqual(q["text"], "Some people leave… but the life you imagined stays.")
+        self.assertEqual((q["author"], q["kind"], q["language"]), ("", "original", "en"))
+        t = open(os.path.join(D, "title.txt")).read().strip()
+        self.assertTrue(t.startswith("Some people leave") and len(t) <= 60)
+        self.assertIn("Some people leave… but the life", open(os.path.join(D, "brief.md")).read().split("## Options")[0])
+
+    def test_hindi_narration_is_marked_hi(self):
+        D = folder(); N.save(D, "a.mp3", b"1", "1\n00:00:01,000 --> 00:00:03,000\nकभी कभी लोग चले जाते हैं\n")
+        self.assertEqual(json.load(open(os.path.join(D, "quote.json")))["language"], "hi")
+
     def test_new_audio_replaces_the_old_one(self):
         D = folder(); N.save(D, "a.wav", b"RIFF1", SRT); N.save(D, "b.m4a", b"M4A22", SRT)
         self.assertEqual(sorted(f for f in os.listdir(D) if f.startswith("voiceover")), ["voiceover.m4a", "voiceover.srt"])
