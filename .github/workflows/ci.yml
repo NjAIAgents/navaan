@@ -1,0 +1,33 @@
+name: ci
+# Runs on pull requests into develop and main, on pushes to develop, and is reused by the production deploy.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Python packages the tests may use
+        run: pip install cryptography pillow numpy
+      - name: Unit tests
+        run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
+      - name: Shell scripts parse
+        run: |
+          for f in deploy/*.sh deploy/backup/*.sh; do bash -n "$f" && echo "ok $f"; done
+      - name: Compose file is valid
+        run: docker compose -f deploy/compose.yml config -q

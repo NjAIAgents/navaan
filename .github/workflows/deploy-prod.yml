@@ -1,0 +1,42 @@
+name: deploy-prod
+# Merging into main releases to https://navaan.njlabs.dev. Tests first, then the VM builds the image, rolls it out, smoke tests it and rolls back on failure.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: false   # a running release is never cut short
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH key and pinned host key
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key; chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+      - name: Channel check
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}" ping
+      - name: Release
+        run: |
+          git archive HEAD .claude-plugin plugins deploy .dockerignore \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}" "deploy ${GITHUB_SHA}"
+      - name: Smoke test from outside
+        run: |
+          curl -fsS --retry 5 --retry-delay 5 https://navaan.njlabs.dev/auth/state | grep -q '"state"'
+          curl -fsS -o /dev/null https://navaan.njlabs.dev/privacy
