@@ -31,7 +31,8 @@ CTX = threading.local()  # per request: .ip and .https, set by state() and handl
 
 def disabled(): return os.environ.get("NAVAAN_AUTH", "").lower() == "off"
 def now(): return time.time()
-def clean_user(u): return re.sub(r"[^A-Za-z0-9._-]", "", str(u or "").strip())[:32]  # the same cleanup at setup and at sign in, so an email address works as a user name
+def clean_user(u): return re.sub(r"[^A-Za-z0-9._@+-]", "", str(u or "").strip())[:64]  # what is stored at setup; an email address is fine
+def user_key(u): return re.sub(r"[^A-Za-z0-9._-]", "", str(u or "").strip().lower())[:64]  # what sign in compares: lenient, so an email works whether or not the stored name kept its @ (older logins stored it without)
 def b64u(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 def unb64u(s): return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
@@ -391,7 +392,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
         # ---- sign in ----
         if path == "/auth/login":
             if locked(): return err(429, f"Too many tries. Wait {locked()} s.", locked=locked())
-            if hmac.compare_digest(clean_user(body.get("user")).encode(), d["user"].encode()) & check_pw(str(body.get("password", "")), d["pw"]):
+            if hmac.compare_digest(user_key(body.get("user")).encode(), user_key(d["user"]).encode()) & check_pw(str(body.get("password", "")), d["pw"]):
                 tk = secrets.token_urlsafe(24)
                 with LOCK: TICKETS[tk] = {"exp": now() + TICKET_TTL, "user": d["user"], "tries": 0, "challenge": "", "kind": "login"}
                 return 200, {"ticket": tk, "passkeys": bool(d.get("passkeys"))}, []
@@ -411,6 +412,13 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             with LOCK: TICKETS.pop(body["ticket"], None)
             ok_reset()
             return 200, {"ok": True, "recovery_left": len(d.get("recovery", []))}, [cookie_header(start_session(d["user"]))]
+        if path == "/auth/passkey/begin":  # sign in with a passkey alone: it proves who you are (device + Touch ID or PIN), so no password or code
+            if locked(): return err(429, f"Too many tries. Wait {locked()} s.", locked=locked())
+            if not d.get("passkeys"): return err(400, "no passkey is set up")
+            if len(TICKETS) > 500: return err(429, "busy, try again in a minute")
+            tk = secrets.token_urlsafe(24)
+            with LOCK: TICKETS[tk] = {"exp": now() + TICKET_TTL, "user": d["user"], "tries": 0, "challenge": "", "kind": "login"}
+            return 200, dict(assert_options(d, host, tk), ticket=tk), []
         if path == "/auth/passkey/login-options":
             return 200, assert_options(d, host, body.get("ticket", "")), []
         if path == "/auth/passkey/login":

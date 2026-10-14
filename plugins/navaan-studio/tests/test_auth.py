@@ -207,17 +207,71 @@ class Remembered(Base):
 
 
 class UserName(Base):
-    def test_email_as_user_name_works_at_sign_in(self):
+    def test_email_is_stored_as_typed_and_works_at_sign_in(self):
         auth.ensure_setup_code()
         c, j, _ = self.post("/auth/setup/start", {"code": auth.setup_code(), "user": "me.name@gmail.com", "password": PW})
         self.assertEqual(c, 200, j)
-        c, j, _ = self.post("/auth/setup/finish", {"code": auth.totp(j["secret"], int(auth.now() // 30))})
-        self.assertEqual(auth.load()["user"], "me.namegmail.com")   # '@' is dropped at setup
-        for typed in ("me.name@gmail.com", "me.namegmail.com", "  me.name@gmail.com "):
-            c, j, _ = self.post("/auth/login", {"user": typed, "password": PW})
-            self.assertEqual(c, 200, typed)
-        c, _, _ = self.post("/auth/login", {"user": "someone.else@gmail.com", "password": PW})
+        self.post("/auth/setup/finish", {"code": auth.totp(j["secret"], int(auth.now() // 30))})
+        self.assertEqual(auth.load()["user"], "me.name@gmail.com")
+        for typed in ("me.name@gmail.com", "ME.name@gmail.com", "me.namegmail.com", "  me.name@gmail.com "):
+            self.assertEqual(self.post("/auth/login", {"user": typed, "password": PW})[0], 200, typed)
+        self.assertEqual(self.post("/auth/login", {"user": "someone.else@gmail.com", "password": PW})[0], 401)
+
+    def test_older_login_stored_without_the_at_sign_still_accepts_the_email(self):
+        self.setup_login()
+        d = auth.load(); d["user"] = "me.namegmail.com"; auth.save(d)
+        self.assertEqual(self.post("/auth/login", {"user": "me.name@gmail.com", "password": PW})[0], 200)
+
+
+class PasskeyOnly(Base):
+    def setUp(self):
+        super().setUp()
+        if not auth.passkeys_available(): self.skipTest("cryptography is not installed")
+        import hashlib
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+        self.ec, self.hashlib = ec, hashlib
+        self.priv = ec.generate_private_key(ec.SECP256R1())
+        self.der = self.priv.public_key().public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+
+    def add_key(self):
+        self.setup_login()
+        d = auth.load(); d["passkeys"] = [{"id": auth.b64u(b"cred-1"), "pub": auth.b64u(self.der), "count": 0, "name": "t", "added": 1}]; auth.save(d)
+
+    def assertion(self, o, count=1, flags=0x05, origin="http://localhost:8765"):
+        import json
+        cd = json.dumps({"type": "webauthn.get", "challenge": o["challenge"], "origin": origin}).encode()
+        ad = self.hashlib.sha256(b"localhost").digest() + bytes([flags]) + count.to_bytes(4, "big")
+        sig = self.priv.sign(ad + self.hashlib.sha256(cd).digest(), self.ec.ECDSA(__import__("cryptography.hazmat.primitives.hashes", fromlist=["SHA256"]).SHA256()))
+        return {"ticket": o["ticket"], "id": auth.b64u(b"cred-1"), "clientDataJSON": auth.b64u(cd), "authenticatorData": auth.b64u(ad), "signature": auth.b64u(sig)}
+
+    def test_no_passkey_no_begin(self):
+        self.setup_login()
+        self.assertEqual(self.post("/auth/passkey/begin", {})[0], 400)
+
+    def test_passkey_alone_signs_in(self):
+        self.add_key()
+        c, o, _ = self.post("/auth/passkey/begin", {}); self.assertEqual(c, 200, o)
+        c, j, ck = self.post("/auth/passkey/login", self.assertion(o))
+        self.assertEqual(c, 200, j)
+        self.assertEqual(auth.state(ck[0].split(";")[0], H)["state"], "authed")
+
+    def test_passkey_without_user_verification_is_refused(self):
+        self.add_key()
+        c, o, _ = self.post("/auth/passkey/begin", {})
+        c, j, _ = self.post("/auth/passkey/login", self.assertion(o, flags=0x01))
         self.assertEqual(c, 401)
+
+    def test_wrong_signature_refused_and_ticket_not_reusable(self):
+        self.add_key()
+        c, o, _ = self.post("/auth/passkey/begin", {})
+        good = self.assertion(o); bad = dict(good, signature=auth.b64u(b"x" * 70))
+        self.assertEqual(self.post("/auth/passkey/login", bad)[0], 401)
+        self.assertEqual(self.post("/auth/passkey/login", good)[0], 401)  # the challenge was consumed
+
+    def test_state_offers_passkey_when_one_exists(self):
+        self.add_key()
+        self.assertTrue(auth.state(None, H)["passkey_ready"])
 
 
 class Disabled(Base):
