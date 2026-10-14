@@ -24,10 +24,17 @@ RUN npm install -g @anthropic-ai/claude-code \
  && python3 -c "import googleapiclient.discovery, google.oauth2.credentials, google.auth.transport.requests, google_auth_oauthlib.flow, PIL, cryptography"
 
 RUN useradd --create-home --uid 10001 navaan && mkdir -p /app /opt/navaan-src && chown navaan:navaan /app
-COPY --chown=navaan:navaan .claude-plugin /opt/navaan-src/.claude-plugin
-COPY --chown=navaan:navaan plugins /opt/navaan-src/plugins
 USER navaan
 ENV HOME=/home/navaan
+
+# Caption timing tools (vocal separation and Whisper small ONNX, about 700 MB from GitHub and PyPI), installed once at build time into
+# ~/.cache/navaan, which is where setup_captions.py looks. With them present the `captions_setup` approval gate never fires on the server.
+# Placed before the plugin COPY so a code change does not download them again (Docker keeps this layer).
+COPY --chown=navaan:navaan plugins/navaan-studio/scripts/setup_captions.py /tmp/setup_captions.py
+RUN python3 /tmp/setup_captions.py --yes && python3 /tmp/setup_captions.py --check && rm /tmp/setup_captions.py
+
+COPY --chown=navaan:navaan .claude-plugin /opt/navaan-src/.claude-plugin
+COPY --chown=navaan:navaan plugins /opt/navaan-src/plugins
 
 # Install the plugin from the local marketplace so `claude -p "Use the <skill> skill"` resolves, then use that same copy
 # for the portal (one copy of the code, same as the skills run). /opt/navaan-plugin points at the installed copy.

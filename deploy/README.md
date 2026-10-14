@@ -29,6 +29,9 @@ One container (`navaan`) runs the portal and the scheduler, behind the VM's exis
 4. **nginx and certificate**: `nginx/README.md`.
 5. **First sign in**: `docker exec navaan cat /home/navaan/.config/navaan/auth_setup_code`, open the site, enter the shared password, then create the login. Save the recovery codes. The login is written to Vault within 30 seconds.
 
+## Caption tools
+The image already contains the caption timing tools (onnxruntime, librosa, scipy, the vocal separation model and Whisper small, about 700 MB, installed at build time into `~/.cache/navaan`). The `captions_setup` approval gate therefore does not appear on the server. The first build downloads them from GitHub and PyPI; later builds reuse the Docker layer until `setup_captions.py` changes.
+
 ## Update
 ```sh
 cd /opt/navaan/repo && git pull
