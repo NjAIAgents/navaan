@@ -22,15 +22,21 @@ REEL_OUT, REEL_AUDIO, REEL_THUMB = "final_reel_9x16.mp4", "reel_audio.mp3", "thu
 REEL_MAX, REEL_DEFAULT = 58.0, 45.0
 
 
-def prep_images(D, rels):
+def prep_images(D, rels, sub="shots"):
     """Shrink pictures to at most 2560 px wide copies inside the song folder (Remotion reads from there), keep the originals."""
-    cd = os.path.join(D, ".cache", "shots"); os.makedirs(cd, exist_ok=True); out = {}
+    cd = os.path.join(D, ".cache", sub); os.makedirs(cd, exist_ok=True); out = {}
     for rel in rels:
         dst = os.path.join(cd, os.path.splitext(os.path.basename(rel))[0] + ".jpg")
         if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(os.path.join(D, rel)):
             C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-i", os.path.join(D, rel), "-vf", "scale='min(2560,iw)':-2", "-q:v", "2", dst])
         out[rel] = os.path.relpath(dst, D)
     return out
+
+
+def vert_rel(D, rel):
+    """images/vert/pic_NN.png when a native 9:16 picture was made for images/pic_NN.png (song_images_openai.py --vertical), else None."""
+    r = os.path.join("images", "vert", os.path.basename(rel))
+    return r if os.path.exists(os.path.join(D, r)) else None
 
 
 def loop_rel(D, rel):
@@ -174,7 +180,11 @@ def render_reel(slug):
     cache = prep_images(D, sorted({sh["image"] for sh in shots} | {first}))
     ps = reel_plan(shots, start, dur, first)
     for sh in ps:
-        sh["loop"] = loop_rel(D, sh["image"]); sh["image"] = cache[sh["image"]]
+        vr = vert_rel(D, sh["image"])
+        if vr:   # a native vertical picture: no crop, no moving loop (the loops are 16:9), people sit low so aim the move there
+            sh["loop"] = None; sh["focus"] = [0.5, 0.62]; sh["image"] = prep_images(D, [vr], "vert")[vr]
+        else:
+            sh["loop"] = loop_rel(D, sh["image"]); sh["image"] = cache[sh["image"]]
     props = {"width": RW, "height": RH, "fps": FPS, "duration": dur, "audio": REEL_AUDIO, "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.0, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 1.5}
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
     rd = R.remotion_dir()

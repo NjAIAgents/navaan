@@ -11,11 +11,11 @@ class Headless(unittest.TestCase):
         self.N, self.C = N, C
         self.D = os.path.join(C.songs_root(), "s1"); os.makedirs(self.D)
         json.dump({"slug": "s1", "type": "music", "state": "draft"}, open(os.path.join(self.D, "meta.json"), "w"))
-        self.real = N.steps
+        self.real = N.steps; self.real_run_cmd = N.run_cmd
         N.steps = lambda slug, D: [dict(id="visuals", outputs=["clips/a.mp4"], label="Cover art and Flow clips", kind="claude", skill="flow-visuals", chrome=True, state="draft", done=lambda m: False)]
 
     def tearDown(self):
-        self.N.steps = self.real; os.environ.pop("NAVAAN_HEADLESS", None); self.tmp.cleanup()
+        self.N.steps = self.real; self.N.run_cmd = self.real_run_cmd; os.environ.pop("NAVAAN_HEADLESS", None); self.tmp.cleanup()
 
     def test_headless_leaves_mac_note_and_runs_nothing(self):
         os.environ["NAVAAN_HEADLESS"] = "1"

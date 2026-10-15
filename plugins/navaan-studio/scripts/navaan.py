@@ -74,7 +74,7 @@ def song_picture_steps(slug, D, mc):
     pack = prompt_pack.load(D)
     n = len(pack["prompts"]) if pack and pack.get("prompts") else 0
     label = "Create the pictures with OpenAI"
-    if n: label += " (%d pictures, about $%.2f at %s)" % (n, IO.estimate(mc["image_quality"], mc["image_size_landscape"]) * n, mc["image_quality"])
+    if n: label += " (%d pictures, about $%.2f at %s)" % (n, SI.total_cost(n, mc["image_quality"], mc["image_size_landscape"], IO.model_name(mc)), mc["image_quality"])
     return [
         dict(id="prompts", outputs=["prompt_pack.json"], label="Director writes the picture plan: story, character, places, motion", kind="script",
              cmds=[sc("prompt_pack.py", slug)], done=lambda m: bool(n) or have >= visuals_cfg.MIN_VIDEO),
@@ -344,9 +344,33 @@ def plan(slug):
     return rows, (nxt or {"type": "done"})
 
 
-def run_cmd(cmd, logf, env=None):
+PROC = {}   # slug -> the process the running step started (its own process group)
+STOP = set()   # slugs whose run the user asked to stop
+
+
+def run_cmd(cmd, logf, env=None, slug=None):
     logf.write(f"\n$ {' '.join(shlex.quote(c) for c in cmd)}\n"); logf.flush()
-    return subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=find_root(), env=env).returncode
+    p = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=find_root(), env=env, start_new_session=True)
+    if slug: PROC[slug] = p
+    try: return p.wait()
+    finally:
+        if slug and PROC.get(slug) is p: PROC.pop(slug, None)
+
+
+def stop(slug):
+    """The Stop button: end the running step and everything it started, and keep the run from going on to the next step. Returns True when a run was stopped."""
+    import signal
+    STOP.add(slug); p = PROC.get(slug)
+    if p and p.poll() is None:
+        try: os.killpg(p.pid, signal.SIGTERM)
+        except OSError: pass
+        def hard():
+            time.sleep(6)
+            if p.poll() is None:
+                try: os.killpg(p.pid, signal.SIGKILL)
+                except OSError: pass
+        threading.Thread(target=hard, daemon=True).start()
+    return True
 
 
 DEFAULT_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(python3:*)", "Bash(python:*)", "Bash(ffmpeg:*)", "Bash(ffprobe:*)",
@@ -523,9 +547,13 @@ def _run(slug, step=None, dry=False, retries=2):
         RUN[slug] = {"step": sid, "attempt": attempt, "attempts": retries + 1, "started": time.time(), "failed": None}
         with open(lp, "a", encoding="utf-8") as lf:
             lf.write(f"\n=== {now()} {sid} attempt {attempt} ===\n")
-            ok = all(run_cmd(c, lf, env) == 0 for c in cmds)
+            ok = all(run_cmd(c, lf, env, slug) == 0 for c in cmds)
         if s["kind"] == "claude": C.note_claude_result(ok, open(lp, encoding="utf-8", errors="replace").read()[-2000:] if not ok else "")
         m = meta(slug)
+        if slug in STOP:   # the user pressed Stop: no retry, no next step
+            STOP.discard(slug); log_hist(m, f"step {sid} stopped by the user"); save_meta(slug, m)
+            RUN[slug] = {"step": None, "failed": sid, "log": lp, "stopped": True}
+            print(f"step {sid} stopped by you"); return 130
         if ok and s["done"](m):
             if s.get("sets_after"): m["state"] = s["sets_after"]
             log_hist(m, f"step {sid} done (attempt {attempt})"); save_meta(slug, m); RUN.pop(slug, None); print("done", sid); return 0
@@ -551,6 +579,7 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
     Approvals are only ever read here, never written."""
     t0 = time.time(); steps_run = 0
     while steps_run < max_steps:
+        if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
         rows, nxt = plan(slug)
         if until and any(r["id"] == until and r["status"] == "done" for r in rows):
             STATUS[slug] = f"stopped after {until}"; print(STATUS[slug]); return 0
@@ -561,6 +590,7 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
             print(f"waiting for your approval: gate '{g}' (before or after step {nxt['step']}). Approve in the web UI or run: navaan.py approve {slug} {g}", flush=True)
             if not wait: return 3
             while not meta(slug).get("approvals", {}).get(g):
+                if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
                 if timeout and time.time() - t0 > timeout: print("timed out waiting for approval"); return 3
                 time.sleep(poll)
             print(f"gate {g} approved, continuing", flush=True); continue
@@ -571,13 +601,14 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
             print(f"waiting for your answer. Answer in the web UI or run: navaan.py answer {slug} ...", flush=True)
             if not wait or not q: return 6
             while question_open(slug) and question_open(slug)["id"] == q["id"]:
+                if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
                 if timeout and time.time() - t0 > timeout: print("timed out waiting for an answer"); return 6
                 time.sleep(min(poll, 3))
             print("answered, continuing", flush=True); steps_run -= 1; continue
         if rc == 7:
             STATUS[slug] = "scheduled: it publishes at the set time"; print(STATUS[slug], flush=True); return 7
         if rc != 0:
-            STATUS[slug] = f"step {nxt['step']} is waiting for you, see the banner" if rc == 5 else f"step {nxt['step']} failed, see logs"; return rc
+            STATUS[slug] = "stopped by you" if rc == 130 else (f"step {nxt['step']} is waiting for you, see the banner" if rc == 5 else f"step {nxt['step']} failed, see logs"); return rc
     print("stopped: too many steps in one run"); return 1
 
 

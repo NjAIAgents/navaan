@@ -28,12 +28,62 @@ class T(unittest.TestCase):
         self.assertEqual([i["motion"] for i in r["items"]], ["steam from the glass", ""])
         with self.assertRaises(ValueError): P.parse_full('{"style_line": "w", "prompts": [{"scene": "a", "motion": ""}]}', 2)
 
-    def test_director_prompt_asks_for_people_places_and_bans_cliches(self):
-        ctx = {"title": "T", "style": "lo-fi", "scene_override": ""}
-        sl = [{"section": "Verse 1", "part": 1, "of": 1, "lines": ["line one"]}]
+    def test_director_prompt_is_emotion_first_with_full_lyrics(self):
+        ctx = {"title": "T", "style": "romantic ghazal", "scene_override": "",
+               "sections": [{"label": "Verse 1", "lines": ["tum samne thin", "main chup raha"]}, {"label": "Chorus", "lines": ["khat jo kabhi likha nahi"]}]}
+        sl = [{"section": "Verse 1", "part": 1, "of": 1, "lines": ["tum samne thin"]}]
         p = P.build_prompt(ctx, sl)
-        for w in ("concept", "character", "motion", "street", "market", "lone bench by a river", "Never a close up of a face", "exactly 1 prompts"):
+        for w in ("emotion", "character", "motion", "FULL LYRICS", "[Chorus]", "khat jo kabhi likha nahi", "romantic ghazal", "At most 3 of the 1 frames", "No markets", "exactly 1 prompts"):
             self.assertIn(w, p)
+
+    def test_parse_reads_emotion_as_concept(self):
+        r = P.parse_full('{"emotion": "longing", "character": "c", "style_line": "s", "prompts": [{"scene": "a", "motion": "none"}]}', 1)
+        self.assertEqual(r["concept"], "longing")
+
+
+class Roles(unittest.TestCase):
+    CTX = {"title": "T", "style": "romantic ghazal", "scene_override": "monsoon", "camera_override": "very slow",
+           "sections": [{"label": "Verse 1", "lines": ["a", "b"], "start": 0, "end": 40}]}
+    SL = [{"section": "Verse 1", "part": 1, "of": 2, "lines": ["a"]}, {"section": "Verse 1", "part": 2, "of": 2, "lines": ["b"]}]
+
+    def test_look_prompt_has_lyrics_and_notes(self):
+        p = P.build_look_prompt(self.CTX)
+        for w in ("style_line", "camera_style", "romantic ghazal", "monsoon", "very slow", "[Verse 1]"): self.assertIn(w, p)
+        self.assertNotIn("<<", p)
+
+    def test_story_prompt_has_no_camera_or_look_job(self):
+        p = P.build_prompt(self.CTX, self.SL, look={"style_line": "warm dusk film look"})
+        self.assertIn("warm dusk film look", p); self.assertIn("exactly 2 prompts", p); self.assertNotIn("<<", p)
+        self.assertNotIn("push_in", p)
+
+    def test_camera_prompt_lists_scenes_and_moves(self):
+        p = P.build_camera_prompt(self.CTX, self.SL, [{"prompt": "scene one"}, {"prompt": "scene two"}], {"camera_style": "slow"})
+        for w in ("scene one", "scene two", "push_in", "exactly 2 moves", "about 20.0 s"): self.assertIn(w, p)
+        self.assertNotIn("<<", p)
+
+    def test_parse_camera(self):
+        r = P.parse_camera('{"moves": [{"camera": "Push In", "focus": [0.3, 1.4]}, {"camera": "zoom"}]}', 2)
+        self.assertEqual(r[0], {"camera": "push_in", "focus": [0.3, 1.0]}); self.assertEqual(r[1], {"camera": "", "focus": None})
+        with self.assertRaises(ValueError): P.parse_camera('{"moves": []}', 2)
+
+    def test_make_runs_three_roles_in_order(self):
+        import tempfile, shutil
+        calls = []
+        def fake(prompt):
+            if "ART DIRECTOR" in prompt: calls.append("look"); return '{"style_line": "warm", "palette": "p", "camera_style": "slow"}'
+            if "STORY DIRECTOR" in prompt: calls.append("story"); return '{"emotion": "e", "character": "c", "prompts": [{"scene": "s1", "motion": "rain"}, {"scene": "s2"}]}'
+            calls.append("camera"); return '{"moves": [{"camera": "push_in", "focus": [0.5, 0.5]}, {"camera": "pull_out"}]}'
+        orig = (P.shots_prep.build_context, P.allocate, P.C.song_dir)
+        d = tempfile.mkdtemp()
+        try:
+            P.shots_prep.build_context = lambda D: dict(self.CTX, duration=40, sections=self.CTX["sections"])
+            P.allocate = lambda secs, n: self.SL
+            P.C.song_dir = lambda slug: d
+            pk = P.make("x", 6, runner=fake)
+        finally:
+            P.shots_prep.build_context, P.allocate, P.C.song_dir = orig; shutil.rmtree(d, ignore_errors=True)
+        self.assertEqual(calls, ["look", "story", "camera"])
+        self.assertEqual(pk["style_line"], "warm"); self.assertEqual(pk["prompts"][0]["camera"], "push_in"); self.assertEqual(pk["prompts"][1]["camera"], "pull_out")
 
 
 if __name__ == "__main__":
