@@ -1,6 +1,6 @@
 """Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
-import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
+import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html, hashlib
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
@@ -34,6 +34,8 @@ VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose 
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
+THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
+THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
@@ -231,13 +233,28 @@ class H(BaseHTTPRequestHandler):
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
             m = re.match(r"^/media/([^/]+)/([^/]+)$", p)
-            if m and SLUG.match(m.group(1)): return self._media(m.group(1), m.group(2))
+            if m and SLUG.match(m.group(1)):
+                q = re.search(r"[?&]w=(\d+)", self.path)
+                return self._media(m.group(1), m.group(2), int(q.group(1)) if q else 0)
         except SystemExit as e: return self._send(404, {"error": str(e)})
         self._send(404, {"error": "not found"})
-    def _media(self, slug, name):
+    def _thumb(self, f, w):
+        """A small JPEG of a picture for list views (covers are 1-3 MB PNGs). Cached under ~/.cache/navaan/thumbs, keyed by file, mtime and width; any failure serves the original."""
+        if w not in THUMB_W or os.path.splitext(f)[1].lower() not in (".png", ".jpg", ".jpeg", ".webp"): return f
+        try:
+            st = os.stat(f); key = hashlib.sha1(f"{f}|{st.st_mtime_ns}|{st.st_size}".encode()).hexdigest()[:20]
+            out = os.path.join(THUMB_DIR, f"{key}-{w}.jpg")
+            if os.path.isfile(out): return out
+            os.makedirs(THUMB_DIR, exist_ok=True); tmp = f"{out}.{threading.get_ident()}.tmp.jpg"
+            r = subprocess.run([C.tool("ffmpeg"), "-v", "error", "-y", "-i", f, "-vf", f"scale='min({w},iw)':-2", "-frames:v", "1", "-q:v", "4", tmp], capture_output=True, timeout=30)
+            if r.returncode != 0 or not os.path.isfile(tmp): return f
+            os.replace(tmp, out); return out
+        except (Exception, SystemExit): return f
+    def _media(self, slug, name, w=0):
         D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
         if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
         if os.path.splitext(f)[1].lower() not in MEDIA_EXT or not os.path.isfile(f): return self._send(404, {"error": "no file"})
+        f = self._thumb(f, w) if w else f
         st = os.stat(f); size = st.st_size; ct = mimetypes.guess_type(f)[0] or "application/octet-stream"
         etag = f'"{size:x}-{int(st.st_mtime):x}"'  # revalidate every time (a regenerated cover shows at once), but an unchanged one costs a 304, not the file
         if self.headers.get("If-None-Match") == etag:
