@@ -14,6 +14,13 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: {POSTGRES_PASSWORD: test, POSTGRES_DB: navaan}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,8 +30,10 @@ jobs:
         with:
           node-version: "22"
       - name: Python packages the tests may use
-        run: pip install cryptography pillow numpy opencv-python-headless
-      - name: Unit tests
+        run: pip install cryptography pillow numpy opencv-python-headless "psycopg[binary]"
+      - name: Unit tests (against the Postgres service above)
+        env:
+          NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
         run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
       - name: Shell scripts parse
         run: |

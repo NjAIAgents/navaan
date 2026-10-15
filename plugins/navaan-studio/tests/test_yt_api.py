@@ -3,6 +3,7 @@ import json, os, sys, unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_yt_reco import Base, CH, NOW, NOWDT, ts, day
 import analytics_api as api
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import ig_reco as rc
 

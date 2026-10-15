@@ -646,7 +646,7 @@ def cmd_collect(a):
 
 def cmd_status(a):
     conn = db.connect(a.db)
-    print("database:", db.db_path(a.db))
+    print("database:", db.where())
     for acc in db.rows(conn, "SELECT * FROM accounts ORDER BY label"):
         if a.account not in ("all", acc["label"]):
             continue
@@ -695,7 +695,7 @@ def cmd_mention(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", help="database file (default: NAVAAN_DB, analytics.db_path, or ~/.local/share/navaan/analytics.db)")
+    ap.add_argument("--db", help="ignored: the database is Postgres (NAVAAN_DATABASE_URL, NAVAAN_PG_HOST)")
     sp = ap.add_subparsers(dest="cmd", required=True)
     c = sp.add_parser("collect"); c.add_argument("--account", default="music"); c.add_argument("--only"); c.add_argument("--days", type=int, default=7)
     c.add_argument("--max-pages", type=int, default=20); c.add_argument("--force", action="store_true"); c.set_defaults(fn=cmd_collect)
@@ -704,6 +704,6 @@ if __name__ == "__main__":
     pe = sp.add_parser("peers", help="creators to benchmark against (public numbers via Business Discovery)"); pe.add_argument("action", choices=["add", "remove", "list"])
     pe.add_argument("names", nargs="*"); pe.add_argument("--label"); pe.add_argument("--note"); pe.set_defaults(fn=cmd_peers)
     m = sp.add_parser("mention"); m.add_argument("--media-id"); m.add_argument("--comment-id"); m.add_argument("--account", default="music"); m.set_defaults(fn=cmd_mention)
-    sp.add_parser("dbpath").set_defaults(fn=lambda a: print(db.db_path(a.db)))
+    sp.add_parser("dbpath").set_defaults(fn=lambda a: print(db.where()))
     a = ap.parse_args()
     a.fn(a)
