@@ -1,9 +1,9 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Img, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, Img, Loop, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 
 // A music video stitched from the user's own pictures. Each shot shows one picture with a slow camera move, shots cross fade.
 // shots.json (approved by the user) is turned into these props by shots_render.py.
-export type Shot = {start: number; end: number; image: string; camera: string; focus?: [number, number]};
+export type Shot = {start: number; end: number; image: string; camera: string; focus?: [number, number]; loop?: string | null};
 export type ShotsProps = {
   width: number;
   height: number;
@@ -11,6 +11,7 @@ export type ShotsProps = {
   duration: number;
   audio: string | null;
   shots: Shot[];
+  loopSeconds?: number;
   fade: number;
   grade: {dim: number; vignette: number};
   fadeOut: number;
@@ -46,7 +47,7 @@ const move = (camera: string, p: number, focus: [number, number]) => {
   }
 };
 
-const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number}> = ({shot, len, fade, lead}) => {
+const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number; loopSeconds: number}> = ({shot, len, fade, lead, loopSeconds}) => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
   // the sequence starts `lead` seconds before the shot's own start so the fade in overlaps the previous shot
@@ -54,9 +55,17 @@ const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number}> 
   const p = Math.min(1, Math.max(0, t / Math.max(0.1, len)));
   const op = interpolate(f / fps, [0, lead || 0.001, lead + len, lead + len + fade], [lead ? 0 : 1, 1, 1, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const m = move(shot.camera, p, shot.focus || [0.5, 0.5]);
+  const style: React.CSSProperties = {width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${(shot.focus?.[0] ?? 0.5) * 100}% ${(shot.focus?.[1] ?? 0.5) * 100}%`, transform: `translate(${m.x}%, ${m.y}%) scale(${m.s})`, transformOrigin: '50% 50%'};
   return (
     <AbsoluteFill style={{opacity: op}}>
-      <Img src={staticFile(shot.image)} style={{width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${(shot.focus?.[0] ?? 0.5) * 100}% ${(shot.focus?.[1] ?? 0.5) * 100}%`, transform: `translate(${m.x}%, ${m.y}%) scale(${m.s})`, transformOrigin: '50% 50%'}} />
+      {shot.loop ? (
+        // a seamless loop made by motion_clips.py: steam, cloth, flames. The camera move still runs on top.
+        <Loop durationInFrames={Math.max(1, Math.round(loopSeconds * fps))}>
+          <OffthreadVideo src={staticFile(shot.loop)} muted style={style} />
+        </Loop>
+      ) : (
+        <Img src={staticFile(shot.image)} style={style} />
+      )}
     </AbsoluteFill>
   );
 };
@@ -76,7 +85,7 @@ export const Shots: React.FC<ShotsProps> = (p) => {
           const total = lead + len + p.fade; // keep drawing through the next shot's fade in
           return (
             <Sequence key={i} from={Math.round(from * fps)} durationInFrames={Math.max(1, Math.round(total * fps))}>
-              <ShotView shot={s} len={len} fade={p.fade} lead={s.start - from} />
+              <ShotView shot={s} len={len} fade={p.fade} lead={s.start - from} loopSeconds={p.loopSeconds ?? 6} />
             </Sequence>
           );
         })}

@@ -20,8 +20,8 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 RUN npm install -g @anthropic-ai/claude-code \
- && pip install cryptography pillow requests google-api-python-client google-auth google-auth-oauthlib oci-cli \
- && python3 -c "import googleapiclient.discovery, google.oauth2.credentials, google.auth.transport.requests, google_auth_oauthlib.flow, PIL, cryptography" \
+ && pip install cryptography pillow numpy opencv-python-headless requests google-api-python-client google-auth google-auth-oauthlib oci-cli \
+ && python3 -c "import googleapiclient.discovery, google.oauth2.credentials, google.auth.transport.requests, google_auth_oauthlib.flow, PIL, cryptography, numpy, cv2" \
  && oci --version
 
 RUN useradd --create-home --uid 10001 navaan && mkdir -p /app /opt/navaan-src && chown navaan:navaan /app
