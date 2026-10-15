@@ -1,5 +1,6 @@
--- Generated from plugins/navaan-studio/scripts/analytics_schema.sql by analytics_db.pg_ddl (a test keeps them equal).
--- Same tables and columns as the SQLite file, 64-bit integers and double precision. Timestamps stay UTC ISO text for now (typed columns: a later migration).
+-- NAVAAN analytics, schema "analytics". The tables the SQLite file had, with 64-bit integers and double precision.
+-- Timestamps are UTC ISO text (YYYY-MM-DDTHH:MM:SSZ) and dates YYYY-MM-DD for now; flags are 0/1. Typed columns (timestamptz, boolean) come in a later migration.
+-- This file is released: never edit it, add 0002_*.sql (the previous release must keep working, so no drops or renames in the same release).
 -- NAVAAN analytics schema. Portable SQL: TEXT, BIGINT, DOUBLE PRECISION, composite primary keys, no AUTOINCREMENT, no triggers.
 -- SQLite today, Postgres later. analytics_db.migrate runs the statements one by one, so keep a semicolon out of every comment and default value.
 -- Timestamps are UTC ISO strings (YYYY-MM-DDTHH:MM:SSZ). Dates are YYYY-MM-DD.

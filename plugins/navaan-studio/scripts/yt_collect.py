@@ -546,7 +546,7 @@ def cmd_collect(a):
 
 def cmd_status(a):
     conn = db.connect(a.db)
-    print("database:", db.db_path(a.db))
+    print("database:", db.where())
     for ch in db.rows(conn, "SELECT * FROM yt_channels ORDER BY label"):
         if a.account not in ("all", ch["label"]):
             continue
@@ -597,6 +597,6 @@ if __name__ == "__main__":
     s = sp.add_parser("status"); s.add_argument("--account", default="all"); s.set_defaults(fn=cmd_status)
     sp.add_parser("link").set_defaults(fn=cmd_link)
     au = sp.add_parser("auth"); au.add_argument("--account", default="music"); au.set_defaults(fn=cmd_auth)
-    sp.add_parser("dbpath").set_defaults(fn=lambda a: print(db.db_path(a.db)))
+    sp.add_parser("dbpath").set_defaults(fn=lambda a: print(db.where()))
     a = ap.parse_args()
     a.fn(a)

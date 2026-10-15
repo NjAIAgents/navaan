@@ -3,6 +3,7 @@ import json, os, sys, tempfile, unittest, datetime
 
 SCRIPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
 sys.path.insert(0, SCRIPTS)
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import ig_reco as rc
 import yt_reco as yr

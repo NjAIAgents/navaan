@@ -918,6 +918,7 @@ def main(argv):
         if "--loop" in a: print("scheduler running, checking every minute. Ctrl+C to stop.", flush=True); PS.loop(fire); return 0
         print(PS.tick(fire) or "nothing due"); return 0
     if c == "serve":
+        import analytics_to_postgres; analytics_to_postgres.auto()   # first start after the move to Postgres: bring the SQLite history across, verified, or stop (the release then rolls back)
         import navaan_ui; return navaan_ui.serve(int(a[a.index("--port") + 1]) if "--port" in a else 8765)
     print(__doc__); return 2
 

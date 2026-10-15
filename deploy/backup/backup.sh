@@ -20,7 +20,7 @@ BUCKET="${NAVAAN_BACKUP_BUCKET:-}"; PREFIX="navaan-backup/"; DRY="${NAVAAN_BACKU
 [ -d "$DATA" ] || { echo "backup: $DATA not found" >&2; exit 2; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"; stage="$tmp/navaan-data"; mkdir -p "$stage"
-tar -C "$DATA" --exclude='state/analytics.db*' --exclude='state/logs' -cf - . | tar -C "$stage" -xf -
+tar -C "$DATA" --exclude='state/analytics.db*' --exclude='state/logs' --exclude='./pg' -cf - . | tar -C "$stage" -xf -
 if [ -f "$DATA/state/analytics.db" ]; then
   mkdir -p "$stage/state"
   python3 - "$DATA/state/analytics.db" "$stage/state/analytics.db" <<'PY'
@@ -28,12 +28,10 @@ import sqlite3, sys
 s = sqlite3.connect(sys.argv[1]); d = sqlite3.connect(sys.argv[2]); s.backup(d); d.close(); s.close()
 PY
 fi
-# Postgres (NAV-3): a custom-format dump taken from inside the container, so the archive holds a consistent copy. Restore drill: deploy/README.md, Postgres.
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx navaan-postgres; then
-  mkdir -p "$stage/state"
-  docker exec navaan-postgres pg_dump -U navaan -Fc navaan > "$stage/state/navaan.pgdump" || { echo "backup: pg_dump FAILED" >&2; exit 4; }
-  echo "backup: postgres dump $(du -h "$stage/state/navaan.pgdump" | cut -f1)"
-fi
+# Postgres (NAV-3): a custom-format dump taken from inside the container, so the archive holds a consistent copy; the live data folder (./pg) is left out of the tarball. Restore drill: deploy/README.md, Postgres.
+mkdir -p "$stage/state"
+docker exec navaan-postgres pg_dump -U postgres -Fc navaan > "$stage/state/navaan.pgdump" || { echo "backup: pg_dump FAILED (is navaan-postgres running?)" >&2; exit 4; }
+echo "backup: postgres dump $(du -h "$stage/state/navaan.pgdump" | cut -f1)"
 name="navaan-data-$stamp.tar.gz"; arc="$tmp/$name"
 tar -C "$tmp" -czf "$arc" navaan-data
 echo "backup: $name $(du -h "$arc" | cut -f1)"

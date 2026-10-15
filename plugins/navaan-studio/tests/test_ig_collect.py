@@ -4,6 +4,7 @@ import io, json, os, sys, tempfile, unittest, urllib.error, urllib.parse
 
 SCRIPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
 sys.path.insert(0, SCRIPTS)
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import ig_collect as ig
 
@@ -328,21 +329,6 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(ig.ig_ref("https://www.instagram.com/navaan_p5l/reel/AbC_1-x/?igsh=1"), (None, "AbC_1-x"))
         self.assertEqual(ig.ig_ref("18156611239556637"), ("18156611239556637", None))
         self.assertEqual(ig.ig_ref(""), (None, None))
-
-    @unittest.skipIf(db.PG, "SQLite file paths only")
-    def test_bare_filename_database_path(self):
-        d = tempfile.mkdtemp(); old = os.getcwd(); os.chdir(d)
-        try:
-            c = db.connect("plain.db"); c.close()
-            self.assertTrue(os.path.exists(os.path.join(d, "plain.db")))
-        finally:
-            os.chdir(old)
-
-    def test_schema_has_no_engine_specific_sql(self):
-        with open(db.SCHEMA_FILE, encoding="utf-8") as f:
-            sql = " ".join(db._statements(f.read())).upper()
-        for bad in ("AUTOINCREMENT", "PRAGMA", "WITHOUT ROWID", "TRIGGER"):
-            self.assertNotIn(bad, sql)
 
 
 if __name__ == "__main__":

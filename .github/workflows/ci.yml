@@ -31,12 +31,9 @@ jobs:
           node-version: "22"
       - name: Python packages the tests may use
         run: pip install cryptography pillow numpy opencv-python-headless "psycopg[binary]"
-      - name: Unit tests
-        run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
-      - name: Unit tests on Postgres (the analytics layer runs on both)
+      - name: Unit tests (against the Postgres service above)
         env:
           NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
-          NAVAAN_DB_SCHEMA_PER_PATH: "1"
         run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
       - name: Shell scripts parse
         run: |
