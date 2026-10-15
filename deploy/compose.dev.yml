@@ -1,5 +1,6 @@
 # Postgres for development and the tests: docker compose -f deploy/compose.dev.yml up -d
-# Listens on 127.0.0.1:5432 only, no password (trust), role navaan_app, database navaan: the defaults analytics_db uses with nothing configured.
+# Listens on 127.0.0.1:5432 only (NAVAAN_PG_PORT=5433 docker compose ... if another Postgres already holds 5432; then set NAVAAN_PG_PORT for the app too),
+# no password (trust), role navaan_app, database navaan: the defaults analytics_db uses with nothing configured.
 name: navaan-dev
 services:
   postgres:
@@ -10,7 +11,7 @@ services:
       POSTGRES_USER: navaan_app
       POSTGRES_DB: navaan
       POSTGRES_HOST_AUTH_METHOD: trust
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:${NAVAAN_PG_PORT:-5432}:5432"]
     volumes: ["navaan-pgdev:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U navaan_app -d navaan"]
