@@ -27,11 +27,12 @@ CHOICES = {
     "motion": ("off", "subtle", "gentle"),
 }
 NUMBERS = {  # key: (default, min, max)
-    "max_run_usd": (0.5, 0.05, 20.0),            # one run may not spend more than this on OpenAI images
+    "max_run_usd": (0.8, 0.05, 20.0),            # one run may not spend more than this on OpenAI images
+    "song_pictures": (16, 6, 40),                 # pictures the director plans per song (16 at medium 1792x1008 is about 0.77 dollars)
     "eleven_monthly_seconds": (1500, 60, 36000),  # ElevenLabs audio allowed per calendar month
 }
 DEFAULTS = {"image_provider": "flow", "image_quality": "medium", "image_size": "1152x2048", "image_size_landscape": "1792x1008", "narration_source": "upload", "voice": "frank",
-            "eleven_model": "eleven_v4", "music": "auto", "motion": "subtle", "max_run_usd": 0.5, "eleven_monthly_seconds": 1500}
+            "eleven_model": "eleven_v4", "music": "auto", "motion": "subtle", "max_run_usd": 0.8, "song_pictures": 16, "eleven_monthly_seconds": 1500}
 KEYS = {  # provider: (file, variable, pattern, live test url, auth header builder)
     "openai": ("openai.env", "OPENAI_API_KEY", r"sk-[A-Za-z0-9_\-]{20,300}", "https://api.openai.com/v1/models", lambda k: {"Authorization": "Bearer " + k}),
     "elevenlabs": ("elevenlabs.env", "ELEVENLABS_API_KEY", r"[A-Za-z0-9_\-]{20,200}", "https://api.elevenlabs.io/v1/user", lambda k: {"xi-api-key": k}),
