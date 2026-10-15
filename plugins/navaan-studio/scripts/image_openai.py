@@ -2,7 +2,7 @@
 """image_openai.py <slug> [--estimate] [--force]  make the background picture for an inspiration short with the OpenAI image API.
 
 Reads the prompt from songs/<slug>/scenes/background.txt (written by the inspiration-visual skill, no spend). Makes ONE portrait
-picture at the quality chosen in Settings (default medium), crops it to 1080x1920 without stretching, writes background.png and
+picture at the quality and size chosen in Settings (default medium, 1152x2048 which is exactly 9:16), fits it to 1080x1920 without stretching, writes background.png and
 keeps the raw answer as scenes/background_openai.png. Refuses when the month or run cap would be passed, and when a background
 already exists unless --force. The key comes from media_cfg (openai.env or OPENAI_API_KEY) and is never printed.
 """
@@ -12,20 +12,19 @@ import navaan_common as C
 import media_cfg
 
 MODEL = os.environ.get("NAVAAN_OPENAI_IMAGE_MODEL", "gpt-image-2")
-SIZE = "1024x1536"
-# Approximate dollars for one portrait picture. Used for the cap and the estimate card, not for billing.
-PRICE = {"low": 0.016, "medium": 0.041, "high": 0.165}
+# Approximate dollars for one portrait picture by size and quality. Used for the cap and the estimate card, not for billing.
+PRICE = {"1024x1536": {"low": 0.005, "medium": 0.041, "high": 0.165}, "1152x2048": {"low": 0.008, "medium": 0.062, "high": 0.248}}
 OUT_W, OUT_H = 1080, 1920
 
 
-def estimate(quality):
-    return PRICE.get(quality, PRICE["medium"])
+def estimate(quality, size="1152x2048"):
+    return PRICE.get(size, PRICE["1152x2048"]).get(quality, 0.062)
 
 
-def check_cap(quality, cfg=None, use=None):
+def check_cap(quality, cfg=None, size=None):
     """Raise ValueError when this picture would pass the one-run cap."""
     cfg = cfg or media_cfg.load()
-    cost = estimate(quality)
+    cost = estimate(quality, size or cfg["image_size"])
     if cost > float(cfg["max_run_usd"]):
         raise ValueError("One %s picture costs about $%.2f, over the run cap of $%.2f set in Settings." % (quality, cost, float(cfg["max_run_usd"])))
     return cost
@@ -41,8 +40,8 @@ def fit_portrait(raw, w=OUT_W, h=OUT_H):
     return im.crop((l, t, l + w, t + h))
 
 
-def request_image(prompt, quality, key):
-    body = json.dumps({"model": MODEL, "prompt": prompt, "size": SIZE, "quality": quality, "n": 1}).encode()
+def request_image(prompt, quality, key, size="1152x2048"):
+    body = json.dumps({"model": MODEL, "prompt": prompt, "size": size, "quality": quality, "n": 1}).encode()
     req = urllib.request.Request("https://api.openai.com/v1/images/generations", data=body, method="POST",
                                  headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     try:
@@ -76,7 +75,7 @@ def main(argv):
     except ValueError as e:
         sys.exit("navaan: " + str(e))
     if "--estimate" in argv:
-        print(json.dumps({"model": MODEL, "size": SIZE, "quality": q, "usd": cost}))
+        print(json.dumps({"model": MODEL, "size": cfg["image_size"], "quality": q, "usd": cost}))
         return 0
     have = [p for e in ("jpg", "jpeg", "png", "webp") for p in glob.glob(os.path.join(D, "background." + e))]
     if have and "--force" not in argv:
@@ -89,7 +88,7 @@ def main(argv):
     key = media_cfg.get_key("openai")
     if not key:
         sys.exit("navaan: no OpenAI key. Paste it in Settings, Pictures and voice.")
-    raw = request_image(prompt[:3500], q, key)
+    raw = request_image(prompt[:3500], q, key, cfg["image_size"])
     media_cfg.add_usage(openai_usd=cost)  # spent now, whatever happens to the file
     os.makedirs(os.path.join(D, "scenes"), exist_ok=True)
     with open(os.path.join(D, "scenes", "background_openai.png"), "wb") as f:
