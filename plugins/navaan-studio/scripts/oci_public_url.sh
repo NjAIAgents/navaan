@@ -11,6 +11,9 @@ BUCKET="${NAVAAN_BUCKET:-navaan}"
 NS="$(oci os ns get --query data --raw-output)"
 oci os object put -ns "$NS" -bn "$BUCKET" --file "$F" --name "$OBJ" --force >/dev/null
 EXP="$(python3 -c "import datetime;print((datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=$HOURS)).strftime('%Y-%m-%dT%H:%M:%SZ'))")"
-REG="$(oci os ns get-metadata -ns "$NS" --query 'data."default-s3-compartment-id"' --raw-output >/dev/null 2>&1; oci iam region-subscription list --query 'data[?"is-home-region"]|[0]."region-name"' --raw-output)"
+# Region without IAM: the env, then the instance metadata of the VM (instance principal has no tenancy id to list subscriptions with), then the old lookup.
+REG="${NAVAAN_OCI_REGION:-${OCI_CLI_REGION:-}}"
+[ -n "$REG" ] || REG="$(curl -fsS -m 5 -H 'Authorization: Bearer Oracle' http://169.254.169.254/opc/v2/instance/canonicalRegionName 2>/dev/null || true)"
+[ -n "$REG" ] || REG="$(oci iam region-subscription list --query 'data[?"is-home-region"]|[0]."region-name"' --raw-output)"
 ACC="$(oci os preauth-request create -ns "$NS" -bn "$BUCKET" --name "navaan-$(date +%s)" --access-type ObjectRead --object-name "$OBJ" --time-expires "$EXP" --query 'data."access-uri"' --raw-output)"
 echo "https://objectstorage.${REG}.oraclecloud.com${ACC}"
