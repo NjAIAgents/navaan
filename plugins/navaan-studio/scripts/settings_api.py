@@ -11,6 +11,7 @@ Tokens are only ever written to the login files under ~/.config/navaan with mode
 import os, re, sys, json, time, shlex, datetime, subprocess, threading, urllib.request, urllib.parse, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import media_cfg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~/.config/navaan")
@@ -276,7 +277,7 @@ def alerts():
 
 def status(force=False):
     if not force and _cache["data"] and time.time() - _cache["at"] < 600:
-        d = dict(_cache["data"]); d["yt_job"] = dict(YT); d["claude"] = claude_status(); return d
+        d = dict(_cache["data"]); d["yt_job"] = dict(YT); d["claude"] = claude_status(); d["media"] = media_cfg.status(); return d
     types = ["music"] + sorted(k for k in (C.cfg("accounts") or {}).keys() if k != "music")
     accounts = []
     for t in types:
@@ -290,7 +291,7 @@ def status(force=False):
     data = {"accounts": accounts, "cloud": {"provider": C.cfg("storage.cloud_provider", "none"), "bucket": C.cfg("storage.cloud_bucket", ""), "region": C.cfg("storage.cloud_region", "")},
             "secret_present": os.path.exists(os.path.join(HOME, "youtube_client_secret.json")), "checked_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     _cache.update(at=time.time(), data=data)
-    d = dict(data); d["yt_job"] = dict(YT); d["claude"] = claude_status(); return d
+    d = dict(data); d["yt_job"] = dict(YT); d["claude"] = claude_status(); d["media"] = media_cfg.status(); return d
 
 
 def ig_refresh(ctype, kind="login"):
@@ -395,3 +396,15 @@ def save_secret(content):
     with open(p, "w", encoding="utf-8") as f: f.write(json.dumps(j))
     os.chmod(p, 0o600); _cache["at"] = 0
     return {"saved": p}
+
+
+def media_save(updates):
+    """Image provider, narration source, voice, music and the caps. Values are checked; the new state is returned."""
+    media_cfg.save(updates)
+    return media_cfg.status()
+
+
+def media_key_save(provider, token):
+    """Paste an OpenAI or ElevenLabs key. Tested first, written to openai.env or elevenlabs.env (mode 600), never returned."""
+    media_cfg.key_save(provider, token)
+    return media_cfg.status()

@@ -328,6 +328,8 @@ class H(BaseHTTPRequestHandler):
                     if act == "ig_save": return self._send(200, settings_api.ig_save(ct, str(body.get("kind") or "login"), str(body.get("token") or "")))
                     if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
                     if act == "claude_save": return self._send(200, settings_api.claude_save(str(body.get("token") or "")))
+                    if act == "media_save": return self._send(200, settings_api.media_save(body.get("settings") or {}))
+                    if act == "media_key": return self._send(200, settings_api.media_key_save(str(body.get("provider") or ""), str(body.get("token") or "")))
                     if act == "yt_oauth_start": return self._send(200, settings_api.yt_oauth_start(ct, str(body.get("which") or "publish")))
                     if act == "yt_oauth_finish": return self._send(200, settings_api.yt_oauth_finish(ct, str(body.get("which") or "publish"), str(body.get("url") or "")))
                     if act == "yt_save": return self._send(200, settings_api.yt_save(ct, str(body.get("which") or "publish"), str(body.get("content") or "")))

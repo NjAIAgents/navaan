@@ -25,7 +25,7 @@ GATE_FILE = os.environ.get("NAVAAN_GATE_FILE", "")
 POLL, RETRY = 30, 15
 # Files that belong in Vault. Anything else in DIR (setup code, the status file) is never pushed.
 KNOWN = ["instagram.env", "instagram_inspiration.env", "youtube_token.json", "youtube_token_inspiration.json", "youtube_analytics_token.json",
-         "youtube_token_inspiration_analytics.json", "youtube_client_secret.json", "claude.env", "auth.json"]
+         "youtube_token_inspiration_analytics.json", "youtube_client_secret.json", "claude.env", "openai.env", "elevenlabs.env", "media.json", "auth.json"]
 GATE = "gate.htpasswd"
 
 
