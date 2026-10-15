@@ -45,5 +45,26 @@ class Restart(unittest.TestCase):
         self.assertIn("/api/restart", open(os.path.join(root, "navaan_ui.py"), encoding="utf-8").read())
 
 
+class StepsLookFresh(unittest.TestCase):
+    """The picture steps must read the song folder when asked, not when the step list was built (a finished step was run again 3 times)."""
+    def test_done_follows_the_folder_after_the_list_was_built(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.environ["NAVAAN_ROOT"] = root
+            try:
+                import navaan as N, media_cfg, visuals_cfg
+                D = os.path.join(root, "songs", "s9"); os.makedirs(os.path.join(D, "images"))
+                st = {s["id"]: s for s in N.song_picture_steps("s9", D, media_cfg.load())}
+                self.assertFalse(st["prompts"]["done"]({})); self.assertFalse(st["pictures"]["done"]({}))
+                json.dump({"prompts": [{"prompt": "p"}], "style_line": "s"}, open(os.path.join(D, "prompt_pack.json"), "w"))
+                self.assertTrue(st["prompts"]["done"]({}))   # same step object, folder changed
+                for i in range(visuals_cfg.MIN_VIDEO): open(os.path.join(D, "images", "pic_%02d.png" % (i + 1)), "wb").write(b"x")
+                self.assertTrue(st["pictures"]["done"]({}))
+            finally: os.environ.pop("NAVAAN_ROOT", None)
+
+    def test_running_row_has_a_progress_bar(self):
+        ui = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "ui.html"), encoding="utf-8").read()
+        self.assertIn("rbar", ui); self.assertIn("pictures made", ui)
+
+
 if __name__ == "__main__":
     unittest.main()
