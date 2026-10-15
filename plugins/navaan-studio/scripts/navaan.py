@@ -67,6 +67,26 @@ def fresh(D, outs, src):
 def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 
 
+def auto_gates(slug):
+    """Approve the gates the user switched off in Settings, Gates (gate_cfg). Returns the gates approved now. A gate whose file is not
+    there yet (a quote or shot list still to be written) is left for later."""
+    import gate_cfg
+    off = gate_cfg.load()
+    if not off: return []
+    done = []
+    D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); published = ig_done(m)
+    for g in C.type_gates(item_type(m)):
+        if g in off and not gate_ok(D, ap, g, published):
+            try:
+                if g == "visuals_mode" and not os.path.exists(os.path.join(D, "visuals.json")):   # nobody chose, so take the default: own pictures, a moving video
+                    import visuals_cfg, media_cfg
+                    visuals_cfg.save(D, "own", "video", "", "", pictures_later=media_cfg.load()["image_provider"] == "openai")
+                set_gate(slug, g, True, "auto (gate switched off in Settings)"); done.append(g)
+            except SystemExit: pass
+            ap = meta(slug).get("approvals", {})
+    return done
+
+
 def song_picture_steps(slug, D, mc):
     """The director writes the picture prompts (story, character, places, motion hints), then OpenAI paints them. Done when the song already has enough pictures."""
     import prompt_pack, visuals_cfg, song_images_openai as SI, image_openai as IO
@@ -580,6 +600,7 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
     t0 = time.time(); steps_run = 0
     while steps_run < max_steps:
         if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
+        auto_gates(slug)
         rows, nxt = plan(slug)
         if until and any(r["id"] == until and r["status"] == "done" for r in rows):
             STATUS[slug] = f"stopped after {until}"; print(STATUS[slug]); return 0

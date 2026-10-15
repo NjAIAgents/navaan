@@ -93,7 +93,10 @@ def cloud_view(refresh=False):
 
 
 def detail(slug):
-    D = C.song_dir(slug); m = navaan.meta(slug); rows, nxt = navaan.plan(slug)
+    D = C.song_dir(slug)
+    try: navaan.auto_gates(slug)   # gates switched off in Settings approve themselves
+    except Exception: pass
+    m = navaan.meta(slug); rows, nxt = navaan.plan(slug)
     fl = {}
     for f in sorted(os.listdir(D)):
         p = os.path.join(D, f)
@@ -332,6 +335,7 @@ class H(BaseHTTPRequestHandler):
                     if act == "ig_save": return self._send(200, settings_api.ig_save(ct, str(body.get("kind") or "login"), str(body.get("token") or "")))
                     if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
                     if act == "claude_save": return self._send(200, settings_api.claude_save(str(body.get("token") or "")))
+                    if act == "gates_save": return self._send(200, settings_api.gates_save(body.get("gates") or {}))
                     if act == "media_save": return self._send(200, settings_api.media_save(body.get("settings") or {}))
                     if act == "media_key": return self._send(200, settings_api.media_key_save(str(body.get("provider") or ""), str(body.get("token") or "")))
                     if act == "yt_oauth_start": return self._send(200, settings_api.yt_oauth_start(ct, str(body.get("which") or "publish")))
