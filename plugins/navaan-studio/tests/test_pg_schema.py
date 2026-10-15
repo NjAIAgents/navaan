@@ -30,11 +30,13 @@ class Dsn(unittest.TestCase):
     def clean(self):
         for k in self.ENV: os.environ.pop(k, None)
 
+    NO_CONFIG = staticmethod(lambda: mock.patch("navaan_common.cfg", side_effect=lambda k, d=None: d))   # a developer's own navaan.config.json must not leak into these tests
+
     def test_defaults_are_the_dev_container_and_the_dedicated_role(self):
-        with mock.patch.dict(os.environ): self.clean(); self.assertEqual(db._dsn(), "postgresql://navaan_app@127.0.0.1:5432/navaan")
+        with mock.patch.dict(os.environ), self.NO_CONFIG(): self.clean(); self.assertEqual(db._dsn(), "postgresql://navaan_app@127.0.0.1:5432/navaan")
 
     def test_environment_and_password_file(self):
-        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ), self.NO_CONFIG():
             self.clean(); pf = os.path.join(d, "pw")
             with open(pf, "w") as f: f.write("p@ss/w:rd\n")
             os.environ.update(NAVAAN_PG_HOST="navaan-postgres", NAVAAN_PG_PASSWORD_FILE=pf)
