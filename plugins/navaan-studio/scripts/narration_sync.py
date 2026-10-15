@@ -198,6 +198,54 @@ def by_whisper(x, lang="en"):
     return cues, {"method": "whisper"}
 
 
+def _norm(t): return re.sub(r"[^a-z0-9\u0900-\u097f]", "", t.lower())
+
+
+def align_lines(lines, segs):
+    """Start time for each of your lines from Whisper phrases. segs is [(start_s, end_s, text)]. Whisper's letters are spread evenly over each phrase,
+    your text is matched to Whisper's text (so a small spelling difference does not matter), and a line starts where its first letter is spoken."""
+    F, T = [], []
+    for a, b, t in segs:
+        n = _norm(t)
+        for i, ch in enumerate(n): F.append(ch); T.append(a + (b - a) * (i + 0.5) / len(n))
+    if not F: return None
+    Fs = "".join(F); U = "".join(_norm(l) for l in lines)
+    if not U: return None
+    import difflib
+    blocks = [m for m in difflib.SequenceMatcher(None, U, Fs, autojunk=False).get_matching_blocks() if m.size >= 3]
+    def to_f(p):
+        for m in blocks:  # inside a matched stretch: the exact letter
+            if m.a <= p < m.a + m.size: return m.b + (p - m.a)
+        prev = [m for m in blocks if m.a + m.size <= p]; nxt = [m for m in blocks if m.a > p]
+        if prev and nxt:  # between two matches: in proportion
+            a0, b0 = prev[-1].a + prev[-1].size, prev[-1].b + prev[-1].size; a1, b1 = nxt[0].a, nxt[0].b
+            return b0 + (b1 - b0) * (p - a0) / max(1, a1 - a0)
+        if prev: return prev[-1].b + prev[-1].size + (p - prev[-1].a - prev[-1].size)
+        if nxt: return nxt[0].b - (nxt[0].a - p)
+        return p * len(Fs) / len(U)
+    starts, pos = [], 0
+    for l in lines:
+        i = int(round(to_f(pos))); starts.append(T[min(max(i, 0), len(T) - 1)]); pos += len(_norm(l))
+    for i in range(len(starts)):  # in order, and each line shows for at least a moment
+        starts[i] = max(starts[i], (starts[i - 1] + 0.6) if i else 0.0)
+    ends = starts[1:] + [max(segs[-1][1], starts[-1] + 1.5) + 0.3]
+    return [[round(a, 2), round(b, 2), l] for a, b, l in zip(starts, ends, lines)]
+
+
+def by_whisper_lines(x, lines, lang="en"):
+    """Your own lines, timed by where Whisper hears them. Used first when the caption tools are installed: with music under the voice the pauses are not reliable."""
+    import setup_captions as S
+    if not S.ready(): raise RuntimeError("the caption tools are not installed")
+    sys.path.insert(0, HERE)
+    os.environ.setdefault("NAVAAN_WHISPER_DIR", S.MODELS)
+    import asr
+    w = asr.W(os.path.join(S.WH, "small"), lang if lang in ("hi", "en") else "en")
+    segs = whisper_segments(x, w)
+    cues = align_lines(lines, segs) if segs else None
+    if not cues: raise RuntimeError("Whisper heard no words in the audio")
+    return cues, {"method": "whisper-aligned", "phrases": len(segs)}
+
+
 # ---------------------------------------------------------------- srt and the command
 
 def to_srt(cues):
@@ -212,14 +260,17 @@ def find_audio(D):
     return next((p for p in sorted(glob.glob(os.path.join(D, "voiceover.*"))) if os.path.splitext(p)[1].lower() in AUDIO_EXT), None)
 
 
-def sync(D, lines, allow_whisper=True, force_whisper=False, lang="en", ffmpeg="ffmpeg"):
+def sync(D, lines, allow_whisper=True, force_whisper=False, lang="en", ffmpeg="ffmpeg", force_pauses=False):
     """Write voiceover.srt in D. Returns the info dict, or raises RuntimeError with the reason. allow_whisper False returns None instead of falling back."""
     audio = find_audio(D)
     if not audio: raise RuntimeError("no voiceover audio in the folder")
     x = decode(audio, ffmpeg)
     if len(x) / SR > MAX_SECONDS: raise RuntimeError(f"the narration is {len(x) / SR:.0f} s, the video limit is 60 s")
     cues = None; info = {}
-    if lines and not force_whisper:
+    if lines and not force_pauses and not force_whisper:
+        try: cues, info = by_whisper_lines(x, lines, lang)  # Whisper's positions first, the pauses only when it is not available
+        except Exception as e: cues, info = None, {"whisper_lines_failed": str(e)[:120]}
+    if lines and not force_whisper and cues is None:
         cues, info = by_pauses(x, lines)
         if cues is None: why = info; info = {}
     else: why = "no text lines to match"
@@ -249,7 +300,7 @@ def main(a):
     D = C.song_dir(a[0]); q = C.load_json(os.path.join(D, "quote.json"), default={}) or {}
     lines = [l for l in (q.get("lines") or []) if str(l).strip()]
     flag = os.path.join(D, "narration_sync.json")
-    try: info = sync(D, lines, force_whisper="--whisper" in a, lang=(q.get("language") or "en")[:2], ffmpeg=C.tool("ffmpeg"))
+    try: info = sync(D, lines, force_whisper="--whisper" in a, force_pauses="--pauses" in a, lang=(q.get("language") or "en")[:2], ffmpeg=C.tool("ffmpeg"))
     except ImportError: _again_in_venv(a + ["--whisper"] if "--whisper" not in a else a); sys.exit("navaan: Whisper needs the caption tools. Approve the captions_setup gate, or run setup_captions.py --yes.")
     except RuntimeError as e:
         if "caption tools" in str(e): json.dump({"needs_whisper": True, "why": str(e)}, open(flag, "w"))  # the next run asks for the captions_setup gate first

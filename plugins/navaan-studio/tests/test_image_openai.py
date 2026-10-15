@@ -54,7 +54,8 @@ class Steps(Base):
 
 class Cap(Base):
     def test_estimate_and_cap(self):
-        self.assertAlmostEqual(I.check_cap("medium"), 0.041)
+        self.assertAlmostEqual(I.check_cap("medium"), 0.062)  # the default size is 1152x2048
+        self.assertAlmostEqual(I.check_cap("medium", size="1024x1536"), 0.041)
         M.save({"max_run_usd": 0.05})
         with self.assertRaises(ValueError): I.check_cap("high")
 
@@ -72,6 +73,7 @@ class Make(Base):
 
     def test_fit_is_cover_crop(self):
         out = I.fit_portrait(png(1024, 1536)); self.assertEqual(out.size, (1080, 1920))
+        out = I.fit_portrait(png(1152, 2048)); self.assertEqual(out.size, (1080, 1920))  # exact 9:16, scaled down, nothing cropped
 
     def test_makes_background_and_counts_spend(self):
         self.prep()
@@ -80,7 +82,7 @@ class Make(Base):
             self.assertEqual(r.call_count, 1)
         self.assertEqual(Image.open(os.path.join(self.D, "background.png")).size, (1080, 1920))
         self.assertTrue(os.path.exists(os.path.join(self.D, "scenes", "background_openai.png")))
-        self.assertAlmostEqual(M.usage()["openai_usd"], 0.041)
+        self.assertAlmostEqual(M.usage()["openai_usd"], 0.062)
 
     def test_existing_background_is_not_replaced_or_paid_for(self):
         self.prep(); open(os.path.join(self.D, "background.jpg"), "wb").write(b"x")
