@@ -67,6 +67,22 @@ def fresh(D, outs, src):
 def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 
 
+def song_picture_steps(slug, D, mc):
+    """The director writes the picture prompts (story, character, places, motion hints), then OpenAI paints them. Done when the song already has enough pictures."""
+    import prompt_pack, visuals_cfg, song_images_openai as SI, image_openai as IO
+    have = len(visuals_cfg.own_images(D))
+    pack = prompt_pack.load(D)
+    n = len(pack["prompts"]) if pack and pack.get("prompts") else 0
+    label = "Create the pictures with OpenAI"
+    if n: label += " (%d pictures, about $%.2f at %s)" % (n, IO.estimate(mc["image_quality"], mc["image_size_landscape"]) * n, mc["image_quality"])
+    return [
+        dict(id="prompts", outputs=["prompt_pack.json"], label="Director writes the picture plan: story, character, places, motion", kind="script",
+             cmds=[sc("prompt_pack.py", slug)], done=lambda m: bool(n) or have >= visuals_cfg.MIN_VIDEO),
+        dict(id="pictures", outputs=["images/*"], label=label, kind="script", before="credits",
+             cmds=[sc("song_images_openai.py", slug)], done=lambda m: have >= visuals_cfg.MIN_VIDEO),
+    ]
+
+
 def music_steps(slug, D):
     reel_meta = ["--meta", "tags.json"]
     imported = load_json(os.path.join(D, "meta.json"), default={}).get("source") == "suno_import"
@@ -96,7 +112,9 @@ def music_steps(slug, D):
     CAP = bool(cfg("captions.enabled", False))  # lyric captions over the video are off unless the profile turns them on
     cap_steps = [cap_step] if CAP else []
     CAPR = bool(cfg("captions.reel", True)) and vmode == "own"  # lyric captions burned onto the vertical reel of an own-pictures song (Instagram). The full YouTube video never gets them, viewers use CC
-    own_steps = ([] if own_static else [
+    mc = media_cfg.load()
+    pic_steps = [] if (own_static or vmode != "own" or mc["image_provider"] != "openai") else song_picture_steps(slug, D, mc)
+    own_steps = pic_steps + ([] if own_static else [
         dict(id="shots", outputs=["shots.json", "shots_context.json", "shots_props.json"], label="Director's shot list from the lyrics (you approve or edit it)", kind="claude", skill="director-shots", chrome=False,
              done=lambda m: has(D, "shots.json"), after="shots")]) + [
         *([cap_step] if CAPR else []),
