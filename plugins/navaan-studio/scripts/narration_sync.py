@@ -237,7 +237,8 @@ def _again_in_venv(a):
     """Run this command again with the python of the caption tools (it has numpy, onnxruntime and librosa). Returns only when that is not possible."""
     import setup_captions as S
     py = S.venv_python()
-    if S.ready() and os.path.realpath(sys.executable) != os.path.realpath(py): os.execv(py, [py, os.path.abspath(__file__)] + a)
+    # Compare the environment, not the interpreter file: on Linux the venv python is a symlink to the system python, so their real paths match and the old check never switched.
+    if S.ready() and os.path.realpath(sys.prefix) != os.path.realpath(S.VENV): os.execv(py, [py, os.path.abspath(__file__)] + a)
 
 
 def main(a):
