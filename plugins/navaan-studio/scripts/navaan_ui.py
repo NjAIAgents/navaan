@@ -358,8 +358,21 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/import":
                 import suno_import
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
-                sl = suno_import.init(body.get("url", ""), slug or None)
+                au = body.get("audio") if isinstance(body.get("audio"), dict) else None
+                try:
+                    if au: suno_import.check_upload(au.get("name"), str(au.get("data") or ""))
+                    sl = suno_import.init(body.get("url", ""), slug or None, allow_blank=bool(au))
+                    if au: suno_import.save_upload(sl, au.get("name"), str(au.get("data") or ""))
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
                 return self._send(200, {"slug": sl, "started": start_job(sl, True)})
+            if p == "/api/suno/audio":
+                import suno_import
+                if not SLUG.match(slug) or not os.path.isdir(C.song_dir(slug)): return self._send(404, {"error": "no such song"})
+                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
+                try: suno_import.save_upload(slug, body.get("name"), str(body.get("data") or ""))
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                return self._send(200, {"ok": True, "started": start_job(slug, True)})
             if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
             if p == "/api/approve":
                 navaan.set_gate(slug, body["gate"], True, "ui"); started = False
