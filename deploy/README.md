@@ -173,7 +173,7 @@ the rollback copy: delete it by hand after about 14 days. Rolling back after a g
 ```
 
 **Development and tests.** `docker compose -f deploy/compose.dev.yml up -d` starts a Postgres on 127.0.0.1:5432 (role `navaan_app`, no password, database `navaan`), which is
-what `analytics_db` uses with nothing configured. Run the tests with `python -m unittest discover -s plugins/navaan-studio/tests`; each test gets its own throwaway schema.
+what `analytics_db` uses with nothing configured. If another Postgres already holds 5432 (check `lsof -nP -iTCP:5432 -sTCP:LISTEN`), start it with `NAVAAN_PG_PORT=5440 docker compose -f deploy/compose.dev.yml up -d` and put `"database": {"port": 5440}` in `navaan.config.json` (or export `NAVAAN_PG_PORT`). Run the tests with `python -m unittest discover -s plugins/navaan-studio/tests`; each test gets its own throwaway schema.
 
 **Check by hand** (prove an old file and Postgres agree, or redo a copy): `python3 plugins/navaan-studio/scripts/analytics_to_postgres.py --sqlite <file> [--replace] [--dry-run]`
 prints rows and a checksum per table and exits 0 only when every table matches.
