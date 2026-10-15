@@ -150,9 +150,12 @@ def music_steps(slug, D):
         dict(id="shots", outputs=["shots.json", "shots_context.json", "shots_props.json"], label="Director's shot list from the lyrics (you approve or edit it)", kind="claude", skill="director-shots", chrome=False,
              done=lambda m: has(D, "shots.json"), after="shots")]) + mo_steps + [
         *([cap_step] if CAPR else []),
-        dict(id="video", outputs=["final_16x9.mp4", "final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video and the vertical reel here from your pictures" + (", burn the lyrics onto the reel" if CAPR else "") + " and tag the mp3", kind="script", sets_after="media_ready",
-             cmds=[sc("shots_render.py", slug), sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []) + [sc("tag_mp3.py", slug)],
-             done=lambda m: fresh(D, ["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", ".cache/motion/*.mp4"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else [])), after="media", sets="approved"),
+        dict(id="reel", outputs=["final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "thumb_9x16.jpg", "reel_report.json", "reel_audio.mp3", "reel_props.json"], label="Render the vertical reel for Instagram and the Short from the hook" + (" and burn the lyrics onto it" if CAPR else "") + " (redo this alone to remake only the reel)", kind="script",
+             cmds=[sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []),
+             done=lambda m: fresh(D, ["final_reel_9x16.mp4"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", "images/vert/*", ".cache/motion/*.mp4", "reel_start.json"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else []))),
+        dict(id="video", outputs=["final_16x9.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the full video here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
+             cmds=[sc("shots_render.py", slug), sc("tag_mp3.py", slug)],
+             done=lambda m: fresh(D, ["final_16x9.mp4", "final_tagged.mp3"], ["visuals.json", "images/*", ".cache/motion/*.mp4"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
     ]
     REELS = bool(cfg("video.make_reel", False))  # YouTube makes Shorts from the full video in its editor, so a separate vertical reel is optional
     FULL = "final_16x9_cap.mp4" if (CAP and vmode != "own") else "final_16x9.mp4"
@@ -681,7 +684,7 @@ def redo(slug, sid, pending=True):
     return dest if moved else None
 
 
-PRODUCE_FROM = ("prompts", "pictures", "shots", "motion_plan", "motion_clips", "captions", "video")   # steps a restart can start from; it runs through the render
+PRODUCE_FROM = ("prompts", "pictures", "shots", "motion_plan", "motion_clips", "captions", "reel", "video")   # steps a restart can start from; it runs through the render
 
 
 def redo_range(slug, sid):

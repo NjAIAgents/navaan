@@ -28,16 +28,19 @@ class T(unittest.TestCase):
 
     def test_reel_captions_are_a_step_when_on(self):
         ids = [s["id"] for s in steps_for(True)]
-        self.assertLess(ids.index("captions"), ids.index("video"))
-        v = next(s for s in steps_for(True) if s["id"] == "video")
-        self.assertTrue(any(c[-1] == "own" and c[-2].endswith("x") for c in v["cmds"]))
-        self.assertIn("final_reel_9x16_cap.mp4", v["outputs"])
+        self.assertLess(ids.index("captions"), ids.index("reel")); self.assertLess(ids.index("reel"), ids.index("video"))
+        r = next(s for s in steps_for(True) if s["id"] == "reel")
+        self.assertTrue(any(c[-1] == "own" and c[-2].endswith("x") for c in r["cmds"]))
+        self.assertIn("final_reel_9x16_cap.mp4", r["outputs"])
+        v = next(s for s in steps_for(True) if s["id"] == "video")   # the full video no longer makes the reel, so the reel can be redone alone
+        self.assertFalse(any("--reel" in c for c in v["cmds"])); self.assertNotIn("final_reel_9x16.mp4", v["outputs"])
+        self.assertIn("--reel", next(s for s in steps_for(True) if s["id"] == "reel")["cmds"][0])
 
     def test_no_caption_step_when_off(self):
         ss = steps_for(False)
         self.assertNotIn("captions", [s["id"] for s in ss])
-        v = next(s for s in ss if s["id"] == "video")
-        self.assertFalse(any(c[-1] == "own" for c in v["cmds"]))
+        r = next(s for s in ss if s["id"] == "reel")
+        self.assertFalse(any(c[-1] == "own" for c in r["cmds"]))
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_burns_captions_onto_the_reel(self):
