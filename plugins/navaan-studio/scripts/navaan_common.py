@@ -5,6 +5,8 @@ Tools: ffmpeg and ffprobe are found on PATH, with common macOS locations as fall
 Font for captions: env NAVAAN_FONT (path[:index]), else a Devanagari capable system font.
 """
 import os, re, shutil, subprocess, sys, json, time
+import navaan_log as L
+LOG = L.get("navaan_common")
 
 
 def find_root():
@@ -39,7 +41,7 @@ def load_claude_env(conf_dir=None):
         for line in open(os.path.join(conf_dir or os.path.expanduser("~/.config/navaan"), "claude.env"), encoding="utf-8"):
             k, _, v = line.strip().partition("=")
             if k in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY") and v.strip(): os.environ[k] = v.strip().strip("\"'")
-    except OSError: pass
+    except OSError as _e: L.ignored(LOG, "load_claude_env: OSError (optional or expected)", _e); pass
 
 
 def note_claude_result(ok, log_tail=""):

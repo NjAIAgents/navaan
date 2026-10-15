@@ -16,6 +16,8 @@ import inspire_render as R
 import visuals_cfg as V
 import motion_clips
 import watermark
+import navaan_log as L
+LOG = L.get("shots_render")
 
 W, H, FPS = 1920, 1080, 24
 OUT = "final_16x9.mp4"
@@ -164,7 +166,8 @@ def pick_window(D, mp3):
             for sec in shots_prep.build_context(D)["sections"]:
                 if re.search(r"chorus|hook|refrain", sec["label"], re.I) and not re.search(r"pre", sec["label"], re.I):
                     start = float(sec["start"]); break
-        except SystemExit:
+        except SystemExit as _e:
+            L.ignored(LOG, "pick_window: SystemExit (optional or expected)", _e)
             pass
         if start is None: start = total * 0.3
         start = snap_to_pause(mp3, start); dur = want

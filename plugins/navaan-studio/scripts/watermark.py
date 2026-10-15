@@ -8,6 +8,8 @@ drawtext_vf()  an ffmpeg drawtext filter for the paths that do not go through Re
 import os, sys, re, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("watermark")
 
 FONTS = ("/System/Library/Fonts/Helvetica.ttc", "/Library/Fonts/Arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
          "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
@@ -22,7 +24,8 @@ def text(D=None):
     try:
         m = C.load_json(os.path.join(D, "meta.json"), default={}) if D else {}
         handle = (C.account(C.item_type(m)).get("handle") or "").strip()
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "text_error")
         handle = ""
     handle = handle or (C.cfg("publish.instagram_handle", "") or "").strip()
     handle = handle.lstrip("@")
@@ -36,7 +39,8 @@ def drawtext_vf(D, vertical=False):
     if not font: return ""
     try:
         have = subprocess.run([C.tool("ffmpeg"), "-hide_banner", "-filters"], capture_output=True, text=True, timeout=20).stdout
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "drawtext_vf_error")
         return ""
     if not re.search(r"\bdrawtext\b", have): return ""
     t = t.replace("\\", "").replace(":", "").replace("'", "")

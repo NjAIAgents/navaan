@@ -13,6 +13,8 @@ import os, sys, io, json, base64, time, glob, uuid, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import media_cfg
+import navaan_log as L
+LOG = L.get("image_openai")
 
 DEFAULT_MODEL = "gpt-image-2.5-flare"
 # Dollars for one picture on the older gpt-image-2 by size and quality. Used for the cap and the estimate card, not for billing.
@@ -31,7 +33,7 @@ def model_name(cfg=None):
     env = os.environ.get("NAVAAN_OPENAI_IMAGE_MODEL")
     if env: return env
     try: return (cfg or media_cfg.load()).get("image_model") or DEFAULT_MODEL
-    except Exception: return DEFAULT_MODEL
+    except Exception as _e: L.soft(LOG, "model_name_error"); return DEFAULT_MODEL
 
 
 def estimate(quality, size="1152x2048", model=None, refs=0):
@@ -71,7 +73,7 @@ def _send(req, key):
     except urllib.error.HTTPError as e:
         msg = ""
         try: msg = json.load(e).get("error", {}).get("message", "")
-        except Exception: pass
+        except Exception as _e: L.soft(LOG, "send_error"); pass
         raise RuntimeError("OpenAI refused the picture (HTTP %s). %s" % (e.code, msg.replace(key, "<key>")[:200]))
     except Exception as e:
         raise RuntimeError("Could not reach OpenAI: " + str(e).replace(key, "<key>")[:160])
@@ -117,6 +119,7 @@ def main(argv):
     try:
         cost = check_cap(q, cfg)
     except ValueError as e:
+        L.ignored(LOG, "main: ValueError (optional or expected)", e)
         sys.exit("navaan: " + str(e))
     if "--estimate" in argv:
         print(json.dumps({"model": model, "size": cfg["image_size"], "quality": q, "usd": cost}))

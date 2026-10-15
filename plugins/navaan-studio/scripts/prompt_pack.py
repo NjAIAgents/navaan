@@ -13,6 +13,8 @@ import os, sys, json, re, math, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import shots_prep, visuals_cfg as V
+import navaan_log as L
+LOG = L.get("prompt_pack")
 
 MIN_COUNT, MAX_COUNT, SECONDS_PER_PICTURE = 6, V.MAX_IMAGES, 10.0
 ASPECT = "16:9"
@@ -143,7 +145,8 @@ def parse_camera(text, count):
         f = m.get("focus")
         try:
             f = [round(min(1.0, max(0.0, float(f[0]))), 2), round(min(1.0, max(0.0, float(f[1]))), 2)]
-        except (TypeError, ValueError, IndexError, KeyError):
+        except (TypeError, ValueError, IndexError, KeyError) as _e:
+            L.ignored(LOG, "parse_camera: TypeError/ValueError/IndexError/KeyError (optional or expected)", _e)
             f = None
         out.append({"camera": cam if cam in shots_prep.CAMERAS else "", "focus": f})
     return out
@@ -165,12 +168,14 @@ def openai_runner(prompt, timeout=300):
             runner_model[0] = model
             return j["choices"][0]["message"]["content"]
         except urllib.error.HTTPError as e:
+            L.ignored(LOG, "openai_runner: HTTPError (optional or expected)", e)
             try: msg = e.read().decode("utf-8", "ignore")
-            except Exception: msg = ""
+            except Exception as _e: L.soft(LOG, "openai_runner_error"); msg = ""
             last = "OpenAI %s refused the request (HTTP %s). %s" % (model, e.code, msg.replace(key, "<key>")[:200])
             if e.code in (400, 404): continue
             break
         except (urllib.error.URLError, OSError, KeyError, ValueError) as e:
+            L.ignored(LOG, "openai_runner: URLError/OSError/KeyError/ValueError (optional or expected)", e)
             last = "Could not use OpenAI %s: %s" % (model, str(e).replace(key, "<key>")[:160])
             break
     raise RuntimeError(last or "OpenAI did not answer")
@@ -183,7 +188,8 @@ def make(slug, count=None, runner=None):
         try:
             import media_cfg
             count = int(media_cfg.load()["song_pictures"])
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "make_error")
             count = None
     count = int(count) if count else default_count(ctx["duration"])
     count = max(MIN_COUNT, min(MAX_COUNT, count))
@@ -193,7 +199,8 @@ def make(slug, count=None, runner=None):
         try:
             import media_cfg
             use_oa = media_cfg.load().get("picture_director") == "openai" and bool(media_cfg.get_key("openai"))
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "make_error")
             use_oa = False
         if use_oa:
             runner, who = openai_runner, "openai"
@@ -205,12 +212,12 @@ def make(slug, count=None, runner=None):
         last = None
         for _ in range(2):
             try: return parse_fn(runner(prompt))
-            except (ValueError, RuntimeError) as e: last = e
+            except (ValueError, RuntimeError) as e: L.ignored(LOG, "ask: ValueError/RuntimeError (optional or expected)", e); last = e
         raise RuntimeError(f"Could not write the prompts: {last}")
     look = ask(build_look_prompt(ctx), parse_look)                                                                  # role 1: art director
     r = ask(build_prompt(ctx, slots, look=look), lambda t: parse_full(t, len(slots), look["style_line"]))            # role 2: story director
     try: moves = ask(build_camera_prompt(ctx, slots, r["items"], look), lambda t: parse_camera(t, len(slots)))      # role 3: camera operator
-    except RuntimeError: moves = [{"camera": "", "focus": None}] * len(slots)                                       # the shot list picks the moves
+    except RuntimeError as _e: L.ignored(LOG, "make: RuntimeError (optional or expected)", _e); moves = [{"camera": "", "focus": None}] * len(slots)                                       # the shot list picks the moves
     pack = {"director": (who + " " + runner_model[0]).strip(), "concept": r["concept"], "character": r["character"], "style_line": look["style_line"],
             "look": look, "aspect": ASPECT,
             "prompts": [{"n": i, "section": s["section"], "lyric": " / ".join(s["lines"][:2]), "prompt": it["prompt"], "camera": mv["camera"], "focus": mv["focus"], "motion": it["motion"]}

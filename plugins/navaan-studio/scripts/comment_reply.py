@@ -17,6 +17,8 @@ import os, sys, re, json, shlex, subprocess, urllib.request, urllib.parse, urlli
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("comment_reply")
 
 PLATFORMS = ("youtube", "instagram")
 STATES = ("draft", "sent", "failed", "skipped")
@@ -110,7 +112,8 @@ def _quote_text(slug):
     try:
         import navaan_common as C
         return (json.load(open(os.path.join(C.song_dir(slug), "quote.json"), encoding="utf-8")).get("text") or "").strip()[:600]
-    except (OSError, ValueError, SystemExit, AttributeError):
+    except (OSError, ValueError, SystemExit, AttributeError) as _e:
+        L.ignored(LOG, "_quote_text: OSError/ValueError/SystemExit/AttributeError (optional or expected)", _e)
         return ""
 
 
@@ -129,7 +132,8 @@ def _post_text(c):
         import navaan_common as C
         y = json.load(open(os.path.join(C.song_dir(slug), "youtube.json"), encoding="utf-8"))
         return (y.get("description") or "").strip()[:500], [str(t) for t in (y.get("tags") or [])][:8]
-    except (OSError, ValueError, SystemExit, AttributeError):
+    except (OSError, ValueError, SystemExit, AttributeError) as _e:
+        L.ignored(LOG, "_post_text: OSError/ValueError/SystemExit/AttributeError (optional or expected)", _e)
         return "", []
 
 
@@ -257,7 +261,8 @@ def _err_text(e, secrets):
         raw = e.read().decode("utf-8", "replace")
         msg = (json.loads(raw).get("error") or {})
         msg = msg.get("message") if isinstance(msg, dict) else str(msg)
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "err_text_error")
         msg = str(e)
     for s in secrets or []:
         if s:

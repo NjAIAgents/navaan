@@ -12,6 +12,8 @@ import os, re, sys, json, time, shlex, datetime, subprocess, threading, urllib.r
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import media_cfg
+import navaan_log as L
+LOG = L.get("settings_api")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~/.config/navaan")
@@ -55,11 +57,13 @@ def _get(url, params, timeout=20):
     try:
         return json.loads(urllib.request.urlopen(u, timeout=timeout).read()), ""
     except urllib.error.HTTPError as e:
+        L.ignored(LOG, "_get: HTTPError (optional or expected)", e)
         body = e.read().decode("utf-8", "replace")
         try: msg = json.loads(body)["error"]["message"]
-        except Exception: msg = body[:200]
+        except Exception as _e: L.soft(LOG, "get_error"); msg = body[:200]
         return None, f"{e.code}: {msg}"
     except Exception as e:
+        L.soft(LOG, "get_error")
         return None, str(e)[:200]
 
 
@@ -67,7 +71,8 @@ def _days(iso):
     try:
         d = datetime.datetime.strptime(iso[:10], "%Y-%m-%d").date()
         return (d - datetime.date.today()).days
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "days_error")
         return None
 
 
@@ -114,6 +119,7 @@ def _yt_status(path):
         out["ok"] = True; out["channel"] = items[0]["snippet"]["title"] if items else "(no channel)"
         out["account"] = t.get("account") or ""
     except Exception as e:
+        L.soft(LOG, "yt_status_error")
         msg = str(e)
         out["ok"] = False
         out["error"] = "sign in again (refresh token expired or revoked)" if "invalid_grant" in msg else msg[:200]
@@ -144,8 +150,8 @@ def _claude_test(var, token):
     env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN")}; env[var] = token
     try:
         p = subprocess.run(shlex.split(os.environ.get("NAVAAN_CLAUDE_CMD", "claude -p")) + ["Reply with the single word OK."], capture_output=True, text=True, timeout=120, env=env, cwd=(os.path.expanduser("~") if os.path.isdir(os.path.expanduser("~")) else None))
-    except FileNotFoundError: return False, "The claude command was not found on this server."
-    except subprocess.TimeoutExpired: return False, "Claude did not answer within 2 minutes. Try again."
+    except FileNotFoundError as _e: L.ignored(LOG, "_claude_test: FileNotFoundError (optional or expected)", _e); return False, "The claude command was not found on this server."
+    except subprocess.TimeoutExpired as _e: L.ignored(LOG, "_claude_test: TimeoutExpired (optional or expected)", _e); return False, "Claude did not answer within 2 minutes. Try again."
     out = ((p.stdout or "") + (p.stderr or "")).replace(token, "<token>").strip()
     if p.returncode == 0 and "ok" in out.lower(): return True, ""
     C.note_claude_result(False, out)
@@ -187,10 +193,10 @@ def yt_save(ctype, which, text):
         raise ValueError("That token file is missing refresh_token, client_id or client_secret. Run the sign in command again and paste the new file.")
     tmp = path + ".check"; _atomic_write(tmp, json.dumps(info))
     try: st = _yt_status(tmp)
-    except Exception as e: st = {"ok": False, "error": str(e)[:200]}
+    except Exception as e: L.soft(LOG, "yt_save_error"); st = {"ok": False, "error": str(e)[:200]}
     if not st.get("ok"):
         try: os.remove(tmp)
-        except OSError: pass
+        except OSError as _e: L.ignored(LOG, "yt_save: OSError (optional or expected)", _e); pass
         raise ValueError("Google did not accept that token: " + (st.get("error") or "unknown error") + (" Sign in again and paste the new file." if "sign in" in (st.get("error") or "") else ""))
     os.replace(tmp, path); os.chmod(path, 0o600); _cache["at"] = 0
     return {"ok": True, "channel": st.get("channel")}
@@ -252,7 +258,7 @@ def alerts():
                     "message": "Steps that use Claude (lyrics, captions text, recommendations) cannot run until a new token is saved.",
                     "command": "claude setup-token", "where": "on any computer where Claude Code is signed in with your account. Copy the token it prints (it starts with sk-ant-)."})
     try: d = status()
-    except Exception: d = {"accounts": []}
+    except Exception as _e: L.soft(LOG, "alerts_error"); d = {"accounts": []}
     for a in d.get("accounts", []):
         t = a["type"]; label = t.capitalize()
         for which, key in (("publish", "yt"), ("analytics", "yt_analytics")):
@@ -283,7 +289,7 @@ def status(force=False):
     for t in types:
         a = C.account(t); env_path = _env_path(t); env = _read_env(env_path); yt_path = _yt_path(t)
         try: ana_path = yt_token_path(t, "analytics")
-        except Exception: ana_path = None
+        except Exception as _e: L.soft(LOG, "status_error"); ana_path = None
         accounts.append({"type": t, "handle": a.get("handle") or "", "youtube_channel": a.get("youtube_channel") or "", "configured": a["configured"],
                          "ig_env": env_path, "ig": _ig_status(env, "NAVAAN_IG_HOST", "NAVAAN_IG_USER_ID", "NAVAAN_IG_TOKEN", "NAVAAN_IG_TOKEN_EXPIRES"),
                          "market": _ig_status(env, "NAVAAN_IG_MARKET_HOST", "NAVAAN_IG_MARKET_USER_ID", "NAVAAN_IG_MARKET_TOKEN", "NAVAAN_IG_MARKET_EXPIRES"),
@@ -357,13 +363,14 @@ def yt_signin(ctype):
             YT.update(rc=p.returncode, tail=((p.stdout or "") + (p.stderr or "")).strip()[-600:])
             if p.returncode != 0 and not os.path.exists(path) and os.path.exists(path + ".old"): os.rename(path + ".old", path)
         except Exception as e:
+            L.soft(LOG, "work_error")
             YT.update(rc=2, tail=str(e)[:300])
             if not os.path.exists(path) and os.path.exists(path + ".old"): os.rename(path + ".old", path)
         finally:
             YT["running"] = False; _cache["at"] = 0
             if os.path.exists(path + ".old"):
                 try: os.remove(path + ".old")
-                except OSError: pass
+                except OSError as _e: L.ignored(LOG, "work: OSError (optional or expected)", _e); pass
     threading.Thread(target=work, daemon=True).start()
     return True
 

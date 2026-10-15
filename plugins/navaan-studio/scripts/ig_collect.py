@@ -33,6 +33,8 @@ import os, sys, json, time, re, uuid, argparse, datetime, urllib.request, urllib
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("ig_collect")
 
 DEFAULT_HOST = "https://graph.instagram.com"
 DEFAULT_VERSION = "v23.0"
@@ -76,7 +78,8 @@ class Client:
         try:
             raw = e.read().decode("utf-8", "replace")
             body = json.loads(raw).get("error", {})
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "err_error")
             body = {}
         msg = (body.get("message") or raw[:200] or str(e)).replace(self.token, "***")
         code = body.get("code")
@@ -90,8 +93,10 @@ class Client:
                 with self.opener(urllib.request.Request(url), timeout=60) as r:
                     return json.load(r)
             except urllib.error.HTTPError as e:
+                L.ignored(LOG, "get: HTTPError (optional or expected)", e)
                 err = self._err(e)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                L.ignored(LOG, "get: URLError/TimeoutError/ConnectionError (optional or expected)", e)
                 err = ApiError(0, None, str(getattr(e, "reason", e)).replace(self.token, "***"), retriable=True)
             if not err.retriable or attempt == 4:
                 raise err
@@ -118,7 +123,8 @@ def norm_ts(s):
     s2 = re.sub(r"([+-]\d\d)(\d\d)$", r"\1:\2", s.replace("Z", "+00:00"))
     try:
         dt = datetime.datetime.fromisoformat(s2)
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "norm_ts: ValueError (optional or expected)", _e)
         return s
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
@@ -128,7 +134,8 @@ def norm_ts(s):
 def parse_ts(s):
     try:
         return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) if s else None
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "parse_ts: ValueError (optional or expected)", _e)
         return None
 
 
@@ -514,7 +521,8 @@ def collect_hashtags(ctx):
     try:
         from navaan_common import cfg
         configured = [str(t).lstrip("#").lower() for t in (cfg("analytics.hashtags", []) or [])]
-    except SystemExit:
+    except SystemExit as _e:
+        L.ignored(LOG, "collect_hashtags: SystemExit (optional or expected)", _e)
         configured = []
     tags = list(dict.fromkeys(configured + own_hashtags(ctx.conn, ctx.uid)))
     if not tags:
@@ -580,6 +588,7 @@ def collect(conn, client, uid, label, only=ALL_COLLECTORS, opts=None, market=Non
                     ctx.errors.append({"where": name, "error": str(e)[:300]})
         status = "ok" if not ctx.errors else "partial"
     except ApiError as e:
+        L.ignored(LOG, "collect: ApiError (optional or expected)", e)
         status = "failed"
         ctx.errors.append({"where": "auth" if e.auth else "run", "error": str(e)[:300] + (" Token expired or invalid: refresh the long-lived token." if e.auth else "")})
     conn.execute(f"UPDATE accounts SET last_collected_at = {db.PH} WHERE ig_user_id = {db.PH}", (db.utcnow(), uid)) if status != "failed" else None
