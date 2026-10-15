@@ -71,14 +71,15 @@ def problems(D, v=None):
     return out
 
 
-def save(D, mode, layout=None, camera="", scene=""):
+def save(D, mode, layout=None, camera="", scene="", pictures_later=False):
+    """pictures_later: the pictures will be made by the OpenAI step, so a video layout can be chosen with no pictures yet."""
     if mode not in ("own", "flow"): raise ValueError("mode must be own or flow")
     v = {"mode": mode}
     if mode == "own":
         if layout not in ("static", "video"): raise ValueError("layout must be static or video")
         v.update({"layout": layout, "images": own_images(D), "camera": str(camera or "").strip()[:600], "scene": str(scene or "").strip()[:600]})
         pr = problems(D, v)
-        if pr: raise ValueError(pr[0])
+        if pr and not (pictures_later and layout == "video"): raise ValueError(pr[0])
     import datetime
     v["chosen_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     json.dump(v, open(vpath(D), "w", encoding="utf-8"), indent=2, ensure_ascii=False); open(vpath(D), "a").write("\n")
