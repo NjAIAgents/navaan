@@ -35,6 +35,15 @@ def prep_images(D, rels, sub="shots"):
     return out
 
 
+def blur_backdrop(D, cache_rel):
+    """A dark, blurred 1080x1920 copy of a picture for behind the fitted picture of the reel, made once with ffmpeg (a blur on every frame in the renderer is slow). Returns its path inside the song folder."""
+    cd = os.path.join(D, ".cache", "vertbg"); os.makedirs(cd, exist_ok=True)
+    src = os.path.join(D, cache_rel); dst = os.path.join(cd, os.path.splitext(os.path.basename(cache_rel))[0] + ".jpg")
+    if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
+        C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-vf", f"scale={RW // 4}:{RH // 4}:force_original_aspect_ratio=increase,crop={RW // 4}:{RH // 4},gblur=sigma=9,eq=brightness=-0.22:saturation=0.9,scale={RW}:{RH}:flags=bicubic", "-frames:v", "1", "-q:v", "3", dst])
+    return os.path.relpath(dst, D)
+
+
 def vert_rel(D, rel):
     """images/vert/pic_NN.png when a native 9:16 picture was made for images/pic_NN.png (song_images_openai.py --vertical), else None."""
     r = os.path.join("images", "vert", os.path.basename(rel))
@@ -188,6 +197,7 @@ def render_reel(slug):
         else:
             sh["loop"] = loop_rel(D, sh["image"]); sh["image"] = cache[sh["image"]]
             sh["fit"] = bool(C.cfg("video.reel_fit", True))   # a 16:9 picture is shown whole over a blurred copy of itself instead of cropped to fill
+            if sh["fit"]: sh["bg"] = blur_backdrop(D, sh["image"])
     props = {"width": RW, "height": RH, "fps": FPS, "duration": dur, "audio": REEL_AUDIO, "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.0, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 1.5, "watermark": watermark.text(D)}
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
     rd = R.remotion_dir()

@@ -3,7 +3,7 @@ import {AbsoluteFill, Audio, Img, Loop, OffthreadVideo, Sequence, interpolate, s
 
 // A music video stitched from the user's own pictures. Each shot shows one picture with a slow camera move, shots cross fade.
 // shots.json (approved by the user) is turned into these props by shots_render.py.
-export type Shot = {start: number; end: number; image: string; camera: string; focus?: [number, number]; loop?: string | null; fit?: boolean};
+export type Shot = {start: number; end: number; image: string; camera: string; focus?: [number, number]; loop?: string | null; fit?: boolean; bg?: string | null};
 export type ShotsProps = {
   width: number;
   height: number;
@@ -71,7 +71,12 @@ const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number; l
     const fs: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'contain', transform: `scale(${moveFit(shot.camera, p)})`, transformOrigin: '50% 50%'};
     return (
       <AbsoluteFill style={{opacity: op}}>
-        <Img src={staticFile(shot.image)} style={{position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(40px) brightness(0.55)', transform: 'scale(1.3)'}} />
+        {shot.bg ? (
+          // blurred and darkened once by shots_render.py: a blur filter on every frame is slow to render
+          <Img src={staticFile(shot.bg)} style={{position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover'}} />
+        ) : (
+          <Img src={staticFile(shot.image)} style={{position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(40px) brightness(0.55)', transform: 'scale(1.3)'}} />
+        )}
         {shot.loop ? (
           <Loop durationInFrames={Math.max(1, Math.round(loopSeconds * fps))}>
             <OffthreadVideo src={staticFile(shot.loop)} muted style={fs} />

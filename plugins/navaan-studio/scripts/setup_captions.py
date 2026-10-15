@@ -25,10 +25,16 @@ def venv_python():
     return os.path.join(VENV, "Scripts" if os.name == "nt" else "bin", "python")
 
 
+_PKGS_OK = False  # the import check starts Python and loads the ML libraries (~200 ms); plan() asks on every dashboard load, so remember a yes (a no is rechecked, install() may fix it)
+
+
 def have_pkgs():
+    global _PKGS_OK
+    if _PKGS_OK: return True
     py = venv_python()
     if not os.path.exists(py): return False
-    return subprocess.run([py, "-c", "import onnxruntime, librosa, scipy, numpy, PIL"], capture_output=True).returncode == 0
+    _PKGS_OK = subprocess.run([py, "-c", "import onnxruntime, librosa, scipy, numpy, PIL"], capture_output=True).returncode == 0
+    return _PKGS_OK
 
 
 def have_models():

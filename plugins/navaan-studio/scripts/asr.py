@@ -45,11 +45,28 @@ class W:
         return b.decode("utf-8",errors="ignore")
 def vox(tag):
     v=np.load(f"{WORK}/{tag}_voc.npy"); v=resample_poly(v,160,441).astype(np.float32); return v/np.abs(v).max()
+_W=None
+def _init(M,lang):
+    global _W; _W=W(M,lang)   # one single threaded model per process, so the windows can run side by side
+def _one(job):
+    a,seg=job; return a,_W.run(seg)
 if __name__=="__main__":
     tag,model,lang,outp=sys.argv[1:5]; M=f"{WD}/sherpa-onnx-whisper-{model}/{model}"
-    w=W(M,lang); v=vox(tag); out=[]; WN,ST=6,3
+    v=vox(tag); out=[]; WN,ST=6,3
+    jobs=[]
     for a in range(0,int(len(v)/16000)-WN+1,ST):
         seg=v[a*16000:(a+WN)*16000]
         if np.sqrt((seg**2).mean())<0.01: continue
-        t=w.run(seg); out.append([a,a+WN,t]); print(a,t,flush=True)
-        json.dump(out,open(outp,"w"),ensure_ascii=False)
+        jobs.append((a,seg))
+    nw=max(1,min(int(os.environ.get("NAVAAN_ASR_WORKERS") or (os.cpu_count() or 1)),4,len(jobs) or 1))   # at most 4: each copy of the model holds about 400 MB
+    if nw==1:
+        _init(M,lang); res=map(_one,jobs)
+    else:
+        import multiprocessing as mp
+        pool=mp.get_context("spawn").Pool(nw,_init,(M,lang)); res=pool.imap(_one,jobs,chunksize=2)   # imap keeps the order
+    try:
+        for a,t in res:
+            out.append([a,a+WN,t]); print(a,t,flush=True)
+            json.dump(out,open(outp,"w"),ensure_ascii=False)
+    finally:
+        if nw>1: pool.terminate(); pool.join()
