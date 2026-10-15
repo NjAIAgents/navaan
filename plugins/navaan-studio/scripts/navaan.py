@@ -77,9 +77,9 @@ def song_picture_steps(slug, D, mc):
     if n: label += " (%d pictures, about $%.2f at %s)" % (n, SI.total_cost(n, mc["image_quality"], mc["image_size_landscape"], IO.model_name(mc)), mc["image_quality"])
     return [
         dict(id="prompts", outputs=["prompt_pack.json"], label="Director writes the picture plan: story, character, places, motion", kind="script",
-             cmds=[sc("prompt_pack.py", slug)], done=lambda m: bool(n) or have >= visuals_cfg.MIN_VIDEO),
+             cmds=[sc("prompt_pack.py", slug)], done=lambda m: bool((prompt_pack.load(D) or {}).get("prompts")) or len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),   # read the folder when asked, not when the step list was built
         dict(id="pictures", outputs=["images/*"], label=label, kind="script", before="credits",
-             cmds=[sc("song_images_openai.py", slug)], done=lambda m: have >= visuals_cfg.MIN_VIDEO),
+             cmds=[sc("song_images_openai.py", slug)], done=lambda m: len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),
     ]
 
 
