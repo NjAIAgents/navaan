@@ -24,6 +24,8 @@ import os, sys, json, time, re, uuid, argparse, datetime, urllib.request, urllib
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("yt_collect")
 
 API = "https://www.googleapis.com/youtube/v3"
 ANA = "https://youtubeanalytics.googleapis.com/v2/reports"
@@ -57,7 +59,8 @@ def norm_ts(s):
         return None
     try:
         dt = datetime.datetime.fromisoformat(re.sub(r"\.\d+", "", s.replace("Z", "+00:00")))
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "norm_ts: ValueError (optional or expected)", _e)
         return s
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
@@ -67,7 +70,8 @@ def norm_ts(s):
 def parse_ts(s):
     try:
         return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) if s else None
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "parse_ts: ValueError (optional or expected)", _e)
         return None
 
 
@@ -84,7 +88,8 @@ def iso_duration_s(d):
 def to_int(x):
     try:
         return int(x)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _e:
+        L.ignored(LOG, "to_int: TypeError/ValueError (optional or expected)", _e)
         return None
 
 
@@ -123,7 +128,8 @@ class Auth:
         except urllib.error.HTTPError as e:
             try:
                 d = json.loads(e.read().decode("utf-8", "replace"))
-            except Exception:
+            except Exception as _e:
+                L.soft(LOG, "token_error")
                 d = {}
             raise ApiError(400 if e.code == 400 else e.code, d.get("error") or "invalid_grant", (d.get("error_description") or "token refresh failed")[:200])
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
@@ -147,7 +153,8 @@ class Client:
         try:
             raw = e.read().decode("utf-8", "replace")
             body = json.loads(raw).get("error", {})
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "err_error")
             body = {}
         if isinstance(body, str):
             return ApiError(e.code, body, self._clean(raw[:200]))
@@ -166,8 +173,10 @@ class Client:
                 with self.opener(req, timeout=60) as r:
                     return json.load(r)
             except urllib.error.HTTPError as e:
+                L.ignored(LOG, "get: HTTPError (optional or expected)", e)
                 err = self._err(e)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                L.ignored(LOG, "get: URLError/TimeoutError/ConnectionError (optional or expected)", e)
                 err = ApiError(0, None, self._clean(str(getattr(e, "reason", e))), retriable=True)
             if err.status == 401 and not refreshed:
                 refreshed = True
@@ -203,7 +212,8 @@ def token_paths(label):
     try:
         from navaan_common import cfg
         ana = (cfg("accounts") or {}).get(label, {}).get("yt_analytics_token")
-    except SystemExit:
+    except SystemExit as _e:
+        L.ignored(LOG, "token_paths: SystemExit (optional or expected)", _e)
         pass
     if not ana and pub:
         ana = re.sub(r"(\.json)?$", "_analytics.json", pub, count=1)
@@ -494,6 +504,7 @@ def collect(conn, client, label, only=ALL_COLLECTORS, opts=None):
         link_songs(conn)
         status = "ok" if not ctx.errors else "partial"
     except ApiError as e:
+        L.ignored(LOG, "collect: ApiError (optional or expected)", e)
         status = "failed"
         hint = " Sign in again: yt_collect.py auth." if e.auth else " Quota used up for today: try again tomorrow." if e.quota else ""
         ctx.errors.append({"where": "auth" if e.auth else "quota" if e.quota else "run", "error": str(e)[:300] + hint})
@@ -559,7 +570,8 @@ def cmd_link(a):
 def cmd_auth(a):
     try:
         from google_auth_oauthlib.flow import InstalledAppFlow
-    except ImportError:
+    except ImportError as _e:
+        L.ignored(LOG, "cmd_auth: ImportError (optional or expected)", _e)
         sys.exit("navaan: pip install google-auth-oauthlib")
     ana, pub = token_paths(a.account)
     secret = os.environ.get("NAVAAN_YT_CLIENT_SECRETS", f"{conf_dir()}/youtube_client_secret.json")

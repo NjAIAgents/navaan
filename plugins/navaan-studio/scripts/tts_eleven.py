@@ -10,6 +10,8 @@ Voice and model default to the Settings choices (media.json). The key comes from
 import os, sys, json, shutil, hashlib, argparse, subprocess, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import media_cfg as M
+import navaan_log as L
+LOG = L.get("tts_eleven")
 
 CHARS_PER_SECOND = 12.0   # measured: 235 characters of English came out as 19 seconds at a slow, soft pace
 
@@ -30,7 +32,8 @@ def _seconds(path):
     try:
         r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], capture_output=True, text=True, timeout=30)
         return round(float(r.stdout.strip()), 2)
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "seconds_error")
         return 0.0
 
 
@@ -93,4 +96,5 @@ if __name__ == "__main__":
     try:
         main()
     except (ValueError, RuntimeError) as e:
+        L.ignored(LOG, "module: ValueError/RuntimeError (optional or expected)", e)
         sys.exit(str(e))

@@ -11,6 +11,8 @@ brief to `voiceover: file` and `music: none` (the narration carries its own musi
 import os, sys, re, glob, json, base64, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("narration")
 
 AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac")
 MAX_AUDIO = 20 * 1024 * 1024  # the web server accepts 30 MB bodies and base64 adds a third
@@ -33,7 +35,7 @@ def check_srt(text):
     if len(text.encode("utf-8")) > MAX_SRT: raise ValueError("the subtitle file is too big for an srt")
     with tempfile.NamedTemporaryFile("w", suffix=".srt", delete=False, encoding="utf-8") as f: f.write(text); tmp = f.name
     try: cues = inspire_prep.parse_srt(tmp)
-    except Exception: cues = []
+    except Exception as _e: L.soft(LOG, "check_srt_error"); cues = []
     finally: os.remove(tmp)
     if not cues: raise ValueError("the subtitle file has no timed lines (an .srt with 00:00:01,000 --> 00:00:03,000 lines)")
     return cues

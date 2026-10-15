@@ -15,6 +15,8 @@ YouTube and Instagram are both published through their APIs from this computer, 
 import os, sys, json, time, datetime, glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("publish_schedule")
 
 UTC = datetime.timezone.utc
 GRACE_H = 12
@@ -32,9 +34,10 @@ def iso(t): return t.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 def parse(s):
     if not s: return None
     try: return datetime.datetime.strptime(str(s), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "parse: ValueError (optional or expected)", _e)
         try: return datetime.datetime.fromisoformat(str(s).replace("Z", "+00:00")).astimezone(UTC)
-        except ValueError: return None
+        except ValueError as _e: L.ignored(LOG, "parse: ValueError (optional or expected)", _e); return None
 
 
 def get(m): return (m or {}).get("schedule") or None
@@ -159,7 +162,7 @@ def tick(fire, skip=None, at=None):
         if slug.startswith("_") or not os.path.isdir(p): continue
         if skip and skip(slug): continue
         try: m = N.meta(slug)
-        except Exception: continue
+        except Exception as _e: L.soft(LOG, "tick_error"); continue
         if not get(m): continue
         s = m["schedule"]; changed = False
         if N.ig_done(m) and N.public_done(m) and not s.get("done"):
@@ -179,7 +182,7 @@ def tick(fire, skip=None, at=None):
             N.save_meta(slug, m); changed = False
             FIRING.add(slug)
             try: rc = fire(slug, sid)
-            except SystemExit: rc = 1
+            except SystemExit as _e: L.ignored(LOG, "tick: SystemExit (optional or expected)", _e); rc = 1
             except Exception as e: rc = 1; print("schedule fire error:", e)
             finally: FIRING.discard(slug)
             m = N.meta(slug); s = m.get("schedule") or s; s.setdefault("attempts", {})[sid] = {"n": a.get("n", 0) + 1, "last": iso(n), "error": "" if rc == 0 else f"exit {rc}"}

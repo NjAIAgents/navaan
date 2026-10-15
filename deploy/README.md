@@ -100,6 +100,25 @@ Google sign in is also Mac only: run `publish_youtube.py auth` on the Mac, then 
 ## Cleaned songs: files come back from the bucket on demand
 After a song is archived and cleaned locally, its pictures and audio are only in the bucket. The portal fetches a missing picture or audio file for a song that has a recorded cloud copy the first time something asks for it (covers in the library, `/media/...`), and the YouTube upload and thumbnail steps fetch the file they need. Each fetch is one `oci os object get` of that single file (about 2 s), the key comes from the song's own `cloud.prefix`, paths outside a song folder are refused, and a file that is not in the bucket is remembered for an hour so it is not asked for again. Videos are not fetched by the picture route (too big for a page load); the upload step still fetches the one video it needs. Fetched files stay on the server's disk until the next local cleanup.
 
+## Logs
+
+One structured log stream (JSON lines, one object per event) for the portal, the scheduler and every pipeline run (NAV-12; spec `specs/002-platform-foundation`, FR-034 and FR-035).
+
+| Where | What | Kept |
+|-------|------|------|
+| `docker logs navaan` (stdout) | every event; Docker rotates it at 50 MB x 5 | until rotated |
+| `/opt/navaan/data/state/logs/app.jsonl` | the same stream, rotated at midnight UTC | 14 days |
+| `/opt/navaan/data/state/logs/runs/<job_id>.jsonl` | one whole pipeline run in order (every step, every output line) | 30 days |
+| `songs/<slug>/logs/<step>.log` | the raw output of each step, as before | with the song |
+
+Each record has `ts` (UTC), `level`, `service`, `component`, `event`, and the ids that apply: `request_id`, `job_id`, `item`, `step`, `user`, plus `error.type`, `error.message` and `error.stack` for errors. An error page names its request: look it up with
+```sh
+docker logs navaan 2>&1 | grep <request id>          # or: grep <id> /opt/navaan/data/state/logs/app.jsonl
+```
+Secrets, tokens, passwords, email addresses and query strings are masked before anything is written. The browser reports its own errors to `/api/client-log`, so a page that fails shows up here too. The same error is written at most once a minute; the next record says how many were held back (`suppressed`). `NAVAAN_LOG_LEVEL=DEBUG` adds the routine polls and every deliberately ignored error. The logs are not part of the nightly backup (they are not state).
+
+**Loki later, no code change:** run Grafana Alloy or Promtail on the VM, tail the container's stdout (or `app.jsonl`), parse the JSON, and use only `service`, `env`, `level` and `component` as labels. Keep `request_id`, `job_id`, `item` and `step` in the record body, not as labels, so the index stays small.
+
 ## Backup and restore
 `deploy/backup/backup.sh` runs nightly at 03:17 UTC as root (`/etc/cron.d/navaan-backup`, log `/var/log/navaan-backup.log`). It always keeps a local copy (newest 7 in `/opt/navaan/backups`, mode 700) and uploads to the OCI bucket `navaan` (prefix `navaan-backup/`, 14 days kept) through the VM's instance principal, using the `ghcr.io/oracle/oci-cli` container because the VM has no `oci` CLI. Exit code 3 means the local copy exists but the upload failed.
 

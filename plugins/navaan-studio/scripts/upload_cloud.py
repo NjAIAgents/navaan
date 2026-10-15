@@ -12,6 +12,8 @@ import os, sys, json, datetime, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import song_dir, cfg, require_approval, meta_path, load_json
 import storage
+import navaan_log as L
+LOG = L.get("upload_cloud")
 
 
 def verify(write=False):
@@ -66,9 +68,9 @@ def run_watched(cmd):
             if time.time() - last[0] > STALL_S:
                 hung = True; print(f"upload stalled for {STALL_S}s, stopping it (try {n} of {TRIES})", flush=True)
                 try: os.killpg(p.pid, signal.SIGTERM)
-                except Exception: p.terminate()
+                except Exception as _e: L.soft(LOG, "run_watched_error"); p.terminate()
                 try: p.wait(timeout=20)
-                except Exception: p.kill()
+                except Exception as _e: L.soft(LOG, "run_watched_error"); p.kill()
                 break
         t.join(timeout=5)
         if not hung: return p.returncode

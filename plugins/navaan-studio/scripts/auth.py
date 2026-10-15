@@ -12,6 +12,8 @@ First run: the portal shows a setup page. It asks for the setup code that is wri
 CLI:  auth.py status | setup-code | reset      reset deletes the login, the next portal start asks for a setup code again.
 Dev only: NAVAAN_AUTH=off turns the login off for that process."""
 import os, sys, json, time, hmac, hashlib, base64, secrets, struct, threading, re
+import navaan_log as L
+LOG = L.get("auth")
 
 DIR = os.environ.get("NAVAAN_AUTH_DIR") or os.path.expanduser("~/.config/navaan")
 FILE = os.path.join(DIR, "auth.json")
@@ -41,7 +43,7 @@ def unb64u(s): return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 def load():
     try:
         with open(FILE, encoding="utf-8") as f: return json.load(f)
-    except (OSError, ValueError): return None
+    except (OSError, ValueError) as _e: L.ignored(LOG, "load: OSError/ValueError (optional or expected)", _e); return None
 
 
 def save(d):
@@ -67,7 +69,7 @@ def ensure_setup_code():
 
 def setup_code():
     try: return open(CODE_FILE).read().strip()
-    except OSError: return ""
+    except OSError as _e: L.ignored(LOG, "setup_code: OSError (optional or expected)", _e); return ""
 
 
 # ---------- passwords ----------
@@ -81,7 +83,7 @@ def check_pw(pw, rec):
     try:
         h = hashlib.scrypt(pw.encode(), salt=unb64u(rec["salt"]), n=2 ** int(rec.get("n", 14)), r=8, p=1, dklen=32, maxmem=64 * 1024 * 1024)
         return hmac.compare_digest(b64u(h), rec["hash"])
-    except Exception: return False
+    except Exception as _e: L.soft(LOG, "check_pw_error"); return False
 
 
 def pw_problem(pw):
@@ -140,6 +142,7 @@ def fail():
     if len(THROTTLE) > 5000: THROTTLE.clear()
     t = THROTTLE.setdefault(_ip(), {"fails": 0, "until": 0.0}); t["fails"] += 1
     if t["fails"] >= 5: t["until"] = now() + min(900, 15 * 2 ** (t["fails"] - 5))
+    L.event(LOG, "warning", "auth_failed", ip=_ip(), fails=t["fails"], locked_seconds=max(0, int(t["until"] - now())))   # a failed sign-in is not an error in the app, but it is worth seeing
 
 
 def ok_reset(): THROTTLE.pop(_ip(), None)
@@ -159,7 +162,7 @@ def _persist():
         fd = os.open(p + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f: json.dump(SESSIONS, f)
         os.replace(p + ".tmp", p); os.chmod(p, 0o600)
-    except OSError: pass
+    except OSError as _e: L.ignored(LOG, "_persist: OSError (optional or expected)", _e); pass
 
 
 def _load():
@@ -172,7 +175,7 @@ def _load():
         n = now()
         for k, v in d.items():
             if isinstance(v, dict) and n - v.get("created", 0) <= SESSION_MAX and n - v.get("last", 0) <= SESSION_IDLE: SESSIONS.setdefault(k, v)
-    except (OSError, ValueError): pass
+    except (OSError, ValueError) as _e: L.ignored(LOG, "_load: OSError/ValueError (optional or expected)", _e); pass
 
 
 def start_session(user):
@@ -251,7 +254,7 @@ def _ec():
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.exceptions import InvalidSignature
         return ec, hashes, serialization, InvalidSignature
-    except ImportError: return None
+    except ImportError as _e: L.ignored(LOG, "_ec: ImportError (optional or expected)", _e); return None
 
 
 def passkeys_available(): return _ec() is not None
@@ -385,7 +388,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             nd = {"user": PENDING["user"], "pw": PENDING["pw"], "totp": {"secret": PENDING["secret"], "last": int(now() // 30)}, "recovery": hashes, "passkeys": [], "created": int(now())}
             save(nd); user = PENDING["user"]; PENDING.clear()
             try: os.remove(CODE_FILE)
-            except OSError: pass
+            except OSError as _e: L.ignored(LOG, "handle_post: OSError (optional or expected)", _e); pass
             ok_reset()
             return 200, {"ok": True, "recovery": codes}, [cookie_header(start_session(user))]
         if not d.get("pw"): return err(403, "not set up")
@@ -424,7 +427,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
         if path == "/auth/passkey/login":
             if locked(): return err(429, f"Too many tries. Wait {locked()} s.", locked=locked())
             try: assert_verify(d, host, body.get("ticket", ""), body)
-            except Exception as e: fail(); return err(401, "Passkey failed: " + str(e)[:100])
+            except Exception as e: L.event(LOG, "warning", "passkey_failed", reason=str(e)[:100]); fail(); return err(401, "Passkey failed: " + str(e)[:100])
             with LOCK: TICKETS.pop(body.get("ticket", ""), None)
             ok_reset()
             return 200, {"ok": True}, [cookie_header(start_session(d["user"]))]
@@ -456,8 +459,8 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             codes, hashes = new_recovery(); d["recovery"] = hashes; save(d)
             return 200, {"ok": True, "recovery": codes}, []
         return err(404, "unknown")
-    except ValueError as e: return err(400, str(e))
-    except KeyError: return err(400, "missing field")
+    except ValueError as e: L.ignored(LOG, "handle_post: ValueError (optional or expected)", e); return err(400, str(e))
+    except KeyError as _e: L.ignored(LOG, "handle_post: KeyError (optional or expected)", _e); return err(400, "missing field")
 
 
 def main(a):
@@ -472,7 +475,7 @@ def main(a):
     if a[0] == "reset":
         for f in (FILE, sess_file()):  # the login and every remembered session
             try: os.remove(f)
-            except OSError: pass
+            except OSError as _e: L.ignored(LOG, "main: OSError (optional or expected)", _e); pass
         print("login removed. The next portal start asks for a new setup code; restart the portal."); return 0
     print(__doc__); return 1
 

@@ -7,6 +7,8 @@ Database file: env NAVAAN_DB, else analytics.db_path in navaan.config.json, else
 because it holds comment text and usernames).
 """
 import os, re, sqlite3, datetime
+import navaan_log as L
+LOG = L.get("analytics_db")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMA_FILE = os.path.join(HERE, "analytics_schema.sql")
@@ -31,7 +33,8 @@ def db_path(override=None):
     try:
         from navaan_common import cfg
         c = cfg("analytics.db_path")
-    except SystemExit:
+    except SystemExit as _e:
+        L.ignored(LOG, "db_path: SystemExit (optional or expected)", _e)
         c = None
     return os.path.expanduser(c) if c else os.path.expanduser("~/.local/share/navaan/analytics.db")
 

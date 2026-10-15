@@ -18,6 +18,8 @@ iter_frames(...) yields the frames (BGR arrays) so a test or another step can us
 strength: off (no motion), subtle (default), gentle (about 1.6 times as much). Needs numpy and opencv (cv2).
 """
 import os, sys, math, json, argparse, subprocess
+import navaan_log as _nl
+_LOG = _nl.get("motion_loop")
 
 STRENGTH = {"off": 0.0, "subtle": 1.0, "gentle": 1.6}
 KINDS = ("foliage", "water", "sky", "sway", "flicker", "steam")
@@ -31,7 +33,8 @@ def clean_regions(reg):
         for poly in (reg or {}).get(kind) or []:
             try:
                 pts = [[min(1.0, max(0.0, float(x))), min(1.0, max(0.0, float(y)))] for x, y in poly]
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _e:
+                _nl.event(_LOG, "warning", "region_skipped", kind=kind, reason="a point is not a number")  # bad region data is skipped, the rest still renders
                 continue
             if len(pts) >= 3: polys.append(pts)
         if polys: out[kind] = polys

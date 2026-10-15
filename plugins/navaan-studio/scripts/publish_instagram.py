@@ -18,6 +18,8 @@ Flow: create container (media_type REELS), poll status_code until FINISHED, then
 import os, sys, json, time, argparse, urllib.request, urllib.parse, urllib.error, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import song_dir, load_json, require_approval
+import navaan_log as L
+LOG = L.get("publish_instagram")
 
 def _load_env_file():
     """Read ~/.config/navaan/instagram.env (KEY=VALUE lines, mode 600) so the token never lives in the project. Real environment variables win."""
@@ -46,6 +48,7 @@ def call(method, path, tok, params=None):
     try:
         with urllib.request.urlopen(urllib.request.Request(url, data=data, method=method), timeout=60) as r: return json.load(r)
     except urllib.error.HTTPError as e:
+        L.ignored(LOG, "call: HTTPError (optional or expected)", e)
         sys.exit(f"navaan: Instagram API error {e.code}: {e.read().decode()[:500]}")
 
 
@@ -58,7 +61,7 @@ def publish(a):
         yt = ((pub.get("youtube_items") or [{}])[0].get("url") or "")
         if "link in bio" in cap.lower() or (yt and yt not in cap and "youtu" not in cap):
             print(f"WARNING: the caption does not carry the full YouTube link ({yt or 'none yet'}). Rewrite it with: navaan.py caption {a.slug} --feedback \"put the YouTube link in the caption, not link in bio\"", file=sys.stderr)
-    except Exception: pass
+    except Exception as _e: L.soft(LOG, "publish_error"); pass
     plan = {"video_url": a.video_url[:80] + "...", "caption": cap, "share_to_feed": a.share_to_feed, "cover_url": a.cover_url}
     print(json.dumps(plan, ensure_ascii=False, indent=2))
     if not a.yes: print("\nDRY RUN. Nothing sent. Re-run with --yes after the user approves this exact reel."); return

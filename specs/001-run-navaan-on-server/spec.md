@@ -118,7 +118,7 @@ The existing apps on the VM keep running with no change in behaviour. Adding or 
 
 ### Functional Requirements
 
-- **FR-001**: The studio MUST be reachable at https://navaan.njlabs.dev over a valid, automatically renewed secure connection, and over no other hostname.
+- **FR-001** *(host amended by `002-platform-foundation` FR-026: the studio is to move to its own host under `navaan.online`, with this host kept during a transition)*: The studio MUST be reachable at https://navaan.njlabs.dev over a valid, automatically renewed secure connection, and over no other hostname.
 - **FR-002**: Every page, media file and data request MUST require a signed-in session, except the sign-in and first-time setup pages.
 - **FR-003**: Sign-in MUST require a password and a second factor (authenticator code, passkey, or one-time recovery code).
 - **FR-004**: First-time setup MUST require a one-time code readable only by someone with access to the server.
@@ -136,7 +136,7 @@ The existing apps on the VM keep running with no change in behaviour. Adding or 
 - **FR-016**: Studio data MUST be backed up so it can be restored after a server loss.
 - **FR-017**: A shared password prompt MUST be shown before the sign-in page is served, so that visitors without it see nothing of the studio. The prompt has its own failed-attempt limit and its password is kept in the secret manager.
 - **FR-018**: Claude-driven steps on the server MUST use the owner's Claude subscription through a long-lived token kept in the secret manager. The studio MUST show when that token is missing, expired or rate limited, and the owner MUST be able to switch to a pay-per-use key without other changes. Always-on server use of a subscription is subject to Anthropic's terms, which the owner accepts responsibility for checking.
-- **FR-019**: Analytics and studio data MUST stay in the current file-based database for this feature, stored on persistent storage and covered by the backup in FR-016. Moving to a separate database service is out of scope here and is a later feature.
+- **FR-019** *(superseded by `002-platform-foundation` FR-001 on 2026-10-15; the single-owner assumption below is likewise superseded)*: Analytics and studio data MUST stay in the current file-based database for this feature, stored on persistent storage and covered by the backup in FR-016. Moving to a separate database service is out of scope here and is a later feature.
 
 ### Key Entities
 

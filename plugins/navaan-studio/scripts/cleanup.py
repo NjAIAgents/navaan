@@ -11,6 +11,8 @@ import os, sys, json, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import song_dir, cfg, require_approval, meta_path, load_json
 import storage
+import navaan_log as L
+LOG = L.get("cleanup")
 
 KEEP_EXT = (".txt", ".json", ".md", ".srt", ".log")
 
@@ -43,7 +45,7 @@ def main(argv):
     for r, ds, fs in sorted(os.walk(D, topdown=False)):
         if r != D and not os.listdir(r):
             try: os.rmdir(r)
-            except OSError: pass
+            except OSError as _e: L.ignored(LOG, "main: OSError (optional or expected)", _e); pass
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     m = load_json(meta_path(slug), default={}); m["cleanup"] = {"at": now, "removed": len(kill), "freed_mb": round(size / 1e6), "removed_files": kill, "restore_from": m.get("cloud", {}).get("uri")}
     m.setdefault("history", []).append(f"{now} local cleanup removed {len(kill)} files ({round(size / 1e6)} MB), copy is in {m['cleanup']['restore_from']}")

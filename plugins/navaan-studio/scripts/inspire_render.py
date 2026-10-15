@@ -12,6 +12,8 @@ No generation credits are used by either engine.
 import os, sys, re, json, subprocess, shutil
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("inspire_render")
 
 OUT, THUMB = "final_reel_9x16.mp4", "thumb_9x16.jpg"
 W, H = 1080, 1920
@@ -36,7 +38,7 @@ def raqm():
     try:
         from PIL import features
         return bool(features.check("raqm"))
-    except Exception: return False
+    except Exception as _e: L.soft(LOG, "raqm_error"); return False
 
 
 def remotion_dir(): return os.path.join(C.plugin_dir(), "remotion")
