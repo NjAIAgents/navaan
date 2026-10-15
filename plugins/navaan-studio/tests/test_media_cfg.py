@@ -21,14 +21,15 @@ class Base(unittest.TestCase):
 class Cfg(Base):
     def test_defaults(self):
         s = M.load()
-        self.assertEqual((s["voice"], s["image_provider"], s["narration_source"], s["image_quality"]), ("frank", "flow", "upload", "medium"))
+        self.assertEqual((s["voice"], s["image_provider"], s["narration_source"], s["image_quality"]), ("frank", "flow", "upload", "high"))
+        self.assertEqual(s["image_model"], "gpt-image-2.5-flare")
         self.assertEqual(M.VOICES["frank"]["id"], "V2bPluzT7MuirpucVAKH")
         self.assertEqual(M.VOICES["nj"]["id"], "r3RejoyX9duc0wFH79cE")
 
     def test_save_and_reload(self):
         M.save({"voice": "nj", "image_provider": "openai"})
         s = M.load()
-        self.assertEqual((s["voice"], s["image_provider"], s["image_quality"]), ("nj", "openai", "medium"))
+        self.assertEqual((s["voice"], s["image_provider"], s["image_quality"]), ("nj", "openai", "high"))
 
     def test_refuses_bad_values(self):
         for bad in ({"voice": "bob"}, {"nope": 1}, {"max_run_usd": 500}, {"max_run_usd": "x"}):

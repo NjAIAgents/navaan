@@ -54,10 +54,24 @@ class Steps(Base):
 
 class Cap(Base):
     def test_estimate_and_cap(self):
-        self.assertAlmostEqual(I.check_cap("medium"), 0.062)  # the default size is 1152x2048
+        self.assertAlmostEqual(I.check_cap("high"), 0.0424, places=3)  # default model gpt-image-2.5-flare, default size 1152x2048, tokens times $30 per million
+        M.save({"image_model": "gpt-image-2"})
+        self.assertAlmostEqual(I.check_cap("medium"), 0.062)  # the older model keeps its price table
         self.assertAlmostEqual(I.check_cap("medium", size="1024x1536"), 0.041)
         M.save({"max_run_usd": 0.05})
         with self.assertRaises(ValueError): I.check_cap("high")
+
+    def test_2_5_prices_follow_the_measured_tokens(self):
+        self.assertAlmostEqual(I.estimate("high", "1792x1008"), 0.037, places=3)
+        self.assertAlmostEqual(I.estimate("high", "1792x1008", refs=1), 0.049, places=3)
+        self.assertAlmostEqual(I.estimate("high", "1152x2048", refs=1), 0.0545, places=3)
+        q = [I.estimate(x, "1792x1008") for x in ("low", "medium", "high", "xhigh", "max")]
+        self.assertEqual(q, sorted(q))  # a higher quality never costs less
+
+    def test_model_comes_from_settings_and_env(self):
+        self.assertEqual(I.model_name(), "gpt-image-2.5-flare")
+        M.save({"image_model": "gpt-image-2.5-sunburst"}); self.assertEqual(I.model_name(), "gpt-image-2.5-sunburst")
+        with mock.patch.dict(os.environ, {"NAVAAN_OPENAI_IMAGE_MODEL": "gpt-image-2"}): self.assertEqual(I.model_name(), "gpt-image-2")
 
     def test_estimate_flag_spends_nothing(self):
         with mock.patch.object(I, "request_image") as r:
@@ -82,7 +96,7 @@ class Make(Base):
             self.assertEqual(r.call_count, 1)
         self.assertEqual(Image.open(os.path.join(self.D, "background.png")).size, (1080, 1920))
         self.assertTrue(os.path.exists(os.path.join(self.D, "scenes", "background_openai.png")))
-        self.assertAlmostEqual(M.usage()["openai_usd"], 0.062)
+        self.assertAlmostEqual(M.usage()["openai_usd"], I.estimate("high", "1152x2048"))
 
     def test_existing_background_is_not_replaced_or_paid_for(self):
         self.prep(); open(os.path.join(self.D, "background.jpg"), "wb").write(b"x")

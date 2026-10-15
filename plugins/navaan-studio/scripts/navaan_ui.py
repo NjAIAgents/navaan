@@ -29,6 +29,8 @@ def scheduler_state():
     return "paused" if sec and sec["status"] != "ok" else "on"
 
 
+TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
+VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 JOBS = {}  # slug -> {"running": bool, "rc": int|None}
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
@@ -113,6 +115,8 @@ def detail(slug):
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
             "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
             "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
+            "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
+            "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -120,7 +124,7 @@ def detail(slug):
 
 def start_job(slug, all_steps=False, step=None, redo=False):
     if JOBS.get(slug, {}).get("running"): return False
-    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None)
+    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None); navaan.STOP.discard(slug)
     def w():
         try: rc = navaan.pipeline(slug, wait=True) if all_steps else (navaan.redo_run(slug, step) if redo else navaan.run(slug, step=step))
         except SystemExit as e: rc = 1
@@ -388,6 +392,7 @@ class H(BaseHTTPRequestHandler):
                 if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
+            if p == "/api/stop": return self._send(200, {"stopped": navaan.stop(slug) if JOBS.get(slug, {}).get("running") else False})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
                 import narration
                 if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
@@ -406,6 +411,35 @@ class H(BaseHTTPRequestHandler):
                     if act == "prompts":
                         try: return self._send(200, {"ok": True, "pack": prompt_pack.make(slug, body.get("count") or None)})
                         except (RuntimeError, SystemExit) as e: return self._send(400, {"error": str(e)})
+                    if act == "try":
+                        import media_cfg, song_images_openai as SIO
+                        if media_cfg.load()["image_provider"] != "openai": return self._send(400, {"error": "Set Background pictures to OpenAI in Settings first."})
+                        if not prompt_pack.load(D): return self._send(400, {"error": "Write the prompts first."})
+                        if TRY.get(slug, {}).get("running"): return self._send(409, {"error": "The test is already running."})
+                        TRY[slug] = {"running": True, "error": ""}
+                        def tw():
+                            err = ""
+                            try: SIO.main([slug, "--try"])
+                            except SystemExit as e: err = "" if e.code in (0, None) else str(e.code)[:300]
+                            except Exception as e: err = str(e)[:300]
+                            TRY[slug] = {"running": False, "error": err}
+                        threading.Thread(target=tw, daemon=True).start()
+                        return self._send(200, {"ok": True})
+                    if act == "vertical":
+                        import media_cfg, song_images_openai as SIO
+                        if media_cfg.load()["image_provider"] != "openai": return self._send(400, {"error": "Set Background pictures to OpenAI in Settings first."})
+                        pics = [int(x) for x in (body.get("pics") or []) if str(x).isdigit()]
+                        if not pics: return self._send(400, {"error": "Pick a picture."})
+                        if VERT.get(slug, {}).get("running"): return self._send(409, {"error": "A vertical picture is already being made."})
+                        VERT[slug] = {"running": True, "error": ""}
+                        def vw():
+                            err = ""
+                            try: SIO.main([slug, "--vertical", ",".join(str(x) for x in pics)])
+                            except SystemExit as e: err = "" if e.code in (0, None) else str(e.code)[:300]
+                            except Exception as e: err = str(e)[:300]
+                            VERT[slug] = {"running": False, "error": err}
+                        threading.Thread(target=vw, daemon=True).start()
+                        return self._send(200, {"ok": True})
                     if act == "save":
                         import media_cfg; v = V.save(D, str(body.get("mode") or ""), body.get("layout"), body.get("camera", ""), body.get("scene", ""), pictures_later=media_cfg.load()["image_provider"] == "openai")
                         m = navaan.meta(slug); navaan.log_hist(m, f"visuals chosen via ui: {v['mode']}{' ' + v.get('layout', '') if v['mode'] == 'own' else ''}"); navaan.save_meta(slug, m)
