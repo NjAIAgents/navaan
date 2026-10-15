@@ -327,7 +327,7 @@ def plan(slug):
         notused = legacy and s["id"] in ("instagram_caption", "publish_instagram", "archive", "cleanup") and not s["done"](m) and not reel_made  # older song, finished before these steps existed
         if notused: skip = True
         d = s["done"](m) or skip
-        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
+        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "restart": s["id"] in PRODUCE_FROM, "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
         if d:
             row["status"] = "waiting for approval" if (ga and not gate_ok(D, ap, ga, ig_done(m))) else "done"
@@ -633,7 +633,7 @@ def import_suno(src, slug=None):
     return pipeline(slug, wait=True)
 
 
-def redo(slug, sid):
+def redo(slug, sid, pending=True):
     """Redo a finished step. Its output files are moved to <song>/_prev/<time>/ (nothing is deleted) and the gates around it are
     revoked, so a step that spends credits needs a fresh approval. Publishing and archiving steps cannot be redone this way."""
     import shutil
@@ -648,7 +648,8 @@ def redo(slug, sid):
     m = meta(slug); ap = m.setdefault("approvals", {})
     # Only this step is redone. Later steps and their approvals stay as they are; only a credit gate is asked again.
     if st.get("before") == "credits":
-        ap.pop("credits", None); m["redo_pending"] = sid  # the UI starts this step as soon as credits are approved again
+        ap.pop("credits", None)
+        if pending: m["redo_pending"] = sid  # the UI starts this step as soon as credits are approved again
     if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
     log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}"); save_meta(slug, m)
     RUN.pop(slug, None); st["_dest"] = dest
@@ -657,6 +658,31 @@ def redo(slug, sid):
         if os.path.exists(pth): os.remove(pth)
     print(f"redo {sid}: {moved} file(s) moved to {dest if moved else '(nothing to move)'}")
     return dest if moved else None
+
+
+PRODUCE_FROM = ("prompts", "pictures", "shots", "motion_plan", "motion_clips", "captions", "video")   # steps a restart can start from; it runs through the render
+
+
+def redo_range(slug, sid):
+    """The steps a restart from sid covers: sid through the render, in order. A step outside the picture to video chain covers only itself."""
+    ids = [s["id"] for s in steps(slug, song_dir(slug))]
+    if sid in PRODUCE_FROM and sid in ids and "video" in ids and ids.index(sid) <= ids.index("video"): return ids[ids.index(sid): ids.index("video") + 1]
+    return [sid]
+
+
+def redo_from(slug, sid):
+    """Restart the Produce phase from sid: every step from sid through the render is redone (old files go to _prev, nothing is deleted),
+    and the credits, shots and media approvals are cleared so each is asked again. Returns the steps redone. The caller then runs the pipeline."""
+    rng = redo_range(slug, sid); D = song_dir(slug); by = {s["id"]: s for s in steps(slug, D)}
+    for i in rng: redo(slug, i, pending=False)
+    m = meta(slug); ap = m.setdefault("approvals", {})
+    for i in rng:
+        for g in (by[i].get("before"), by[i].get("after")):
+            if g in ("credits", "shots", "media"): ap.pop(g, None)
+    if m.get("state") in ("approved", "media_ready"): m["state"] = "accepted"
+    log_hist(m, f"restart from {sid}: redone {', '.join(rng)}"); save_meta(slug, m)
+    print(f"restart from {sid}: {len(rng)} step(s) redone ({', '.join(rng)}). Approve the credits gate to make new pictures.")
+    return rng
 
 
 def restore(slug, dest):
@@ -762,6 +788,9 @@ def main(argv):
         if len(a) < 2: sys.exit("usage: navaan.py redo <slug> <step> [--run]")
         if "--run" in a: return redo_run(a[0], a[1])
         redo(a[0], a[1]); return 0
+    if c == "restart":
+        if len(a) < 2: sys.exit("usage: navaan.py restart <slug> <step>   redo that step and every step after it through the render")
+        redo_from(a[0], a[1]); return 0
     if c == "run":
         return run(a[0], step=(a[a.index("--step") + 1] if "--step" in a else None), dry="--dry" in a)
     if c in ("approve", "revoke"):
