@@ -23,7 +23,7 @@ Shorts need no special flag: a vertical video of 60 seconds or less is treated a
 """
 import os, sys, json, argparse, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, cfg, load_json, require_approval
+from navaan_common import song_dir, cfg, load_json, require_approval, item_load, item_update, item_exists
 import navaan_log as L
 LOG = L.get("publish_youtube")
 
@@ -92,14 +92,14 @@ def set_thumb(yt, vid, path, slug=None):
     from googleapiclient.http import MediaFileUpload
     from googleapiclient.errors import HttpError
     import storage; storage.fetch_missing(path)  # the file may only be in the bucket after a local cleanup
-    mp = os.path.join(song_dir(slug), "meta.json") if slug else None
     def mark(add):
-        if not (mp and os.path.exists(mp)): return
-        m = json.load(open(mp, encoding="utf-8")); pend = [x for x in m.setdefault("published", {}).get("thumbnail_pending", []) if x["id"] != vid]
-        if add: pend.append({"id": vid, "file": os.path.basename(path)})
-        m["published"]["thumbnail_pending"] = pend
-        if not pend: m["published"].pop("thumbnail_pending")
-        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+        if not (slug and item_exists(slug)): return
+        def edit(m):
+            pend = [x for x in m.setdefault("published", {}).get("thumbnail_pending", []) if x["id"] != vid]
+            if add: pend.append({"id": vid, "file": os.path.basename(path)})
+            m["published"]["thumbnail_pending"] = pend
+            if not pend: m["published"].pop("thumbnail_pending")
+        item_update(slug, edit)
     try:
         yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(path)).execute(); mark(False); print("thumbnail set")
     except HttpError as e:
@@ -147,11 +147,11 @@ def upload(a):
     short = "/shorts/" if "#shorts" in meta["title"].lower() else "/watch?v="
     url = f"https://youtube.com{short}{vid}" if short == "/shorts/" else f"https://youtu.be/{vid}"
     print("uploaded", vid, a.privacy, url)
-    mp = os.path.join(D, "meta.json")
-    if os.path.exists(mp):
-        m = json.load(open(mp, encoding="utf-8")); m.setdefault("published", {}).setdefault("youtube_items", []).append({"id": vid, "url": url, "privacy": a.privacy, "file": os.path.basename(f)})
-        m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_upload {vid} {a.privacy}")
-        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    if item_exists(a.slug):
+        def rec(m):
+            m.setdefault("published", {}).setdefault("youtube_items", []).append({"id": vid, "url": url, "privacy": a.privacy, "file": os.path.basename(f)})
+            m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_upload {vid} {a.privacy}")
+        item_update(a.slug, rec)
 
 
 def update(a):
@@ -173,10 +173,8 @@ def update(a):
         if pid: yt.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": a.video_id}}}).execute()
         else: print(f"warning: playlist not found: {pl}")
     print("updated", a.video_id)
-    mp = os.path.join(D, "meta.json")
-    if os.path.exists(mp):
-        m = json.load(open(mp, encoding="utf-8")); m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_update {a.video_id}")
-        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    if item_exists(a.slug):
+        item_update(a.slug, lambda m: m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_update {a.video_id}"))
 
 
 def privacy(a):
@@ -191,7 +189,7 @@ def privacy(a):
 
 def go_public(a):
     """Last publishing step: set every YouTube video of the song (the full video and the Short) to public and record it in meta.json."""
-    mp = os.path.join(song_dir(a.slug), "meta.json"); m = load_json(mp, default={}); pub = m.get("published", {})
+    m = item_load(a.slug, {}); pub = m.get("published", {})
     items = [("full video", i) for i in pub.get("youtube_items", [])] + ([("Short", pub["youtube_short"])] if pub.get("youtube_short", {}).get("id") else [])
     if not items: sys.exit("navaan: nothing is uploaded to YouTube yet")
     yt = service()
@@ -201,8 +199,13 @@ def go_public(a):
     todo = [(n, i) for n, i in items if i.get("privacy") != "public"]
     for n, i in items: print(f"{n} {i['id']}: " + (f"{i.get('privacy', '?')} -> public" if (n, i) in todo else "already public"))
     def save(note):
-        m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} {note}")
-        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+        priv = {i["id"]: i.get("privacy") for _, i in items if i.get("privacy")}
+        def edit(cur):   # only what this step learned, on the document as it is now (an approval may have changed while we talked to YouTube)
+            p = cur.get("published", {})
+            for it in list(p.get("youtube_items", [])) + ([p["youtube_short"]] if isinstance(p.get("youtube_short"), dict) else []):
+                if it.get("id") in priv: it["privacy"] = priv[it["id"]]
+            cur.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} {note}")
+        item_update(a.slug, edit)
     if not todo: save("youtube public check: all already public"); print("nothing to change"); return
     if not a.yes: print("\nDRY RUN. Nothing changed. Re-run with --yes after you approve the go_public gate."); return
     require_approval(a.slug, "go_public")

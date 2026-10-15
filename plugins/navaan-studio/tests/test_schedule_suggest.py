@@ -28,7 +28,7 @@ class Suggest(unittest.TestCase):
 
     def meta(self, m):
         d = os.path.join(self.C.songs_root(), self.slug); os.makedirs(d, exist_ok=True)
-        json.dump(m, open(os.path.join(d, "meta.json"), "w"))
+        self.C.item_save(self.slug, m)
 
     def slots(self, ig=(), yt=()):
         self.ig["slots"] = [{"at": iso(t), "score": s} for t, s in ig]

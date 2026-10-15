@@ -188,3 +188,21 @@ docker exec navaan-postgres psql -U postgres -d drill -At -c 'select count(*) fr
 ```
 Migrations are numbered SQL in `plugins/navaan-studio/db/migrations/<schema>/`, applied once each when the app connects, recorded in `core.schema_migrations`. A release's migration must
 work with the previous release too, because the pipeline rolls back the image but not the schema.
+
+### Studio state (NAV-4)
+
+What each song's `meta.json` held (state, approvals, history, published links, schedule, cloud and cleanup records) now lives in Postgres, schema `studio`, table `items` (the whole document, lossless) plus
+projections (`approvals`, `item_history`, `publications`, `schedules`) that are rewritten in the same transaction on every save. **Source of truth: `studio.items.doc`.** The song folders keep their media and
+step files; `meta.json` is still written after every save as a write-through export (temp file and rename, before the commit; if the write fails the save fails), so the bucket upload, the previous
+release and anything that reads the file keep working.
+
+**First start after the release:** `navaan.py serve` imports every `songs/*/meta.json` that Postgres does not have yet, reads each back and compares (`studio_import_done` in the log). If any file is unreadable or
+differs after import, the start fails, the container never becomes healthy and the pipeline rolls the image back; the files are never changed by the import.
+
+**Edits made outside the app** (a Claude step that follows a skill saying "record it in meta.json", a person, or the previous release after a rollback) are detected: when the file on disk is not the one we last wrote,
+its content is taken in as the newer state (`meta_json_edited_outside`). A file that is not valid JSON is ignored and logged (`meta_json_invalid`), and the stored state is kept.
+
+**Concurrency:** writes that read first (approve, answer, step results, the scheduler's claim) use `studio_store.update`, which locks the item's row, so the web page, the scheduler and a running step cannot overwrite
+each other. The scheduler counts an attempt under that lock before it fires a step, so two schedulers never run the same step. Tested with 40 pairs of simultaneous ticks.
+
+**Rollback:** the previous image reads the exported `meta.json` files, which are current. Anything it changes is taken back in by the next release through the outside-edit check.

@@ -71,10 +71,12 @@ def set_schedule(slug, instagram_at, youtube_at=None, nav=None):
     elif yt < n + datetime.timedelta(minutes=MIN_LEAD_MIN - 1):
         yt = n + datetime.timedelta(minutes=MIN_LEAD_MIN - 1)
     if not N.public_done(m) and ig < yt + datetime.timedelta(minutes=5): raise ValueError("the Instagram time must be at least 5 minutes after the YouTube time, the Reel links to the public video")
-    m["schedule"] = {"youtube_at": iso(yt), "instagram_at": iso(ig), "created_at": iso(n), "attempts": {}, "missed": {}, "blocked": {}, "done": False}
-    N.log_hist(m, f"publishing scheduled: YouTube {iso(yt)}, Instagram {iso(ig)}")
-    N.save_meta(slug, m)
-    return m["schedule"]
+    sched = {"youtube_at": iso(yt), "instagram_at": iso(ig), "created_at": iso(n), "attempts": {}, "missed": {}, "blocked": {}, "done": False}
+    def put(d):
+        d["schedule"] = sched
+        N.log_hist(d, f"publishing scheduled: YouTube {iso(yt)}, Instagram {iso(ig)}")
+    N.edit_meta(slug, put)
+    return sched
 
 
 def suggest(slug, at=None):
@@ -119,9 +121,9 @@ def accept(slug):
 
 def clear(slug):
     import navaan as N
-    m = N.meta(slug)
-    if m.pop("schedule", None) is not None:
-        N.log_hist(m, "publishing schedule cleared"); N.save_meta(slug, m)
+    def drop(d):
+        if d.pop("schedule", None) is not None: N.log_hist(d, "publishing schedule cleared")
+    N.edit_meta(slug, drop)
 
 
 def status_text(m):
@@ -154,7 +156,8 @@ def _due(N, slug, m, n):
 
 
 def tick(fire, skip=None, at=None):
-    """Fire what is due. fire(slug, step) runs the step to the end and returns its exit code. Returns a list of what happened."""
+    """Fire what is due. fire(slug, step) runs the step to the end and returns its exit code. Returns a list of what happened.
+    A step is claimed under the item's row lock (it counts the attempt before it runs), so two schedulers, or a tick and a retry, can never both run it."""
     import navaan as N
     n = at or now(); log = []
     for p in sorted(glob.glob(os.path.join(C.songs_root(), "*"))):
@@ -164,33 +167,40 @@ def tick(fire, skip=None, at=None):
         try: m = N.meta(slug)
         except Exception as _e: L.soft(LOG, "tick_error"); continue
         if not get(m): continue
-        s = m["schedule"]; changed = False
-        if N.ig_done(m) and N.public_done(m) and not s.get("done"):
-            s["done"] = True; changed = True
+        if N.ig_done(m) and N.public_done(m) and not m["schedule"].get("done"):
+            N.edit_meta(slug, lambda d: d["schedule"].__setitem__("done", True)); m = N.meta(slug)
+        s = m["schedule"]
         for sid, why in _due(N, slug, m, n):
-            blk = s.setdefault("blocked", {}); att = s.setdefault("attempts", {}); ms = s.setdefault("missed", {})
             if why == "MISSED":
-                ms[sid] = True; blk.pop(sid, None); changed = True; N.log_hist(m, f"scheduled step {sid} missed: more than {GRACE_H} h late"); log.append((slug, sid, "missed")); continue
+                def miss(d, sid=sid):
+                    sc = d["schedule"]; sc.setdefault("missed", {})[sid] = True; sc.setdefault("blocked", {}).pop(sid, None)
+                    N.log_hist(d, f"scheduled step {sid} missed: more than {GRACE_H} h late")
+                N.edit_meta(slug, miss); log.append((slug, sid, "missed")); continue
             if why:
-                if blk.get(sid) != why: blk[sid] = why; changed = True
+                if (s.get("blocked") or {}).get(sid) != why: N.edit_meta(slug, lambda d, sid=sid, why=why: d["schedule"].setdefault("blocked", {}).__setitem__(sid, why))
                 continue
-            a = att.get(sid, {})
-            if a.get("n", 0) >= MAX_TRIES: continue
-            last = parse(a.get("last"))
-            if last and n - last < datetime.timedelta(minutes=BACKOFF_MIN): continue
-            blk.pop(sid, None); att[sid] = {"n": a.get("n", 0) + 1, "last": iso(n), "error": ""}
-            N.save_meta(slug, m); changed = False
+            won = []
+            def claim(d, sid=sid):
+                sc = d.get("schedule") or {}
+                a = (sc.get("attempts") or {}).get(sid, {})
+                if sc.get("done") or (sc.get("missed") or {}).get(sid) or a.get("n", 0) >= MAX_TRIES: return
+                last = parse(a.get("last"))
+                if last and n - last < datetime.timedelta(minutes=BACKOFF_MIN): return
+                sc.setdefault("blocked", {}).pop(sid, None); sc.setdefault("attempts", {})[sid] = {"n": a.get("n", 0) + 1, "last": iso(n), "error": ""}
+                d["schedule"] = sc; won.append(a.get("n", 0))
+            N.edit_meta(slug, claim)
+            if not won: continue   # already claimed by another run, too soon after the last try, or out of tries
             FIRING.add(slug)
             try: rc = fire(slug, sid)
             except SystemExit as _e: L.ignored(LOG, "tick: SystemExit (optional or expected)", _e); rc = 1
             except Exception as e: rc = 1; print("schedule fire error:", e)
             finally: FIRING.discard(slug)
-            m = N.meta(slug); s = m.get("schedule") or s; s.setdefault("attempts", {})[sid] = {"n": a.get("n", 0) + 1, "last": iso(n), "error": "" if rc == 0 else f"exit {rc}"}
-            N.log_hist(m, f"scheduled step {sid} {'done' if rc == 0 else 'failed (exit ' + str(rc) + ')'}")
-            if N.ig_done(m) and N.public_done(m): s["done"] = True
-            m["schedule"] = s; N.save_meta(slug, m); log.append((slug, sid, rc)); break
-        else:
-            if changed: m["schedule"] = s; N.save_meta(slug, m)
+            def record(d, sid=sid, rc=rc, prev=won[0]):
+                sc = d.get("schedule") or s; sc.setdefault("attempts", {})[sid] = {"n": prev + 1, "last": iso(n), "error": "" if rc == 0 else f"exit {rc}"}
+                N.log_hist(d, f"scheduled step {sid} {'done' if rc == 0 else 'failed (exit ' + str(rc) + ')'}")
+                if N.ig_done(d) and N.public_done(d): sc["done"] = True
+                d["schedule"] = sc
+            N.edit_meta(slug, record); log.append((slug, sid, rc)); break
     return log
 
 

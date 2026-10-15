@@ -26,13 +26,26 @@ class Once(unittest.TestCase):
 
     def tearDown(self): self.tmp.cleanup()
 
-    def save(self, m): json.dump(m, open(os.path.join(self.D, "meta.json"), "w"))
-    def meta(self): return json.load(open(os.path.join(self.D, "meta.json")))
+    def save(self, m): self.C.item_save(self.slug, m)
+    def meta(self): return self.C.item_load(self.slug)
 
     def ok(self, slug, sid):  # a real publish records the post in meta
         self.calls.append(sid); m = self.meta(); m["published"]["instagram"] = {"id": "ig1"}; self.save(m); return 0
 
     def bad(self, slug, sid): self.calls.append(sid); return 1
+
+    def test_two_schedulers_at_the_same_moment_fire_a_due_step_exactly_once(self):
+        import threading, time
+        for trial in range(40):
+            self.save({"slug": "s1", "type": "music", "published": {"youtube_items": [{"id": "v", "privacy": "public"}]},
+                       "approvals": {"publish_instagram": {"at": "x"}, "instagram_caption": {"at": "x", "sha": self.N.file_sha(self.D, "instagram.txt")}},
+                       "schedule": {"instagram_at": iso(NOW - H(minutes=5))}})
+            calls = []
+            def fire(slug, sid): calls.append(sid); time.sleep(0.03); return 1   # failed, so only the claim keeps the second tick away
+            ts = [threading.Thread(target=lambda: self.PS.tick(fire, at=NOW)) for _ in range(2)]
+            for t in ts: t.start()
+            for t in ts: t.join()
+            self.assertEqual(calls, ["publish_instagram"], f"trial {trial}")
 
     def test_fires_once_then_never_again(self):
         self.PS.tick(self.ok, at=NOW)

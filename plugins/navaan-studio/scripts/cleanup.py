@@ -9,7 +9,7 @@ meta.json with the cloud URLs, youtube.json, instagram.txt, plans) and logs. Not
 """
 import os, sys, json, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, cfg, require_approval, meta_path, load_json
+from navaan_common import song_dir, cfg, require_approval, meta_path, load_json, item_load, item_save
 import storage
 import navaan_log as L
 LOG = L.get("cleanup")
@@ -22,7 +22,7 @@ def main(argv):
     slug, yes = argv[0], "--yes" in argv
     prov = cfg("storage.cloud_provider", "none")
     if prov in ("none", None, ""): print("Cloud storage is off, so nothing is safe to delete."); return 4
-    D = song_dir(slug); m = load_json(meta_path(slug), default={})
+    D = song_dir(slug); m = item_load(slug, {})
     if not m.get("cloud", {}).get("uploaded_at"): print("This song is not archived yet. Run the archive step first."); return 4
     pub = m.get("published", {})
     if not pub.get("youtube_items"): print("The song is not on YouTube yet. Clean up only after publishing."); return 4
@@ -47,9 +47,9 @@ def main(argv):
             try: os.rmdir(r)
             except OSError as _e: L.ignored(LOG, "main: OSError (optional or expected)", _e); pass
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    m = load_json(meta_path(slug), default={}); m["cleanup"] = {"at": now, "removed": len(kill), "freed_mb": round(size / 1e6), "removed_files": kill, "restore_from": m.get("cloud", {}).get("uri")}
+    m = item_load(slug, {}); m["cleanup"] = {"at": now, "removed": len(kill), "freed_mb": round(size / 1e6), "removed_files": kill, "restore_from": m.get("cloud", {}).get("uri")}
     m.setdefault("history", []).append(f"{now} local cleanup removed {len(kill)} files ({round(size / 1e6)} MB), copy is in {m['cleanup']['restore_from']}")
-    json.dump(m, open(meta_path(slug), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    item_save(slug, m)
     print(f"deleted {len(kill)} files, freed {size/1e6:.0f} MB. Copy stays in the bucket."); return 0
 
 

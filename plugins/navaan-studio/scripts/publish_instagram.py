@@ -17,7 +17,7 @@ Flow: create container (media_type REELS), poll status_code until FINISHED, then
 """
 import os, sys, json, time, argparse, urllib.request, urllib.parse, urllib.error, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, load_json, require_approval
+from navaan_common import song_dir, load_json, require_approval, item_load, item_update, item_exists
 import navaan_log as L
 LOG = L.get("publish_instagram")
 
@@ -57,7 +57,7 @@ def publish(a):
     cap = open(a.caption_file if os.path.isabs(a.caption_file) else os.path.join(D, a.caption_file), encoding="utf-8").read().strip() if a.caption_file else ""
     if not a.video_url.startswith("https://"): sys.exit("navaan: --video-url must be a public https URL")
     try:  # the caption should carry the full song link itself, the bio has none
-        pub = (json.load(open(os.path.join(D, "meta.json"), encoding="utf-8")).get("published") or {})
+        pub = ((item_load(a.slug, {}) or {}).get("published") or {})
         yt = ((pub.get("youtube_items") or [{}])[0].get("url") or "")
         if "link in bio" in cap.lower() or (yt and yt not in cap and "youtu" not in cap):
             print(f"WARNING: the caption does not carry the full YouTube link ({yt or 'none yet'}). Rewrite it with: navaan.py caption {a.slug} --feedback \"put the YouTube link in the caption, not link in bio\"", file=sys.stderr)
@@ -78,11 +78,11 @@ def publish(a):
     mid = call("POST", f"{uid}/media_publish", tok, {"creation_id": cid})["id"]
     link = call("GET", mid, tok, {"fields": "permalink"}).get("permalink", "")
     print("published", mid, link)
-    mp = os.path.join(D, "meta.json")
-    if os.path.exists(mp):
-        m = json.load(open(mp, encoding="utf-8")); m.setdefault("published", {})["instagram"] = link or mid
-        m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} instagram_publish {mid}")
-        json.dump(m, open(mp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    if item_exists(a.slug):
+        def rec(m):
+            m.setdefault("published", {})["instagram"] = link or mid
+            m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} instagram_publish {mid}")
+        item_update(a.slug, rec)
 
 
 def status(a):
