@@ -67,6 +67,26 @@ def fresh(D, outs, src):
 def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 
 
+def auto_gates(slug):
+    """Approve the gates the user switched off in Settings, Gates (gate_cfg). Returns the gates approved now. A gate whose file is not
+    there yet (a quote or shot list still to be written) is left for later."""
+    import gate_cfg
+    off = gate_cfg.load()
+    if not off: return []
+    done = []
+    D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); published = ig_done(m)
+    for g in C.type_gates(item_type(m)):
+        if g in off and not gate_ok(D, ap, g, published):
+            try:
+                if g == "visuals_mode" and not os.path.exists(os.path.join(D, "visuals.json")):   # nobody chose, so take the default: own pictures, a moving video
+                    import visuals_cfg, media_cfg
+                    visuals_cfg.save(D, "own", "video", "", "", pictures_later=media_cfg.load()["image_provider"] == "openai")
+                set_gate(slug, g, True, "auto (gate switched off in Settings)"); done.append(g)
+            except SystemExit: pass
+            ap = meta(slug).get("approvals", {})
+    return done
+
+
 def song_picture_steps(slug, D, mc):
     """The director writes the picture prompts (story, character, places, motion hints), then OpenAI paints them. Done when the song already has enough pictures."""
     import prompt_pack, visuals_cfg, song_images_openai as SI, image_openai as IO
@@ -130,9 +150,12 @@ def music_steps(slug, D):
         dict(id="shots", outputs=["shots.json", "shots_context.json", "shots_props.json"], label="Director's shot list from the lyrics (you approve or edit it)", kind="claude", skill="director-shots", chrome=False,
              done=lambda m: has(D, "shots.json"), after="shots")]) + mo_steps + [
         *([cap_step] if CAPR else []),
-        dict(id="video", outputs=["final_16x9.mp4", "final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video and the vertical reel here from your pictures" + (", burn the lyrics onto the reel" if CAPR else "") + " and tag the mp3", kind="script", sets_after="media_ready",
-             cmds=[sc("shots_render.py", slug), sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []) + [sc("tag_mp3.py", slug)],
-             done=lambda m: fresh(D, ["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", ".cache/motion/*.mp4"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else [])), after="media", sets="approved"),
+        dict(id="reel", outputs=["final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "thumb_9x16.jpg", "reel_report.json", "reel_audio.mp3", "reel_props.json"], label="Render the vertical reel for Instagram and the Short from the hook" + (" and burn the lyrics onto it" if CAPR else "") + " (redo this alone to remake only the reel)", kind="script",
+             cmds=[sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []),
+             done=lambda m: fresh(D, ["final_reel_9x16.mp4"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", "images/vert/*", ".cache/motion/*.mp4", "reel_start.json"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else []))),
+        dict(id="video", outputs=["final_16x9.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the full video here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
+             cmds=[sc("shots_render.py", slug), sc("tag_mp3.py", slug)],
+             done=lambda m: fresh(D, ["final_16x9.mp4", "final_tagged.mp3"], ["visuals.json", "images/*", ".cache/motion/*.mp4"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
     ]
     REELS = bool(cfg("video.make_reel", False))  # YouTube makes Shorts from the full video in its editor, so a separate vertical reel is optional
     FULL = "final_16x9_cap.mp4" if (CAP and vmode != "own") else "final_16x9.mp4"
@@ -580,6 +603,7 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
     t0 = time.time(); steps_run = 0
     while steps_run < max_steps:
         if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
+        auto_gates(slug)
         rows, nxt = plan(slug)
         if until and any(r["id"] == until and r["status"] == "done" for r in rows):
             STATUS[slug] = f"stopped after {until}"; print(STATUS[slug]); return 0
@@ -660,7 +684,7 @@ def redo(slug, sid, pending=True):
     return dest if moved else None
 
 
-PRODUCE_FROM = ("prompts", "pictures", "shots", "motion_plan", "motion_clips", "captions", "video")   # steps a restart can start from; it runs through the render
+PRODUCE_FROM = ("prompts", "pictures", "shots", "motion_plan", "motion_clips", "captions", "reel", "video")   # steps a restart can start from; it runs through the render
 
 
 def redo_range(slug, sid):

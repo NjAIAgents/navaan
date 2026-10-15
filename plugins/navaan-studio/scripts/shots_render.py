@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """shots_render.py <slug> [--reel]
 
---reel renders the vertical 9:16 reel (final_reel_9x16.mp4, 45 s by default, from the first chorus) for the YouTube Short and the Instagram Reel.
+--reel renders the vertical 9:16 reel (final_reel_9x16.mp4, 30 s or more) for the YouTube Short and the Instagram Reel. It starts at the hook of the song (reel_hook.py writes reel_start.json),
+shows each 16:9 picture whole over a blurred copy of itself, and both videos carry a small channel mark (watermark.py).
 
 Local render of a music video from the user's own pictures. No Flow, no credits.
   layout static  one cover picture held for the whole song (ffmpeg)
@@ -14,6 +15,7 @@ import navaan_common as C
 import inspire_render as R
 import visuals_cfg as V
 import motion_clips
+import watermark
 
 W, H, FPS = 1920, 1080, 24
 OUT = "final_16x9.mp4"
@@ -57,7 +59,7 @@ def covers(D, first):
 
 def render_static(D, mp3, img, out):
     C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-loop", "1", "-framerate", str(FPS), "-i", os.path.join(D, img), "-i", mp3,
-           "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},format=yuv420p", "-c:v", "libx264", "-tune", "stillimage", "-crf", "20",
+           "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}" + (("," + watermark.drawtext_vf(D)) if watermark.drawtext_vf(D) else "") + ",format=yuv420p", "-c:v", "libx264", "-tune", "stillimage", "-crf", "20",
            "-c:a", "aac", "-b:a", "256k", "-shortest", "-movflags", "+faststart", out])
 
 
@@ -71,7 +73,7 @@ def render_video(D, mp3, sj, out):
         ps.append({"start": float(s["start"]), "end": float(s["end"]), "image": imgs[s["image"]], "loop": loop_rel(D, s["image"]), "camera": s.get("camera", "hold"), "focus": s.get("focus") or [0.5, 0.5]})
     ps[0]["start"] = 0.0; ps[-1]["end"] = dur
     for i in range(len(ps) - 1): ps[i]["end"] = ps[i + 1]["start"]  # no gaps, no overlap in the plan; the composition adds the cross fade
-    props = {"width": W, "height": H, "fps": FPS, "duration": dur, "audio": os.path.relpath(mp3, D), "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.2, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 2}
+    props = {"width": W, "height": H, "fps": FPS, "duration": dur, "audio": os.path.relpath(mp3, D), "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.2, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 2, "watermark": watermark.text(D)}
     pp = os.path.join(D, "shots_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
     rd = R.remotion_dir()
     if not R.remotion_ready(): sys.exit(f"navaan: remotion is not installed. Run: cd {rd} && npm install")
@@ -185,7 +187,8 @@ def render_reel(slug):
             sh["loop"] = None; sh["focus"] = [0.5, 0.62]; sh["image"] = prep_images(D, [vr], "vert")[vr]
         else:
             sh["loop"] = loop_rel(D, sh["image"]); sh["image"] = cache[sh["image"]]
-    props = {"width": RW, "height": RH, "fps": FPS, "duration": dur, "audio": REEL_AUDIO, "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.0, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 1.5}
+            sh["fit"] = bool(C.cfg("video.reel_fit", True))   # a 16:9 picture is shown whole over a blurred copy of itself instead of cropped to fill
+    props = {"width": RW, "height": RH, "fps": FPS, "duration": dur, "audio": REEL_AUDIO, "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.0, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 1.5, "watermark": watermark.text(D)}
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
     rd = R.remotion_dir()
     if not R.remotion_ready(): sys.exit(f"navaan: remotion is not installed. Run: cd {rd} && npm install")

@@ -91,7 +91,9 @@ def main(slug, mode):
             last = f"[x{i}]"
     n = len(spans)
     inputs += ["-ss", f"{a0:.2f}", "-t", f"{total:.2f}", "-i", mp3]
-    fc.append(f"{last}vignette=PI/5,eq=saturation=1.05,noise=alls=2:allf=t,fade=t=in:st=0:d=2,fade=t=out:st={total-3:.2f}:d=3[v]")
+    import watermark   # the channel mark
+    wm = watermark.drawtext_vf(D, vertical=(mode == "reel"))
+    fc.append(f"{last}vignette=PI/5,eq=saturation=1.05,noise=alls=2:allf=t{(","+wm) if wm else ""},fade=t=in:st=0:d=2,fade=t=out:st={total-3:.2f}:d=3[v]")
     fc.append(f"[{n}:a]afade=t=in:st=0:d=0.4,afade=t=out:st={max(total-2.5,0):.2f}:d=2.5[a]")
     out = os.environ.get("NAVAAN_OUT") or (f"{D}/final_16x9.mp4" if mode == "16x9" else f"{D}/final_reel_sync.mp4")
     run([tool("ffmpeg"), "-y", "-v", "error", *inputs, "-filter_complex", ";".join(fc), "-map", "[v]", "-map", "[a]",
