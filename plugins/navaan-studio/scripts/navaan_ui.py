@@ -238,7 +238,10 @@ class H(BaseHTTPRequestHandler):
         D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
         if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
         if os.path.splitext(f)[1].lower() not in MEDIA_EXT or not os.path.isfile(f): return self._send(404, {"error": "no file"})
-        size = os.path.getsize(f); ct = mimetypes.guess_type(f)[0] or "application/octet-stream"
+        st = os.stat(f); size = st.st_size; ct = mimetypes.guess_type(f)[0] or "application/octet-stream"
+        etag = f'"{size:x}-{int(st.st_mtime):x}"'  # revalidate every time (a regenerated cover shows at once), but an unchanged one costs a 304, not the file
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304); self.send_header("ETag", etag); self.send_header("Cache-Control", "private, no-cache"); self.end_headers(); return
         rng = self.headers.get("Range"); start, end = 0, size - 1; code = 200
         if rng and (mm := re.match(r"bytes=(\d*)-(\d*)", rng)):
             if mm.group(1): start = int(mm.group(1))
@@ -246,6 +249,7 @@ class H(BaseHTTPRequestHandler):
             if not mm.group(1) and mm.group(2): start = max(0, size - int(mm.group(2))); end = size - 1
             code = 206
         self.send_response(code); self.send_header("Content-Type", ct); self.send_header("Accept-Ranges", "bytes")
+        self.send_header("ETag", etag); self.send_header("Cache-Control", "private, no-cache")
         self.send_header("Content-Length", str(end - start + 1))
         if code == 206: self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         self.end_headers()
