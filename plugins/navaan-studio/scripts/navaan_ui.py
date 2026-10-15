@@ -6,6 +6,7 @@ import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
 import visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
+import jobs, worker
 import navaan_log as L
 LOG = L.get("web")
 
@@ -24,6 +25,13 @@ def secrets_status():
         return {"status": "waiting", "detail": "no status yet"} if os.environ.get("NAVAAN_VAULT_ADDR") else None
 
 
+def worker_state():
+    """embedded (development: threads of this process) | on (a separate worker has reported in lately) | down (jobs are queued but nobody will run them)."""
+    if not worker.external(): return "embedded"
+    try: return "on" if jobs.workers_alive() else "down"
+    except Exception: L.soft(LOG, "worker_state_failed"); return "down"
+
+
 def scheduler_on(): return os.environ.get("NAVAAN_SCHEDULER", "on").lower() != "off"  # off on the Mac once the server owns the schedule
 def scheduler_state():
     """on | off | paused (secrets not ok: publishing needs the tokens from Vault)."""
@@ -34,7 +42,6 @@ def scheduler_state():
 
 TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
-JOBS = {}  # slug -> {"running": bool, "rc": int|None}
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
@@ -115,10 +122,11 @@ def detail(slug):
         # The agent command line carries the whole prompt and fills the box. Show a short marker instead, so the real output is visible.
         raw = re.sub(r"(?s)\$ claude -p '.*?'(?= --(?:permission-mode|allowedTools|add-dir|chrome))", "$ claude -p <prompt hidden>", raw)
         logs[os.path.basename(lp)[:-4]] = raw[-6000:]
-    rn = dict(navaan.RUN.get(slug) or {})
+    jv = jobs.view(slug)   # a worker process runs the steps; it publishes progress through the job row
+    rn = dict(jv["progress"] or {})
     if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
     rn.pop("started", None)
-    return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
+    return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
             "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
@@ -129,18 +137,9 @@ def detail(slug):
 
 
 def start_job(slug, all_steps=False, step=None, redo=False):
-    if JOBS.get(slug, {}).get("running"): return False
-    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None); navaan.STOP.discard(slug)
-    def w():
-        with L.ctx(item=slug, job_id=L.new_job_id(slug), step=step or ""):
-            L.event(LOG, "info", "job_started", all_steps=all_steps, redo=redo)
-            try: rc = navaan.pipeline(slug, wait=True) if all_steps else (navaan.redo_run(slug, step) if redo else navaan.run(slug, step=step))
-            except SystemExit as e: rc = 1; L.event(LOG, "warning", "job_stopped", exit=str(e.code)[:300])  # sys.exit("message") from a step: the message is the reason
-            except Exception: rc = 1; L.exc(LOG, "job_crashed")
-            L.event(LOG, "info" if rc == 0 else "warning", "job_finished", rc=rc)
-        JOBS[slug] = {"running": False, "rc": rc}
-        navaan.STATUS.pop(slug, None) if rc == 0 else None
-    threading.Thread(target=w, daemon=True).start(); return True
+    """Queue the run for a worker (jobs.py). False when the item already has a queued or running job."""
+    kind = "pipeline" if all_steps else ("redo" if redo else "step")
+    return bool(jobs.enqueue(slug, kind, {"all": all_steps, "step": step, "redo": redo}))
 
 
 CLIENT_LOG = {}  # client address -> times of recent browser error reports
@@ -204,7 +203,7 @@ class H(BaseHTTPRequestHandler):
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
             if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
-            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
+            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
         if not auth.session(ck):  # not signed in: only the sign in page is served
             if p == "/": return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
@@ -431,7 +430,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/suno/audio":
                 import suno_import
                 if not SLUG.match(slug) or not os.path.isdir(C.song_dir(slug)): return self._send(404, {"error": "no such song"})
-                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song"})
                 try: suno_import.save_upload(slug, body.get("name"), str(body.get("data") or ""))
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True, "started": start_job(slug, True)})
@@ -447,15 +446,15 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, "ui"); return self._send(200, {"ok": True})
             if p == "/api/redo":
-                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
             if p == "/api/restart":   # redo this step and every step after it through the render, then run until the credits gate
-                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song. Press Stop first."})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song. Press Stop first."})
                 try: navaan.redo_from(slug, body.get("step"))
                 except SystemExit as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"started": start_job(slug, True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
-            if p == "/api/stop": return self._send(200, {"stopped": navaan.stop(slug) if JOBS.get(slug, {}).get("running") else False})
+            if p == "/api/stop": return self._send(200, {"stopped": jobs.request_cancel(slug)})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
                 import narration
                 if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
@@ -541,25 +540,15 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
 
-def _fire(slug, sid):
-    """A scheduled step starts: show it as a running job in the portal, like a click on Run."""
-    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None)
-    with L.ctx(item=slug, job_id=L.new_job_id(slug), step=sid):
-        L.event(LOG, "info", "scheduled_step_started")
-        try: rc = navaan.run(slug, step=sid)
-        except SystemExit as e: rc = 1; L.event(LOG, "warning", "scheduled_step_stopped", exit=str(e.code)[:300])
-        except Exception: rc = 1; L.exc(LOG, "scheduled_step_crashed")
-        L.event(LOG, "info" if rc == 0 else "warning", "scheduled_step_finished", rc=rc)
-    JOBS[slug] = {"running": False, "rc": rc}
-    return rc
-
-
 def serve(port=8765):
     L.setup(stdout=True)
     L.event(LOG, "info", "server_starting", port=port, bind=os.environ.get("NAVAAN_BIND", "127.0.0.1"), scheduler=scheduler_on())
     threading.Thread(target=analytics_auto.loop, daemon=True).start()  # refreshes the analytics on the schedule set on the Analytics page
-    if scheduler_on(): threading.Thread(target=PS.loop, args=(_fire, lambda s: JOBS.get(s, {}).get("running") or scheduler_state() == "paused"), daemon=True).start()  # publishes what you scheduled, once its gates are approved
-    else: print("Scheduler is off (NAVAAN_SCHEDULER=off): this portal will not publish on schedule.", flush=True)
+    if worker.external():
+        print("Jobs and the schedule run in the separate worker process (NAVAAN_WORKER=external).", flush=True)
+    else:
+        worker.start_background()   # development: one process runs the web server and a worker in threads
+        if not scheduler_on(): print("Scheduler is off (NAVAAN_SCHEDULER=off): this portal will not publish on schedule.", flush=True)
     cf = auth.ensure_setup_code()
     if auth.disabled(): print("WARNING: NAVAAN_AUTH=off, the portal has no login", flush=True)
     elif cf: print(f"First run: open the portal and create your login. Setup code is in {cf}", flush=True)
