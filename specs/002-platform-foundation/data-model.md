@@ -65,7 +65,7 @@ PostgreSQL 17. Six schemas. Reviewed 2026-10-15 (13 findings applied below). The
 
 ## studio (replaces `meta.json`)
 
-**Stage 1 (NAV-4, shipped as `studio/0001`):** `items.doc` (jsonb) is the canonical, lossless copy of the old `meta.json`, plus `export_sha` and `version`; `item_history`, `approvals`, `publications` and `schedules` are projections of it, rebuilt in the same transaction on each save. `steps`, `item_settings` and `jobs` below are stage 2 (worker and queue); a field moves from `doc` to a typed table only when its readers move. Until then `doc` wins (constitution III).
+**Stage 1 (NAV-4, shipped as `studio/0001`):** `items.doc` (jsonb) is the canonical, lossless copy of the old `meta.json`, plus `export_sha` and `version`; `item_history`, `approvals`, `publications` and `schedules` are projections of it, rebuilt in the same transaction on each save. `jobs` and `workers` shipped in stage 2 (`studio/0002`): one active job per item (a partial unique index on `slug` for queued and running, stricter than the per-kind key below), `progress` and `status_text` carry what the portal showed from the old RUN and STATUS dictionaries, a lease (`locked_until`) with retry up to `max_attempts` (default 2), `cancel_requested` for Stop. `steps` and `item_settings` remain for later; a field moves from `doc` to a typed table only when its readers move. Until then `doc` wins (constitution III).
 
 | Table | Key columns | Rules |
 |-------|-------------|-------|

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Author: Navjyot Nishant
 # Created: 2026-10-13
-# Last updated: 2026-10-13
+# Last updated: 2026-10-16
 # Description: container start: pull secrets from Vault, keep them in step, then run the NAVAAN portal.
 set -eu
 CFG="$HOME/.config/navaan"
@@ -18,4 +18,5 @@ else
   echo "secrets: Vault not configured, running without it"
 fi
 # The Claude credential (claude.env) is read by the portal each time it starts a Claude step, so a late or renewed token needs no restart.
-exec python3 /home/navaan/plugin/scripts/navaan.py serve
+# NAVAAN_ROLE=worker runs the job runner and the schedule instead of the web server (compose.yml, service worker); same image, same secrets.
+exec python3 /home/navaan/plugin/scripts/navaan.py "${NAVAAN_ROLE:-serve}"
