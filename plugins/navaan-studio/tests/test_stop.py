@@ -24,7 +24,8 @@ class Stop(unittest.TestCase):
     def test_wiring(self):
         root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
         ui = open(os.path.join(root, "ui.html"), encoding="utf-8").read(); srv = open(os.path.join(root, "navaan_ui.py"), encoding="utf-8").read()
-        self.assertIn("stopIt()", ui); self.assertIn("/api/stop", ui + srv); self.assertIn("navaan.stop(slug)", srv)
+        self.assertIn("stopIt()", ui); self.assertIn("/api/stop", ui + srv); self.assertIn("jobs.request_cancel(slug)", srv)   # the web server asks; the worker stops the step at its next heartbeat
+        self.assertIn("N.stop(slug)", open(os.path.join(root, "worker.py"), encoding="utf-8").read())
 
 
 if __name__ == "__main__":

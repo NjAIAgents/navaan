@@ -17,7 +17,8 @@
   navaan.py caption <slug> [--set TEXT | --file PATH | --feedback TEXT]   show the Instagram caption awaiting approval, replace it, or have the agent rewrite it
   navaan.py question <slug>           show a question the agent is waiting on
   navaan.py answer <slug> [--choice ID] [--text TEXT]   answer it (the web UI shows the same question as a card)
-  navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
+  navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run (a worker runs in its threads unless NAVAAN_WORKER=external)
+  navaan.py worker [--slots 2]        the job runner and the publishing schedule as their own process (compose.yml service `worker`)
 
 Steps: lyrics, suno (or suno_import for an imported song), visuals_mode (your own pictures, the default, or Flow; with own pictures the steps are shots, a director's shot list you approve, then a local render, see docs/VISUALS.md), visuals (Flow), captions (only when captions.enabled is true, off by default), video, youtube_meta, publish_youtube (private), youtube_short (private), instagram_caption, go_public (video and Short public), publish_instagram, archive (uploads the whole song and records the bucket URLs in meta.json), cleanup (last: deletes the local media after the bucket is checked).
 Gates (human only): lyrics, suno_download, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload, local_cleanup, go_public. Approvals live in <local_dir>/songs/<slug>/meta.json.
@@ -873,7 +874,7 @@ def status(slug=None):
 def main(argv):
     if not argv: print(__doc__); return 0
     c, a = argv[0], argv[1:]
-    L.setup(stdout=(c == "serve"))   # the command line keeps its own output readable; `serve` also writes the log to stdout for the container
+    L.setup(stdout=(c in ("serve", "worker")))   # the command line keeps its own output readable; `serve` also writes the log to stdout for the container
     if c == "init": return subprocess.call([PY, os.path.join(HERE, "setup_profile.py")] + a)
     if c == "new": return subprocess.call([PY, os.path.join(HERE, "new_song.py")] + a)
     if c == "account": return account_cmd(a[0] if a else "inspiration")
@@ -934,6 +935,8 @@ def main(argv):
         fire = lambda sl, sid: run(sl, step=sid)
         if "--loop" in a: print("scheduler running, checking every minute. Ctrl+C to stop.", flush=True); PS.loop(fire); return 0
         print(PS.tick(fire) or "nothing due"); return 0
+    if c == "worker":   # the job runner and the schedule, as its own process (compose.yml service `worker`)
+        import worker; return worker.main(a)
     if c == "serve":
         import studio_store; studio_store.auto()   # first start after the move: every songs/*/meta.json into Postgres, verified, or stop (the release then rolls back)
         import analytics_to_postgres; analytics_to_postgres.auto()   # first start after the move to Postgres: bring the SQLite history across, verified, or stop (the release then rolls back)

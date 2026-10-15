@@ -206,3 +206,18 @@ its content is taken in as the newer state (`meta_json_edited_outside`). A file 
 each other. The scheduler counts an attempt under that lock before it fires a step, so two schedulers never run the same step. Tested with 40 pairs of simultaneous ticks.
 
 **Rollback:** the previous image reads the exported `meta.json` files, which are current. Anything it changes is taken back in by the next release through the outside-edit check.
+
+### Jobs and the worker (NAV-4 stage 2)
+
+The web server no longer runs steps or the publishing schedule. A click on Run, an approval that starts the next step, an answer, Redo or Restart **queues a job** in Postgres (`studio.jobs`); the
+`worker` service (same image, `navaan.py worker`, container `navaan-worker`) claims it and runs it exactly as the web server used to, and publishes the progress the portal shows
+(the old RUN and STATUS texts, through the job row). The schedule runs in the worker too, each step recorded as a job.
+
+- **One active job per item.** A second trigger while one is queued or running is refused (the old "a run is in progress").
+- **Lease and retry.** A running job has a lease its worker extends every 5 s. If the worker stops (deploy, crash, host restart) the lease runs out, `reap()` puts the job back in the queue and the next
+  worker runs it again; after 2 attempts it fails with "the worker stopped before the job finished". A clean stop gives the lease back at once. A step that fails by itself is a failed job, not a retry.
+- **Stop** from the portal sets a flag the worker sees at its next heartbeat, then stops the step and everything it started.
+- **If the worker is down** the portal still queues jobs and `/api/status` reports `"worker": "down"`; they run when it is back. `docker logs navaan-worker`, and per-run files in `state/logs/worker/runs/`.
+- **Slots.** `NAVAAN_WORKER_SLOTS` (default 2) items run in parallel; ffmpeg and Remotion are heavy, so watch memory before raising it.
+- **Development.** `navaan.py serve` runs a worker in its own threads unless `NAVAAN_WORKER=external`, so one process is still enough on a laptop.
+- **Rollback.** The previous image has no worker: its web server runs steps itself. After a rollback stop the worker container (`docker stop navaan-worker`); queued jobs wait in the table.

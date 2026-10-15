@@ -102,26 +102,12 @@ class ClientLog(WebLog):
 
 
 class Jobs(WebLog):
-    def test_a_crashing_job_is_logged_with_item_job_id_and_stack_and_the_run_file_has_it(self):
-        with mock.patch.object(U.navaan, "run", side_effect=ValueError("render exploded")):
-            self.assertTrue(U.start_job("song-777", step="video"))
-            for _ in range(50):
-                if not U.JOBS["song-777"]["running"]: break
-                time.sleep(0.1)
-        self.assertEqual(U.JOBS["song-777"]["rc"], 1)
-        c = self.recs("job_crashed")[0]
-        self.assertEqual((c["item"], c["step"], c["error"]["type"]), ("song-777", "video", "ValueError")); self.assertIn("render exploded", c["error"]["message"])
-        run = os.path.join(self.tmp.name, "logs", "runs", c["job_id"] + ".jsonl")
-        evs = [json.loads(x)["event"] for x in _read(run).splitlines()]
-        self.assertEqual(evs, ["job_started", "job_crashed", "job_finished"])
-
-    def test_a_step_that_exits_with_a_message_keeps_the_message(self):
-        with mock.patch.object(U.navaan, "run", side_effect=SystemExit("quote.json is missing")):
-            U.start_job("song-778", step="quote")
-            for _ in range(50):
-                if not U.JOBS["song-778"]["running"]: break
-                time.sleep(0.1)
-        self.assertEqual(self.recs("job_stopped")[0]["exit"], "quote.json is missing")
+    """The web server only queues work now; the logging of a run is the worker's (tests/test_worker.py)."""
+    def test_a_run_is_queued_once_and_a_second_start_is_refused(self):
+        import jobs
+        self.assertTrue(U.start_job("song-777", step="video")); self.assertFalse(U.start_job("song-777", all_steps=True))
+        v = jobs.view("song-777"); self.assertEqual((v["running"], v["queued"]), (True, True))
+        self.assertEqual(self.recs("job_queued")[0]["item"], "song-777")
 
 
 if __name__ == "__main__":
