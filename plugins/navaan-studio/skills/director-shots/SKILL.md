@@ -15,6 +15,7 @@ The video is stitched locally from the user's pictures in `images/` with slow ca
    - Camera for each shot: `push_in` (closeness, confession, rising feeling), `pull_out` (release, distance, ending), `pan_left` or `pan_right` (travel, memory), `tilt_up` (hope), `tilt_down` (weight, sorrow), `drift` (ambient, calm), `hold` (a still beat). Do not use the same move twice in a row. Close on `pull_out` or `drift`.
    - `focus` is `[x, y]` as fractions of the picture (0 to 1) that a push or pull aims at, for example a face or a window. Default `[0.5, 0.5]`.
    - `scene`: one plain sentence saying what the viewer should feel or notice in this shot. `lyric`: the first line or two of the section, so the user can recognise it.
+   - If the context has a `plan`, the camera operator already chose a move and focus for each picture. Keep them unless looking at the picture shows a better move, and never repeat one move twice in a row.
    - If `camera_override` or `scene_override` in the context is not empty, it is the user's instruction for the whole video. Follow it over your own taste.
 4. Timing: `start` and `end` in seconds, the first shot starts at 0, each shot ends where the next begins, the last ends at the song duration. If `timing_source` says estimated, say so in `notes`, because the user may need to nudge the times.
 5. Layout `static` has no shot list. If `visuals.json` says static, write nothing and say so.

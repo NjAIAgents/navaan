@@ -17,6 +17,7 @@ VOICES = {
 }
 CHOICES = {
     "image_provider": ("flow", "openai"),
+    "picture_director": ("openai", "claude"),   # who writes the picture plan: OpenAI chat model (default) or Claude
     "image_quality": ("low", "medium", "high"),
     "image_size_landscape": ("1792x1008", "1536x864"),   # songs, exactly 16:9; 1536x864 is the smaller, cheaper size
     "image_size": ("1152x2048", "1024x1536"),   # 1152x2048 is exactly 9:16; 1024x1536 is the smaller, cheaper size
@@ -31,7 +32,7 @@ NUMBERS = {  # key: (default, min, max)
     "song_pictures": (16, 6, 40),                 # pictures the director plans per song (16 at medium 1792x1008 is about 0.77 dollars)
     "eleven_monthly_seconds": (1500, 60, 36000),  # ElevenLabs audio allowed per calendar month
 }
-DEFAULTS = {"image_provider": "flow", "image_quality": "medium", "image_size": "1152x2048", "image_size_landscape": "1792x1008", "narration_source": "upload", "voice": "frank",
+DEFAULTS = {"image_provider": "flow", "picture_director": "openai", "image_quality": "medium", "image_size": "1152x2048", "image_size_landscape": "1792x1008", "narration_source": "upload", "voice": "frank",
             "eleven_model": "eleven_v4", "music": "auto", "motion": "subtle", "max_run_usd": 0.8, "song_pictures": 16, "eleven_monthly_seconds": 1500}
 KEYS = {  # provider: (file, variable, pattern, live test url, auth header builder)
     "openai": ("openai.env", "OPENAI_API_KEY", r"sk-[A-Za-z0-9_\-]{20,300}", "https://api.openai.com/v1/models", lambda k: {"Authorization": "Bearer " + k}),

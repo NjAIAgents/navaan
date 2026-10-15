@@ -63,9 +63,11 @@ def main(argv):
     pack = prompt_pack.load(D)
     if not pack or not pack.get("prompts"): sys.exit("navaan: prompt_pack.json is missing. Run the prompt step first.")
     count = int(argv[argv.index("--count") + 1]) if "--count" in argv else None
-    items = plan(pack, count)
-    imgdir = os.path.join(D, "images"); os.makedirs(imgdir, exist_ok=True)
-    todo = [(i, it) for i, it in enumerate(items, 1) if "--force" in argv or not os.path.exists(os.path.join(imgdir, name_for(i)))]
+    tr = "--try" in argv   # a test: only the first 2 prompts, saved as try_01.png and try_02.png next to the song files, never used by the video
+    items = plan(pack, 2 if tr else count)
+    nm = (lambda i: "try_%02d.png" % i) if tr else name_for
+    imgdir = D if tr else os.path.join(D, "images"); os.makedirs(imgdir, exist_ok=True)
+    todo = [(i, it) for i, it in enumerate(items, 1) if tr or "--force" in argv or not os.path.exists(os.path.join(imgdir, nm(i)))]
     try: cost = check_total(len(todo), q, size, cfg)
     except ValueError as e: sys.exit("navaan: " + str(e))
     if "--estimate" in argv:
@@ -73,7 +75,7 @@ def main(argv):
     if not todo: print("all %d pictures already exist. Use --force to make them again." % len(items)); return 0
     key = media_cfg.get_key("openai")
     if not key: sys.exit("navaan: no OpenAI key. Paste it in Settings, Pictures and voice.")
-    if len(V.own_images(D)) + len(todo) > V.MAX_IMAGES and "--force" not in argv:
+    if not tr and len(V.own_images(D)) + len(todo) > V.MAX_IMAGES and "--force" not in argv:
         sys.exit("navaan: this would pass the limit of %d pictures for a song." % V.MAX_IMAGES)
     failed = []
 
@@ -84,7 +86,7 @@ def main(argv):
         except RuntimeError as e:
             failed.append((i, str(e))); return
         media_cfg.add_usage(openai_usd=IO.estimate(q, size))  # spent now, whatever happens to the file
-        with open(os.path.join(imgdir, name_for(i)), "wb") as f: f.write(raw)
+        with open(os.path.join(imgdir, nm(i)), "wb") as f: f.write(raw)
         print("picture %d of %d saved" % (i, len(items)), flush=True)
     with ThreadPoolExecutor(WORKERS) as ex: list(ex.map(work, todo))
     if failed:

@@ -35,6 +35,12 @@ def sections(text):
     return [(l, ls) for l, ls in out if ls]
 
 
+def plan_by_image(D):
+    """The picture plan keyed by picture file: {"images/pic_01.png": {"camera", "focus", "scene"}}. Empty when there is no plan."""
+    pk = C.load_json(os.path.join(D, "prompt_pack.json"), default=None) or {}
+    return {"images/pic_%02d.png" % int(p.get("n") or i): {"camera": p.get("camera", ""), "focus": p.get("focus"), "scene": str(p.get("prompt") or "")[:240]} for i, p in enumerate(pk.get("prompts") or [], 1)}
+
+
 def build_context(D):
     mp3 = next((os.path.join(D, n) for n in ("final.mp3", "final_tagged.mp3") if os.path.exists(os.path.join(D, n))), None)
     if not mp3: sys.exit("navaan: final.mp3 is missing")
@@ -71,7 +77,7 @@ def build_context(D):
     return {"duration": dur, "sections": out, "images": imgs, "layout": v.get("layout", "video"), "camera_override": v.get("camera", ""), "scene_override": v.get("scene", ""),
             "title": (open(os.path.join(D, "title.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "title.txt")) else ""),
             "style": (open(os.path.join(D, "style.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "style.txt")) else ""),
-            "cameras": list(CAMERAS), "timing_source": "caption_cues.json" if cues else "estimated from line counts"}
+            "plan": plan_by_image(D), "cameras": list(CAMERAS), "timing_source": "caption_cues.json" if cues else "estimated from line counts"}
 
 
 def draft(ctx):
@@ -89,7 +95,7 @@ def draft(ctx):
     out = []
     for k, s in enumerate(shots):
         out.append({"id": k + 1, "label": s["label"], "start": round(s["start"], 2), "end": round(s["end"], 2), "image": imgs[k % len(imgs)],
-                    "camera": CYCLE[k % len(CYCLE)], "focus": [0.5, 0.5], "scene": "", "lyric": s["lyric"]})
+                    "camera": ((ctx.get("plan") or {}).get(imgs[k % len(imgs)]) or {}).get("camera") or CYCLE[k % len(CYCLE)], "focus": ((ctx.get("plan") or {}).get(imgs[k % len(imgs)]) or {}).get("focus") or [0.5, 0.5], "scene": "", "lyric": s["lyric"]})
     return {"duration": ctx["duration"], "shots": out, "notes": "first draft: one shot per lyric section, pictures and moves assigned in turn"}
 
 
