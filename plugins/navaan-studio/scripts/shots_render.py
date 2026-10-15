@@ -6,7 +6,7 @@ shows each 16:9 picture whole over a blurred copy of itself, and both videos car
 
 Local render of a music video from the user's own pictures. No Flow, no credits.
   layout static  one cover picture held for the whole song (ffmpeg)
-  layout video   the approved shots.json: each shot a picture with a slow camera move, cross faded (Remotion, Shots composition)
+  layout video   the approved shots.json: each shot a picture with a slow camera move, cross faded (ffrender.py, plain ffmpeg; the Remotion Shots composition is the fallback)
 Audio is songs/<slug>/final.mp3. Writes final_16x9.mp4 (1920x1080, 24 fps) plus the covers the later steps use:
 cover_16x9.png, cover_1x1.png, thumb_16x9.jpg (the YouTube thumbnail). Existing covers the user made are kept."""
 import os, sys, json, re, subprocess
@@ -72,6 +72,28 @@ def render_static(D, mp3, img, out):
            "-c:a", "aac", "-b:a", "256k", "-shortest", "-movflags", "+faststart", out])
 
 
+def render_any(D, props, pp, out, what):
+    """Draw the Shots video. The fast ffmpeg renderer first (video.renderer = "remotion" skips it); if it fails for any reason Remotion draws it instead."""
+    if str(C.cfg("video.renderer", "ffmpeg")).lower() != "remotion":
+        try:
+            import ffrender
+            print(f"rendering {what} (fast renderer) ...", flush=True)
+            ffrender.render(D, props, out)
+            return
+        except (Exception, SystemExit) as e:   # navaan_common.font() exits when no font is found
+            print(f"navaan: fast renderer failed ({type(e).__name__}: {str(e)[:300]}), using Remotion, which is slower", flush=True)
+            if os.path.exists(out): os.remove(out)
+    rd = R.remotion_dir()
+    if not R.remotion_ready(): sys.exit(f"navaan: remotion is not installed. Run: cd {rd} && npm install")
+    cmd = ["npx", "--no-install", "remotion", "render", "src/index.ts", "Shots", out, f"--props={pp}", f"--public-dir={D}",
+           "--codec=h264", "--crf=18", "--pixel-format=yuv420p", "--log=error", "--overwrite", "--concurrency=4"]
+    chrome = os.environ.get("NAVAAN_CHROME") or next((c for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium") if os.path.exists(c)), "")
+    if chrome: cmd += [f"--browser-executable={chrome}", "--chrome-mode=chrome-for-testing"]
+    env = dict(os.environ); env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + env.get("PATH", "")
+    print(f"rendering {what} (this takes a few minutes) ...", flush=True)
+    subprocess.run(cmd, cwd=rd, check=True, env=env)
+
+
 def render_video(D, mp3, sj, out):
     shots = sj["shots"]
     if not shots: sys.exit("navaan: shots.json has no shots")
@@ -84,15 +106,7 @@ def render_video(D, mp3, sj, out):
     for i in range(len(ps) - 1): ps[i]["end"] = ps[i + 1]["start"]  # no gaps, no overlap in the plan; the composition adds the cross fade
     props = {"width": W, "height": H, "fps": FPS, "duration": dur, "audio": os.path.relpath(mp3, D), "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.2, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 2, "watermark": watermark.text(D)}
     pp = os.path.join(D, "shots_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
-    rd = R.remotion_dir()
-    if not R.remotion_ready(): sys.exit(f"navaan: remotion is not installed. Run: cd {rd} && npm install")
-    cmd = ["npx", "--no-install", "remotion", "render", "src/index.ts", "Shots", out, f"--props={pp}", f"--public-dir={D}",
-           "--codec=h264", "--crf=18", "--pixel-format=yuv420p", "--log=error", "--overwrite", "--concurrency=4"]
-    chrome = os.environ.get("NAVAAN_CHROME") or next((c for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium") if os.path.exists(c)), "")
-    if chrome: cmd += [f"--browser-executable={chrome}", "--chrome-mode=chrome-for-testing"]
-    env = dict(os.environ); env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + env.get("PATH", "")
-    print(f"rendering {dur}s with {len(ps)} shots (this takes a few minutes) ...", flush=True)
-    subprocess.run(cmd, cwd=rd, check=True, env=env)
+    render_any(D, props, pp, out, f"{dur}s with {len(ps)} shots")
 
 
 def main(slug):
@@ -200,17 +214,9 @@ def render_reel(slug):
             if sh["fit"]: sh["bg"] = blur_backdrop(D, sh["image"])
     props = {"width": RW, "height": RH, "fps": FPS, "duration": dur, "audio": REEL_AUDIO, "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.0, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 1.5, "watermark": watermark.text(D)}
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
-    rd = R.remotion_dir()
-    if not R.remotion_ready(): sys.exit(f"navaan: remotion is not installed. Run: cd {rd} && npm install")
     part = os.path.join(D, "final_reel.part.mp4"); out = os.path.join(D, REEL_OUT)
     if os.path.exists(part): os.remove(part)
-    cmd = ["npx", "--no-install", "remotion", "render", "src/index.ts", "Shots", part, f"--props={pp}", f"--public-dir={D}",
-           "--codec=h264", "--crf=18", "--pixel-format=yuv420p", "--log=error", "--overwrite", "--concurrency=4"]
-    chrome = os.environ.get("NAVAAN_CHROME") or next((c for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium") if os.path.exists(c)), "")
-    if chrome: cmd += [f"--browser-executable={chrome}", "--chrome-mode=chrome-for-testing"]
-    env = dict(os.environ); env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + env.get("PATH", "")
-    print(f"rendering the {dur}s reel starting at {start}s with {len(ps)} shots ...", flush=True)
-    subprocess.run(cmd, cwd=rd, check=True, env=env)
+    render_any(D, props, pp, part, f"the {dur}s reel starting at {start}s with {len(ps)} shots")
     info = R.probe(part); errs = []
     if (info["width"], info["height"]) != (RW, RH): errs.append(f"size is {info['width']}x{info['height']}, need {RW}x{RH}")
     if info["codec"] != "h264": errs.append(f"codec is {info['codec']}")
