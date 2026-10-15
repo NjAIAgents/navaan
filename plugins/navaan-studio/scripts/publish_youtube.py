@@ -24,6 +24,8 @@ Shorts need no special flag: a vertical video of 60 seconds or less is treated a
 import os, sys, json, argparse, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import song_dir, cfg, load_json, require_approval
+import navaan_log as L
+LOG = L.get("publish_youtube")
 
 CONF = os.path.expanduser("~/.config/navaan")
 SECRET = os.environ.get("NAVAAN_YT_CLIENT_SECRETS", f"{CONF}/youtube_client_secret.json")
@@ -38,7 +40,8 @@ def service():
         from google_auth_oauthlib.flow import InstalledAppFlow
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
-    except ImportError:
+    except ImportError as _e:
+        L.ignored(LOG, "service: ImportError (optional or expected)", _e)
         sys.exit("navaan: pip install google-api-python-client google-auth-oauthlib")
     creds = Credentials.from_authorized_user_file(TOKEN, SCOPES) if os.path.exists(TOKEN) else None
     if not creds or not creds.valid:

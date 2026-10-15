@@ -10,6 +10,8 @@ pages_show_list, pages_read_engagement, instagram_manage_insights (Business Disc
 Extend Access Token so it lasts 60 days.
 """
 import os, sys, json, getpass, urllib.request, urllib.parse, urllib.error
+import navaan_log as L
+LOG = L.get("ig_market_setup")
 
 HOST = "https://graph.facebook.com"
 VER = "v21.0"
@@ -21,9 +23,10 @@ def get(path, tok, **params):
     try:
         return json.loads(urllib.request.urlopen(url, timeout=30).read())
     except urllib.error.HTTPError as e:
+        L.ignored(LOG, "get: HTTPError (optional or expected)", e)
         body = e.read().decode("utf-8", "replace")
         try: msg = json.loads(body)["error"]["message"]
-        except Exception: msg = body[:300]
+        except Exception as _e: L.soft(LOG, "get_error"); msg = body[:300]
         sys.exit(f"navaan: Facebook API error {e.code}: {msg}")
 
 

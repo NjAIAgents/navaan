@@ -25,6 +25,8 @@ import os, sys, json, re, hashlib, argparse, datetime, statistics, uuid
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("ig_reco")
 
 UTC = datetime.timezone.utc
 CATEGORIES = ("data", "hook", "content", "timing", "cadence", "hashtags", "caption", "engagement", "audience", "format", "market", "growth", "retention", "packaging")
@@ -51,7 +53,8 @@ THRESHOLDS = {
 def parse_ts(s):
     try:
         return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) if s else None
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "parse_ts: ValueError (optional or expected)", _e)
         return None
 
 
@@ -87,7 +90,8 @@ def settings():
         if cfg("analytics.target_posts_per_week"):
             t["target_posts_per_week"] = cfg("analytics.target_posts_per_week")
         tz = cfg("analytics.timezone", "UTC") or "UTC"
-    except SystemExit:
+    except SystemExit as _e:
+        L.ignored(LOG, "settings: SystemExit (optional or expected)", _e)
         pass
     return t, tz
 
@@ -266,7 +270,8 @@ def tz_label(hours_utc, tzs, now):
             try:
                 from zoneinfo import ZoneInfo
                 local.append(f"{base.astimezone(ZoneInfo(tz)):%H:%M} {tz.split('/')[-1]}")
-            except Exception:
+            except Exception as _e:
+                L.soft(LOG, "tz_label_error")
                 pass
         parts.append(f"{h:02d}:00 UTC" + (f" ({', '.join(local)})" if local else ""))
     return parts
@@ -604,6 +609,7 @@ def add_recs(conn, uid, items, now=None):
             if key in open_titles:
                 raise ValueError("a recommendation with this title already exists")
         except ValueError as e:
+            L.ignored(LOG, "add_recs: ValueError (optional or expected)", e)
             errors.append(f"{where}: {e}")
             continue
         open_titles.add(key)
@@ -704,6 +710,7 @@ def cmd_note(a):
     try:
         print(add_notes(conn, a.topic, a.summary, a.url, a.title, a.region, a.language, a.confidence, a.ttl_days, platform=a.note_platform))
     except ValueError as e:
+        L.ignored(LOG, "cmd_note: ValueError (optional or expected)", e)
         sys.exit(f"navaan: {e}")
 
 
@@ -715,6 +722,7 @@ def cmd_add(a):
     try:
         res = add_recs(conn, t[0]["ig_user_id"], json.load(sys.stdin if a.file == "-" else open(a.file, encoding="utf-8")))
     except (ValueError, json.JSONDecodeError) as e:
+        L.ignored(LOG, "cmd_add: ValueError/JSONDecodeError (optional or expected)", e)
         sys.exit(f"navaan: {e}")
     print(json.dumps(res, indent=2, ensure_ascii=False))
     sys.exit(0 if not res["rejected"] else 1)
@@ -733,6 +741,7 @@ def cmd_status(a):
     try:
         set_status(conn, a.rec_id, a.new_status, a.reason)
     except ValueError as e:
+        L.ignored(LOG, "cmd_status: ValueError (optional or expected)", e)
         sys.exit(f"navaan: {e}")
     print("ok")
 

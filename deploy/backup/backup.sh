@@ -20,7 +20,7 @@ BUCKET="${NAVAAN_BACKUP_BUCKET:-}"; PREFIX="navaan-backup/"; DRY="${NAVAAN_BACKU
 [ -d "$DATA" ] || { echo "backup: $DATA not found" >&2; exit 2; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"; stage="$tmp/navaan-data"; mkdir -p "$stage"
-tar -C "$DATA" --exclude='state/analytics.db*' -cf - . | tar -C "$stage" -xf -
+tar -C "$DATA" --exclude='state/analytics.db*' --exclude='state/logs' -cf - . | tar -C "$stage" -xf -
 if [ -f "$DATA/state/analytics.db" ]; then
   mkdir -p "$stage/state"
   python3 - "$DATA/state/analytics.db" "$stage/state/analytics.db" <<'PY'

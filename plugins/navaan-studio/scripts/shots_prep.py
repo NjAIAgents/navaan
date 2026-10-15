@@ -13,6 +13,8 @@ import os, sys, json, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import visuals_cfg as V
+import navaan_log as _nl
+_LOG = _nl.get("shots_prep")
 
 CAMERAS = ("push_in", "pull_out", "pan_left", "pan_right", "tilt_up", "tilt_down", "drift", "hold")
 CYCLE = ("push_in", "pan_right", "pull_out", "drift", "pan_left", "push_in", "tilt_up", "pull_out")
@@ -72,7 +74,7 @@ def build_context(D):
             import subprocess
             j = json.loads(subprocess.check_output([C.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", os.path.join(D, rel)]))
             w, h = j["streams"][0]["width"], j["streams"][0]["height"]
-        except Exception: pass
+        except Exception as _e: _nl.ignored(_LOG, "ffprobe could not read the picture size, width and height stay empty", _e, file=rel)
         imgs.append({"file": rel, "width": w, "height": h})
     return {"duration": dur, "sections": out, "images": imgs, "layout": v.get("layout", "video"), "camera_override": v.get("camera", ""), "scene_override": v.get("scene", ""),
             "title": (open(os.path.join(D, "title.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "title.txt")) else ""),

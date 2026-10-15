@@ -1,11 +1,13 @@
 """Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
-import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html
+import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html, logging
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
 import visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
+import navaan_log as L
+LOG = L.get("web")
 
 TOKEN = secrets.token_urlsafe(24)
 PUBLIC_HOST = lambda: os.environ.get("NAVAAN_PUBLIC_HOST", "").strip().lower()  # extra allowed Host, e.g. navaan.njlabs.dev
@@ -17,7 +19,8 @@ def secrets_status():
         d = json.load(open(f, encoding="utf-8"))
         if time.time() - d.get("at", 0) > 120: d.update(status="waiting", detail="sync stopped")
         return d
-    except (OSError, ValueError):
+    except (OSError, ValueError) as _e:
+        L.ignored(LOG, "secrets_status: OSError/ValueError (optional or expected)", _e)
         return {"status": "waiting", "detail": "no status yet"} if os.environ.get("NAVAAN_VAULT_ADDR") else None
 
 
@@ -46,7 +49,7 @@ def song_row(s):
     """One line per song for the dashboard, library and approvals views."""
     D = C.song_dir(s); m = navaan.meta(s)
     try: rows, n = navaan.plan(s)
-    except SystemExit: rows, n = [], {"type": "none"}
+    except SystemExit as _e: L.ignored(LOG, "song_row: SystemExit (optional or expected)", _e); rows, n = [], {"type": "none"}
     pub = m.get("published", {}); its = list(pub.get("youtube_items", [])) + ([pub["youtube_short"]] if pub.get("youtube_short", {}).get("id") else [])
     cl = m.get("cloud", {}); public = navaan.public_done(m)
     ig_on = navaan.ig_enabled(m)
@@ -74,7 +77,7 @@ def cloud_view(refresh=False):
     pre = (prefix.strip("/") + "/") if prefix else ""
     out = {"configured": True, "provider": prov, "bucket": bucket, "region": region, "prefix": pre, "songs": []}
     try: objs = storage.list_objects(prov, bucket, pre, region)
-    except RuntimeError as e: out["error"] = str(e); return out
+    except RuntimeError as e: L.ignored(LOG, "cloud_view: RuntimeError (optional or expected)", e); out["error"] = str(e); return out
     by = {}
     for k, sz in objs.items():
         rel = k[len(pre):]; slug, _, name = rel.partition("/")
@@ -95,7 +98,7 @@ def cloud_view(refresh=False):
 def detail(slug):
     D = C.song_dir(slug)
     try: navaan.auto_gates(slug)   # gates switched off in Settings approve themselves
-    except Exception: pass
+    except Exception as _e: L.soft(LOG, "detail_error"); pass
     m = navaan.meta(slug); rows, nxt = navaan.plan(slug)
     fl = {}
     for f in sorted(os.listdir(D)):
@@ -129,30 +132,70 @@ def start_job(slug, all_steps=False, step=None, redo=False):
     if JOBS.get(slug, {}).get("running"): return False
     JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None); navaan.STOP.discard(slug)
     def w():
-        try: rc = navaan.pipeline(slug, wait=True) if all_steps else (navaan.redo_run(slug, step) if redo else navaan.run(slug, step=step))
-        except SystemExit as e: rc = 1
-        except Exception: rc = 1
+        with L.ctx(item=slug, job_id=L.new_job_id(slug), step=step or ""):
+            L.event(LOG, "info", "job_started", all_steps=all_steps, redo=redo)
+            try: rc = navaan.pipeline(slug, wait=True) if all_steps else (navaan.redo_run(slug, step) if redo else navaan.run(slug, step=step))
+            except SystemExit as e: rc = 1; L.event(LOG, "warning", "job_stopped", exit=str(e.code)[:300])  # sys.exit("message") from a step: the message is the reason
+            except Exception: rc = 1; L.exc(LOG, "job_crashed")
+            L.event(LOG, "info" if rc == 0 else "warning", "job_finished", rc=rc)
         JOBS[slug] = {"running": False, "rc": rc}
         navaan.STATUS.pop(slug, None) if rc == 0 else None
     threading.Thread(target=w, daemon=True).start(); return True
 
 
+CLIENT_LOG = {}  # client address -> times of recent browser error reports
+CLIENT_LOG_LOCK = threading.Lock()
+def client_log_ok(ip, n=30, per=60):
+    """At most n browser reports per minute per address, so a broken page cannot flood the log."""
+    t = time.time()
+    with CLIENT_LOG_LOCK:
+        q = [x for x in CLIENT_LOG.get(ip, []) if t - x < per]
+        if len(q) >= n: CLIENT_LOG[ip] = q; return False
+        q.append(t); CLIENT_LOG[ip] = q; return True
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "navaan"
-    def log_message(self, *a): pass
+    def log_message(self, fmt, *a): L.event(LOG, "debug", "http_server_message", msg=(fmt % a if a else fmt))
+    def send_response(self, code, message=None): self._status = code; super().send_response(code, message)
+    def send_header(self, k, v):
+        if k.lower() == "content-length" and str(v).isdigit(): self._bytes = int(v)
+        super().send_header(k, v)
+    def _handle(self, fn):
+        """Every request: an id (returned as X-Request-Id), one access record, and any unexpected error logged once with its stack."""
+        self._rid = L.new_request_id(self.headers.get("X-Request-Id")); self._status = 0; self._bytes = 0; self._err_logged = False; t0 = time.time()
+        with L.ctx(request_id=self._rid, method=self.command, path=self.path.split("?")[0][:200], ip=self._ip()):
+            try: fn()
+            except (BrokenPipeError, ConnectionResetError) as e: L.ignored(LOG, "the browser closed the connection", e)
+            except Exception:
+                L.exc(LOG, "request_failed"); self._err_logged = True
+                if not self._status:   # once a reply has started, a second status line would corrupt it
+                    try: self._send(500, {"error": f"internal error (ref {self._rid})", "request_id": self._rid})
+                    except Exception: L.exc(LOG, "request_failed_reply")
+            ms = int((time.time() - t0) * 1000)
+            routine = self.command == "GET" and (self._status in (200, 206, 304) and ms < 1000 or self._status in (401, 403, 404))  # the page polls; routine polls stay at debug
+            L.event(LOG, "debug" if routine else "info", "http_request", status=self._status, ms=ms, bytes=self._bytes)
+    def do_GET(self): self._handle(self._do_GET)
+    def do_POST(self): self._handle(self._do_POST)
     def _send(self, code, body, ctype="application/json", extra=None):
         b = body if isinstance(body, bytes) else (json.dumps(body, ensure_ascii=False) if not isinstance(body, str) else body).encode()
         self.send_response(code); self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith(("text", "application/json")) else ""))
         self.send_header("Content-Length", str(len(b))); self.send_header("Cache-Control", "no-store")
+        if getattr(self, "_rid", None): self.send_header("X-Request-Id", self._rid)
         for k, v in (extra or {}).items(): self.send_header(k, v)
         self.end_headers(); self.wfile.write(b)
+        if code >= 400 and ctype.startswith("application/json") and not getattr(self, "_err_logged", False):
+            err = body.get("error") if isinstance(body, dict) else None
+            ei = sys.exc_info() if code >= 500 and sys.exc_info()[0] else None  # inside an except block this is the error that caused the reply
+            LOG.log(logging.ERROR if code >= 500 else (logging.DEBUG if code == 401 else logging.INFO), "http_error", exc_info=ei, extra={"fields": {"status": code, "error": str(err)[:300]}})
+            if code >= 500: self._err_logged = True
     def _host_ok(self):
         h = (self.headers.get("Host") or "").split(":")[0]
         return h in ("127.0.0.1", "localhost") or (bool(PUBLIC_HOST()) and h == PUBLIC_HOST())
     def _ip(self):  # real client address; X-Real-IP only when a trusted proxy sits in front (NAVAAN_TRUST_PROXY=1)
         return (self.headers.get("X-Real-IP") or "").strip() if TRUST_PROXY() and self.headers.get("X-Real-IP") else self.client_address[0]
     def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
-    def do_GET(self):
+    def _do_GET(self):
         if not self._host_ok(): return self._send(403, {"error": "bad host"})
         p = self.path.split("?")[0]
         if p in ("/privacy", "/terms"):  # public on purpose: Google asks for these links on the OAuth consent screen
@@ -207,7 +250,7 @@ class H(BaseHTTPRequestHandler):
                 sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
                 if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
                 try: return self._send(200, {"suggestion": PS.suggest(sl)})
-                except Exception as e: return self._send(200, {"suggestion": None, "error": str(e)[:200]})
+                except Exception as e: L.soft(LOG, "schedule_suggest_failed", item=sl); return self._send(200, {"suggestion": None, "error": str(e)[:200]})
             if p == "/api/schedule/options":
                 from urllib.parse import parse_qs, urlparse
                 ty = (parse_qs(urlparse(self.path).query).get("type") or ["music"])[0]; out = []
@@ -216,7 +259,7 @@ class H(BaseHTTPRequestHandler):
                     if C.item_type(m) != ty or navaan.ig_done(m) or m.get("cleanup"): continue
                     D = C.song_dir(s); ap = m.get("approvals", {}); tp = os.path.join(D, "title.txt")
                     try: _, nx = navaan.plan(s)
-                    except SystemExit: continue
+                    except SystemExit as _e: L.ignored(LOG, "_do_GET: SystemExit (optional or expected)", _e); continue
                     out.append({"slug": s, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "", "next": nx.get("step") or "done", "public": navaan.public_done(m),
                                 "missing_gates": [g for g in ("go_public", "instagram_caption", "publish_instagram") if not navaan.gate_ok(D, ap, g)],
                                 "schedule": PS.status_text(m)})
@@ -234,6 +277,14 @@ class H(BaseHTTPRequestHandler):
             if m and SLUG.match(m.group(1)): return self._media(m.group(1), m.group(2))
         except SystemExit as e: return self._send(404, {"error": str(e)})
         self._send(404, {"error": "not found"})
+    def _client_log(self, body):
+        """Errors the browser caught or could not catch (spec FR-035). Capped, rate limited and scrubbed by navaan_log."""
+        if not client_log_ok(self._ip()): return self._send(429, {"error": "too many reports"})
+        f = {k: str(body.get(k, ""))[:n] for k, n in (("message", 500), ("stack", 3000), ("page", 200), ("src", 200), ("line", 10), ("where", 80), ("path", 200), ("status", 10), ("ui_request_id", 40), ("what", 80))}
+        sess = auth.session(self.headers.get("Cookie")); f["user"] = (sess or {}).get("user", "") if isinstance(sess, dict) else ""
+        f["kind"] = str(body.get("kind", "error"))[:20]
+        L.event(L.get("client"), "error" if f["kind"] in ("error", "rejection", "api_network", "api_json") else "warning", "client_" + f["kind"], **{k: v for k, v in f.items() if v})
+        return self._send(200, {"ok": True})
     def _media(self, slug, name):
         D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
         if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
@@ -260,8 +311,8 @@ class H(BaseHTTPRequestHandler):
                     chunk = fh.read(min(1 << 20, left))
                     if not chunk: break
                     self.wfile.write(chunk); left -= len(chunk)
-        except (BrokenPipeError, ConnectionResetError): pass
-    def do_POST(self):
+        except (BrokenPipeError, ConnectionResetError) as _e: L.ignored(LOG, "_media: BrokenPipeError/ConnectionResetError (optional or expected)", _e); pass
+    def _do_POST(self):
         if not self._host_ok(): return self._send(403, {"error": "forbidden"})
         org = self.headers.get("Origin")
         if org and org != ("https://" if self._https() else "http://") + (self.headers.get("Host") or ""): return self._send(403, {"error": "forbidden origin"})
@@ -279,6 +330,7 @@ class H(BaseHTTPRequestHandler):
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path
         try:
+            if p == "/api/client-log": return self._client_log(body)
             if p == "/api/analytics/link":
                 try: analytics_api.link_post(str(body.get("media_id") or ""), str(body.get("slug") or "")); return self._send(200, {"ok": True})
                 except ValueError as e: return self._send(400, {"error": str(e)})
@@ -433,8 +485,8 @@ class H(BaseHTTPRequestHandler):
                         def tw():
                             err = ""
                             try: SIO.main([slug, "--try"])
-                            except SystemExit as e: err = "" if e.code in (0, None) else str(e.code)[:300]
-                            except Exception as e: err = str(e)[:300]
+                            except SystemExit as e: L.ignored(LOG, "tw: SystemExit (optional or expected)", e); err = "" if e.code in (0, None) else str(e.code)[:300]
+                            except Exception as e: L.soft(LOG, "tw_error"); err = str(e)[:300]
                             TRY[slug] = {"running": False, "error": err}
                         threading.Thread(target=tw, daemon=True).start()
                         return self._send(200, {"ok": True})
@@ -448,8 +500,8 @@ class H(BaseHTTPRequestHandler):
                         def vw():
                             err = ""
                             try: SIO.main([slug, "--vertical", ",".join(str(x) for x in pics)])
-                            except SystemExit as e: err = "" if e.code in (0, None) else str(e.code)[:300]
-                            except Exception as e: err = str(e)[:300]
+                            except SystemExit as e: L.ignored(LOG, "vw: SystemExit (optional or expected)", e); err = "" if e.code in (0, None) else str(e.code)[:300]
+                            except Exception as e: L.soft(LOG, "vw_error"); err = str(e)[:300]
                             VERT[slug] = {"running": False, "error": err}
                         threading.Thread(target=vw, daemon=True).start()
                         return self._send(200, {"ok": True})
@@ -492,14 +544,19 @@ class H(BaseHTTPRequestHandler):
 def _fire(slug, sid):
     """A scheduled step starts: show it as a running job in the portal, like a click on Run."""
     JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None)
-    try: rc = navaan.run(slug, step=sid)
-    except SystemExit: rc = 1
-    except Exception: rc = 1
+    with L.ctx(item=slug, job_id=L.new_job_id(slug), step=sid):
+        L.event(LOG, "info", "scheduled_step_started")
+        try: rc = navaan.run(slug, step=sid)
+        except SystemExit as e: rc = 1; L.event(LOG, "warning", "scheduled_step_stopped", exit=str(e.code)[:300])
+        except Exception: rc = 1; L.exc(LOG, "scheduled_step_crashed")
+        L.event(LOG, "info" if rc == 0 else "warning", "scheduled_step_finished", rc=rc)
     JOBS[slug] = {"running": False, "rc": rc}
     return rc
 
 
 def serve(port=8765):
+    L.setup(stdout=True)
+    L.event(LOG, "info", "server_starting", port=port, bind=os.environ.get("NAVAAN_BIND", "127.0.0.1"), scheduler=scheduler_on())
     threading.Thread(target=analytics_auto.loop, daemon=True).start()  # refreshes the analytics on the schedule set on the Analytics page
     if scheduler_on(): threading.Thread(target=PS.loop, args=(_fire, lambda s: JOBS.get(s, {}).get("running") or scheduler_state() == "paused"), daemon=True).start()  # publishes what you scheduled, once its gates are approved
     else: print("Scheduler is off (NAVAAN_SCHEDULER=off): this portal will not publish on schedule.", flush=True)

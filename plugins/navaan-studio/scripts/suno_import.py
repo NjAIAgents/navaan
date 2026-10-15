@@ -15,6 +15,8 @@ Importing spends no Suno credits. The orchestrator then continues with visuals, 
 import os, re, sys, json, shutil, subprocess, datetime, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import songs_root, song_dir, tool, duration, load_json, cfg
+import navaan_log as L
+LOG = L.get("suno_import")
 
 UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 now = lambda: datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -32,7 +34,8 @@ def resolve_short(url):
         with urllib.request.urlopen(req, timeout=15) as r:
             m = UUID.search(r.geturl())
             return m.group(0).lower() if m else None
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "resolve_short_error")
         return None
 
 
@@ -291,7 +294,7 @@ def auto(slug):
     d = describe(D) if os.path.exists(os.path.join(D, "lyrics.txt")) else {}
     ns = argparse.Namespace(audio=audio, title=(m.get("suno", {}).get("upload_title") if not os.path.exists(os.path.join(D, "title.txt")) else None), lyrics_file=None, style_file=None, model=None, cover=None, suno_id=None, theme=d.get("theme"), mood=d.get("mood"), genre=d.get("genre"), language=d.get("language"))
     try: ingest(slug, ns)
-    except SystemExit as e: return fail(str(e)[:200])
+    except SystemExit as e: L.ignored(LOG, "auto: SystemExit (optional or expected)", e); return fail(str(e)[:200])
     m = load_json(mp, default={}); m.get("suno", {}).pop("auto_failed", None); save(mp, m)
     return 0
 

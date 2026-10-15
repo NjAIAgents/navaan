@@ -15,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import media_cfg, image_openai as IO, prompt_pack, visuals_cfg as V
+import navaan_log as L
+LOG = L.get("song_images_openai")
 
 WORKERS = 3
 VERT_SIZE = "1152x2048"
@@ -84,6 +86,7 @@ def retry(fn, tries=3):
         try:
             return fn()
         except RuntimeError as e:
+            L.ignored(LOG, "retry: RuntimeError (optional or expected)", e)
             last = e
             if "HTTP 4" in str(e) and "HTTP 429" not in str(e): break  # a refused prompt will not work on retry
             time.sleep(4 * (attempt + 1))
@@ -94,7 +97,8 @@ def make_scene(pack, item, ref, q, size, key, model):
     """An edit of the reference picture. When OpenAI refuses the edit, one try from words alone. Returns (bytes, dollars)."""
     try:
         return retry(lambda: IO.request_edit(scene_prompt(pack, item), [ref], q, key, size, model), 2), IO.estimate(q, size, model, refs=1)
-    except RuntimeError:
+    except RuntimeError as _e:
+        L.ignored(LOG, "make_scene: RuntimeError (optional or expected)", _e)
         return retry(lambda: IO.request_image(full_prompt(pack, item), q, key, size, model)), IO.estimate(q, size, model)
 
 
@@ -112,6 +116,7 @@ def vertical_main(D, pack, items, which, q, key, model, cfg, estimate_only):
         try:
             raw = retry(lambda: IO.request_edit(vertical_prompt(pack, items[i - 1]), [os.path.join(D, "images", name_for(i))], q, key, VERT_SIZE, model))
         except RuntimeError as e:
+            L.ignored(LOG, "work: RuntimeError (optional or expected)", e)
             failed.append((i, str(e))); return
         media_cfg.add_usage(openai_usd=each)
         with open(vert_path(D, i), "wb") as f: f.write(raw)
@@ -143,7 +148,7 @@ def main(argv):
     todo = [(i, it) for i, it in enumerate(items, 1) if tr or "--force" in argv or not os.path.exists(os.path.join(imgdir, nm(i)))]
     need_anchor = bool(todo) and todo[0][0] == 1
     try: cost = check_total(len(todo), q, size, cfg, need_anchor)
-    except ValueError as e: sys.exit("navaan: " + str(e))
+    except ValueError as e: L.ignored(LOG, "main: ValueError (optional or expected)", e); sys.exit("navaan: " + str(e))
     if "--estimate" in argv:
         print(json.dumps({"model": model, "size": size, "quality": q, "pictures": len(todo), "usd": cost})); return 0
     if not todo: print("all %d pictures already exist. Use --force to make them again." % len(items)); return 0
@@ -154,7 +159,7 @@ def main(argv):
     if need_anchor:   # picture 1 first, from words: it shows the people clearly and is the reference for all the others
         i, it = todo[0]
         try: raw = retry(lambda: IO.request_image(anchor_prompt(pack, it), q, key, size, model))
-        except RuntimeError as e: sys.exit("navaan: the first picture failed, so the others cannot match it. " + str(e))
+        except RuntimeError as e: L.ignored(LOG, "main: RuntimeError (optional or expected)", e); sys.exit("navaan: the first picture failed, so the others cannot match it. " + str(e))
         media_cfg.add_usage(openai_usd=IO.estimate(q, size, model))
         with open(ref, "wb") as f: f.write(raw)
         print("picture 1 of %d saved (the reference for the people)" % len(items), flush=True)
@@ -166,6 +171,7 @@ def main(argv):
         try:
             raw, spent = make_scene(pack, it, ref, q, size, key, model)
         except RuntimeError as e:
+            L.ignored(LOG, "work: RuntimeError (optional or expected)", e)
             failed.append((i, str(e))); return
         media_cfg.add_usage(openai_usd=spent)  # spent now, whatever happens to the file
         with open(os.path.join(imgdir, nm(i)), "wb") as f: f.write(raw)

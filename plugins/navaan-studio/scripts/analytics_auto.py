@@ -10,6 +10,8 @@ import os, sys, json, time, datetime, threading
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import analytics_api as api
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("analytics_auto")
 
 EVERY = (1, 2, 3, 7, 14)
 STATE = {"running": False, "step": "", "started": 0}
@@ -21,12 +23,12 @@ def _now(): return datetime.datetime.now(datetime.timezone.utc)
 def _iso(t): return t.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 def _parse(s):
     try: return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc) if s else None
-    except Exception: return None
+    except Exception as _e: L.soft(LOG, "parse_error"); return None
 
 
 def load():
     try: c = json.load(open(path(), encoding="utf-8"))
-    except Exception: c = {}
+    except Exception as _e: L.soft(LOG, "load_error"); c = {}
     return {"enabled": bool(c.get("enabled")), "every_days": c.get("every_days") if c.get("every_days") in EVERY else 7,
             "hour": c.get("hour") if isinstance(c.get("hour"), int) and 0 <= c["hour"] <= 23 else 9, "ask": bool(c.get("ask")),
             "anchor": c.get("anchor"), "last_run": c.get("last_run"), "last_note": c.get("last_note", "")}
@@ -95,7 +97,7 @@ def run_once(ask=None):
         for pl in ("instagram", "youtube"):
             STATE["step"] = f"analysing {pl}"
             try: api.analyze_now("all", None, pl)
-            except Exception as e: notes.append(f"{pl} analysis: {str(e)[:160]}")
+            except Exception as e: L.soft(LOG, "run_once_error"); notes.append(f"{pl} analysis: {str(e)[:160]}")
         if do_ask:
             for pl in ("instagram", "youtube"):
                 STATE["step"] = f"asking Claude about {pl}"
@@ -103,7 +105,7 @@ def run_once(ask=None):
                     api.start_ask("all", pl)
                     st = _wait(pl, "ask", WAIT_ASK_S)
                     if st.get("rc"): notes.append(f"{pl} Ask Claude did not finish")
-                except Exception as e: notes.append(f"{pl} Ask Claude: {str(e)[:160]}")
+                except Exception as e: L.soft(LOG, "run_once_error"); notes.append(f"{pl} Ask Claude: {str(e)[:160]}")
         note = "ok" if not notes else "; ".join(notes)
         c = load(); c.update(last_run=_iso(_now()), last_note=note); _save(c)
         return note
