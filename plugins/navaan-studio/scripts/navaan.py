@@ -83,6 +83,17 @@ def song_picture_steps(slug, D, mc):
     ]
 
 
+def motion_steps(slug, D):
+    """After the shot list is approved: the director marks what moves in each picture, then the loops are rendered. Pictures without marks stay still."""
+    import motion_clips
+    return [
+        dict(id="motion_plan", outputs=["motion.json"], label="Director marks what moves in each picture: steam, cloth, flames", kind="claude", skill="motion-regions", chrome=False,
+             done=lambda m: has(D, "motion.json")),
+        dict(id="motion_clips", outputs=[".cache/motion", ".cache/motion_preview"], label="Make the moving pictures", kind="script",
+             cmds=[sc("motion_clips.py", slug)], done=lambda m: has(D, "motion.json") and not motion_clips.pending(D)),
+    ]
+
+
 def music_steps(slug, D):
     reel_meta = ["--meta", "tags.json"]
     imported = load_json(os.path.join(D, "meta.json"), default={}).get("source") == "suno_import"
@@ -114,13 +125,14 @@ def music_steps(slug, D):
     CAPR = bool(cfg("captions.reel", True)) and vmode == "own"  # lyric captions burned onto the vertical reel of an own-pictures song (Instagram). The full YouTube video never gets them, viewers use CC
     mc = media_cfg.load()
     pic_steps = [] if (own_static or vmode != "own" or mc["image_provider"] != "openai") else song_picture_steps(slug, D, mc)
+    mo_steps = [] if (own_static or vmode != "own" or mc["motion"] == "off") else motion_steps(slug, D)
     own_steps = pic_steps + ([] if own_static else [
         dict(id="shots", outputs=["shots.json", "shots_context.json", "shots_props.json"], label="Director's shot list from the lyrics (you approve or edit it)", kind="claude", skill="director-shots", chrome=False,
-             done=lambda m: has(D, "shots.json"), after="shots")]) + [
+             done=lambda m: has(D, "shots.json"), after="shots")]) + mo_steps + [
         *([cap_step] if CAPR else []),
         dict(id="video", outputs=["final_16x9.mp4", "final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the video and the vertical reel here from your pictures" + (", burn the lyrics onto the reel" if CAPR else "") + " and tag the mp3", kind="script", sets_after="media_ready",
              cmds=[sc("shots_render.py", slug), sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []) + [sc("tag_mp3.py", slug)],
-             done=lambda m: fresh(D, ["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else [])), after="media", sets="approved"),
+             done=lambda m: fresh(D, ["final_16x9.mp4", "final_reel_9x16.mp4", "final_tagged.mp3"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", ".cache/motion/*.mp4"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else [])), after="media", sets="approved"),
     ]
     REELS = bool(cfg("video.make_reel", False))  # YouTube makes Shorts from the full video in its editor, so a separate vertical reel is optional
     FULL = "final_16x9_cap.mp4" if (CAP and vmode != "own") else "final_16x9.mp4"
