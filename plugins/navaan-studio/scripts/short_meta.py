@@ -22,7 +22,7 @@ def main(slug):
     D = C.song_dir(slug)
     meta = C.load_json(os.path.join(D, "youtube.json"))
     if not meta: sys.exit("navaan: youtube.json is missing")
-    items = (C.load_json(os.path.join(D, "meta.json"), default={}).get("published", {}) or {}).get("youtube_items", [])
+    items = (C.item_load(os.path.basename(D), {}).get("published", {}) or {}).get("youtube_items", [])
     full = next((i["url"] for i in items if i.get("file") != "final_reel_9x16.mp4" and i.get("url")), "")
     if not full: print("note: the full video is not uploaded yet, the Short description has no link to it")
     out = build(meta, full)

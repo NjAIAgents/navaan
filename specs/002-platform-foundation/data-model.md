@@ -65,6 +65,8 @@ PostgreSQL 17. Six schemas. Reviewed 2026-10-15 (13 findings applied below). The
 
 ## studio (replaces `meta.json`)
 
+**Stage 1 (NAV-4, shipped as `studio/0001`):** `items.doc` (jsonb) is the canonical, lossless copy of the old `meta.json`, plus `export_sha` and `version`; `item_history`, `approvals`, `publications` and `schedules` are projections of it, rebuilt in the same transaction on each save. `steps`, `item_settings` and `jobs` below are stage 2 (worker and queue); a field moves from `doc` to a typed table only when its readers move. Until then `doc` wins (constitution III).
+
 | Table | Key columns | Rules |
 |-------|-------------|-------|
 | `items` | artist_id, slug (unique across all artists), type (`music`/`inspiration`/`podcast`), title, state, track_id, created_at, updated_at | `track_id` set when published. `slug` is globally unique (true today: `song-001` is one namespace) so `analytics` can reference it without an artist; `updated_at` drives the `meta.json` write-through export and conflict detection |

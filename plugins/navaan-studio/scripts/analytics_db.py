@@ -88,10 +88,20 @@ def _row_factory(cursor):
     return lambda values: Row(zip(names, values))
 
 
-def _pg_schema(path):
-    if path and os.environ.get("NAVAAN_DB_SCHEMA_PER_PATH") == "1":
-        return "t_" + hashlib.md5(os.path.abspath(os.path.expanduser(path)).encode()).hexdigest()[:12]
-    return "analytics"
+def _pg_schema(path, base="analytics", isolate=None):
+    if path and (os.environ.get("NAVAAN_DB_SCHEMA_PER_PATH") == "1" if isolate is None else isolate):
+        return "t_" + hashlib.md5(os.path.abspath(os.path.expanduser(path)).encode()).hexdigest()[:12] + ("" if base == "analytics" else "_" + base)
+    return base
+
+
+_MIGRATED = set()
+
+
+def _dsn_key():
+    return re.sub(r"//[^@/]*@", "//", _dsn())
+
+
+_PROBE = {"analytics": "accounts", "studio": "items"}   # a table whose absence means nothing has been stored yet
 
 
 def _connection_class():
@@ -109,6 +119,10 @@ def _connection_class():
             super().execute("RELEASE SAVEPOINT stmt")
             return cur
 
+        def run(self, query, params=None):
+            """execute without the savepoint, for a plain read whose caller rolls back on any error (two round trips fewer)."""
+            return super().execute(_qmark(query) if params is not None and isinstance(query, str) else query, params)
+
     class Num(psycopg.adapt.Loader):
         """SUM and AVG come back as Decimal; the portal turns rows into JSON, so load them as int or float."""
         def load(self, data):
@@ -117,12 +131,12 @@ def _connection_class():
     return psycopg, Conn, Num
 
 
-def connect(path=None, readonly=False):
-    """A connection with the analytics schema first on the search path, migrated up to date. readonly returns None when nothing has been collected yet.
-    `path` only matters under NAVAAN_DB_SCHEMA_PER_PATH=1 (tests); in the app it is ignored."""
+def connect(path=None, readonly=False, base="analytics", isolate=None):
+    """A connection with schema `base` (analytics, or studio for studio_store) first on the search path, migrated up to date. readonly returns None when nothing has been
+    stored yet. `path` only matters under NAVAAN_DB_SCHEMA_PER_PATH=1 (tests); in the app it is ignored."""
     import db_migrate
     psycopg, Conn, Num = _connection_class()
-    schema = _pg_schema(path)
+    schema = _pg_schema(path, base, isolate)
     # ponytail: one connection per call, no pool; the collectors and the portal open a handful a minute. Add psycopg_pool if that changes.
     try: c = Conn.connect(_dsn(), row_factory=_row_factory)
     except psycopg.OperationalError:
@@ -131,12 +145,13 @@ def connect(path=None, readonly=False):
     c.adapters.register_loader("numeric", Num)
     if readonly:
         c.read_only = True
-        if not c.execute(f'SET search_path TO "{schema}", public').connection.execute("SELECT to_regclass('accounts') IS NOT NULL AS ok").fetchone()["ok"]:
+        if not c.execute(f'SET search_path TO "{schema}", public').connection.execute("SELECT to_regclass('" + _PROBE[base] + "') IS NOT NULL AS ok").fetchone()["ok"]:
             c.close(); return None   # nothing has been collected yet
     else:
-        db_migrate.migrate(c, schema, source="analytics")
+        if (_dsn_key(), schema) not in _MIGRATED:   # migrate once per process: the portal opens many connections, and the check costs several round trips
+            db_migrate.migrate(c, schema, source=base); _MIGRATED.add((_dsn_key(), schema))
         c.execute(f'SET search_path TO "{schema}", public')
-        c.execute(f"INSERT INTO schema_version (version, applied_at) SELECT {PH}, {PH} WHERE NOT EXISTS (SELECT 1 FROM schema_version WHERE version = {PH})", (SCHEMA_VERSION, utcnow(), SCHEMA_VERSION))
+        if base == "analytics": c.execute(f"INSERT INTO schema_version (version, applied_at) SELECT {PH}, {PH} WHERE NOT EXISTS (SELECT 1 FROM schema_version WHERE version = {PH})", (SCHEMA_VERSION, utcnow(), SCHEMA_VERSION))
     c.execute(f'SET search_path TO "{schema}", public'); c.commit()
     return c
 

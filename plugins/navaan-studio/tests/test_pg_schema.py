@@ -89,7 +89,7 @@ class Cutover(unittest.TestCase):
         c.commit(); c.close()
         env = mock.patch.dict(os.environ, {"NAVAAN_DB": self.lite}); env.start(); self.addCleanup(env.stop)
         schema = "t_cut_" + uuid.uuid4().hex[:10]
-        p = mock.patch.object(db, "_pg_schema", lambda path: schema); p.start(); self.addCleanup(p.stop)
+        p = mock.patch.object(db, "_pg_schema", lambda path, base="analytics", isolate=None: schema if base == "analytics" else schema + "_" + base); p.start(); self.addCleanup(p.stop)
 
     def count(self):
         c = db.connect()

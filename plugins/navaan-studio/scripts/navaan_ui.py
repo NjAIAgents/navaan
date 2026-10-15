@@ -410,9 +410,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/album":
                 name = str(body.get("name", "")).strip()[:80]; sl = [x for x in body.get("slugs", []) if isinstance(x, str) and SLUG.match(x)]
                 for x in sl:
-                    m = navaan.meta(x); m["album"] = name
-                    if not name: m.pop("album", None)
-                    navaan.save_meta(x, m)
+                    navaan.edit_meta(x, lambda m: m.__setitem__("album", name) if name else m.pop("album", None))
                 return self._send(200, {"ok": True, "count": len(sl)})
             if p == "/api/new":
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
@@ -442,7 +440,7 @@ class H(BaseHTTPRequestHandler):
                 navaan.set_gate(slug, body["gate"], True, "ui"); started = False
                 m = navaan.meta(slug); sid = m.get("redo_pending")
                 if sid and body["gate"] == "credits":
-                    m.pop("redo_pending", None); navaan.save_meta(slug, m); started = start_job(slug, False, sid)
+                    navaan.edit_meta(slug, lambda d: d.pop("redo_pending", None)); started = start_job(slug, False, sid)
                 return self._send(200, {"ok": True, "started": started})
             if p == "/api/answer":
                 qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
@@ -465,7 +463,8 @@ class H(BaseHTTPRequestHandler):
                 try:
                     if p.endswith("remove"): narration.remove(D); r = {}
                     else: r = narration.save(D, body.get("audio_name"), str(body.get("audio") or ""), str(body.get("srt") or ""), str(body.get("text") or ""))
-                    m = navaan.meta(slug); navaan.log_hist(m, "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines" + (", timing pending" if r.get("timing") else ""))); navaan.save_meta(slug, m)
+                    note = "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines" + (", timing pending" if r.get("timing") else ""))
+                    navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                     return self._send(200, {"ok": True, **r})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p.startswith("/api/visuals/"):
@@ -507,7 +506,8 @@ class H(BaseHTTPRequestHandler):
                         return self._send(200, {"ok": True})
                     if act == "save":
                         import media_cfg; v = V.save(D, str(body.get("mode") or ""), body.get("layout"), body.get("camera", ""), body.get("scene", ""), pictures_later=media_cfg.load()["image_provider"] == "openai")
-                        m = navaan.meta(slug); navaan.log_hist(m, f"visuals chosen via ui: {v['mode']}{' ' + v.get('layout', '') if v['mode'] == 'own' else ''}"); navaan.save_meta(slug, m)
+                        note = f"visuals chosen via ui: {v['mode']}{' ' + v.get('layout', '') if v['mode'] == 'own' else ''}"
+                        navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                         return self._send(200, {"ok": True, "visuals": v})
                     return self._send(404, {"error": "unknown visuals action"})
                 except ValueError as e: return self._send(400, {"error": str(e)})
