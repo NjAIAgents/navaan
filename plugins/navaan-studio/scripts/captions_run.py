@@ -2,7 +2,7 @@
 """captions_run.py <slug>  measure when each lyric line is sung. No agent needed.
 
 Runs vocal separation, Whisper small on Hindi (or the language set in the profile), and the line aligner, then writes
-songs/<slug>/caption_cues.json and reel_start.json. Needs setup_captions.py to have installed the tools.
+songs/<slug>/caption_cues.json and reel_start.json (the hook, see reel_hook.py). Needs setup_captions.py to have installed the tools.
 Lines that are only sustained vowels (alaap) are left out of the captions.
 """
 import os, sys, json, subprocess
@@ -49,12 +49,8 @@ def main(slug):
     subprocess.check_call([py, os.path.join(HERE, "align.py"), tag, lyr, os.path.join(D, "caption_cues.json"), "{}"], env=env)
     cues = json.load(open(os.path.join(D, "caption_cues.json")))
     if not cues: sys.exit("navaan: no cues were produced")
-    # reel window: 60 s starting at the busiest 60 s of cues, snapped to a cue start
-    dur = 60.0; best, bs = -1, cues[0][0]
-    for c in cues:
-        s = c[0]; cover = sum(max(0, min(e, s + dur) - max(b, s)) for b, e, _ in cues)
-        if cover > best: best, bs = cover, s
-    json.dump({"start": round(max(0.0, bs - 0.5), 1), "dur": dur}, open(os.path.join(D, "reel_start.json"), "w"))
+    import reel_hook   # the reel is cut from the hook of the song, not from its start
+    reel_hook.main(slug)
     print(f"wrote {len(cues)} caption cues and reel_start.json")
 
 

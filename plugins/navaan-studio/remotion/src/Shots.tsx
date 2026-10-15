@@ -3,7 +3,7 @@ import {AbsoluteFill, Audio, Img, Loop, OffthreadVideo, Sequence, interpolate, s
 
 // A music video stitched from the user's own pictures. Each shot shows one picture with a slow camera move, shots cross fade.
 // shots.json (approved by the user) is turned into these props by shots_render.py.
-export type Shot = {start: number; end: number; image: string; camera: string; focus?: [number, number]; loop?: string | null};
+export type Shot = {start: number; end: number; image: string; camera: string; focus?: [number, number]; loop?: string | null; fit?: boolean};
 export type ShotsProps = {
   width: number;
   height: number;
@@ -15,6 +15,7 @@ export type ShotsProps = {
   fade: number;
   grade: {dim: number; vignette: number};
   fadeOut: number;
+  watermark?: string | null;   // channel or account name drawn small in a corner: bottom right on 16:9, top left on a vertical reel
 };
 
 export const shotsDefaults: ShotsProps = {
@@ -47,6 +48,17 @@ const move = (camera: string, p: number, focus: [number, number]) => {
   }
 };
 
+// fit mode: the whole picture is shown inside the frame (nothing cut off) over a blurred, darkened copy of itself.
+// The move stays small because a larger picture would run past the frame again.
+const moveFit = (camera: string, p: number) => {
+  switch (camera) {
+    case 'push_in': return 1 + 0.06 * p;
+    case 'pull_out': return 1.06 - 0.06 * p;
+    case 'drift': return 1.03;
+    default: return 1;
+  }
+};
+
 const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number; loopSeconds: number}> = ({shot, len, fade, lead, loopSeconds}) => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -55,6 +67,21 @@ const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number; l
   const p = Math.min(1, Math.max(0, t / Math.max(0.1, len)));
   const op = interpolate(f / fps, [0, lead || 0.001, lead + len, lead + len + fade], [lead ? 0 : 1, 1, 1, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const m = move(shot.camera, p, shot.focus || [0.5, 0.5]);
+  if (shot.fit) {
+    const fs: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'contain', transform: `scale(${moveFit(shot.camera, p)})`, transformOrigin: '50% 50%'};
+    return (
+      <AbsoluteFill style={{opacity: op}}>
+        <Img src={staticFile(shot.image)} style={{position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(40px) brightness(0.55)', transform: 'scale(1.3)'}} />
+        {shot.loop ? (
+          <Loop durationInFrames={Math.max(1, Math.round(loopSeconds * fps))}>
+            <OffthreadVideo src={staticFile(shot.loop)} muted style={fs} />
+          </Loop>
+        ) : (
+          <Img src={staticFile(shot.image)} style={fs} />
+        )}
+      </AbsoluteFill>
+    );
+  }
   const style: React.CSSProperties = {width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${(shot.focus?.[0] ?? 0.5) * 100}% ${(shot.focus?.[1] ?? 0.5) * 100}%`, transform: `translate(${m.x}%, ${m.y}%) scale(${m.s})`, transformOrigin: '50% 50%'};
   return (
     <AbsoluteFill style={{opacity: op}}>
@@ -67,6 +94,15 @@ const ShotView: React.FC<{shot: Shot; len: number; fade: number; lead: number; l
         <Img src={staticFile(shot.image)} style={style} />
       )}
     </AbsoluteFill>
+  );
+};
+
+const Watermark: React.FC<{text: string; width: number; height: number}> = ({text, width, height}) => {
+  const vertical = height > width;
+  const size = Math.round(Math.min(width, height) * (vertical ? 0.034 : 0.03));
+  const pos: React.CSSProperties = vertical ? {left: Math.round(width * 0.045), top: Math.round(height * 0.12)} : {right: Math.round(width * 0.025), bottom: Math.round(height * 0.04)};
+  return (
+    <div style={{position: 'absolute', ...pos, fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 600, fontSize: size, letterSpacing: 1, color: 'rgba(255,255,255,0.62)', textShadow: '0 1px 6px rgba(0,0,0,0.65)'}}>{text}</div>
   );
 };
 
@@ -92,6 +128,7 @@ export const Shots: React.FC<ShotsProps> = (p) => {
         <AbsoluteFill style={{background: `rgba(0,0,0,${p.grade.dim})`}} />
         <AbsoluteFill style={{background: `radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,${p.grade.vignette}) 100%)`}} />
       </AbsoluteFill>
+      {p.watermark ? <Watermark text={p.watermark} width={p.width} height={p.height} /> : null}
       {p.audio ? <Audio src={staticFile(p.audio)} volume={1} /> : null}
     </AbsoluteFill>
   );
