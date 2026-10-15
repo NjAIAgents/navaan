@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import inspire_render as R
 import visuals_cfg as V
+import motion_clips
 
 W, H, FPS = 1920, 1080, 24
 OUT = "final_16x9.mp4"
@@ -30,6 +31,12 @@ def prep_images(D, rels):
             C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-i", os.path.join(D, rel), "-vf", "scale='min(2560,iw)':-2", "-q:v", "2", dst])
         out[rel] = os.path.relpath(dst, D)
     return out
+
+
+def loop_rel(D, rel):
+    """The moving loop of a picture when motion_clips made one, else None (the still is used)."""
+    lp = motion_clips.loop_path(D, rel)
+    return os.path.relpath(lp, D) if os.path.exists(lp) else None
 
 
 def covers(D, first):
@@ -55,10 +62,10 @@ def render_video(D, mp3, sj, out):
     dur = round(C.duration(mp3), 2)
     ps = []
     for s in sorted(shots, key=lambda s: float(s["start"])):
-        ps.append({"start": float(s["start"]), "end": float(s["end"]), "image": imgs[s["image"]], "camera": s.get("camera", "hold"), "focus": s.get("focus") or [0.5, 0.5]})
+        ps.append({"start": float(s["start"]), "end": float(s["end"]), "image": imgs[s["image"]], "loop": loop_rel(D, s["image"]), "camera": s.get("camera", "hold"), "focus": s.get("focus") or [0.5, 0.5]})
     ps[0]["start"] = 0.0; ps[-1]["end"] = dur
     for i in range(len(ps) - 1): ps[i]["end"] = ps[i + 1]["start"]  # no gaps, no overlap in the plan; the composition adds the cross fade
-    props = {"width": W, "height": H, "fps": FPS, "duration": dur, "audio": os.path.relpath(mp3, D), "shots": ps, "fade": 1.2, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 2}
+    props = {"width": W, "height": H, "fps": FPS, "duration": dur, "audio": os.path.relpath(mp3, D), "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.2, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 2}
     pp = os.path.join(D, "shots_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
     rd = R.remotion_dir()
     if not R.remotion_ready(): sys.exit(f"navaan: remotion is not installed. Run: cd {rd} && npm install")
@@ -166,8 +173,9 @@ def render_reel(slug):
     C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-ss", f"{start}", "-t", f"{dur}", "-i", mp3, "-af", f"afade=t=in:d=0.4,afade=t=out:st={max(0, dur - 1.5):.2f}:d=1.5", "-q:a", "2", ap])
     cache = prep_images(D, sorted({sh["image"] for sh in shots} | {first}))
     ps = reel_plan(shots, start, dur, first)
-    for sh in ps: sh["image"] = cache[sh["image"]]
-    props = {"width": RW, "height": RH, "fps": FPS, "duration": dur, "audio": REEL_AUDIO, "shots": ps, "fade": 1.0, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 1.5}
+    for sh in ps:
+        sh["loop"] = loop_rel(D, sh["image"]); sh["image"] = cache[sh["image"]]
+    props = {"width": RW, "height": RH, "fps": FPS, "duration": dur, "audio": REEL_AUDIO, "shots": ps, "loopSeconds": motion_clips.LOOP_SECONDS, "fade": 1.0, "grade": {"dim": 0.08, "vignette": 0.35}, "fadeOut": 1.5}
     pp = os.path.join(D, "reel_props.json"); json.dump(props, open(pp, "w", encoding="utf-8"), indent=2)
     rd = R.remotion_dir()
     if not R.remotion_ready(): sys.exit(f"navaan: remotion is not installed. Run: cd {rd} && npm install")

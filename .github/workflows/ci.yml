@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: "22"
       - name: Python packages the tests may use
-        run: pip install cryptography pillow numpy
+        run: pip install cryptography pillow numpy opencv-python-headless
       - name: Unit tests
         run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
       - name: Shell scripts parse
