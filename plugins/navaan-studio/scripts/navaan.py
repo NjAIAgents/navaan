@@ -324,12 +324,20 @@ def account_problem_for(t, sid):
     return ""
 
 
-def meta(slug): return load_json(os.path.join(song_dir(slug), "meta.json"), default={})
+def meta(slug):
+    """An item's state, from Postgres (studio_store). meta.json in the folder is only the write-through export."""
+    song_dir(slug)   # exits with a clear message when there is no such folder
+    return C.item_load(slug, {})
 
 
 def save_meta(slug, m):
-    p = os.path.join(song_dir(slug), "meta.json")
-    json.dump(m, open(p, "w", encoding="utf-8"), indent=2, ensure_ascii=False); open(p, "a").write("\n")
+    """Replace the stored state (last write wins). Use edit_meta when you read it first and something else may write meanwhile."""
+    song_dir(slug); C.item_save(slug, m)
+
+
+def edit_meta(slug, fn):
+    """Locked read-modify-write: fn(doc) changes the item's state in place; the web page, the scheduler and a step cannot overwrite each other."""
+    song_dir(slug); return C.item_update(slug, fn)
 
 
 def log_hist(m, text): m.setdefault("history", []).append(f"{now()} {text}")
@@ -483,9 +491,10 @@ def set_answer(slug, choice=None, text=None, via="cli"):
     if flagged:  # some buttons take the text box, the others ignore it, so typing a filename can never ride along with Cancel
         if choice in flagged and not (text or "").strip(): sys.exit("this answer needs the text box filled in")
         if choice not in flagged: text = ""
-    m = meta(slug)
-    m.setdefault("answers", {})[q["id"]] = {"at": now(), "via": via, "question": q["text"], "choice": choice or "", "choice_label": lab.get(choice, ""), "text": (text or "").strip()}
-    log_hist(m, f"question answered via {via}: {lab.get(choice) or (text or '').strip()[:80]}"); save_meta(slug, m)
+    def put(m):
+        m.setdefault("answers", {})[q["id"]] = {"at": now(), "via": via, "question": q["text"], "choice": choice or "", "choice_label": lab.get(choice, ""), "text": (text or "").strip()}
+        log_hist(m, f"question answered via {via}: {lab.get(choice) or (text or '').strip()[:80]}")
+    edit_meta(slug, put)
     try: os.replace(qfile(song_dir(slug)), os.path.join(song_dir(slug), "logs", f"question-{q['id']}.json"))
     except OSError as _e: L.ignored(LOG, "set_answer: OSError (optional or expected)", _e); pass
     return q["id"]
@@ -507,10 +516,10 @@ USED = set()  # slugs whose open answers were handed to an agent in the current 
 
 def consume_answers(slug):
     """An answer belongs to the run that follows it. After that run, it no longer applies, so a later Redo starts clean."""
-    m = meta(slug); ch = False
-    for r in m.get("answers", {}).values():
-        if not r.get("consumed"): r["consumed"] = now(); ch = True
-    if ch: save_meta(slug, m)
+    def mark(m):
+        for r in m.get("answers", {}).values():
+            if not r.get("consumed"): r["consumed"] = now()
+    edit_meta(slug, mark)
 
 
 def question_cmd(slug, a):
@@ -626,13 +635,15 @@ def _run(slug, step=None, dry=False, retries=2):
         if s["kind"] == "claude": C.note_claude_result(ok, open(lp, encoding="utf-8", errors="replace").read()[-2000:] if not ok else "")
         m = meta(slug)
         if slug in STOP:   # the user pressed Stop: no retry, no next step
-            STOP.discard(slug); log_hist(m, f"step {sid} stopped by the user"); save_meta(slug, m); L.event(LOG, "info", "step_stopped_by_user")
+            STOP.discard(slug); edit_meta(slug, lambda d: log_hist(d, f"step {sid} stopped by the user")); L.event(LOG, "info", "step_stopped_by_user")
             RUN[slug] = {"step": None, "failed": sid, "log": lp, "stopped": True}
             print(f"step {sid} stopped by you"); return 130
         if ok and s["done"](m):
-            if s.get("sets_after"): m["state"] = s["sets_after"]
-            log_hist(m, f"step {sid} done (attempt {attempt})"); save_meta(slug, m); RUN.pop(slug, None); print("done", sid); L.event(LOG, "info", "step_done", attempt=attempt); return 0
-        log_hist(m, f"step {sid} attempt {attempt} did not finish"); save_meta(slug, m)
+            def finish(d):
+                if s.get("sets_after"): d["state"] = s["sets_after"]
+                log_hist(d, f"step {sid} done (attempt {attempt})")
+            edit_meta(slug, finish); RUN.pop(slug, None); print("done", sid); L.event(LOG, "info", "step_done", attempt=attempt); return 0
+        edit_meta(slug, lambda d: log_hist(d, f"step {sid} attempt {attempt} did not finish"))
         L.event(LOG, "warning", "step_attempt_failed", attempt=attempt, commands_ok=ok, output_file=lp)
         q = question_open(slug)
         if q:
@@ -736,13 +747,15 @@ def redo(slug, sid, pending=True):
         for src in glob.glob(os.path.join(D, pat)):
             rel = os.path.relpath(src, D); tgt = os.path.join(dest, rel); os.makedirs(os.path.dirname(tgt), exist_ok=True)
             shutil.move(src, tgt); moved += 1
-    m = meta(slug); ap = m.setdefault("approvals", {})
-    # Only this step is redone. Later steps and their approvals stay as they are; only a credit gate is asked again.
-    if st.get("before") == "credits":
-        ap.pop("credits", None)
-        if pending: m["redo_pending"] = sid  # the UI starts this step as soon as credits are approved again
-    if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
-    log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}"); save_meta(slug, m)
+    def reset(m):
+        ap = m.setdefault("approvals", {})
+        # Only this step is redone. Later steps and their approvals stay as they are; only a credit gate is asked again.
+        if st.get("before") == "credits":
+            ap.pop("credits", None)
+            if pending: m["redo_pending"] = sid  # the UI starts this step as soon as credits are approved again
+        if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
+        log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}")
+    edit_meta(slug, reset)
     RUN.pop(slug, None); st["_dest"] = dest
     for nm in ("needs_you.txt", "question.json"):
         pth = os.path.join(D, nm)
@@ -766,12 +779,14 @@ def redo_from(slug, sid):
     and the credits, shots and media approvals are cleared so each is asked again. Returns the steps redone. The caller then runs the pipeline."""
     rng = redo_range(slug, sid); D = song_dir(slug); by = {s["id"]: s for s in steps(slug, D)}
     for i in rng: redo(slug, i, pending=False)
-    m = meta(slug); ap = m.setdefault("approvals", {})
-    for i in rng:
-        for g in (by[i].get("before"), by[i].get("after")):
-            if g in ("credits", "shots", "media"): ap.pop(g, None)
-    if m.get("state") in ("approved", "media_ready"): m["state"] = "accepted"
-    log_hist(m, f"restart from {sid}: redone {', '.join(rng)}"); save_meta(slug, m)
+    def clear(m):
+        ap = m.setdefault("approvals", {})
+        for i in rng:
+            for g in (by[i].get("before"), by[i].get("after")):
+                if g in ("credits", "shots", "media"): ap.pop(g, None)
+        if m.get("state") in ("approved", "media_ready"): m["state"] = "accepted"
+        log_hist(m, f"restart from {sid}: redone {', '.join(rng)}")
+    edit_meta(slug, clear)
     print(f"restart from {sid}: {len(rng)} step(s) redone ({', '.join(rng)}). Approve the credits gate to make new pictures.")
     return rng
 
@@ -818,14 +833,14 @@ def caption_cmd(slug, a):
     txt = opt("--set") if "--set" in a else (open(os.path.expanduser(opt("--file")), encoding="utf-8").read() if "--file" in a else None)
     if txt is not None:
         open(p, "w", encoding="utf-8").write(txt.strip() + "\n")
-        m = meta(slug); m.get("approvals", {}).pop("instagram_caption", None); log_hist(m, "instagram caption edited by user, approval cleared"); save_meta(slug, m)
+        edit_meta(slug, lambda m: (m.get("approvals", {}).pop("instagram_caption", None), log_hist(m, "instagram caption edited by user, approval cleared")))
         print("caption saved. Approve gate 'instagram_caption' to continue.")
     elif "--feedback" in a:
         fb = opt("--feedback") or ""
         if not fb.strip(): sys.exit("usage: navaan.py caption <slug> --feedback \"what to change\"")
         if os.path.exists(p): os.replace(p, os.path.join(D, "instagram.prev.txt"))
         open(os.path.join(D, "caption_feedback.txt"), "w", encoding="utf-8").write(fb.strip() + "\n")
-        m = meta(slug); m.get("approvals", {}).pop("instagram_caption", None); log_hist(m, "instagram caption rewrite requested"); save_meta(slug, m)
+        edit_meta(slug, lambda m: (m.get("approvals", {}).pop("instagram_caption", None), log_hist(m, "instagram caption rewrite requested")))
         rc = run(slug, step="instagram_caption")
         if rc != 0 and os.path.exists(os.path.join(D, "instagram.prev.txt")) and not os.path.exists(p): os.replace(os.path.join(D, "instagram.prev.txt"), p)
         if rc == 0: os.path.exists(p) and print("new caption written.")
@@ -835,14 +850,16 @@ def caption_cmd(slug, a):
 
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
-    m = meta(slug); ap = m.setdefault("approvals", {})
     if on and gate in SHA_FILES and not gate_sha(song_dir(slug), gate): sys.exit(f"no {SHA_FILES[gate]} to approve yet. Run that step first.")
-    if on: ap[gate] = {"at": now(), "via": via, **({"sha": gate_sha(song_dir(slug), gate)} if gate in SHA_FILES else {})}
-    else: ap.pop(gate, None)
-    D = song_dir(slug)
-    for s in steps(slug, D):
-        if on and s.get("after") == gate and s.get("sets"): m["state"] = s["sets"]
-    log_hist(m, f"gate {gate} {'approved' if on else 'revoked'} via {via}"); save_meta(slug, m)
+    D = song_dir(slug); sha = gate_sha(D, gate) if (on and gate in SHA_FILES) else None
+    def put(m):
+        ap = m.setdefault("approvals", {})
+        if on: ap[gate] = {"at": now(), "via": via, **({"sha": sha} if gate in SHA_FILES else {})}
+        else: ap.pop(gate, None)
+        for s in steps(slug, D):
+            if on and s.get("after") == gate and s.get("sets"): m["state"] = s["sets"]
+        log_hist(m, f"gate {gate} {'approved' if on else 'revoked'} via {via}")
+    edit_meta(slug, put)
 
 
 def status(slug=None):
@@ -918,6 +935,7 @@ def main(argv):
         if "--loop" in a: print("scheduler running, checking every minute. Ctrl+C to stop.", flush=True); PS.loop(fire); return 0
         print(PS.tick(fire) or "nothing due"); return 0
     if c == "serve":
+        import studio_store; studio_store.auto()   # first start after the move: every songs/*/meta.json into Postgres, verified, or stop (the release then rolls back)
         import analytics_to_postgres; analytics_to_postgres.auto()   # first start after the move to Postgres: bring the SQLite history across, verified, or stop (the release then rolls back)
         import navaan_ui; return navaan_ui.serve(int(a[a.index("--port") + 1]) if "--port" in a else 8765)
     print(__doc__); return 2

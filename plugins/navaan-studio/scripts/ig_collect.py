@@ -436,7 +436,7 @@ def ig_ref(value):
 
 def link_songs(conn):
     """Refresh the songs table from the song folders and tie posts to songs through published.instagram in meta.json."""
-    from navaan_common import songs_root, load_json
+    from navaan_common import songs_root, load_json, item_load
     root = songs_root()
     if not os.path.isdir(root):
         return 0
@@ -445,7 +445,7 @@ def link_songs(conn):
         d = os.path.join(root, slug)
         if slug.startswith("_") or not os.path.isdir(d):
             continue
-        meta = load_json(os.path.join(d, "meta.json"), default={})
+        meta = item_load(slug, {}) if os.path.exists(os.path.join(d, "meta.json")) else {}
         tags = load_json(os.path.join(d, "tags.json"), default={})
         title = tags.get("title")
         if not title and os.path.exists(os.path.join(d, "title.txt")):

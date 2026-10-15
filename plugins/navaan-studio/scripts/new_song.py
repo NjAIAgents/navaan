@@ -5,7 +5,7 @@ Without a slug the next free one for the type is used (song-005, insp-001). Ever
 (`type`), which picks its pipeline. The folder comes from songs/_template (music only) or the plugin's templates/<type>."""
 import os, sys, shutil, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import find_root, cfg, songs_root, CONTENT_TYPES, next_slug
+from navaan_common import find_root, cfg, songs_root, CONTENT_TYPES, next_slug, item_save
 
 BUILT = ("music", "inspiration")
 
@@ -23,7 +23,7 @@ def create(slug=None, ctype="music", idea=""):
     shutil.copytree(tpl, dst)
     mp = f"{dst}/meta.json"
     m = json.load(open(mp)); m["slug"] = slug; m["type"] = ctype
-    json.dump(m, open(mp, "w"), indent=2, ensure_ascii=False); open(mp, "a").write("\n")
+    item_save(slug, m)   # into Postgres; the store writes meta.json back into the folder
     if idea.strip():
         bp = f"{dst}/brief.md"; old = open(bp, encoding="utf-8").read() if os.path.exists(bp) else ""
         ph = "(write the quote or the idea here)"

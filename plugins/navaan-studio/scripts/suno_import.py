@@ -14,7 +14,7 @@ Importing spends no Suno credits. The orchestrator then continues with visuals, 
 """
 import os, re, sys, json, shutil, subprocess, datetime, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import songs_root, song_dir, tool, duration, load_json, cfg
+from navaan_common import songs_root, song_dir, tool, duration, load_json, cfg, item_load, item_save
 import navaan_log as L
 LOG = L.get("suno_import")
 
@@ -62,7 +62,23 @@ def next_slug():
     return f"song-{n:03d}"
 
 
+def _item_slug(path):
+    """The item slug when `path` is the meta.json of a folder directly inside the songs root; None for any other folder (a scratch import, a test)."""
+    if os.path.basename(path) != "meta.json": return None
+    d = os.path.realpath(os.path.dirname(path))
+    return os.path.basename(d) if os.path.dirname(d) == os.path.realpath(songs_root()) else None
+
+
+def _meta(path, required=False):
+    """An item's state: from Postgres for a real item, from the file for any other folder."""
+    slug = _item_slug(path)
+    if slug: return item_load(slug, {})
+    return load_json(path) if required else load_json(path, default={})
+
+
 def save(path, obj):
+    slug = _item_slug(path)
+    if slug: item_save(slug, obj); return
     json.dump(obj, open(path, "w", encoding="utf-8"), indent=2, ensure_ascii=False); open(path, "a").write("\n")
 
 
@@ -73,7 +89,7 @@ def init(src, slug=None, allow_blank=False):
     if not os.path.isdir(os.path.join(songs_root(), slug)):
         rc = subprocess.call([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "new_song.py"), slug])
         if rc: sys.exit(rc)
-    D = song_dir(slug); mp = os.path.join(D, "meta.json"); m = load_json(mp, default={})
+    D = song_dir(slug); mp = os.path.join(D, "meta.json"); m = _meta(mp)
     m.update({"source": "suno_import", "suno_url": url, "state": m.get("state") or "draft"})
     if sid: m.setdefault("suno", {})["id"] = sid
     m.setdefault("history", []).append(f"{now()} import started from Suno {sid or url}")
@@ -145,7 +161,7 @@ def fetch(slug, dest=None):
     """Write title.txt, lyrics.txt, style.txt, cover_suno.jpeg and the model into the song folder from Suno's public clip data.
     Returns True when the song is public and the text was collected, False when the agent must read the page in the browser."""
     import urllib.request, urllib.error
-    D = dest or song_dir(slug); mp = os.path.join(D, "meta.json"); m = load_json(mp, default={}); sid = m.get("suno", {}).get("id")
+    D = dest or song_dir(slug); mp = os.path.join(D, "meta.json"); m = _meta(mp); sid = m.get("suno", {}).get("id")
     if not sid: print("fetch: no Suno song id in meta.json, the agent reads the page instead"); return False
     try:
         req = urllib.request.Request(API + sid, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
@@ -173,7 +189,7 @@ def fetch(slug, dest=None):
 
 
 def ingest(slug, a):
-    D = song_dir(slug); mp = os.path.join(D, "meta.json"); m = load_json(mp)
+    D = song_dir(slug); mp = os.path.join(D, "meta.json"); m = _meta(mp, required=True)
     if m.get("source") != "suno_import":
         sys.exit("navaan: this song was not started with suno_import.py init")
     if not os.path.isfile(a.audio): sys.exit(f"navaan: audio file not found: {a.audio}")
@@ -218,7 +234,7 @@ def pick_audio_url(clip):
 def fetch_audio(slug, dest=None):
     """Download the public audio of the song into takes/imported.<ext>. Returns the path, or None when Suno gives no playable public file."""
     import urllib.request, urllib.error
-    D = dest or song_dir(slug); m = load_json(os.path.join(D, "meta.json"), default={}); sid = m.get("suno", {}).get("id")
+    D = dest or song_dir(slug); m = _meta(os.path.join(D, "meta.json")); sid = m.get("suno", {}).get("id")
     if not sid: print("audio: no Suno song id in meta.json"); return None
     try:
         with urllib.request.urlopen(urllib.request.Request(API + sid, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}), timeout=20) as r: c = json.load(r)
@@ -261,7 +277,7 @@ def save_upload(slug, name, data_b64):
     D = song_dir(slug); os.makedirs(os.path.join(D, "takes"), exist_ok=True)
     rel = "takes/upload" + ext
     with open(os.path.join(D, rel), "wb") as f: f.write(raw)
-    mp = os.path.join(D, "meta.json"); m = load_json(mp, default={}); su = m.setdefault("suno", {})
+    mp = os.path.join(D, "meta.json"); m = _meta(mp); su = m.setdefault("suno", {})
     su["upload"] = rel; su["upload_title"] = clean_title(os.path.splitext(os.path.basename(str(name)))[0].replace("_", " "))
     su.pop("auto_failed", None)
     m.setdefault("history", []).append(f"{now()} audio uploaded by the user ({len(raw) // 1024} KB)"); save(mp, m)
@@ -285,8 +301,8 @@ def auto(slug):
     """Whole import without a browser. On any failure it marks suno.auto_failed in meta.json so the pipeline falls back to the browser step."""
     D = song_dir(slug); mp = os.path.join(D, "meta.json")
     def fail(why):
-        m = load_json(mp, default={}); m.setdefault("suno", {})["auto_failed"] = why; m.setdefault("history", []).append(f"{now()} suno auto import failed: {why}"); save(mp, m); print("auto import failed: " + why); return 1
-    m = load_json(mp, default={}); up = m.get("suno", {}).get("upload")
+        m = _meta(mp); m.setdefault("suno", {})["auto_failed"] = why; m.setdefault("history", []).append(f"{now()} suno auto import failed: {why}"); save(mp, m); print("auto import failed: " + why); return 1
+    m = _meta(mp); up = m.get("suno", {}).get("upload")
     up = os.path.join(D, up) if up and os.path.isfile(os.path.join(D, up)) else None
     if not m.get("suno", {}).get("fetched_at") and not fetch(slug) and not up: return fail("no public text")
     audio = up or fetch_audio(slug)
@@ -295,7 +311,7 @@ def auto(slug):
     ns = argparse.Namespace(audio=audio, title=(m.get("suno", {}).get("upload_title") if not os.path.exists(os.path.join(D, "title.txt")) else None), lyrics_file=None, style_file=None, model=None, cover=None, suno_id=None, theme=d.get("theme"), mood=d.get("mood"), genre=d.get("genre"), language=d.get("language"))
     try: ingest(slug, ns)
     except SystemExit as e: L.ignored(LOG, "auto: SystemExit (optional or expected)", e); return fail(str(e)[:200])
-    m = load_json(mp, default={}); m.get("suno", {}).pop("auto_failed", None); save(mp, m)
+    m = _meta(mp); m.get("suno", {}).pop("auto_failed", None); save(mp, m)
     return 0
 
 
