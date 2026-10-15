@@ -3,6 +3,7 @@ import json, os, sys, tempfile, unittest, datetime
 
 SCRIPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
 sys.path.insert(0, SCRIPTS)
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import ig_reco as rc
 
@@ -35,7 +36,7 @@ class Base(unittest.TestCase):
         self.n += 1
         mid = f"m{self.n}"
         if slug:
-            self.conn.execute("INSERT OR REPLACE INTO songs (slug, title, genre, language, updated_at) VALUES (?,?,?,?,?)", (slug, slug.title(), genre, lang, NOW))
+            db.upsert(self.conn, "songs", {"slug": slug, "title": slug.title(), "genre": genre, "language": lang, "updated_at": NOW}, ("slug",))
         self.conn.execute("INSERT INTO media (media_id, ig_user_id, slug, product_type, permalink, caption, posted_at, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?)",
                           (mid, UID, slug, "REELS", f"https://x/{mid}", caption, ts(age, hour), NOW, NOW))
         if views is not None:
@@ -50,7 +51,7 @@ class Base(unittest.TestCase):
 
     def daily(self, metric, values_by_days_ago):
         for d, v in values_by_days_ago.items():
-            self.conn.execute("INSERT OR REPLACE INTO account_daily (ig_user_id, period_end, metric, value, collected_at) VALUES (?,?,?,?,?)", (UID, day(d), metric, v, NOW))
+            db.upsert(self.conn, "account_daily", {"ig_user_id": UID, "period_end": day(d), "metric": metric, "value": v, "collected_at": NOW}, ("ig_user_id", "period_end", "metric"))
         self.conn.commit()
 
     def rules(self):

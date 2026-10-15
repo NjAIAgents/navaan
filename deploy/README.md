@@ -153,3 +153,38 @@ docker network connect engagehub-network navaan         # recovers in about 16 s
 
 ## Rollback
 Remove the two navaan mounts and the `navaan-network` network from the `engagehub-nginx` service, `cd /opt/engagehub && docker compose up -d nginx`, delete `/opt/navaan/nginx/navaan.conf`. DNS and the certificate can stay. `docker compose -f deploy/compose.yml down` stops NAVAAN. The Mac portal keeps working; set its `NAVAAN_SCHEDULER` back to `on` only after the server's is `off`.
+
+## Postgres (NAV-3, spec 002)
+
+Analytics lives in a Postgres container dedicated to this project, part of `compose.yml` like the app: `pg-init` (makes the two passwords once, each in its own volume; the app mounts only its own),
+`postgres` (17, 512 MB cap, data in `/opt/navaan/data/pg`) and the app, which waits for it to be healthy. The database is on the internal `navaan-db` network only: no published
+port, and nginx cannot reach it. Two roles: `postgres` (superuser, maintenance and the nightly dump) and **`navaan_app`**, which the app uses. It owns database `navaan`, cannot
+create roles or databases, and is created by `deploy/postgres/init.sh` on the first start. There is nothing to prepare on the VM; check `free -m` first because the container adds up to 512 MB.
+
+**Cutover from SQLite is automatic.** On the first start after the release, `navaan.py serve` copies the old `analytics.db` into Postgres in one transaction, checks every table's
+row count and content checksum, and commits only if all match (log events `cutover_started`, `cutover_done`). If anything differs, nothing is written, the start fails, the container
+never becomes healthy and the release pipeline rolls the image back; the SQLite file is never changed, so the old release runs on as before. After a good copy the SQLite file stays as
+the rollback copy: delete it by hand after about 14 days. Rolling back after a good cutover returns to that file, so analytics collected since are only in Postgres.
+
+**Where the app connects.** The compose file sets `NAVAAN_PG_HOST`, `NAVAAN_PG_USER` and `NAVAAN_PG_PASSWORD_FILE`. The same settings can live in `navaan.config.json`
+(`NAVAAN_PG_*` environment variables win; `NAVAAN_DATABASE_URL` wins over both). The config holds the path of the password file, never the password:
+```json
+"database": {"host": "navaan-postgres", "port": 5432, "name": "navaan", "user": "navaan_app", "password_file": "/pgsecret/pg_app_password"}
+```
+
+**Development and tests.** `docker compose -f deploy/compose.dev.yml up -d` starts a Postgres on 127.0.0.1:5432 (role `navaan_app`, no password, database `navaan`), which is
+what `analytics_db` uses with nothing configured. Run the tests with `python -m unittest discover -s plugins/navaan-studio/tests`; each test gets its own throwaway schema.
+
+**Check by hand** (prove an old file and Postgres agree, or redo a copy): `python3 plugins/navaan-studio/scripts/analytics_to_postgres.py --sqlite <file> [--replace] [--dry-run]`
+prints rows and a checksum per table and exits 0 only when every table matches.
+
+**Backup and restore.** The nightly `backup.sh` puts a `pg_dump -Fc` in the archive (the live `pg` folder is left out of the tarball). Restore drill, run once before relying on it
+(a 115 KB analytics dump restored in 1 s on 2026-10-15):
+```sh
+tar -xzf navaan-data-<stamp>.tar.gz navaan-data/state/navaan.pgdump
+docker exec navaan-postgres psql -U postgres -c 'CREATE DATABASE drill OWNER navaan_app'
+docker exec -i navaan-postgres pg_restore -U postgres -d drill --no-owner --role=navaan_app < navaan-data/state/navaan.pgdump
+docker exec navaan-postgres psql -U postgres -d drill -At -c 'select count(*) from analytics.yt_daily'
+```
+Migrations are numbered SQL in `plugins/navaan-studio/db/migrations/<schema>/`, applied once each when the app connects, recorded in `core.schema_migrations`. A release's migration must
+work with the previous release too, because the pipeline rolls back the image but not the schema.

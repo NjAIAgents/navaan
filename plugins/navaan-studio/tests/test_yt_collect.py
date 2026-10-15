@@ -3,6 +3,7 @@ import io, json, os, sys, tempfile, unittest, urllib.error, urllib.parse
 
 SCRIPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
 sys.path.insert(0, SCRIPTS)
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import yt_collect as yt
 
@@ -258,7 +259,7 @@ class CollectTests(Base):
 
     def test_schema_version_and_added_column(self):
         self.assertEqual(db.one(self.conn, "SELECT MAX(version) AS v FROM schema_version")["v"], 3)
-        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(market_notes)").fetchall()}
+        cols = {r["column_name"] for r in self.conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'market_notes' AND table_schema = current_schema()").fetchall()}
         self.assertIn("platform", cols)
 
 

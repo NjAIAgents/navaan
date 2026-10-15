@@ -42,13 +42,13 @@ def overview(account="all", days=30, db_file=None):
         conn = db.connect(db_file, readonly=True)
     except Exception as e:
         L.soft(LOG, "overview_error")
-        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.db_path(db_file), "collect": dict(COLLECT)}
+        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.where(), "collect": dict(COLLECT)}
     if conn is None:
-        return {"empty": True, "reason": "no_database", "db": db.db_path(db_file), "collect": dict(COLLECT)}
+        return {"empty": True, "reason": "no_database", "db": db.where(), "collect": dict(COLLECT)}
     try:
         accounts = db.rows(conn, "SELECT ig_user_id, label, username, last_collected_at FROM accounts ORDER BY CASE WHEN label = 'music' THEN 0 ELSE 1 END, label")
         if not accounts:
-            return {"empty": True, "reason": "no_data", "db": db.db_path(db_file), "collect": dict(COLLECT)}
+            return {"empty": True, "reason": "no_data", "db": db.where(), "collect": dict(COLLECT)}
         sel = [a for a in accounts if account in ("all", a["label"])] or accounts
         uids = [a["ig_user_id"] for a in sel]
         marks = _in(len(uids))
@@ -116,7 +116,7 @@ def overview(account="all", days=30, db_file=None):
         return {"empty": False, "reco": reco, "peers": peers, "hashtags": hashtags, "besttime": bt, "accounts": accounts, "account": account, "days": days, "kpis": kpis,
                 "series": {"followers": followers, "views": series("views"), "reach": series("reach"), "interactions": series("total_interactions")},
                 "posts": posts, "patterns": patterns, "waiting": waiting, "audience": aud, "hours": hours, "runs": runs,
-                "db": db.db_path(db_file), "collect": dict(COLLECT)}
+                "db": db.where(), "collect": dict(COLLECT)}
     finally:
         conn.close()
 
@@ -251,9 +251,9 @@ def yt_overview(account="all", days=30, db_file=None):
         conn = db.connect(db_file, readonly=True)
     except Exception as e:
         L.soft(LOG, "yt_overview_error")
-        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.db_path(db_file), "collect": collect}
+        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.where(), "collect": collect}
     if conn is None:
-        return {"empty": True, "reason": "no_database", "db": db.db_path(db_file), "collect": collect}
+        return {"empty": True, "reason": "no_database", "db": db.where(), "collect": collect}
     try:
         try:
             channels = db.rows(conn, "SELECT channel_id, label, title, handle, last_collected_at, analytics_ok FROM yt_channels ORDER BY CASE WHEN label = 'music' THEN 0 ELSE 1 END, label")
@@ -261,7 +261,7 @@ def yt_overview(account="all", days=30, db_file=None):
             L.soft(LOG, "yt_overview_error")
             channels = []
         if not channels:
-            return {"empty": True, "reason": "no_data", "db": db.db_path(db_file), "collect": collect}
+            return {"empty": True, "reason": "no_data", "db": db.where(), "collect": collect}
         sel = [c for c in channels if account in ("all", c["label"])] or channels
         cids = [c["channel_id"] for c in sel]
         marks = _in(len(cids))
@@ -332,7 +332,7 @@ def yt_overview(account="all", days=30, db_file=None):
                 "analytics_ok": all(c["analytics_ok"] for c in sel),
                 "series": {"subscribers": subs, "views": views, "watch_hours": [[d, round((v or 0) / 60.0, 1)] for d, v in minutes], "subs_gained": gained},
                 "videos": videos, "patterns": patterns, "traffic": traffic, "audience": aud, "retention": retention, "waiting": waiting, "runs": runs,
-                "db": db.db_path(db_file), "collect": dict(YT_COLLECT)}
+                "db": db.where(), "collect": dict(YT_COLLECT)}
     finally:
         conn.close()
 

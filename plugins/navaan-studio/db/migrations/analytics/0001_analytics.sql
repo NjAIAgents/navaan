@@ -1,9 +1,12 @@
--- NAVAAN analytics schema. Portable SQL: TEXT, INTEGER, REAL, composite primary keys, no AUTOINCREMENT, no triggers.
+-- NAVAAN analytics, schema "analytics". The tables the SQLite file had, with 64-bit integers and double precision.
+-- Timestamps are UTC ISO text (YYYY-MM-DDTHH:MM:SSZ) and dates YYYY-MM-DD for now; flags are 0/1. Typed columns (timestamptz, boolean) come in a later migration.
+-- This file is released: never edit it, add 0002_*.sql (the previous release must keep working, so no drops or renames in the same release).
+-- NAVAAN analytics schema. Portable SQL: TEXT, BIGINT, DOUBLE PRECISION, composite primary keys, no AUTOINCREMENT, no triggers.
 -- SQLite today, Postgres later. analytics_db.migrate runs the statements one by one, so keep a semicolon out of every comment and default value.
 -- Timestamps are UTC ISO strings (YYYY-MM-DDTHH:MM:SSZ). Dates are YYYY-MM-DD.
 
 CREATE TABLE IF NOT EXISTS schema_version (
-  version INTEGER PRIMARY KEY,
+  version BIGINT PRIMARY KEY,
   applied_at TEXT NOT NULL
 );
 
@@ -50,19 +53,19 @@ CREATE INDEX IF NOT EXISTS idx_media_slug ON media (slug);
 CREATE TABLE IF NOT EXISTS media_snapshots (
   media_id TEXT NOT NULL,
   captured_at TEXT NOT NULL,
-  like_count INTEGER,
-  comments_count INTEGER,
-  reach INTEGER,
-  views INTEGER,
-  saved INTEGER,
-  shares INTEGER,
-  reposts INTEGER,
-  total_interactions INTEGER,
-  avg_watch_time_ms REAL,
-  total_watch_time_ms REAL,
-  skip_rate REAL,
-  follows INTEGER,
-  profile_visits INTEGER,
+  like_count BIGINT,
+  comments_count BIGINT,
+  reach BIGINT,
+  views BIGINT,
+  saved BIGINT,
+  shares BIGINT,
+  reposts BIGINT,
+  total_interactions BIGINT,
+  avg_watch_time_ms DOUBLE PRECISION,
+  total_watch_time_ms DOUBLE PRECISION,
+  skip_rate DOUBLE PRECISION,
+  follows BIGINT,
+  profile_visits BIGINT,
   raw_json TEXT,
   PRIMARY KEY (media_id, captured_at)
 );
@@ -74,9 +77,9 @@ CREATE TABLE IF NOT EXISTS comments (
   username TEXT,
   text TEXT,
   posted_at TEXT,
-  like_count INTEGER,
-  hidden INTEGER NOT NULL DEFAULT 0,
-  is_own INTEGER NOT NULL DEFAULT 0,
+  like_count BIGINT,
+  hidden BIGINT NOT NULL DEFAULT 0,
+  is_own BIGINT NOT NULL DEFAULT 0,
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
   category TEXT,
@@ -93,7 +96,7 @@ CREATE TABLE IF NOT EXISTS account_daily (
   ig_user_id TEXT NOT NULL,
   period_end TEXT NOT NULL,
   metric TEXT NOT NULL,
-  value REAL,
+  value DOUBLE PRECISION,
   collected_at TEXT NOT NULL,
   PRIMARY KEY (ig_user_id, period_end, metric)
 );
@@ -103,15 +106,15 @@ CREATE TABLE IF NOT EXISTS audience (
   captured_on TEXT NOT NULL,
   breakdown TEXT NOT NULL,
   bucket TEXT NOT NULL,
-  value INTEGER,
+  value BIGINT,
   PRIMARY KEY (ig_user_id, captured_on, breakdown, bucket)
 );
 
 CREATE TABLE IF NOT EXISTS online_hours (
   ig_user_id TEXT NOT NULL,
   captured_on TEXT NOT NULL,
-  hour INTEGER NOT NULL,
-  followers INTEGER,
+  hour BIGINT NOT NULL,
+  followers BIGINT,
   PRIMARY KEY (ig_user_id, captured_on, hour)
 );
 
@@ -125,8 +128,8 @@ CREATE TABLE IF NOT EXISTS mentions (
   permalink TEXT,
   text TEXT,
   posted_at TEXT,
-  like_count INTEGER,
-  comments_count INTEGER,
+  like_count BIGINT,
+  comments_count BIGINT,
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
   reply_status TEXT
@@ -150,8 +153,8 @@ CREATE TABLE IF NOT EXISTS peers (
   note TEXT,
   added_at TEXT NOT NULL,
   last_fetched_at TEXT,
-  followers_count INTEGER,
-  media_count INTEGER,
+  followers_count BIGINT,
+  media_count BIGINT,
   last_error TEXT
 );
 
@@ -163,8 +166,8 @@ CREATE TABLE IF NOT EXISTS peer_media (
   permalink TEXT,
   caption TEXT,
   posted_at TEXT,
-  like_count INTEGER,
-  comments_count INTEGER,
+  like_count BIGINT,
+  comments_count BIGINT,
   captured_at TEXT NOT NULL,
   PRIMARY KEY (username, media_id)
 );
@@ -183,8 +186,8 @@ CREATE TABLE IF NOT EXISTS hashtag_media (
   permalink TEXT,
   caption TEXT,
   posted_at TEXT,
-  like_count INTEGER,
-  comments_count INTEGER,
+  like_count BIGINT,
+  comments_count BIGINT,
   captured_at TEXT NOT NULL,
   PRIMARY KEY (hashtag, media_id, kind)
 );
@@ -225,7 +228,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
   rule_id TEXT,
   finding_ids TEXT,
   note_ids TEXT,
-  priority INTEGER NOT NULL,
+  priority BIGINT NOT NULL,
   category TEXT NOT NULL,
   title TEXT NOT NULL,
   why TEXT,
@@ -253,7 +256,7 @@ CREATE TABLE IF NOT EXISTS yt_channels (
   uploads_playlist TEXT,
   created_at TEXT NOT NULL,
   last_collected_at TEXT,
-  analytics_ok INTEGER NOT NULL DEFAULT 0
+  analytics_ok BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS yt_videos (
@@ -263,7 +266,7 @@ CREATE TABLE IF NOT EXISTS yt_videos (
   kind TEXT,
   title TEXT,
   published_at TEXT,
-  duration_s INTEGER,
+  duration_s BIGINT,
   privacy TEXT,
   thumbnail_url TEXT,
   first_seen_at TEXT NOT NULL,
@@ -277,15 +280,15 @@ CREATE INDEX IF NOT EXISTS idx_ytv_slug ON yt_videos (slug);
 CREATE TABLE IF NOT EXISTS yt_snapshots (
   video_id TEXT NOT NULL,
   captured_at TEXT NOT NULL,
-  views INTEGER,
-  likes INTEGER,
-  comments INTEGER,
-  minutes_watched REAL,
-  avg_view_s REAL,
-  avg_view_pct REAL,
-  subs_gained INTEGER,
-  subs_lost INTEGER,
-  shares INTEGER,
+  views BIGINT,
+  likes BIGINT,
+  comments BIGINT,
+  minutes_watched DOUBLE PRECISION,
+  avg_view_s DOUBLE PRECISION,
+  avg_view_pct DOUBLE PRECISION,
+  subs_gained BIGINT,
+  subs_lost BIGINT,
+  shares BIGINT,
   PRIMARY KEY (video_id, captured_at)
 );
 
@@ -293,7 +296,7 @@ CREATE TABLE IF NOT EXISTS yt_daily (
   channel_id TEXT NOT NULL,
   period_end TEXT NOT NULL,
   metric TEXT NOT NULL,
-  value REAL,
+  value DOUBLE PRECISION,
   collected_at TEXT NOT NULL,
   PRIMARY KEY (channel_id, period_end, metric)
 );
@@ -302,8 +305,8 @@ CREATE TABLE IF NOT EXISTS yt_traffic (
   channel_id TEXT NOT NULL,
   captured_on TEXT NOT NULL,
   source TEXT NOT NULL,
-  views INTEGER,
-  minutes REAL,
+  views BIGINT,
+  minutes DOUBLE PRECISION,
   PRIMARY KEY (channel_id, captured_on, source)
 );
 
@@ -312,16 +315,16 @@ CREATE TABLE IF NOT EXISTS yt_audience (
   captured_on TEXT NOT NULL,
   breakdown TEXT NOT NULL,
   bucket TEXT NOT NULL,
-  value REAL,
+  value DOUBLE PRECISION,
   PRIMARY KEY (channel_id, captured_on, breakdown, bucket)
 );
 
 CREATE TABLE IF NOT EXISTS yt_retention (
   video_id TEXT NOT NULL,
   captured_on TEXT NOT NULL,
-  ratio REAL NOT NULL,
-  watch_ratio REAL,
-  relative REAL,
+  ratio DOUBLE PRECISION NOT NULL,
+  watch_ratio DOUBLE PRECISION,
+  relative DOUBLE PRECISION,
   PRIMARY KEY (video_id, captured_on, ratio)
 );
 
@@ -333,8 +336,8 @@ CREATE TABLE IF NOT EXISTS yt_comments (
   author_channel_id TEXT,
   text TEXT,
   posted_at TEXT,
-  like_count INTEGER,
-  is_own INTEGER NOT NULL DEFAULT 0,
+  like_count BIGINT,
+  is_own BIGINT NOT NULL DEFAULT 0,
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
   category TEXT,
@@ -357,3 +360,33 @@ CREATE TABLE IF NOT EXISTS yt_runs (
   stats_json TEXT,
   errors_json TEXT
 );
+
+-- Also created from code by yt_hashtags.ensure and comment_reply.connect (same text); listed here so the Postgres migration has them.
+CREATE TABLE IF NOT EXISTS yt_hashtag_posts (
+  video_id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  channel_id TEXT,
+  published_at TEXT,
+  duration_s BIGINT,
+  views BIGINT,
+  likes BIGINT,
+  comments BIGINT,
+  captured_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS comment_replies (
+  comment_id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  account TEXT,
+  draft TEXT,
+  status TEXT NOT NULL,
+  sent_id TEXT,
+  error TEXT,
+  drafted_at TEXT,
+  edited_at TEXT,
+  approved_at TEXT,
+  sent_at TEXT
+);
+
+ALTER TABLE market_notes ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'any';

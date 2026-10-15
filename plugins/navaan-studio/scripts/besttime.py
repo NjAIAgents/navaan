@@ -54,9 +54,8 @@ def signals(conn, label):
     last = db.one(conn, f"SELECT MAX(captured_on) AS d FROM online_hours WHERE ig_user_id = {db.PH}", (uid,))["d"]
     online = [0.0] * 24
     if last:
-        rows = db.rows(conn, f"SELECT hour, AVG(followers) AS f FROM online_hours WHERE ig_user_id = {db.PH} AND captured_on >= "
-                             f"(SELECT date(MAX(captured_on), '-13 day') FROM online_hours WHERE ig_user_id = {db.PH}) GROUP BY hour", (uid, uid)) \
-            if getattr(db, "PH", "?") == "?" else db.rows(conn, f"SELECT hour, AVG(followers) AS f FROM online_hours WHERE ig_user_id = {db.PH} GROUP BY hour", (uid,))
+        since = (datetime.date.fromisoformat(last[:10]) - datetime.timedelta(days=13)).isoformat()   # the last 14 days of data, worked out here so the SQL is the same on SQLite and Postgres
+        rows = db.rows(conn, f"SELECT hour, AVG(followers) AS f FROM online_hours WHERE ig_user_id = {db.PH} AND captured_on >= {db.PH} GROUP BY hour", (uid, since))
         for r in rows:
             if r["f"] is not None and 0 <= int(r["hour"]) < 24: online[int(r["hour"])] = float(r["f"])
     posts = db.rows(conn, f"""SELECT m.posted_at, sn.views, sn.reach FROM media m
