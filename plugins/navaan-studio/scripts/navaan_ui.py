@@ -391,6 +391,11 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/redo":
                 if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
+            if p == "/api/restart":   # redo this step and every step after it through the render, then run until the credits gate
+                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song. Press Stop first."})
+                try: navaan.redo_from(slug, body.get("step"))
+                except SystemExit as e: return self._send(400, {"error": str(e)})
+                return self._send(200, {"started": start_job(slug, True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
             if p == "/api/stop": return self._send(200, {"stopped": navaan.stop(slug) if JOBS.get(slug, {}).get("running") else False})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
