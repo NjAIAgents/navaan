@@ -118,6 +118,12 @@ def parse(text, count):
 def make(slug, count=None, runner=None):
     D = C.song_dir(slug)
     ctx = shots_prep.build_context(D)
+    if not count:
+        try:
+            import media_cfg
+            count = int(media_cfg.load()["song_pictures"])
+        except Exception:
+            count = None
     count = int(count) if count else default_count(ctx["duration"])
     count = max(MIN_COUNT, min(MAX_COUNT, count))
     slots = allocate(ctx["sections"], count)
