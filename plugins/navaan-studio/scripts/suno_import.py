@@ -63,8 +63,10 @@ def save(path, obj):
     json.dump(obj, open(path, "w", encoding="utf-8"), indent=2, ensure_ascii=False); open(path, "a").write("\n")
 
 
-def init(src, slug=None):
-    sid, url = parse_ref(src); slug = slug or next_slug()
+def init(src, slug=None, allow_blank=False):
+    """allow_blank: start a song with no Suno link, for an uploaded MP3 on its own."""
+    sid, url = (None, "") if (allow_blank and not (src or "").strip()) else parse_ref(src)
+    slug = slug or next_slug()
     if not os.path.isdir(os.path.join(songs_root(), slug)):
         rc = subprocess.call([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "new_song.py"), slug])
         if rc: sys.exit(rc)
@@ -226,9 +228,41 @@ def fetch_audio(slug, dest=None):
                 print(f"audio: unexpected content type {r.headers.get('Content-Type')}"); return None
             with open(out + ".part", "wb") as f: shutil.copyfileobj(r, f)
         os.replace(out + ".part", out)
+        if subprocess.run([tool("ffmpeg"), "-v", "error", "-i", out, "-f", "null", "-"], capture_output=True).returncode:
+            os.remove(out)
+            print("audio: Suno's public file is not readable (it is scrambled for signed out clients). Upload the MP3 from the song page."); return None
         return out
     except (urllib.error.URLError, ValueError, OSError) as e:
         print(f"audio: download failed ({e})"); return None
+
+
+UPLOAD_EXT = (".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac")
+MAX_UPLOAD = 22 * 1024 * 1024  # the nginx body limit is 30 MB and base64 adds a third
+
+
+def check_upload(name, data_b64):
+    """Validate an uploaded song file. Returns (bytes, extension) or raises ValueError."""
+    import base64, binascii
+    ext = os.path.splitext(str(name or ""))[1].lower()
+    if ext not in UPLOAD_EXT: raise ValueError("pick an audio file (" + ", ".join(UPLOAD_EXT) + ")")
+    try: raw = base64.b64decode(str(data_b64 or "").split(",", 1)[-1])
+    except (binascii.Error, ValueError): raise ValueError("the file did not upload correctly, try again")
+    if len(raw) > MAX_UPLOAD: raise ValueError("audio is over 22 MB")
+    if len(raw) < 50000: raise ValueError("that file is too small to be a song")
+    return raw, ext
+
+
+def save_upload(slug, name, data_b64):
+    """Keep the MP3 the user downloaded from Suno. auto() ingests it instead of fetching Suno's public file. Returns its path inside the song."""
+    raw, ext = check_upload(name, data_b64)
+    D = song_dir(slug); os.makedirs(os.path.join(D, "takes"), exist_ok=True)
+    rel = "takes/upload" + ext
+    with open(os.path.join(D, rel), "wb") as f: f.write(raw)
+    mp = os.path.join(D, "meta.json"); m = load_json(mp, default={}); su = m.setdefault("suno", {})
+    su["upload"] = rel; su["upload_title"] = clean_title(os.path.splitext(os.path.basename(str(name)))[0].replace("_", " "))
+    su.pop("auto_failed", None)
+    m.setdefault("history", []).append(f"{now()} audio uploaded by the user ({len(raw) // 1024} KB)"); save(mp, m)
+    return rel
 
 
 def describe(D):
@@ -249,12 +283,13 @@ def auto(slug):
     D = song_dir(slug); mp = os.path.join(D, "meta.json")
     def fail(why):
         m = load_json(mp, default={}); m.setdefault("suno", {})["auto_failed"] = why; m.setdefault("history", []).append(f"{now()} suno auto import failed: {why}"); save(mp, m); print("auto import failed: " + why); return 1
-    m = load_json(mp, default={})
-    if not m.get("suno", {}).get("fetched_at") and not fetch(slug): return fail("no public text")
-    audio = fetch_audio(slug)
+    m = load_json(mp, default={}); up = m.get("suno", {}).get("upload")
+    up = os.path.join(D, up) if up and os.path.isfile(os.path.join(D, up)) else None
+    if not m.get("suno", {}).get("fetched_at") and not fetch(slug) and not up: return fail("no public text")
+    audio = up or fetch_audio(slug)
     if not audio: return fail("no public audio")
-    d = describe(D)
-    ns = argparse.Namespace(audio=audio, title=None, lyrics_file=None, style_file=None, model=None, cover=None, suno_id=None, theme=d.get("theme"), mood=d.get("mood"), genre=d.get("genre"), language=d.get("language"))
+    d = describe(D) if os.path.exists(os.path.join(D, "lyrics.txt")) else {}
+    ns = argparse.Namespace(audio=audio, title=(m.get("suno", {}).get("upload_title") if not os.path.exists(os.path.join(D, "title.txt")) else None), lyrics_file=None, style_file=None, model=None, cover=None, suno_id=None, theme=d.get("theme"), mood=d.get("mood"), genre=d.get("genre"), language=d.get("language"))
     try: ingest(slug, ns)
     except SystemExit as e: return fail(str(e)[:200])
     m = load_json(mp, default={}); m.get("suno", {}).pop("auto_failed", None); save(mp, m)
