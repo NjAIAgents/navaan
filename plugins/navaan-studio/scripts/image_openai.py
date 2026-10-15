@@ -13,7 +13,8 @@ import media_cfg
 
 MODEL = os.environ.get("NAVAAN_OPENAI_IMAGE_MODEL", "gpt-image-2")
 # Approximate dollars for one portrait picture by size and quality. Used for the cap and the estimate card, not for billing.
-PRICE = {"1024x1536": {"low": 0.005, "medium": 0.041, "high": 0.165}, "1152x2048": {"low": 0.008, "medium": 0.062, "high": 0.248}}
+PRICE = {"1024x1536": {"low": 0.005, "medium": 0.041, "high": 0.165}, "1152x2048": {"low": 0.008, "medium": 0.062, "high": 0.248},
+         "1792x1008": {"low": 0.007, "medium": 0.048, "high": 0.19}, "1536x864": {"low": 0.005, "medium": 0.035, "high": 0.14}}
 OUT_W, OUT_H = 1080, 1920
 
 
