@@ -329,6 +329,7 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(ig.ig_ref("18156611239556637"), ("18156611239556637", None))
         self.assertEqual(ig.ig_ref(""), (None, None))
 
+    @unittest.skipIf(db.PG, "SQLite file paths only")
     def test_bare_filename_database_path(self):
         d = tempfile.mkdtemp(); old = os.getcwd(); os.chdir(d)
         try:

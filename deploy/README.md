@@ -153,3 +153,35 @@ docker network connect engagehub-network navaan         # recovers in about 16 s
 
 ## Rollback
 Remove the two navaan mounts and the `navaan-network` network from the `engagehub-nginx` service, `cd /opt/engagehub && docker compose up -d nginx`, delete `/opt/navaan/nginx/navaan.conf`. DNS and the certificate can stay. `docker compose -f deploy/compose.yml down` stops NAVAAN. The Mac portal keeps working; set its `NAVAAN_SCHEDULER` back to `on` only after the server's is `off`.
+
+## Postgres (NAV-3, spec 002)
+
+Analytics can run on Postgres instead of SQLite. Nothing changes until you switch it on, and switching back is deleting one file.
+
+**One-time VM setup** (admin, the pipeline cannot do this):
+```sh
+sudo install -d -m 700 /opt/navaan/secrets /opt/navaan/data/pg
+umask 077; head -c 24 /dev/urandom | base64 | tr -d '/+=\n' | sudo tee /opt/navaan/secrets/pg_password >/dev/null
+free -m                                                                   # the container is capped at 512 MB; check there is room
+cd /opt/navaan/repo && docker compose -f deploy/compose.yml --profile postgres up -d postgres
+docker exec navaan-postgres pg_isready -U navaan -d navaan
+```
+Later deploys leave this container alone (it is behind the `postgres` profile). The nightly `backup.sh` adds a `pg_dump -Fc` to the archive while the container runs.
+
+**Copy the data and switch** (from the Mac or the VM, with the SQLite file you want to keep):
+```sh
+NAVAAN_DATABASE_URL=postgresql://navaan:<password>@<host>:5432/navaan python3 plugins/navaan-studio/scripts/analytics_to_postgres.py --sqlite <file> --replace
+# prints rows and a checksum per table; "ALL TABLES MATCH" and exit 0 mean the copy is proven
+printf 'NAVAAN_PG_HOST=navaan-postgres\nNAVAAN_PG_PASSWORD=<password>\n' > ~/.config/navaan/pg.env     # then push it to Vault: vault_sync.py push pg.env
+docker restart navaan
+```
+The app reads `pg.env` (or `NAVAAN_DATABASE_URL`) at start: present means Postgres, absent means SQLite. **Rollback:** remove `pg.env` from Vault and the container, restart. The SQLite file is untouched; keep it 14 days after cutover. Data collected on Postgres after the switch is not in that file.
+
+**Restore drill** (run once before relying on it; a 115 KB analytics dump restored in 1 s on 2026-10-15):
+```sh
+tar -xzf navaan-data-<stamp>.tar.gz navaan-data/state/navaan.pgdump
+docker exec navaan-postgres psql -U navaan -d postgres -c 'CREATE DATABASE drill'
+docker exec -i navaan-postgres pg_restore -U navaan -d drill --no-owner < navaan-data/state/navaan.pgdump
+docker exec navaan-postgres psql -U navaan -d drill -At -c 'select count(*) from analytics.yt_daily'
+```
+Migrations are numbered SQL in `plugins/navaan-studio/db/migrations/<schema>/`, applied once each when the app connects, recorded in `core.schema_migrations`. A release's migration must work with the previous release too, because the pipeline rolls back the image but not the schema.

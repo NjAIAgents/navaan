@@ -357,3 +357,31 @@ CREATE TABLE IF NOT EXISTS yt_runs (
   stats_json TEXT,
   errors_json TEXT
 );
+
+-- Also created from code by yt_hashtags.ensure and comment_reply.connect (same text); listed here so the Postgres migration has them.
+CREATE TABLE IF NOT EXISTS yt_hashtag_posts (
+  video_id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  channel_id TEXT,
+  published_at TEXT,
+  duration_s INTEGER,
+  views INTEGER,
+  likes INTEGER,
+  comments INTEGER,
+  captured_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS comment_replies (
+  comment_id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  account TEXT,
+  draft TEXT,
+  status TEXT NOT NULL,
+  sent_id TEXT,
+  error TEXT,
+  drafted_at TEXT,
+  edited_at TEXT,
+  approved_at TEXT,
+  sent_at TEXT
+);

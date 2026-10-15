@@ -40,6 +40,33 @@ services:
       driver: json-file
       options: {max-size: 50m, max-file: "5"}   # the JSON log stream goes to stdout too; a shipper such as Grafana Alloy or Promtail can tail it later
 
+  # Postgres for analytics (NAV-3, spec 002). Behind a profile so a normal deploy never needs its password file: an admin starts it once with
+  #   docker compose -f deploy/compose.yml --profile postgres up -d postgres        (deploy/README.md, Postgres)
+  # and it keeps running across later deploys. The app stays on SQLite until a pg.env arrives from Vault (NAVAAN_PG_HOST, NAVAAN_PG_PASSWORD).
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:17-alpine
+    container_name: navaan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: navaan
+      POSTGRES_USER: navaan
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets: [pg_password]
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=30", "-c", "log_min_duration_statement=500"]
+    mem_limit: 512m          # the VM is shared with EngageHub and Relayent; raise only after checking free memory
+    volumes:
+      - /opt/navaan/data/pg:/var/lib/postgresql/data
+    networks: [navaan-network]    # internal only, no published port
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U navaan -d navaan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
 networks:
   navaan-network:
     name: navaan-network      # engagehub-nginx joins this one (deploy/nginx/README.md)
@@ -48,6 +75,8 @@ networks:
     name: ${VAULT_NETWORK:-engagehub-network}   # where engagehub-vault lives (research.md R10)
 
 secrets:
+  pg_password:
+    file: /opt/navaan/secrets/pg_password       # only read when the postgres profile is on
   vault_role_id:
     file: /opt/navaan/secrets/vault_role_id
   vault_secret_id:

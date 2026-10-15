@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Author: Navjyot Nishant
 # Created: 2026-10-13
-# Last updated: 2026-10-14
+# Last updated: 2026-10-15
 # Description: nightly backup of the NAVAAN data folder: local copy always, OCI bucket when it is reachable. 14 days kept.
 #
 # Run as root (the data folder belongs to the container user). Cron: /etc/cron.d/navaan-backup.
@@ -11,7 +11,7 @@
 #   NAVAAN_BACKUP_KEEP       days kept in the bucket, default 14
 #   NAVAAN_BACKUP_DRY=1      build the archive in a temp dir, print name and size, keep and upload nothing
 # The OCI CLI is used when installed, else the official container ghcr.io/oracle/oci-cli with --auth instance_principal
-# (needs a policy that lets this instance write objects in the bucket). Exit 3 = local copy made, upload failed.
+# (needs a policy that lets this instance write objects in the bucket). Exit 3 = local copy made, upload failed. Exit 4 = pg_dump failed.
 # analytics.db is copied with SQLite's online backup so the archive is consistent while the portal runs. Secrets are not in the data folder.
 # Restore: deploy/README.md.
 set -euo pipefail
@@ -27,6 +27,12 @@ if [ -f "$DATA/state/analytics.db" ]; then
 import sqlite3, sys
 s = sqlite3.connect(sys.argv[1]); d = sqlite3.connect(sys.argv[2]); s.backup(d); d.close(); s.close()
 PY
+fi
+# Postgres (NAV-3): a custom-format dump taken from inside the container, so the archive holds a consistent copy. Restore drill: deploy/README.md, Postgres.
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx navaan-postgres; then
+  mkdir -p "$stage/state"
+  docker exec navaan-postgres pg_dump -U navaan -Fc navaan > "$stage/state/navaan.pgdump" || { echo "backup: pg_dump FAILED" >&2; exit 4; }
+  echo "backup: postgres dump $(du -h "$stage/state/navaan.pgdump" | cut -f1)"
 fi
 name="navaan-data-$stamp.tar.gz"; arc="$tmp/$name"
 tar -C "$tmp" -czf "$arc" navaan-data
