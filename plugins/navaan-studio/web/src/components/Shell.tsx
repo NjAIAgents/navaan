@@ -4,6 +4,7 @@ import { Icon, type IconName } from "./Icon";
 import { UserMenu } from "./UserMenu";
 import { useMobile } from "./useMobile";
 import { useTheme } from "../theme/useTheme";
+import { getJSON } from "../lib/api";
 
 type Item = { to: string; label: string; icon: IconName; end?: boolean };
 export const NAV: Item[] = [
@@ -32,6 +33,8 @@ export function Shell() {
   const mobile = useMobile();
   const { choice, setChoice } = useTheme();
   const [open, setOpen] = useState(false);
+  const [version, setVersion] = useState<string | undefined>();
+  useEffect(() => { getJSON<{ version?: unknown }>("/auth/state").then((s) => setVersion(typeof s?.version === "string" && s.version ? s.version : undefined)).catch(() => setVersion(undefined)); }, []);
   const close = useCallback(() => setOpen(false), []);
   const title = titleFor(pathname);
   useEffect(() => { document.title = title === "Home" ? "NAVAAN" : `${title} · NAVAAN`; close(); }, [title, close]);
@@ -60,7 +63,7 @@ export function Shell() {
           <button className="who" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>
             <span className="av" aria-hidden="true">N</span><span>Navjyot</span><span className="sp" /><Icon name="chevron" />
           </button>
-          {open && !mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile={false} />}
+          {open && !mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile={false} version={version} />}
         </div>
       </aside>
       <div className="main">
@@ -80,7 +83,7 @@ export function Shell() {
       <nav className="tabbar" aria-label="Main">
         {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
-      {open && mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile />}
+      {open && mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile version={version} />}
     </div>
   );
 }

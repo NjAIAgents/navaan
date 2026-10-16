@@ -4,10 +4,10 @@ import { Icon } from "./Icon";
 import { THEMES, type Choice } from "../theme/themes";
 import { postJSON } from "../lib/api";
 
-type Props = { choice: Choice; onChoice: (c: Choice) => void; onClose: () => void; mobile: boolean };
+type Props = { choice: Choice; onChoice: (c: Choice) => void; onClose: () => void; mobile: boolean; version?: string };
 
 // Opened from the avatar. A popover on a desktop, a bottom sheet on a phone. Appearance is here; the full personalisation page comes with NAV-17.
-export function UserMenu({ choice, onChoice, onClose, mobile }: Props) {
+export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>("button, a")?.focus();
@@ -38,6 +38,7 @@ export function UserMenu({ choice, onChoice, onClose, mobile }: Props) {
       <a href="/legacy"><Icon name="external" /> Classic view</a>
       <hr />
       <button onClick={signOut}><Icon name="out" /> Sign out</button>
+      {version && <p className="mu" style={{ margin: "8px 12px 0", fontSize: 12 }}>NAVAAN {version}</p>}
     </>
   );
   return mobile ? (
