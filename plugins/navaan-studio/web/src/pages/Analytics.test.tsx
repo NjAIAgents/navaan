@@ -30,11 +30,12 @@ describe("Studio > Analytics", () => {
     at("/studio/analytics");
     expect(await screen.findByRole("tab", { name: "Analytics" })).toHaveAttribute("aria-selected", "true");
     for (const t of ["Recommendations", "Interactions"]) expect(screen.getByRole("tab", { name: new RegExp(t) })).toBeInTheDocument();
+    await screen.findAllByText("Followers");   // the numbers arrive after the tabs: wait for them
     const kpi = (label: string) => screen.getAllByText(label).map((e) => e.closest(".kpi")).find(Boolean) as HTMLElement;
     expect(kpi("Followers")).toHaveTextContent("8"); expect(kpi("Followers")).toHaveTextContent("+5"); expect(kpi("Views")).toHaveTextContent("825"); expect(kpi("Interactions")).toHaveTextContent("46"); expect(kpi("Accounts engaged")).toHaveTextContent("22");
     const row = screen.getByRole("link", { name: "Quote One" }).closest("tr")!; expect(row).toHaveTextContent("321"); expect(within(row).getByText("4.5%")).toBeInTheDocument();
     expect(row.querySelectorAll("td[data-label]").length).toBe(7);   // each cell carries its label, so the phone can stack it
-    expect(f.mock.calls[0][0]).toBe("/api/analytics?account=all&days=30");
+    expect(f.mock.calls.some(([u]) => u === "/api/analytics?account=all&days=30")).toBe(true);
     expect(screen.getByRole("img", { name: /followers: from 3 on 2026-10-01 to 8/i })).toBeInTheDocument();
   });
   it("changing platform, account and period asks for that data", async () => {

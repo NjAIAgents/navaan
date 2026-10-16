@@ -13,7 +13,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:17-alpine
@@ -41,6 +41,22 @@ jobs:
         env:
           NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
         run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
+      - name: Browser checks (Playwright at 390x844 and 1280x800, both themes, axe-core) and Lighthouse mobile gate
+        working-directory: plugins/navaan-studio/web/e2e
+        env:
+          NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
+        run: |
+          npm ci
+          command -v google-chrome >/dev/null || npx playwright install --with-deps chrome
+          npx playwright test
+          node lighthouse.mjs
+      - name: Browser check results (only when they fail)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: plugins/navaan-studio/web/e2e/test-results
+          if-no-files-found: ignore
       - name: Shell scripts parse
         run: |
           for f in deploy/*.sh deploy/backup/*.sh; do bash -n "$f" && echo "ok $f"; done

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { Equaliser } from "../components/Equaliser";
 import { Icon } from "../components/Icon";
+import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type SongDetail, type Step } from "../lib/api";
 import { CLASSIC_ONLY, GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { classic, errText, nextAction } from "../lib/songs";
@@ -86,6 +88,7 @@ export default function Song() {
   const [d, setD] = useState<SongDetail | null>(null);
   const [err, setErr] = useState("");
   const [pending, setPending] = useState(false);
+  const pl = usePlayer();
   const load = useCallback(() => getJSON<SongDetail>(`/api/song/${slug}`).then((x) => { setD(x); setErr(""); }).catch((e) => setErr(errText(e))), [slug]);
   useEffect(() => { void load(); }, [load]);
   const running = !!(d?.job.running || d?.job.queued);
@@ -109,7 +112,7 @@ export default function Song() {
     <>
       <div className="ph">
         <Link className="back" to={list}><Icon name="chevron" />{insp ? "Inspiration" : "Songs"}</Link>
-        <h1 className="disp">{title}</h1>
+        <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
         <p>{slug} · {d.meta.state ?? "new"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })}</p>
       </div>
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
@@ -136,6 +139,12 @@ export default function Song() {
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
         </section>
       ) : null}
+      {d.meta.type !== "inspiration" && d.meta.state === "published" && (
+        <section className="card row" aria-label="Play">
+          <button className="btn p" onClick={() => void pl.toggle(slug, title)}>{pl.slug === slug && pl.playing ? "Pause" : "Play"}<span className="sr"> {title}</span></button>
+          <span className="mu">Plays straight from the bucket.</span>
+        </section>
+      )}
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <ShareCard slug={slug} />}
       <section className="sec" aria-labelledby="steps-h">
         <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>

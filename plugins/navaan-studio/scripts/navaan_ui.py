@@ -1,6 +1,6 @@
 """Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
-import os, re, json, glob, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging
+import os, re, json, glob, gzip, hashlib, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
@@ -49,6 +49,18 @@ def web_file(rel):
     body = open(p, "rb").read()
     if rel.startswith("assets/"): return body, ct, "public, max-age=31536000, immutable"   # file names carry a content hash
     return body, ct, "no-store"
+
+
+GZ_TYPES = ("text/css", "text/javascript", "application/javascript", "image/svg+xml", "application/json", "text/html")
+GZ_CACHE = {}   # md5 of the bytes -> gzipped bytes; the built app is a handful of files, so this stays small
+def gz(data, ctype, accept):
+    """(body, extra headers): the file gzipped when the browser accepts it and it is worth it. The built app is served by this process, so without this a phone downloads 300 KB of script uncompressed."""
+    if len(data) < 1024 or ctype not in GZ_TYPES or "gzip" not in (accept or ""): return data, {}
+    k = hashlib.md5(data).digest()
+    if k not in GZ_CACHE:
+        if len(GZ_CACHE) > 64: GZ_CACHE.clear()
+        GZ_CACHE[k] = gzip.compress(data, 9, mtime=0)
+    return GZ_CACHE[k], {"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
 
 
 def worker_state():
@@ -297,7 +309,7 @@ class H(BaseHTTPRequestHandler):
             if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
                 rel = p[5:]
                 f = web_file(rel) if rel and "." in os.path.basename(rel) else None
-                if f: return self._send(200, f[0], f[1], {"Cache-Control": f[2]})
+                if f: body, enc = gz(f[0], f[1], self.headers.get("Accept-Encoding")); return self._send(200, body, f[1], {"Cache-Control": f[2], **enc})
                 if rel and "." in os.path.basename(rel): return self._send(404, {"error": "not found"})
                 idx = web_file("index.html")
                 if not idx: return self._send(503, "The new app is not built. In plugins/navaan-studio/web run: npm ci && npm run build", "text/plain")
@@ -352,7 +364,12 @@ class H(BaseHTTPRequestHandler):
                 if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
                 return self._send(200, analytics_api.song_view(sl))
             if p == "/api/analytics/by-song": return self._send(200, analytics_api.by_song())
-            if p == "/api/songs": return self._send(200, [song_row(s) for s in songs()])
+            if p == "/api/songs":
+                try: art = catalog_store.cover_art()   # published songs with a cover in the bucket: the list asks /img for it and paints the dominant colour first
+                except Exception: L.exc(LOG, "cover_art_failed"); art = {}   # the list still works, with letter tiles
+                rows = [song_row(s) for s in songs()]
+                for r in rows: r["art"] = {"colour": art[r["slug"]]} if r["slug"] in art else None
+                return self._send(200, rows)
             if p == "/api/schedule":   # every scheduled publish, for the Schedule screen
                 out = []
                 for sl in songs():
