@@ -1,3 +1,4 @@
+import { Alerts } from "./Alerts";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Icon, type IconName } from "./Icon";
@@ -25,6 +26,7 @@ export const STUDIO_SUB: { to: string; label: string; soon?: boolean }[] = [
   { to: "/studio/approvals", label: "Approvals" },
   { to: "/studio/schedule", label: "Schedule" },
   { to: "/studio/analytics", label: "Analytics" },
+  { to: "/studio/cloud", label: "Cloud" },
 ];
 
 export function titleFor(path: string): string {
@@ -106,7 +108,7 @@ function ShellFrame() {
           <Link className="btn g sq" to="/search" aria-label="Search"><Icon name="search" /></Link>
           <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" data-i={who.slice(0, 1).toUpperCase()} aria-hidden="true" /></button>
         </div>
-        <main id="main" key={pathname} className="page" tabIndex={-1}><Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></main>
+        <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></main>
         <NowPlaying />
         <PlayMode />
       </div>

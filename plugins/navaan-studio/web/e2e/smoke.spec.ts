@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const THEMES = ["midnight-cinema", "ivory-gold"];
 const PAGES = [["Home", "/app/"], ["Songs", "/app/studio/songs"], ["Song", "/app/studio/songs/song-001"], ["Inspiration", "/app/studio/inspiration"], ["Approvals", "/app/studio/approvals"],
-  ["Schedule", "/app/studio/schedule"], ["Analytics", "/app/studio/analytics"], ["Recommendations", "/app/studio/analytics?tab=recommendations"], ["Interactions", "/app/studio/analytics?tab=interactions"], ["Search", "/app/search?q=tere"], ["Library", "/app/library"], ["Plans", "/app/plans"], ["Albums", "/app/albums"], ["Account", "/app/account"]];
+  ["Schedule", "/app/studio/schedule"], ["Analytics", "/app/studio/analytics"], ["Settings", "/app/studio/settings"], ["Security", "/app/account/security"], ["Cloud", "/app/studio/cloud"], ["Recommendations", "/app/studio/analytics?tab=recommendations"], ["Interactions", "/app/studio/analytics?tab=interactions"], ["Search", "/app/search?q=tere"], ["Library", "/app/library"], ["Plans", "/app/plans"], ["Albums", "/app/albums"], ["Account", "/app/account"]];
 
 async function ready(page: Page) {
   await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 15_000 });
@@ -31,6 +31,23 @@ test("a song and an inspiration can be started from the lists and open at their 
   await page.getByRole("button", { name: "Create" }).click(); await expect(page.getByText("Write the quote or the idea first.")).toBeVisible();   // an inspiration needs words
   await page.getByLabel("Quote or idea").fill("Maybe you are not behind, maybe you are on your own road"); await page.getByRole("button", { name: "Create" }).click();
   await expect(page).toHaveURL(/\/app\/studio\/inspiration\/insp-\d+/); await expect(page.getByRole("heading", { name: "Steps", level: 2 })).toBeVisible();
+});
+
+test("a song's words can be edited, saved, and are still there after a reload (and an unsaved edit is flagged)", async ({ page }, info) => {
+  const slug = info.project.name === "mobile" ? "song-001" : "song-004";
+  await page.goto(`/app/studio/songs/${slug}`); await ready(page);
+  await page.locator("summary", { hasText: "Style" }).click();
+  const box = page.getByLabel("Style", { exact: true }); await box.fill(`warm hindi pop, edited in the ${info.project.name} check`);
+  await expect(page.getByText("Unsaved changes").first()).toBeVisible();
+  await page.getByRole("button", { name: "Save style" }).click(); await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await page.reload(); await ready(page); await page.locator("summary", { hasText: "Style" }).click();
+  await expect(page.getByLabel("Style", { exact: true })).toHaveValue(`warm hindi pop, edited in the ${info.project.name} check`);
+  await expect(page.getByText(/style\.txt edited via ui:/)).toBeVisible();   // the history says who
+});
+
+test("the front door is the new app, and the classic view is still at /legacy", async ({ page }) => {
+  await page.goto("/"); await expect(page).toHaveURL(/\/app\/$/);
+  const r = await page.request.get("/legacy"); expect(r.status()).toBe(200); expect(await r.text()).toContain("NAVAAN");
 });
 
 test("approvals lists what is waiting, grouped by gate", async ({ page }) => {

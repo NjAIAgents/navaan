@@ -53,8 +53,9 @@ class Access(unittest.TestCase):
         self.assertEqual(self.call("/api/client-log", "owner-tok", None, post=True)[0], 403)
 
     def test_a_listener_reaches_no_studio_route(self):
-        for path in ("/api/songs", "/api/settings", "/api/cloud", "/legacy", "/", "/api/analytics"): self.assertEqual(self.call(path, "lis-tok")[0], 403, path)
+        for path in ("/api/songs", "/api/settings", "/api/cloud", "/legacy", "/api/analytics"): self.assertEqual(self.call(path, "lis-tok")[0], 403, path)
         code, body = self.call("/app/studio/songs", "lis-tok"); self.assertEqual(code, 200); self.assertIn(b"csrf-lis", body)   # the app itself is for every signed-in person; it only shows what the routes allow
+        code, body = self.call("/", "lis-tok"); self.assertEqual(code, 200); self.assertIn(b"csrf-lis", body)   # the front door leads a listener into the app, not to a refusal
         self.assertEqual(self.call("/app/")[0], 200); self.assertNotIn(b"csrf-lis", self.call("/app/")[1])   # signed out: only the sign-in page
         self.assertEqual(self.call("/api/client-log", "lis-tok", "csrf-lis", post=True)[0], 403)
         self.assertEqual(self.call("/api/run", "lis-tok", "csrf-lis", post=True)[0], 403)

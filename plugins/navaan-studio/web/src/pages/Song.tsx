@@ -4,10 +4,14 @@ import { Equaliser } from "../components/Equaliser";
 import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
+import { VisualsCard } from "../components/VisualsCard";
+import { SongAnalytics } from "../components/SongAnalytics";
+import { ScheduleCard } from "../components/SchedulePanel";
+import { MediaCard, NarrationCard, ShotsEditor, TextEditors } from "../components/SongEditors";
 import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type Question, type SongDetail, type Step } from "../lib/api";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
-import { CLASSIC_ONLY, GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
+import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { classic, errText, nextAction } from "../lib/songs";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
@@ -25,9 +29,7 @@ function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Ac
       <h2 id="gate-h">{gateTitle(gate)}</h2>
       <p>{GATE_ASK[gate] ?? "Approve to move this song forward."}</p>
       {file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
-      {CLASSIC_ONLY.has(gate) ? (
-        <a className="btn p" href={classic(d.slug)}>Choose in the classic view <Icon name="external" /></a>
-      ) : changing ? (
+      {changing ? (
         <form className="stack" onSubmit={(e) => { e.preventDefault(); void ok("/api/request-changes", { note }); }}>
           <label htmlFor="note">What should change?</label>
           <textarea id="note" className="field" rows={3} required value={note} onChange={(e) => setNote(e.target.value)} />
@@ -119,9 +121,27 @@ function Approvals({ d, act, busy }: { d: SongDetail; act: Act; busy: boolean })
   );
 }
 
-function StepRow({ s, failed }: { s: Step; failed: boolean }) {
+function StepRow({ s, failed, act, busy }: { s: Step; failed: boolean; act: Act; busy: boolean }) {
+  const [ask, setAsk] = useState<"redo" | "restart" | null>(null);
   const chip = failed ? <span className="chip bad">Failed</span> : s.status === "done" ? <span className="chip ok"><Icon name="check" />Done</span> : s.status === "waiting for approval" ? <span className="chip wn">Needs approval</span> : <span className="chip">{s.status === "ready" ? "Ready" : "Later"}</span>;
-  return <li className="stp"><span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}</li>;
+  const go = async () => { if (await act(ask === "redo" ? "/api/redo" : "/api/restart", { step: s.id })) setAsk(null); };
+  return (
+    <li className="stp">
+      <span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}
+      {s.done && (s.redo || s.restart) && !ask && (
+        <span className="row">
+          {s.redo && <button className="btn g" disabled={busy} onClick={() => setAsk("redo")} aria-label={`Redo ${stepLabel(s.id)}`}>Redo</button>}
+          {s.restart && <button className="btn g" disabled={busy} onClick={() => setAsk("restart")} aria-label={`Restart from ${stepLabel(s.id)}`}>Restart from here</button>}
+        </span>
+      )}
+      {ask && (
+        <span className="stack" role="group" aria-label={`Confirm ${ask} of ${stepLabel(s.id)}`}>
+          <span className="mu">{ask === "redo" ? "Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). If the new run fails, the old files are put back." + (s.spends ? " It spends credits, so approve the credits gate again first." : "") : "Restart the Produce phase from this step? This step and every step after it through the video render are redone. Their files go to the _prev folder. The credits, shot list and media approvals are cleared and asked again."}</span>
+          <span className="row"><button className="btn p" disabled={busy} onClick={() => void go()}>{ask === "redo" ? "Yes, redo it" : "Yes, restart"}</button><button className="btn g" onClick={() => setAsk(null)}>Not now</button></span>
+        </span>
+      )}
+    </li>
+  );
 }
 
 const when = (h: string) => {
@@ -138,7 +158,8 @@ export default function Song() {
   const load = useCallback(() => getJSON<SongDetail>(`/api/song/${slug}`).then((x) => { setD(x); setErr(""); }).catch((e) => setErr(errText(e))), [slug]);
   useEffect(() => { void load(); }, [load]);
   const running = !!(d?.job.running || d?.job.queued);
-  useEffect(() => { if (!running) return; const t = setInterval(() => void load(), 3000); return () => clearInterval(t); }, [running, load]);
+  const making = !!(d?.try?.running || d?.vertical?.running);   // a test or 9:16 picture is being made by a background thread
+  useEffect(() => { if (!running && !making) return; const t = setInterval(() => void load(), 3000); return () => clearInterval(t); }, [running, making, load]);
 
   const act: Act = async (path, body) => {
     setPending(true);
@@ -178,6 +199,8 @@ export default function Song() {
       {d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] && <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />}
       {running ? (
         <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" onClick={() => void act("/api/stop", {})}>Stop</button></section>
+      ) : gate === "visuals_mode" ? (
+        <VisualsCard d={d} done={load} />
       ) : gate ? (
         <GateCard key={gate} d={d} gate={gate} act={act} busy={busy} />
       ) : d.next.type === "run" && !d.failure ? (
@@ -193,9 +216,15 @@ export default function Song() {
       )}
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <KeepCard slug={slug} />}
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <ShareCard slug={slug} />}
+      {!(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
+      <MediaCard d={d} />
+      <TextEditors d={d} done={load} />
+      <ShotsEditor key={slug} d={d} done={load} />
+      {insp && <NarrationCard d={d} done={load} />}
+      {d.meta.type !== "inspiration" && d.meta.state === "published" && <SongAnalytics slug={slug} />}
       <section className="sec" aria-labelledby="steps-h">
         <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
-        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} />)}</ol>
+        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} act={act} busy={busy} />)}</ol>
       </section>
       <Approvals d={d} act={act} busy={busy} />
       <section className="sec" aria-labelledby="hist-h">

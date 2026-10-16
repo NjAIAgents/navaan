@@ -31,6 +31,10 @@ class App(unittest.TestCase):
             self.assertEqual(code, 200, p); self.assertIn(U.TOKEN.encode(), body); self.assertNotIn(b"__TOKEN__", body); self.assertEqual(h["Cache-Control"], "no-store")
             self.assertTrue(h["Content-Type"].startswith("text/html"))
 
+    def test_the_front_door_is_the_new_app(self):
+        code, h, _ = self.get("/", follow=False)
+        self.assertEqual((code, h["Location"]), (302, "/app/"))
+
     def test_app_without_the_slash_redirects(self):
         code, h, _ = self.get("/app", follow=False)
         self.assertEqual((code, h["Location"]), (308, "/app/"))
@@ -64,9 +68,9 @@ class App(unittest.TestCase):
             code, _, body = self.get("/app/")
         self.assertEqual(code, 503); self.assertIn(b"npm ci", body)
 
-    def test_the_classic_view_is_at_the_root_and_at_legacy(self):
-        a, b = self.get("/")[2], self.get("/legacy")[2]
-        self.assertIn(b"NAVAAN", a); self.assertEqual(a.replace(U.TOKEN.encode(), b""), b.replace(U.TOKEN.encode(), b""))
+    def test_the_classic_view_is_still_at_legacy_and_the_root_goes_to_the_new_app(self):
+        code, h, body = self.get("/legacy"); self.assertEqual(code, 200); self.assertIn(b"NAVAAN", body); self.assertIn(U.TOKEN.encode(), body)
+        self.assertEqual(self.get("/", follow=False)[0:2][0], 302)
 
     def test_signed_out_people_get_the_sign_in_page_for_every_door(self):
         with mock.patch.dict(os.environ, {"NAVAAN_AUTH": "on"}):
