@@ -6,6 +6,14 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-16
+
+### Added
+- The new app can start a song or an inspiration: a New button on Songs opens a short form (title, optional first idea) and takes you to the new item. The song page also takes a Suno link or file, shows the questions waiting for an answer and lets you answer them, and has the Approvals sections, so these no longer need the classic page.
+
+### Fixed
+- The history of a revoked approval now names who revoked it (it showed no name).
+
 ## [0.15.1] - 2026-10-16
 
 ### Changed
@@ -160,7 +168,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/NjAIAgents/navaan/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/NjAIAgents/navaan/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/NjAIAgents/navaan/compare/v0.13.0...v0.14.0
