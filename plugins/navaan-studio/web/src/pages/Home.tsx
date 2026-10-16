@@ -1,19 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
+import { Link } from "react-router-dom";
 import { getJSON, type SongRow } from "../lib/api";
 
 const classic = (slug: string) => `/legacy#/song/${slug}`;
 
+// Songs open in the new Studio screen; inspiration and the rest still open in the classic view until their stories land.
+const Wrap = ({ s, children }: { s: SongRow; children: ReactNode }) =>
+  s.type === "music" ? <Link className="q" to={`/studio/songs/${s.slug}`}>{children}</Link> : <a className="q" href={classic(s.slug)}>{children}</a>;
+
 function Row({ s }: { s: SongRow }) {
   const label = s.next?.gate ? `Waiting for you: ${s.next.gate.replace(/_/g, " ")}` : s.status === "done" ? (s.published ? "Published" : "Done") : s.next?.label || s.next?.step?.replace(/_/g, " ") || "In production";
   return (
-    <a className="q" href={classic(s.slug)}>
+    <Wrap s={s}>
       <Cover slug={s.slug} title={s.title} />
       <span className="tx"><b>{s.title || s.slug}</b><span className="s">{s.slug} · {label}</span></span>
       <span className={"chip " + (s.status === "approval" ? "wn" : s.published ? "ok" : "")}>{s.steps_done}/{s.steps_total}</span>
       <Icon name="chevron" />
-    </a>
+    </Wrap>
   );
 }
 

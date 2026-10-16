@@ -144,7 +144,7 @@ def view(slug):
         c.rollback(); raise
     if not r: return {"running": False, "rc": None, "queued": False, "progress": {}, "status_text": ""}
     active = r["status"] in ("queued", "running")
-    return {"running": active, "queued": r["status"] == "queued", "rc": r["rc"] if not active else None, "progress": r["progress"] or {},
+    return {"id": str(r["id"]), "status": r["status"], "running": active, "queued": r["status"] == "queued", "rc": r["rc"] if not active else None, "progress": r["progress"] or {},
             "status_text": r["status_text"] or "", "error": r["error"] or ""}
 
 
