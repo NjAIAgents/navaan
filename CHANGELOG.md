@@ -6,6 +6,38 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Changed
+- The public site's Library is open to visitors: they can browse every song, and Create playlist (or Add to playlist) leads to Create account, which asks what they like (mood, genres, languages) and an optional email for when accounts open. Studio > Analytics > Feedback shows how many asked and what they like.
+- The public site no longer offers a Studio sign in: the owner signs in on studio.navaan.online (signed in, Studio and Settings still show on the public site).
+
+## [0.27.0] - 2026-10-17
+
+### Added
+- Library and playlists open as a grid of covers by default, with a Grid / List switch (remembered per screen): the Songs tab, your playlists, saved songs and the songs inside a playlist. A playlist's tile shows the cover of its first song. In a playlist's grid you can play or remove a song; changing the order is in the List view.
+
+### Changed
+- Full screen play mode uses a wide screen: on desktop the cover, title and controls sit on the left and the lyrics are large on the right, over a soft blur of the cover's colours. Phones keep the stacked layout.
+
+## [0.26.0] - 2026-10-17
+
+### Changed
+- The NAVAAN logo (the N made of a sound wave) replaces the plain gradient square: in the sidebar and top bar (the black version on the light theme), as the browser tab and phone home-screen icon, on the shared-link page, and on every poster. It is a low-resolution PNG for now; a larger or SVG original would make the poster crisper.
+
+## [0.25.1] - 2026-10-17
+
+### Fixed
+- A shared link (navaan.online/s/...) plays the whole song and no longer says "30 second preview" or asks for a sign in, since the site is free. It has an Open on NAVAAN button to the song's page; the share box in Studio says the same.
+
+## [0.25.0] - 2026-10-17
+
+### Added
+- Poster for each song, on the Studio song page under the media: a portrait (2:3) poster made from a prompt that is shown and editable (prefilled from the title, style and lyrics), with the NAVAAN mark, the title and the site drawn over the art by us so the native script is always right. Three lettering styles (bold serif, brush, handwritten; bundled open-licence fonts that cover Hindi and Latin), or use your own picture as the art (free). The button shows the cost (OpenAI images, under the run cap in Settings); "Redraw the title" is free. Using the poster in the player and lists comes next.
+
+## [0.24.1] - 2026-10-17
+
+### Fixed
+- Saving an ElevenLabs key now tells you what happened, right under the box, instead of at the top of the page where it was easy to miss. A key that ElevenLabs recognises but that cannot read the account (no "User: read" permission) is now saved with a note rather than refused; a wrong or mis-pasted key says so in plain words.
+
 ## [0.24.0] - 2026-10-17
 
 ### Added
@@ -259,7 +291,12 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/NjAIAgents/navaan/compare/v0.26.0...v0.27.0
+[0.26.0]: https://github.com/NjAIAgents/navaan/compare/v0.25.1...v0.26.0
+[0.25.1]: https://github.com/NjAIAgents/navaan/compare/v0.25.0...v0.25.1
+[0.25.0]: https://github.com/NjAIAgents/navaan/compare/v0.24.1...v0.25.0
+[0.24.1]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/NjAIAgents/navaan/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/NjAIAgents/navaan/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/NjAIAgents/navaan/compare/v0.21.0...v0.22.0

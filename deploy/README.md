@@ -27,8 +27,8 @@ One container (`navaan`) runs the portal and the scheduler, behind the VM's exis
 
 | Trigger | Workflow | What runs |
 |---------|----------|-----------|
-| pull request into `develop` or `main`, push to `develop` | `.github/workflows/ci.yml` | unit tests (`plugins/navaan-studio/tests`), `bash -n` on the deploy scripts, `docker compose config` |
-| push to `main` (a merge), or run by hand | `.github/workflows/deploy-prod.yml` | the same tests, then the release: the runner sends `git archive` of the repo over SSH, the VM builds the image, rolls it out, waits for healthy, smoke tests `/auth/state` through nginx and **rolls back to the previous image if either fails**; finally the runner checks `/auth/state` and `/privacy` from outside |
+| pull request into `develop` (not a draft, not docs-only) | `.github/workflows/ci.yml` | the FAST checks, about 4 minutes: unit tests (`plugins/navaan-studio/tests`), the web tests and build, `bash -n` on the deploy scripts, `docker compose config`. A newer push cancels the older run. |
+| push to `main` (a merge), or run by hand | `.github/workflows/deploy-prod.yml` | the same tests plus the BROWSER checks (Playwright, Lighthouse, about 12 more minutes), then the release: the runner sends `git archive` of the repo over SSH, the VM builds the image, rolls it out, waits for healthy, smoke tests `/auth/state` through nginx and **rolls back to the previous image if either fails**; finally the runner checks `/auth/state` and `/privacy` from outside |
 
 Releases never overlap (`concurrency: prod-deploy`) and a running release is never cancelled. The last deployed commit is in `/opt/navaan/DEPLOYED` on the VM; the release log is `/var/log/navaan-deploy.log`.
 
@@ -41,6 +41,8 @@ sudo install -m 755 -o root -g root deploy/deploy-entry.sh /opt/navaan/bin/deplo
 **GitHub settings** (repo `NjAIAgents/navaan`): secret `DEPLOY_SSH_KEY` (the private key); variables `DEPLOY_HOST`, `DEPLOY_USER` (`navaan-deploy`) and `DEPLOY_KNOWN_HOSTS` (the VM's ed25519 host key, checked against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`; the runner refuses any other host).
 
 **Rotate the key:** `ssh-keygen -t ed25519 -N "" -f key`, put the public half into `/home/navaan-deploy/.ssh/authorized_keys` behind the same `restrict,command=...` prefix, `gh secret set DEPLOY_SSH_KEY < key`, delete `key` locally.
+
+**Free plan minutes:** a full run is about 16 minutes, so only the deploy gate (and a manual `gh workflow run ci.yml --ref <branch>`) runs the browser checks; a pull request runs the fast ones, a draft pull request runs nothing (mark stacked or unfinished branches as drafts), and there is no run on a push to `develop` or on the release pull request into `main`. Before opening a pull request run `npm test` (it includes the colour check) in `plugins/navaan-studio/web` and the unit tests locally.
 
 **Known limit:** branch protection and rulesets need GitHub Pro for a private repo, so `main` is protected by convention (merge through a pull request) rather than by a rule. The deploy workflow still runs the tests before it releases anything.
 

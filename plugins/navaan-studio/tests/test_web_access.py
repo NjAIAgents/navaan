@@ -85,6 +85,19 @@ class Access(unittest.TestCase):
             for i in range(6): last = post("/api/site/feedback", {"message": f"spam {i}"})[0]
             self.assertEqual(last, 429)   # five messages an hour from one address
 
+    def test_a_visitor_can_ask_for_an_account_with_what_they_like_and_only_the_studio_reads_the_count(self):
+        env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
+        with mock.patch.dict(os.environ, env):
+            pub, studio = "navaan.online", "studio.navaan.online"; post = lambda body, host=pub: self.call("/api/site/interest", None, None, post=True, body=body, host=host)
+            self.assertEqual(post({})[0], 400); self.assertEqual(post({"moods": ["Calm"], "email": "nope"})[0], 400)   # something to say, and an email that looks like one
+            self.assertEqual(post({"moods": ["Calm", "Calm", "Hopeful"], "genres": ["Indie"], "languages": ["Hindi"], "email": "a@b.co"})[0], 200)
+            self.assertEqual(post({"moods": ["Calm"], "website": "http://spam"})[0], 200)   # a bot is thanked and ignored
+            self.assertEqual(self.call("/api/site/interest", host=pub)[0], 403)   # a visitor reads nothing
+            code, body = self.call("/api/site/interest", "owner-tok", host=studio); d = json.loads(body)
+            self.assertEqual((code, d["total"], d["with_email"], d["moods"]), (200, 1, 1, {"Calm": 1, "Hopeful": 1}))   # the repeated word counted once, the bot not at all
+            for i in range(6): last = post({"moods": ["Calm"]})[0]
+            self.assertEqual(last, 429)
+
     def test_one_sign_in_covers_every_host_under_the_domain_and_logout_clears_it(self):
         with mock.patch.dict(os.environ, {"NAVAAN_COOKIE_DOMAIN": "navaan.online"}):
             for host in ("navaan.online", "studio.navaan.online"):
@@ -179,8 +192,9 @@ class Access(unittest.TestCase):
         K.set_license("song-001", "confirmed", "owner", "paid plan")
         code, body = post("owner-tok", "csrf-owner", "/api/share", slug="song-001", start_ms=5000); tok = json.loads(body)["token"]; self.assertEqual(code, 200); self.assertTrue(json.loads(body)["url"].endswith("/s/" + tok))
         st, h, b = self.raw("/s/" + tok)   # no cookie: anyone with the link
-        self.assertEqual(st, 200); page = b.decode(); self.assertIn('property="og:title" content="Tere &lt;Hone&gt; Se"', page); self.assertIn("/s/" + tok + "/preview.mp3", page); self.assertIn("/app/?t=5", page); self.assertNotIn("<Hone>", page); self.assertIn("noindex", page)
+        self.assertEqual(st, 200); page = b.decode(); self.assertIn('property="og:title" content="Tere &lt;Hone&gt; Se"', page); self.assertIn("/s/" + tok + "/play.mp3#t=5", page); self.assertIn("/app/song/song-001", page); self.assertNotIn("30 second", page); self.assertNotIn("Sign in", page); self.assertNotIn("<Hone>", page); self.assertIn("noindex", page)
         st, h, b = self.raw(f"/s/{tok}/preview.mp3"); self.assertEqual((st, h["Location"]), (302, "https://bucket.example/navaan/songs/song-001/derived/preview-30s.mp3"))
+        st, h, b = self.raw(f"/s/{tok}/play.mp3"); self.assertEqual((st, h["Location"]), (302, "https://bucket.example/navaan/songs/song-001/final.mp3"))   # the whole song, no cookie
         self.assertEqual(self.raw("/s/nonexistent0000")[0], 404)
         st, h, b = self.raw("/img/song-001/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"]); self.assertTrue(b[:4] == b"RIFF")
         self.assertEqual(self.raw("/img/song-001/320.webp", headers={"If-None-Match": h["ETag"]})[0], 304)

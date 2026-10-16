@@ -30,7 +30,8 @@ button { font: inherit; color: inherit; }
 /* desktop shell */
 .side { flex: 0 0 232px; position: sticky; top: 12px; height: calc(100vh - 24px); margin: 12px 0 12px 12px; padding: 20px 12px; border-radius: var(--r4); box-shadow: var(--shadow), var(--hi); display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
 .brand { display: flex; gap: 10px; align-items: center; padding: 4px 12px 20px; font-weight: 700; letter-spacing: .14em; text-decoration: none; }
-.mark { width: 28px; height: 28px; border-radius: 9px; background: linear-gradient(135deg, var(--ac), var(--vi)); box-shadow: var(--shadow-sm); }
+.mark { width: 42px; height: 28px; flex: none; background: center / contain no-repeat url(/app/brand/mark.png); }   /* the NAVAAN logo mark (gold on dark) */
+[data-theme="ivory-gold"] .mark { background-image: url(/app/brand/mark-black.png); }   /* light theme: the black version of the logo */
 .nv { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 0 12px; border-radius: var(--r2); color: var(--mu); text-decoration: none; font-weight: 500; transition: background .16s, color .16s; }
 .nv:hover { background: var(--s2); color: var(--tx); }
 .nv[aria-current="page"], .nv.on { background: var(--gloss), var(--s3); color: var(--tx); box-shadow: var(--hi), var(--shadow-sm); }
@@ -187,6 +188,7 @@ input[type="checkbox"] { width: var(--tap); height: var(--tap); flex: none; acce
 .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .tile { display: flex; flex-direction: column; gap: 6px; text-decoration: none; padding: 10px; border-radius: var(--r3); min-height: var(--tap); transition: background .16s; } .tile:hover { background: var(--s2); }
 .tile .cover { width: 100% !important; aspect-ratio: 1 / 1; } .tile b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tile .s { color: var(--mu); font-size: 13px; }
+.tw { position: relative; } .tw .act { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; }   /* the corner action of a tile */
 .hero { display: flex; gap: 28px; align-items: flex-end; padding: 8px 0 4px; border-radius: var(--r4); flex-wrap: wrap; }
 .hero .cover { flex: none; max-width: 100%; box-shadow: var(--shadow); }
 .hero-tx { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; } .hero-tx h1 { margin: 0; font-size: 40px; line-height: 1.1; font-weight: 600; } .hero-tx p { margin: 0; }
@@ -201,6 +203,17 @@ body.lock { overflow: hidden; }
 .pm { position: fixed; inset: 0; z-index: 40; background: var(--field), var(--bg); background: var(--bg); display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 16px; }
 .pm-x { align-self: flex-end; } .pm-body { width: min(560px, 100%); display: flex; flex-direction: column; align-items: center; gap: 16px; padding-bottom: 32px; } .pm-body h2 { margin: 0; font-size: 28px; text-align: center; }
 .pm-lyrics { width: 100%; height: 220px; overflow-y: auto; } .pm-lyrics .lyrics { max-height: none; text-align: center; align-items: center; } .pm-lyrics .lyrics li { transform-origin: center; }
+.pm { isolation: isolate; } .pm-bg { position: fixed; inset: -40px; z-index: -1; background: center / cover no-repeat; filter: blur(60px) saturate(1.2); opacity: .35; }   /* the cover, blurred, as the room's colour */
+.pm-top, .pm-ctl { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; }
+@media (min-width: 900px) {   /* a wide screen: the song on the left, the lyrics large on the right */
+  .pm { justify-content: center; padding: 24px 56px; }
+  .pm-x { position: fixed; top: 20px; right: 24px; }
+  .pm-body { width: min(1360px, 100%); display: grid; grid-template-columns: minmax(320px, .9fr) 1.1fr; grid-template-rows: 1fr auto; grid-template-areas: "top lyr" "ctl lyr"; column-gap: 72px; align-items: center; padding: 0; min-height: min(86vh, 860px); }
+  .pm-top { grid-area: top; align-self: end; gap: 22px; } .pm-top .cover { width: min(44vh, 100%) !important; font-size: 120px !important; box-shadow: var(--shadow); } .pm-top h2 { font-size: clamp(30px, 3vw, 44px); }
+  .pm-ctl { grid-area: ctl; align-self: start; max-width: 520px; justify-self: center; padding-top: 12px; }
+  .pm-lyrics { grid-area: lyr; height: min(80vh, 800px); -webkit-mask-image: linear-gradient(transparent, black 14%, black 86%, transparent); mask-image: linear-gradient(transparent, black 14%, black 86%, transparent); }
+  .pm-lyrics .lyrics { font-size: clamp(24px, 2.5vw, 38px); gap: 20px; text-align: left; align-items: flex-start; padding: 34vh 0; } .pm-lyrics .lyrics li { transform-origin: left; }
+}
 .pm-bar { width: 100%; } .pm-bar input[type="range"] { width: 100%; min-height: var(--tap); accent-color: var(--ac); } .pm-times { display: flex; justify-content: space-between; font-size: 13px; }
 @media (max-width: 899px) { .hero-tx h1 { font-size: 30px; } .hero { gap: 16px; } }
 

@@ -25,17 +25,22 @@ export function PlayMode() {
   return (
     <div className="pm" role="dialog" aria-modal="true" aria-label="Play mode">
       <button ref={close} className="btn g sq pm-x" onClick={() => p.setExpanded(false)} aria-label="Close play mode"><Icon name="close" /></button>
+      {t?.art && <div className="pm-bg" aria-hidden="true" style={{ backgroundImage: `url(/img/${p.slug}/640.jpg)` }} />}
       <div className="pm-body">
-        <Cover slug={p.slug} title={p.title} size={240} art={t?.art} />
-        <h2 className="disp">{p.title}</h2>
-        <div className="pm-lyrics"><Lyrics plain={t?.lyrics ?? ""} timed={t?.timed_lines ?? null} position={position} duration={duration} follow={p.playing} /></div>
-        <div className="pm-bar">
-          <label className="sr" htmlFor="pm-seek">Seek</label>
-          <input id="pm-seek" type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1} value={Math.min(Math.floor(position), Math.max(1, Math.floor(duration)))} aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} onChange={(e) => p.seek(Number(e.target.value))} />
-          <div className="pm-times mu"><span>{mmss(position)}</span><span>{mmss(duration)}</span></div>
+        <div className="pm-top">
+          <Cover slug={p.slug} title={p.title} size={240} art={t?.art} />
+          <h2 className="disp">{p.title}</h2>
         </div>
-        <Transport big />
-        <Volume />
+        <div className="pm-lyrics"><Lyrics plain={t?.lyrics ?? ""} timed={t?.timed_lines ?? null} position={position} duration={duration} follow={p.playing} /></div>
+        <div className="pm-ctl">
+          <div className="pm-bar">
+            <label className="sr" htmlFor="pm-seek">Seek</label>
+            <input id="pm-seek" type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1} value={Math.min(Math.floor(position), Math.max(1, Math.floor(duration)))} aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} onChange={(e) => p.seek(Number(e.target.value))} />
+            <div className="pm-times mu"><span>{mmss(position)}</span><span>{mmss(duration)}</span></div>
+          </div>
+          <Transport big />
+          <Volume />
+        </div>
       </div>
     </div>
   );

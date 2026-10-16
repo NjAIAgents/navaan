@@ -29,7 +29,7 @@ export function ShareLinks({ title, url }: { title: string; url: string }) {
   const copy = async () => { try { await navigator.clipboard.writeText(url); setCopied(true); } catch { setCopied(false); } };   // expected: clipboard can be blocked; the box below still selects the link
   return (
     <div className="stack">
-      <label htmlFor="share-url" className="mu">{url.includes("/s/") ? "Anyone with this link hears a 30 second preview." : "Anyone with this link can listen."}</label>
+      <label htmlFor="share-url" className="mu">Anyone with this link can listen, free, without signing in.</label>
       <input id="share-url" className="field" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
       <ul className="targets" aria-label="Share on">
         {native && <li><button className="btn p" onClick={() => void navigator.share({ title, text: `${title} on NAVAAN`, url }).catch(() => undefined)}><Icon name="share" /> Share…</button></li>}
@@ -40,7 +40,7 @@ export function ShareLinks({ title, url }: { title: string; url: string }) {
   );
 }
 
-// A link anyone can open to hear a 30 second preview. Only a published song with a confirmed licence can have one; the server says so if not.
+// A link anyone can open to hear the whole song. Only a published song with a confirmed licence can have one; the server says so if not.
 export function ShareCard({ slug, title = "" }: { slug: string; title?: string }) {
   const [link, setLink] = useState<Link | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,7 +53,7 @@ export function ShareCard({ slug, title = "" }: { slug: string; title?: string }
       {link ? (
         <>
           <ShareLinks title={title || slug} url={link.url} />
-          <div className="row"><a className="btn g" href={link.url} target="_blank" rel="noreferrer">Preview <Icon name="external" /></a><button className="btn g" disabled={busy} onClick={() => void stop()}>Stop sharing</button></div>
+          <div className="row"><a className="btn g" href={link.url} target="_blank" rel="noreferrer">Open <Icon name="external" /></a><button className="btn g" disabled={busy} onClick={() => void stop()}>Stop sharing</button></div>
         </>
       ) : <div className="row"><button className="btn" disabled={busy} onClick={() => void make()}>Create a share link</button></div>}
       {msg && <p role="status" className="mu">{msg}</p>}

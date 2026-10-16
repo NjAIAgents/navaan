@@ -49,7 +49,7 @@ test.describe("the public site opens dark", () => {
 test("a visitor cannot reach the studio or anything that needs an account", async ({ page }) => {
   for (const path of ["/api/songs", "/api/settings", "/api/playlists", "/api/library", "/api/account"]) expect((await page.request.get(path)).status(), path).toBe(403);
   expect((await page.request.get("/api/catalog/tracks")).status()).toBe(200); expect((await page.request.get("/legacy")).status()).toBe(403);
-  await page.goto("/app/studio/settings"); await expect(page.getByText("The studio is for the owner")).toBeVisible();
+  await page.goto("/app/studio/settings"); await expect(page.getByText("This page is not available here")).toBeVisible();
 });
 
 for (const theme of ["midnight-cinema", "ivory-gold"]) {

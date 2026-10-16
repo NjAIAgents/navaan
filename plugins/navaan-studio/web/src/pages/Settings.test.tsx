@@ -48,6 +48,15 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     at(); fireEvent.change(await screen.findByLabelText(/^Claude token/), { target: { value: "x" } }); fireEvent.click(screen.getAllByRole("button", { name: "Save token" }).slice(-3)[0]);
     expect(await screen.findByText(/that token was refused/)).toBeInTheDocument();
   });
+  it("tells you next to the ElevenLabs box when the key is refused, and when it is saved with a note", async () => {
+    let n = 0;
+    route({ "/api/settings/media_key": () => (n++ ? { ok: true, note: "Saved. It cannot read the account, narration works if the key has Text to Speech." } : json({ error: "ElevenLabs refused the key (HTTP 401): it is not a valid key." }, 400)), "/api/settings": () => DATA });
+    at(); const box = await screen.findByLabelText("ElevenLabs key"); const btn = box.closest("form")!.querySelector("button")!;
+    fireEvent.change(box, { target: { value: "bad" } }); fireEvent.click(btn);
+    expect(await screen.findByRole("alert")).toHaveTextContent("not a valid key");
+    fireEvent.change(box, { target: { value: "good" } }); fireEvent.click(btn);
+    expect(await screen.findByRole("status")).toHaveTextContent("Text to Speech");
+  });
   it("shows an alert banner on a studio screen with a way to fix it", async () => {
     route({ "/api/alerts": () => ({ alerts: [{ id: "ig:music:login", kind: "ig", title: "Instagram token expires in 3 days (Music)", message: "A fresh 60 day token is one click away." }] }), "/auth/state": () => ({ scheduler: "paused", worker: "down" }), "/api/settings": () => DATA });
     at(); const r = await screen.findByRole("region", { name: "Needs attention" });

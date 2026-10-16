@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import { Icon } from "./Icon";
 import { NewPlaylist } from "./NewPlaylist";
 import { getJSON, postJSON, type PlaylistRow } from "../lib/api";
@@ -31,7 +32,7 @@ function Sheet({ slug, title, onClose }: { slug: string; title: string; onClose:
       <div className="scrim" onClick={onClose} />
       <div className="card dlg stack" role="dialog" aria-modal="true" aria-labelledby="atp-h">
         <div className="row"><h2 id="atp-h" style={{ flex: 1 }}>Add {title} to a playlist</h2><button ref={x} className="btn g sq" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>
-        {guest && <p role="status">{PITCH}</p>}
+        {guest && <><p role="status">{PITCH}</p><Link className="btn p" to="/join" onClick={onClose}>Create account</Link></>}
         {msg && <p role="status">{msg}</p>}{err && <p role="alert" className="mu">{err}</p>}
         {!guest && !lists && !err && <p className="mu" role="status">Loading…</p>}
         {lists && lists.length > 0 && <ul className="hist" aria-label="Your playlists">{lists.map((p) => (

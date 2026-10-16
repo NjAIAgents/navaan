@@ -419,5 +419,5 @@ def media_save(updates):
 
 def media_key_save(provider, token):
     """Paste an OpenAI or ElevenLabs key. Tested first, written to openai.env or elevenlabs.env (mode 600), never returned."""
-    media_cfg.key_save(provider, token)
-    return media_cfg.status()
+    r = media_cfg.key_save(provider, token)
+    return {**media_cfg.status(), "note": r.get("note", "")}
