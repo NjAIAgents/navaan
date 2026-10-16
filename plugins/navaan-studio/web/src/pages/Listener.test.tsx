@@ -119,6 +119,33 @@ describe("albums and play buttons on lists", () => {
   });
 });
 
+describe("playlists: adding songs, and paging", () => {
+  const row = (n: number) => ({ slug: `song-${String(n).padStart(3, "0")}`, title: `Song ${n}`, language: "Hindi", genre: "", albums: [], licence: "confirmed", art: null });
+  it("a song list pages in 24 at a time, by itself or by the button, and says nothing more when it is done", async () => {
+    const f = route(OWNER, { "/api/catalog/filters": () => ({ albums: [], languages: [], genres: [] }), "/api/catalog/tracks?limit=24&offset=0": () => Array.from({ length: 24 }, (_, i) => row(i + 1)), "/api/catalog/tracks?limit=24&offset=24": () => [row(25), row(26)], "/api/playlists": () => [], "/api/library": () => ({ tracks: [], albums: [], following: false }) });
+    at("/library"); fireEvent.click(await screen.findByRole("tab", { name: "Songs" })); await screen.findByRole("link", { name: /Song 1(?!\d)/ });
+    expect(screen.queryByRole("link", { name: /Song 25/ })).toBeNull(); expect(f.mock.calls.some(([u]) => String(u).includes("offset=24"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Show more songs" })); expect(await screen.findByRole("link", { name: /Song 26/ })).toBeInTheDocument(); expect(screen.queryByRole("button", { name: /Show more/ })).toBeNull();   // a short page was the last
+  });
+  it("adds a song to a playlist from a song list, or to a new one made on the spot with its details", async () => {
+    const f = route(OWNER, { "/api/catalog/filters": () => ({ albums: [], languages: [], genres: [] }), "/api/catalog/tracks": () => [row(1)], "/api/playlists/create": () => ({ id: "33333333-3333-3333-3333-333333333333" }), "/api/playlists/add": () => ({ ok: true }), "/api/playlists": () => [{ id: "11111111-1111-1111-1111-111111111111", name: "Evening", description: "", visibility: "private", tracks: 2, updated_at: "" }], "/api/library": () => ({ tracks: [], albums: [], following: false }) });
+    at("/library"); fireEvent.click(await screen.findByRole("tab", { name: "Songs" })); fireEvent.click(await screen.findByRole("button", { name: "Add Song 1 to a playlist" }));
+    const dlg = await screen.findByRole("dialog"); fireEvent.click(await within(dlg).findByRole("button", { name: "Add to Evening" }));
+    await waitFor(() => expect(posts(f, "/api/playlists/add")).toEqual([{ id: "11111111-1111-1111-1111-111111111111", slug: "song-001" }])); expect(await within(dlg).findByText('Added to "Evening".')).toBeInTheDocument();
+    fireEvent.click(within(dlg).getByRole("button", { name: /New playlist/ })); fireEvent.change(within(dlg).getByLabelText("Name"), { target: { value: "Rain" } }); fireEvent.change(within(dlg).getByLabelText(/What is it for/), { target: { value: "Monsoon" } }); fireEvent.click(within(dlg).getByRole("button", { name: "Create playlist" }));
+    await waitFor(() => expect(posts(f, "/api/playlists/create")).toEqual([{ name: "Rain", description: "Monsoon", visibility: "private" }])); await waitFor(() => expect(posts(f, "/api/playlists/add")[1]).toEqual({ id: "33333333-3333-3333-3333-333333333333", slug: "song-001" }));   // and the song goes into it
+  });
+  it("the playlist page has Add songs with search, marks what is in already, and saves a description", async () => {
+    const detail = { id: "p1", name: "Evening", description: "", visibility: "private", mine: true, tracks: [{ slug: "song-001", title: "Song 1", position: "a" }] };
+    const f = route(OWNER, { "/api/playlists/p1": () => detail, "/api/playlists/add": () => ({ ok: true }), "/api/playlists/update": () => ({ ok: true }), "/api/catalog/tracks": () => [row(1), row(2)], "/api/search": () => ({ hits: [{ kind: "track", id: "x", slug: "song-002", title: "Song 2", title_roman: "", score: 1 }] }) });
+    at("/library/playlists/p1"); fireEvent.change(await screen.findByLabelText("What it is for"), { target: { value: "Slow songs" } }); fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posts(f, "/api/playlists/update")).toEqual([{ id: "p1", description: "Slow songs" }]));
+    fireEvent.click(screen.getByRole("button", { name: /Add songs/ })); const list = await screen.findByRole("list", { name: "Songs to add" });
+    expect(within(list).getByText("In the playlist")).toBeInTheDocument(); fireEvent.click(within(list).getByRole("button", { name: "Add Song 2" })); await waitFor(() => expect(posts(f, "/api/playlists/add")).toEqual([{ id: "p1", slug: "song-002" }]));
+    fireEvent.change(screen.getByLabelText("Search songs"), { target: { value: "song two" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => String(u).startsWith("/api/search?q=song%20two&kind=track"))).toBe(true));
+  });
+});
+
 describe("Library filters", () => {
   it("shows the answer for the latest choice even when an earlier one answers later", async () => {
     const row = (slug: string, title: string, genre: string) => ({ slug, title, language: "Hindi", genre, albums: [], licence: "confirmed", art: null });
@@ -126,8 +153,8 @@ describe("Library filters", () => {
     const f = vi.fn((u: string) => {
       if (u.startsWith("/api/me")) return Promise.resolve(json(OWNER));
       if (u.startsWith("/api/catalog/filters")) return Promise.resolve(json({ albums: [], languages: ["Hindi"], genres: ["Indie pop"] }));
-      if (u === "/api/catalog/tracks?language=Hindi") return new Promise<Response>((res) => { releaseSlow = res; });   // the first choice answers last
-      if (u === "/api/catalog/tracks?language=Hindi&genre=Indie+pop") return Promise.resolve(json([row("song-002", "Pata Hi Na Chala", "Indie pop")]));
+      if (u === "/api/catalog/tracks?language=Hindi&limit=24&offset=0") return new Promise<Response>((res) => { releaseSlow = res; });   // the first choice answers last
+      if (u === "/api/catalog/tracks?language=Hindi&genre=Indie+pop&limit=24&offset=0") return Promise.resolve(json([row("song-002", "Pata Hi Na Chala", "Indie pop")]));
       if (u.startsWith("/api/library")) return Promise.resolve(json({ tracks: [], albums: [], following: false }));
       if (u.startsWith("/api/catalog/tracks")) return Promise.resolve(json([row("song-001", "Tere Hone Se", "Romantic"), row("song-002", "Pata Hi Na Chala", "Indie pop")]));
       return Promise.resolve(json([]));
@@ -146,8 +173,8 @@ describe("Library songs", () => {
     const f = route(OWNER, { "/api/catalog/filters": () => ({ albums: [{ slug: "first-light", title: "First Light" }], languages: ["English", "Hindi"], genres: ["Indie"] }), "/api/catalog/tracks": () => [{ slug: "song-001", title: "Tere Hone Se", language: "Hindi", genre: "Indie", albums: [{ slug: "first-light", title: "First Light" }], licence: "unconfirmed", art: null }], "/api/playlists": () => [], "/api/library": () => ({ tracks: [], albums: [], following: false }) });
     at("/library"); fireEvent.click(await screen.findByRole("tab", { name: "Songs" }));
     const link = await screen.findByRole("link", { name: /Tere Hone Se/ }); expect(link).toHaveAttribute("href", "/song/song-001"); expect(link).toHaveTextContent("First Light"); expect(link).toHaveTextContent("Licence unconfirmed");   // the owner sees the licence
-    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "Hindi" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/catalog/tracks?language=Hindi")).toBe(true));
-    fireEvent.change(screen.getByLabelText("Genre"), { target: { value: "Indie" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/catalog/tracks?language=Hindi&genre=Indie")).toBe(true));
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "Hindi" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/catalog/tracks?language=Hindi&limit=24&offset=0")).toBe(true));
+    fireEvent.change(screen.getByLabelText("Genre"), { target: { value: "Indie" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/catalog/tracks?language=Hindi&genre=Indie&limit=24&offset=0")).toBe(true));
     fireEvent.change(screen.getByLabelText("Album"), { target: { value: "first-light" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => String(u).includes("album=first-light"))).toBe(true));
   });
 });

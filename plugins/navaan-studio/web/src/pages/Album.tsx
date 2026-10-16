@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
+import { AddToPlaylist } from "../components/AddToPlaylist";
 import { getJSON, postJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { coverOf } from "./Albums";
@@ -65,6 +66,7 @@ export default function Album() {
             <li key={t.slug} className="stp">
               {t.status === "published" && <PlayButton slug={t.slug} title={t.title} queue={playable} label={t.title} />}
               <Link className="tx" to={`/song/${t.slug}`}><b>{i + 1}. {t.title}</b>{t.status !== "published" && <span className="mu"> · {t.status}</span>}</Link>
+              {t.status === "published" && <AddToPlaylist slug={t.slug} title={t.title} />}
               <button className="btn g sq" disabled={busy || i === 0} onClick={() => void move(i, -1)} aria-label={`Move ${t.title} up`}><span style={{ transform: "rotate(-90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
               <button className="btn g sq" disabled={busy || i === a.tracks.length - 1} onClick={() => void move(i, 1)} aria-label={`Move ${t.title} down`}><span style={{ transform: "rotate(90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
               <button className="btn g" disabled={busy} onClick={() => void reorder(order.filter((x) => x !== t.slug))} aria-label={`Remove ${t.title}`}>Remove</button>

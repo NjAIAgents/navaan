@@ -267,7 +267,9 @@ class H(BaseHTTPRequestHandler):
         studio = auth.can(sess, "studio.access")   # the studio sees every published track; a listener only those with a confirmed licence
         if p == "/api/catalog/tracks":
             q = parse_qs(urlparse(self.path).query); one = lambda k: (q.get(k) or [None])[0] or None
-            return self._send(200, catalog_store.browse(studio, one("album"), one("language"), one("genre")))
+            try: lim, off = int(one("limit") or 200), int(one("offset") or 0)
+            except ValueError: return self._send(400, {"error": "limit and offset are numbers"})
+            return self._send(200, catalog_store.browse(studio, one("album"), one("language"), one("genre"), lim, off))   # a page at a time: ?limit=24&offset=48
         if p == "/api/catalog/filters": return self._send(200, catalog_store.filters(studio))
         if p == "/api/catalog/albums": return self._send(200, catalog_store.public_albums(studio))
         m = re.match(r"^/api/catalog/album/([A-Za-z0-9][A-Za-z0-9_-]{0,80})$", p)

@@ -218,3 +218,5 @@ body.lock { overflow: hidden; }
 @media (max-width: 899px) { .np .tp { gap: 2px; } .np .btn.sq.round.mid { width: 44px; height: 44px; min-height: 44px; } }
 
 .side-cr { margin: 8px 12px 4px; font-size: 11px; line-height: 1.4; text-align: left; } .side-cr a { color: inherit; }   /* the credit lives in the sidebar and the account menu: a footer under the page moved when the page filled in, which cost layout shift */
+
+.qwrap { display: flex; align-items: center; gap: 8px; } .qwrap .q { flex: 1; min-width: 0; }   /* a list row with a button beside its link: a button cannot sit inside a link */

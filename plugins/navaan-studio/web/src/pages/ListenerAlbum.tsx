@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
+import { AddToPlaylist } from "../components/AddToPlaylist";
 import { getJSON, type AlbumRow } from "../lib/api";
 import { usePlayer } from "../lib/player";
 import { errText } from "../lib/songs";
@@ -34,6 +35,7 @@ export default function ListenerAlbum() {
             <li key={t.slug} className="stp">
               <PlayButton slug={t.slug} title={t.title} queue={queue} label={t.title} />
               <Link className="tx" to={`/song/${t.slug}`}><b>{i + 1}. {t.title}</b>{pl.slug === t.slug && pl.playing && <> <span className="sr">now playing</span></>}</Link>
+              <AddToPlaylist slug={t.slug} title={t.title} />
               <Icon name="chevron" />
             </li>
           ))}</ol>

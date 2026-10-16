@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
+import { AddSongs } from "../components/AddSongs";
 import { getJSON, postJSON, type PlaylistDetail } from "../lib/api";
 import { errText } from "../lib/songs";
 import { Loading } from "../components/Loading";
@@ -14,10 +15,11 @@ export default function Playlist() {
   const go = useNavigate();
   const [p, setP] = useState<PlaylistDetail | null>(null);
   const [name, setName] = useState("");
+  const [desc, setDesc] = useState(""); const [adding, setAdding] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const load = useCallback(() => getJSON<PlaylistDetail>(`/api/playlists/${id}`).then((x) => { setP(x); setName(x.name); setErr(""); }).catch((e) => setErr(errText(e))), [id]);
+  const load = useCallback(() => getJSON<PlaylistDetail>(`/api/playlists/${id}`).then((x) => { setP(x); setName(x.name); setDesc(x.description ?? ""); setErr(""); }).catch((e) => setErr(errText(e))), [id]);
   useEffect(() => { void load(); }, [load]);
   const act = async (path: string, body: Record<string, unknown>) => { setBusy(true); try { await postJSON(path, { id, ...body }); setErr(""); await load(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   if (!p) return err ? <div className="card" role="alert"><h2>Could not open this playlist</h2><p className="mu">{err}</p><Link className="btn" to="/library">Back to Library</Link></div> : <Loading />;
@@ -37,6 +39,12 @@ export default function Playlist() {
         <select id="pl-vis" className="field sel" value={p.visibility} onChange={(e) => void act("/api/playlists/update", { visibility: e.target.value })}>{VIS.map((v) => <option key={v} value={v}>{v}</option>)}</select>
         <button className="btn" type="submit" disabled={busy || !name.trim() || name === p.name}>Rename</button>
       </form>}
+      {mine && <form className="row" onSubmit={(e) => { e.preventDefault(); void act("/api/playlists/update", { description: desc }); }}>
+        <label className="sr" htmlFor="pl-desc">What it is for</label>
+        <input id="pl-desc" className="field" style={{ flex: 1, minWidth: 0 }} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What is this playlist for?" maxLength={300} />
+        <button className="btn" type="submit" disabled={busy || desc === (p.description ?? "")}>Save</button>
+      </form>}
+      {!mine && p.description && <p className="mu">{p.description}</p>}
       <div className="card" style={{ padding: 8 }}>
         {t.length ? <ol className="steps">{t.map((s, i) => (
           <li key={s.slug} className="stp">
@@ -46,8 +54,9 @@ export default function Playlist() {
             <button className="btn g sq" disabled={busy || i === t.length - 1} onClick={() => void down(i)} aria-label={`Move ${s.title} down`}><span style={{ transform: "rotate(90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
             <button className="btn g" disabled={busy} onClick={() => void act("/api/playlists/remove", { slug: s.slug })} aria-label={`Remove ${s.title}`}>Remove</button></>}
           </li>
-        ))}</ol> : <p className="empty">This playlist is empty. Add songs from a song's page.</p>}
+        ))}</ol> : <p className="empty">This playlist is empty. Use Add songs below.</p>}
       </div>
+      {mine && (adding ? <><AddSongs have={new Set(t.map((x) => x.slug))} onAdd={async (slug) => { await postJSON("/api/playlists/add", { id, slug }); await load(); }} /><div className="row"><button className="btn g" onClick={() => setAdding(false)}>Done adding</button></div></> : <div className="row"><button className="btn p" onClick={() => setAdding(true)}><Icon name="plus" /> Add songs</button></div>)}
       {!mine ? null : confirm ? (
         <div className="card stack" role="group" aria-label="Confirm delete"><p>Delete "{p.name}"? Its songs stay in the catalogue.</p><div className="row"><button className="btn p" disabled={busy} onClick={() => void postJSON("/api/playlists/delete", { id }).then(() => go("/library")).catch((e) => setErr(errText(e)))}>Yes, delete</button><button className="btn g" onClick={() => setConfirm(false)}>Keep it</button></div></div>
       ) : <div className="row"><button className="btn" onClick={() => setConfirm(true)}>Delete playlist</button></div>}
