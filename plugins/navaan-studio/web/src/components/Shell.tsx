@@ -12,6 +12,7 @@ import { PlayerProvider, usePlayer, usePosition } from "../lib/player";
 import { mmss } from "../lib/lyrics";
 import { Cover } from "./Cover";
 import { Transport } from "./Transport";
+import { Volume } from "./Volume";
 import { PlayMode } from "./PlayMode";
 import { Equaliser } from "./Equaliser";
 import { Loading } from "./Loading";
@@ -51,6 +52,7 @@ function NowPlaying() {
           <span className="tx"><b>{p.title || p.slug}</b>{p.playing ? <Equaliser /> : <span className="eq off" aria-hidden="true"><i /><i /><i /><i /></span>}</span>
         </button>
         <Transport />
+        <Volume />
         <label className="sr" htmlFor="np-seek">Seek</label>
         <input id="np-seek" className="np-seek" type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1} value={Math.min(Math.floor(position), Math.max(1, Math.floor(duration)))} aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} onChange={(e) => p.seek(Number(e.target.value))} />
       </> : <span role="alert" className="tx">{p.error}</span>}
@@ -61,29 +63,32 @@ function NowPlaying() {
 export function Shell() { return <MeProvider><PlayerProvider><ShellFrame /></PlayerProvider></MeProvider>; }
 
 function ShellFrame() {
+  const np = usePlayer();   // while a song is loaded the bar sits at the bottom, so the page leaves room for it
   const { pathname } = useLocation();
   const nav = useNavigate();
   const mobile = useMobile();
   const { choice, setChoice } = useTheme();
   const [open, setOpen] = useState(false);
   const [version, setVersion] = useState<string | undefined>();
-  const { user: who, studio } = useMe();
+  const { user: who, studio, guest, studioUrl } = useMe();
   useEffect(() => { getJSON<{ version?: unknown }>("/auth/state").then((s) => setVersion(typeof s?.version === "string" && s.version ? s.version : undefined)).catch(() => setVersion(undefined)); }, []);
   const close = useCallback(() => setOpen(false), []);
   const title = titleFor(pathname);
   useEffect(() => { document.title = title === "Home" ? "NAVAAN" : `${title} · NAVAAN`; close(); }, [title, close]);
   const inStudio = pathname.startsWith("/studio");
-  const nav2 = NAV.filter((n) => studio || !LISTENER_HIDES.has(n.to));
+  const toStudio = !studio && !guest && !!studioUrl;   // the owner on the public site: Studio is on the other host, one click away, already signed in
+  const nav2 = NAV.filter((n) => guest ? n.to === "/" : studio || !LISTENER_HIDES.has(n.to) || (n.to === "/studio" && toStudio));
+  const ext = (n: Item) => (n.to === "/studio" && toStudio ? `${studioUrl}/app/studio` : "");
 
   return (
-    <div className="app">
+    <div className={"app" + (np.slug || np.error ? " has-np" : "")}>
       <a className="sr" href="#main">Skip to content</a>
       <aside className="side" aria-label="Sidebar">
         <NavLink to="/" className="brand"><span className="mark" aria-hidden="true" /> <span className="disp" style={{ letterSpacing: ".14em" }}>NAVAAN</span></NavLink>
         <nav aria-label="Main" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {nav2.map((n) => (
             <div key={n.to}>
-              <NavLink to={n.to} end={n.end} className="nv"><Icon name={n.icon} /> {n.label}</NavLink>
+              {ext(n) ? <a href={ext(n)} className="nv"><Icon name={n.icon} /> {n.label}</a> : <NavLink to={n.to} end={n.end} className="nv"><Icon name={n.icon} /> {n.label}</NavLink>}
               {n.to === "/studio" && inStudio && (
                 <div className="subnv">
                   {STUDIO_SUB.map((s) => (
@@ -122,7 +127,7 @@ function ShellFrame() {
         <PlayMode />
       </div>
       <nav className="tabbar" aria-label="Main">
-        {nav2.map((n) => <NavLink key={n.to} to={n.to} end={n.end}><Icon name={n.icon} />{n.label}</NavLink>)}
+        {nav2.map((n) => ext(n) ? <a key={n.to} href={ext(n)}><Icon name={n.icon} />{n.label}</a> : <NavLink key={n.to} to={n.to} end={n.end}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
       {open && mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile version={version} />}
     </div>

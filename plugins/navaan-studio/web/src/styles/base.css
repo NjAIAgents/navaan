@@ -220,3 +220,11 @@ body.lock { overflow: hidden; }
 .side-cr { margin: 8px 12px 4px; font-size: 11px; line-height: 1.4; text-align: left; } .side-cr a { color: inherit; }   /* the credit lives in the sidebar and the account menu: a footer under the page moved when the page filled in, which cost layout shift */
 
 .qwrap { display: flex; align-items: center; gap: 8px; } .qwrap .q { flex: 1; min-width: 0; }   /* a list row with a button beside its link: a button cannot sit inside a link */
+
+.vol { display: flex; align-items: center; gap: 4px; flex: none; } .vol-range { width: 96px; min-height: 20px; accent-color: var(--ac); margin: 0; }
+@media (max-width: 899px) { .np .vol-range { display: none; } .np .vol { order: 0; } }   /* on a phone the bar keeps just the mute button: the device's own buttons set the loudness */
+
+/* The Now playing bar is solid enough to read over any page, and the page leaves room under its last block */
+.np.card { background: var(--sheet); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: var(--shadow), 0 -8px 24px color-mix(in srgb, var(--bg) 70%, transparent); }
+.has-np .page { padding-bottom: 130px; }
+@media (max-width: 899px) { .has-np .page { padding-bottom: calc(190px + env(safe-area-inset-bottom)); } }

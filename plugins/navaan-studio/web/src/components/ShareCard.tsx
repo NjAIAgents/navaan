@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
 import { postJSON } from "../lib/api";
 import { errText } from "../lib/songs";
+import { useMe } from "../lib/me";
 
 type Link = { token: string; url: string };
 
@@ -28,7 +29,7 @@ export function ShareLinks({ title, url }: { title: string; url: string }) {
   const copy = async () => { try { await navigator.clipboard.writeText(url); setCopied(true); } catch { setCopied(false); } };   // expected: clipboard can be blocked; the box below still selects the link
   return (
     <div className="stack">
-      <label htmlFor="share-url" className="mu">Anyone with this link hears a 30 second preview.</label>
+      <label htmlFor="share-url" className="mu">{url.includes("/s/") ? "Anyone with this link hears a 30 second preview." : "Anyone with this link can listen."}</label>
       <input id="share-url" className="field" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
       <ul className="targets" aria-label="Share on">
         {native && <li><button className="btn p" onClick={() => void navigator.share({ title, text: `${title} on NAVAAN`, url }).catch(() => undefined)}><Icon name="share" /> Share…</button></li>}
@@ -64,7 +65,9 @@ export function ShareCard({ slug, title = "" }: { slug: string; title?: string }
 export function ShareDialog({ slug, title, onClose }: { slug: string; title: string; onClose: () => void }) {
   const [link, setLink] = useState<Link | null>(null); const [err, setErr] = useState(""); const [stopped, setStopped] = useState(false);
   const x = useRef<HTMLButtonElement>(null);
-  useEffect(() => { postJSON<Link>("/api/share", { slug }).then(setLink).catch((e) => setErr(errText(e))); }, [slug]);
+  const { guest } = useMe();
+  useEffect(() => { if (guest) { setLink({ token: "", url: `${location.origin}/app/song/${slug}` }); return; }   // a visitor shares the page itself
+    postJSON<Link>("/api/share", { slug }).then(setLink).catch((e) => setErr(errText(e))); }, [slug, guest]);
   useEffect(() => {
     x.current?.focus(); const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", key); return () => document.removeEventListener("keydown", key);
@@ -79,7 +82,7 @@ export function ShareDialog({ slug, title, onClose }: { slug: string; title: str
         {!link && !err && !stopped && <p className="mu" role="status">Making your link…</p>}
         {stopped && <p className="mu" role="status">That link no longer works.</p>}
         {err && <p role="alert" className="mu">{err}</p>}
-        {link && <button className="btn g" onClick={() => void stop()}>Stop sharing</button>}
+        {link && link.token && <button className="btn g" onClick={() => void stop()}>Stop sharing</button>}
       </div>
     </>,
     document.body,   // a portal: the page has its own stacking order, which would put the Now playing bar over the sheet
