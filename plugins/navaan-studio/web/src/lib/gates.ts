@@ -19,9 +19,6 @@ export const GATE_ASK: Record<string, string> = {
 export const GATE_FILE: Record<string, string> = { lyrics: "lyrics.txt", quote: "quote.json", originality: "originality.json", shots: "shots.json", instagram_caption: "instagram.txt" };
 // Approving these spends credits or reaches the outside world, or cannot be undone: ask twice.
 export const RISKY = new Set(["credits", "captions_setup", "suno_download", "publish_youtube", "publish_short", "publish_instagram", "go_public", "local_cleanup"]);
-// These need the classic page's own controls (a picker), not a plain yes.
-export const CLASSIC_ONLY = new Set(["visuals_mode"]);
-
 const STEP: Record<string, string> = {
   lyrics: "Write lyrics and style", suno: "Generate the song on Suno", suno_import: "Import the song from Suno", visuals_mode: "Choose the visuals", visuals: "Make the visuals", captions: "Sync the captions",
   video: "Build the video", youtube_meta: "Write the YouTube text", publish_youtube: "Upload to YouTube", youtube_short: "Make the Short", instagram_caption: "Write the Instagram caption",

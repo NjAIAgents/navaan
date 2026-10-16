@@ -6,6 +6,10 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- The song page in the new app edits a song's words and settings (title, lyrics, style, Instagram caption, quote, tags, brief) and its shot list (start, end, picture, camera move, label), and attaches or removes an inspiration's narration. The made audio and videos play on the page, with a link to each file; audio archived to the bucket plays after being fetched back. An unsaved edit is flagged, kept for the tab, and the browser warns before you leave; every save is recorded in the history with who made it.
+- The visuals gate is chosen in the new app: the look (video from pictures, one cover picture, or Google Flow clips), your own pictures (add, remove), the prompts to paste into Gemini or ChatGPT (write, copy), the two-picture OpenAI test, 9:16 versions, and camera and look notes. Nothing that spends credits runs without its approval, as before.
+
 ## [0.16.0] - 2026-10-16
 
 ### Added

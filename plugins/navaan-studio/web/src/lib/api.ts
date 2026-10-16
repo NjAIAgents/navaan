@@ -33,12 +33,17 @@ export type Step = {
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
-  meta: { type?: string; state?: string; album?: string; history?: string[]; source?: string; suno?: { auto_failed?: string } };
+  meta: { type?: string; state?: string; album?: string; history?: string[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown };
   files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
   failure: { step: string; error: string; ref: string } | null;
   question: Question | null; needs_you: string;
+  cameras: string[]; cloud: boolean; images: string[];
+  visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; openai_pictures?: boolean;
+  prompt_pack?: { aspect?: string; style_line: string; prompts: { n: number; section: string; prompt: string }[] } | null;
+  try?: { running?: boolean; error?: string; files?: string[]; v?: number }; vertical?: { running?: boolean; error?: string; done?: number[] };
+  visuals_problems?: string[];
 };
 
 export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };
