@@ -25,6 +25,21 @@ def secrets_status():
         return {"status": "waiting", "detail": "no status yet"} if os.environ.get("NAVAAN_VAULT_ADDR") else None
 
 
+def web_dist():
+    """Where the built app (plugins/navaan-studio/web/dist) is; NAVAAN_WEB_DIST overrides it for tests."""
+    return os.environ.get("NAVAAN_WEB_DIST") or os.path.join(navaan.HERE, "..", "web", "dist")
+
+
+def web_file(rel):
+    """(bytes, content type, cache header) for a file of the built app, or None. Never leaves the dist folder."""
+    root = os.path.realpath(web_dist()); p = os.path.realpath(os.path.join(root, rel))
+    if not (p == root or p.startswith(root + os.sep)) or not os.path.isfile(p): return None
+    ct = mimetypes.guess_type(p)[0] or "application/octet-stream"
+    body = open(p, "rb").read()
+    if rel.startswith("assets/"): return body, ct, "public, max-age=31536000, immutable"   # file names carry a content hash
+    return body, ct, "no-store"
+
+
 def worker_state():
     """embedded (development: threads of this process) | on (a separate worker has reported in lately) | down (jobs are queued but nobody will run them)."""
     if not worker.external(): return "embedded"
@@ -179,7 +194,8 @@ class H(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json", extra=None):
         b = body if isinstance(body, bytes) else (json.dumps(body, ensure_ascii=False) if not isinstance(body, str) else body).encode()
         self.send_response(code); self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith(("text", "application/json")) else ""))
-        self.send_header("Content-Length", str(len(b))); self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(b)))
+        if "Cache-Control" not in (extra or {}): self.send_header("Cache-Control", "no-store")
         if getattr(self, "_rid", None): self.send_header("X-Request-Id", self._rid)
         for k, v in (extra or {}).items(): self.send_header(k, v)
         self.end_headers(); self.wfile.write(b)
@@ -206,12 +222,21 @@ class H(BaseHTTPRequestHandler):
             if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
         if not auth.session(ck):  # not signed in: only the sign in page is served
-            if p == "/": return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
+            if p in ("/", "/legacy") or p == "/app" or p.startswith("/app/"): return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
             return self._send(401, {"error": "sign in", "login": True})
         try:
-            if p == "/":
+            if p in ("/", "/legacy"):   # the classic view, kept until the new app has every screen
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
                 return self._send(200, page, "text/html")
+            if p == "/app": return self._send(308, b"", "text/plain", {"Location": "/app/"})
+            if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
+                rel = p[5:]
+                f = web_file(rel) if rel and "." in os.path.basename(rel) else None
+                if f: return self._send(200, f[0], f[1], {"Cache-Control": f[2]})
+                if rel and "." in os.path.basename(rel): return self._send(404, {"error": "not found"})
+                idx = web_file("index.html")
+                if not idx: return self._send(503, "The new app is not built. In plugins/navaan-studio/web run: npm ci && npm run build", "text/plain")
+                return self._send(200, idx[0].replace(b"__TOKEN__", TOKEN.encode()), "text/html", {"Cache-Control": "no-store"})
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
             if p == "/api/alerts":
                 try: return self._send(200, {"alerts": settings_api.alerts()})

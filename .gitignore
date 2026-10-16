@@ -27,3 +27,7 @@ hashtags.json
 # song and inspiration folders are local working data (media in the OCI bucket, state on the server); only the template is in the repo
 songs/*
 !songs/_template/
+
+# the new app (NAV-8): dependencies and the build output; the Dockerfile and CI build it
+plugins/navaan-studio/web/node_modules/
+plugins/navaan-studio/web/dist/

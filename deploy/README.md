@@ -221,3 +221,15 @@ The web server no longer runs steps or the publishing schedule. A click on Run, 
 - **Slots.** `NAVAAN_WORKER_SLOTS` (default 2) items run in parallel; ffmpeg and Remotion are heavy, so watch memory before raising it.
 - **Development.** `navaan.py serve` runs a worker in its own threads unless `NAVAAN_WORKER=external`, so one process is still enough on a laptop.
 - **Rollback.** The previous image has no worker: its web server runs steps itself. After a rollback stop the worker container (`docker stop navaan-worker`); queued jobs wait in the table.
+
+### The new app (NAV-8)
+
+A React + Vite + TypeScript app in `plugins/navaan-studio/web/`, served by the portal at **`/app/`**; the classic page stays at `/` and `/legacy` until the new app has every screen. It is built in a separate stage of
+`deploy/Dockerfile` (only `dist` enters the image; nothing to run on the VM) and in CI (`npm ci`, `npm test`, `npm run build`). nginx needs no change: it already proxies every path.
+
+- **Themes are data.** `src/styles/themes/<id>.css` is one block of variables (`[data-theme="midnight-cinema"]`, `[data-theme="ivory-gold"]`); components read variables only. `npm test` fails on a colour literal
+  outside those files and on a theme whose text falls under 4.5:1 contrast. Add a theme: copy a file, change the values, add its id to `src/theme/themes.ts` and the inline script in `index.html` (a test keeps them equal).
+- **The choice** (Midnight Cinema, Ivory & Gold, or match the device) is kept per device in `localStorage` and applied before first paint. The full Appearance page (tone slider, accent palette) is NAV-17.
+- **Auth is the portal's.** The same session cookie and the per-process token (a `<meta name="navaan-token">` filled in when `index.html` is served) as the classic page. A signed-out visit to `/app/` shows the sign-in page.
+- **Screens not built yet** link to the classic view for that area, so nothing is lost while they move over (stories NAV-13 to NAV-19).
+- **Development.** `cd plugins/navaan-studio/web && npm install && npm run dev` proxies `/api` and `/auth` to a portal on 127.0.0.1:8765.
