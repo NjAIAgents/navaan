@@ -211,3 +211,5 @@ body.lock { overflow: hidden; }
 .cl-view { flex: 0 0 100%; width: 100%; max-height: 360px; border-radius: var(--r2); }
 .np-open { display: flex; align-items: center; gap: 12px; flex: 1 1 120px; min-width: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; } .np-open .tx { display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 899px) { .np .tp { gap: 2px; } .np .btn.sq.round.mid { width: 44px; height: 44px; min-height: 44px; } }
+
+.side-cr { margin: 8px 12px 4px; font-size: 11px; line-height: 1.4; text-align: left; } .side-cr a { color: inherit; }   /* the credit lives in the sidebar and the account menu: a footer under the page moved when the page filled in, which cost layout shift */

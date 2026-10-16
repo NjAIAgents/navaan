@@ -71,3 +71,23 @@ Since 2026-10-14 there is no shared password at nginx (owner's decision: the stu
 
 ## Rollback
 Remove the two mounts and the network from the nginx service, `cd /opt/engagehub && docker compose up -d nginx`, delete `/opt/navaan/nginx/navaan.conf`. DNS and the certificate can stay.
+
+## The own domain (navaan.online, 2026-10-16)
+
+Hosts: `navaan.online` is the public app (the portal strips studio powers from any session on it: `NAVAAN_LISTENER_HOSTS`), `www.navaan.online` redirects to it, `studio.navaan.online` is the studio, `navaan.njlabs.dev` stays as the old studio address for now. Cookies are per host, so each host has its own sign in; passkeys belong to a host, so re-register the owner passkey on `studio.navaan.online`.
+
+DNS (Vercel DNS, the registrar): A records for `@`, `www` and `studio` to 163.192.110.178, TTL 60 at first and 3600 once it works. The locked ALIAS and CAA rows are Vercel's own and stay (CAA allows Let's Encrypt).
+
+On the VM, as `ods` (this is what was done; `navaan.conf` in this folder is the end state):
+```sh
+bash /opt/navaan/repo/deploy/check-neighbours.sh > /tmp/neigh-before.txt           # before
+sudo cp -a /opt/navaan/nginx/navaan.conf /opt/navaan/nginx/navaan.conf.bak-$(date +%Y%m%d)
+# stage 1: the old vhost plus a port 80 block for the three names (ACME, 404 otherwise), then reload
+sudo docker exec engagehub-nginx nginx -t && sudo docker exec engagehub-nginx nginx -s reload
+sudo certbot certonly --webroot -w /var/www/certbot -d navaan.online -d www.navaan.online -d studio.navaan.online --non-interactive --agree-tos
+# stage 2: overwrite the file IN PLACE (tee, not mv: it is a single-file bind mount) with navaan.conf, test, reload
+sudo tee /opt/navaan/nginx/navaan.conf < navaan.conf >/dev/null && sudo docker exec engagehub-nginx nginx -t && sudo docker exec engagehub-nginx nginx -s reload
+bash /opt/navaan/repo/deploy/check-neighbours.sh > /tmp/neigh-after.txt; diff /tmp/neigh-before.txt /tmp/neigh-after.txt   # must be empty
+```
+Rollback: write the `.bak-` file back the same way and reload. The certificate renews with the other certbot timers (same webroot).
+Note: the VM's own resolver may keep an old answer for `navaan.online` for a while; check from the VM with `curl --resolve navaan.online:443:127.0.0.1`.
