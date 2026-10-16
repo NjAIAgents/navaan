@@ -232,6 +232,8 @@ def inspiration_steps(slug, D):
     has_bg = lambda m: any(glob.glob(os.path.join(D, f"background.{e}")) for e in ("jpg", "jpeg", "png", "webp"))
     # a narration uploaded as audio only: its lines are timed against the voice (pauses first, Whisper when they do not fit)
     narr = any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac"))
+    eleven = brief_opt(D, "narrate", "none").lower() == "eleven"   # the quote narrated by ElevenLabs (the Narration card sets it): a step of its own, behind the credits approval
+    narr = narr or eleven
     need_w = bool((load_json(os.path.join(D, "narration_sync.json"), default={}) or {}).get("needs_whisper")) and not setup_captions.ready()
     narr_step = dict(id="narration", outputs=["voiceover.srt"], label="Time the narration lines to the voice", kind="script", before=("captions_setup" if need_w else None),
                      cmds=([sc("setup_captions.py", "--yes")] if need_w else []) + [sc("narration_sync.py", slug)], done=lambda m: has(D, "voiceover.srt"))
@@ -241,6 +243,8 @@ def inspiration_steps(slug, D):
         dict(id="originality", outputs=["originality.json"], label="Check originality and attribution on the web", kind="claude", skill="inspiration-check", chrome=False, tools=["WebSearch", "WebFetch"],
              done=lambda m: has(D, "originality.json"), after="originality"),
         *background_steps(slug, D, gen, has_bg),
+        *([dict(id="narrate", outputs=["voiceover.mp3"], label="Narrate the quote (ElevenLabs)", kind="script", cmds=[sc("narrate_eleven.py", slug)], before="credits",
+                done=lambda m: any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac")))] if eleven else []),
         *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
              done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),

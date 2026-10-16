@@ -11,7 +11,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Changed
 - Settings is easier to read and traverse. It opens on an At a glance board: every connection with one line on how it is doing, the ones that need you first, each with a Fix button that opens the right place. Below it are four tabs: Accounts, AI services, Automation and Storage. Tokens and keys sit in rows that fold open (Change, Sign in) instead of an always-open box under every line, with plainer wording ("Competitor data" instead of "Peer data (Facebook)").
 - The studio sign in page shows the version.
+- Narration with ElevenLabs for inspiration shorts: the Narration card has "Narrate the quote with ElevenLabs". It speaks the quote only (not the author), in Frank (default) or NJ, shows about how many seconds it will use and this month's total against the cap, and adds a "Narrate the quote" step to the short that runs after you approve the spend. The lines are then timed to the voice by the existing step. The same text in the same voice is never generated twice.
 - A round play button on every song cover in Browse, Library, saved songs and playlists (and on album covers, which play the whole album) plays it without opening the song page. On a mouse it appears when you point at the cover; on a touch screen it is always there; it turns into Pause while that song plays.
+- The ElevenLabs audio cache no longer lives in the small config folder.
 - Full screen play mode keeps the lyrics folded away until you press Lyrics (the choice is remembered). With them hidden, the cover and controls are centred.
 
 ### Changed
