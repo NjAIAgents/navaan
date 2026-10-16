@@ -1,4 +1,5 @@
 import { Alerts } from "./Alerts";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Icon, type IconName } from "./Icon";
@@ -108,7 +109,7 @@ function ShellFrame() {
           <Link className="btn g sq" to="/search" aria-label="Search"><Icon name="search" /></Link>
           <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" data-i={who.slice(0, 1).toUpperCase()} aria-hidden="true" /></button>
         </div>
-        <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></main>
+        <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<ErrorBoundary><Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></ErrorBoundary></main>
         <NowPlaying />
         <PlayMode />
       </div>

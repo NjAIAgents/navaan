@@ -33,7 +33,7 @@ export type Step = {
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
-  meta: { type?: string; state?: string; album?: string; history?: string[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown } };
+  meta: { type?: string; state?: string; album?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown } };
   files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;

@@ -134,3 +134,17 @@ describe("redo and restart a step", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Restart from Build the video" })); fireEvent.click(screen.getByRole("button", { name: "Yes, restart" })); await waitFor(() => expect(posts(f, "/api/restart")).toEqual([{ slug: "song-001", step: "video" }]));
   });
 });
+
+describe("older songs", () => {
+  it("shows a history written as objects instead of a black screen (song-001 on prod)", async () => {
+    route({ "/api/song/": () => detail({ meta: { type: undefined, state: "published", history: [{ at: "2026-10-11T20:18:52Z", event: "lyrics_approved" }, { at: "2026-10-11T20:24:28Z", note: "v6, English rap verse", event: "suno_run_1_created" }, "2026-10-12T02:38:39Z gate media approved via legacy backfill"] } }) });
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByText(/lyrics approved/)).toBeInTheDocument(); expect(screen.getByText(/suno run 1 created: v6, English rap verse/)).toBeInTheDocument(); expect(screen.getByText(/gate media approved via legacy backfill/)).toBeInTheDocument();
+  });
+  it("shows an error screen with a way on when a screen throws", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    route({ "/api/song/": () => detail({ steps: null }), "/api/client-log": () => ({ ok: true }) });
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("This screen hit a problem")).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+  });
+});
