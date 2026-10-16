@@ -1,0 +1,27 @@
+const PATHS: Record<string, string> = {
+  home: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
+  studio: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3",
+  library: "M4 4v16M9 4v16M14 6l5 14M14 6l-1-2",
+  albums: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3",
+  settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM19 12l2-1-1-3-2 .5-1.5-1.5L17 5l-3-1-1 2h-2L10 4 7 5l.5 2L6 8.5 4 8l-1 3 2 1v2l-2 1 1 3 2-.5 1.5 1.5L7 21l3 1 1-2h2l1 2 3-1-.5-2 1.5-1.5 2 .5 1-3-2-1z",
+  check: "M5 12l5 5L20 7",
+  sun: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4",
+  moon: "M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z",
+  device: "M4 5h16v11H4zM8 21h8M12 16v5",
+  out: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  chevron: "M9 6l6 6-6 6",
+  external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
+  chart: "M4 20V10M10 20V4M16 20v-8M22 20H2",
+  quote: "M7 7h4v4H7zM13 7h4v4h-4zM7 11c0 3-1 5-3 6M13 11c0 3-1 5-3 6",
+};
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, filled = false }: { name: IconName; filled?: boolean }) {
+  return (
+    <svg className={"ic" + (filled ? " f" : "")} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}

@@ -29,6 +29,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: New app (tests, colour-literal check, build)
+        working-directory: plugins/navaan-studio/web
+        run: |
+          npm ci
+          npm test
+          npm run build
       - name: Python packages the tests may use
         run: pip install cryptography pillow numpy opencv-python-headless "psycopg[binary]"
       - name: Unit tests (against the Postgres service above)
