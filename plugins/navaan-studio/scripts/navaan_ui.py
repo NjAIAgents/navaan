@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
-import visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
+import poster as POST, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
@@ -82,6 +82,7 @@ def scheduler_state():
 
 
 TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
+POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
@@ -180,6 +181,7 @@ def detail(slug):
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
+            "poster": {**POST.state(slug), **POSTER.get(slug, {})},
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -192,7 +194,7 @@ def start_job(slug, all_steps=False, step=None, redo=False):
 
 
 CLIENT_LOG = {}  # client address -> times of recent browser error reports
-SITE_REACT = {}; SITE_FEEDBACK = {}   # per address: reactions and messages sent from the public site
+SITE_REACT = {}; SITE_FEEDBACK = {}; SITE_INTEREST = {}   # per address: reactions and messages sent from the public site
 GUEST_READ = {}; GUEST_PLAY = {}   # per address: how often a visitor who is not signed in reads the catalogue and asks for songs
 GUEST = {"user": "", "user_id": "", "csrf": "", "roles": ["guest"], "permissions": [], "guest": True}   # someone not signed in on a public host
 CLIENT_LOG_LOCK = threading.Lock()
@@ -280,6 +282,11 @@ class H(BaseHTTPRequestHandler):
                 if not rate_ok(SITE_REACT, self._ip(), 60, 3600): return self._send(429, {"error": "that is a lot of reactions, try again later"})
                 ok = catalog_store.react(str(body.get("slug") or ""), (str(body["reaction"]) if body.get("reaction") is not None else None), body.get("previous") or None)
                 return self._send(200, {"ok": True}) if ok else self._send(404, {"error": "no such song"})
+            if p == "/api/site/interest":   # "I would like an account": what they like and an optional email
+                if not rate_ok(SITE_INTEREST, self._ip(), 5, 3600): return self._send(429, {"error": "you have sent a few already, try again in an hour"})
+                if body.get("website"): return self._send(200, {"ok": True})
+                catalog_store.add_interest(body.get("moods"), body.get("genres"), body.get("languages"), body.get("email"))
+                return self._send(200, {"ok": True})
             if not rate_ok(SITE_FEEDBACK, self._ip(), 5, 3600): return self._send(429, {"error": "you have sent a few already, try again in an hour"})
             if body.get("website"): return self._send(200, {"ok": True})   # the hidden field a person never fills: a bot, thanked and ignored
             catalog_store.add_feedback(str(body.get("slug") or ""), str(body.get("message") or ""), body.get("email"))
@@ -403,7 +410,7 @@ class H(BaseHTTPRequestHandler):
         h = (LISTENER_HOSTS() or [""])[0] or (_hosts("NAVAAN_PUBLIC_HOST") or [""])[0] or (self.headers.get("Host") or "")   # a shared link is a public link: the public host when there is one
         return f"{'https' if (self._https() or PUBLIC_HOST()) else 'http'}://{h}"
     def _public(self, p):
-        """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3]. Nothing here needs a session; everything is limited per address."""
+        """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3|/play.mp3]. Nothing here needs a session; everything is limited per address."""
         if not rate_ok(PUBLIC_LOG, self._ip(), 240): return self._send(429, {"error": "slow down"}, extra={"Retry-After": "30"})
         try:
             m = re.match(r"^/img/([A-Za-z0-9_-]{1,40})/(\d{2,4})\.(webp|avif|jpg)$", p)
@@ -415,10 +422,14 @@ class H(BaseHTTPRequestHandler):
                 hdr = {"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"}
                 if self.headers.get("If-None-Match") == etag: return self._send(304, b"", mime, hdr)
                 return self._send(200, data, mime, hdr)
-            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3)?$", p)
+            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3)?$", p)
             if m:
                 t = catalog_store.open_share(m.group(1), count=not m.group(2))
                 if not t: return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if m.group(2) == "/play.mp3":   # the whole song: the site is free, so a shared link plays it without a sign in
+                    key = catalog_store.play_key(t["slug"], confirmed_only=True)
+                    if not key: return self._send(404, {"error": "not found"})
+                    return self._send(302, b"", "text/plain", {"Location": objstore.par_url(key, 300)})
                 if m.group(2): return self._send(302, b"", "text/plain", {"Location": objstore.par_url(media.ensure_preview(t["slug"]), 300)})
                 cv = catalog_store.cover_asset(t["slug"])
                 return self._send(200, share_page.render(t, m.group(1), self._base(), (cv or {}).get("dominant_colour"), bool(cv)), "text/html")
@@ -553,6 +564,7 @@ class H(BaseHTTPRequestHandler):
                 try: d = int((q.get("days") or ["0"])[0]) or None
                 except ValueError: return self._send(400, {"error": "days is a number"})
                 return self._send(200, catalog_store.reactions(d))
+            if p == "/api/site/interest": return self._send(200, catalog_store.interest_summary())   # who asked for an account and what they like
             if p == "/api/site/feedback":   # the messages visitors sent
                 q = parse_qs(urlparse(self.path).query)
                 try: lim, off = int((q.get("limit") or ["50"])[0]), int((q.get("offset") or ["0"])[0])
@@ -620,7 +632,7 @@ class H(BaseHTTPRequestHandler):
         org = self.headers.get("Origin")
         if org and org != ("https://" if self._https() else "http://") + (self.headers.get("Host") or ""): return self._send(403, {"error": "forbidden origin"})
         ck = self.headers.get("Cookie")
-        if self.path in ("/api/site/react", "/api/site/feedback") and self._public_host(): return self._site_post(self.path)
+        if self.path in ("/api/site/react", "/api/site/feedback", "/api/site/interest") and self._public_host(): return self._site_post(self.path)
         if self.path.startswith("/auth/"):
             sec = secrets_status()
             if self.path.startswith("/auth/setup") and sec and sec["status"] != "ok": return self._send(503, {"error": "Secrets are waiting for Vault. The login is restored from Vault once it is unsealed; try again then."})
@@ -805,6 +817,29 @@ class H(BaseHTTPRequestHandler):
                     navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                     return self._send(200, {"ok": True, **r})
                 except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/poster/generate":
+                if POSTER.get(slug, {}).get("running"): return self._send(409, {"error": "A poster is already being made."})
+                if body.get("picture"):   # your own picture as the art: free
+                    try: POST.use_picture(slug, base64.b64decode(str(body["picture"]), validate=True)); return self._send(200, {"ok": True})
+                    except ValueError as e: return self._send(400, {"error": str(e)})
+                if body.get("only_text"):   # redraw title and artist over the art already made: free
+                    try:
+                        if body.get("style") in POST.STYLES:
+                            with open(os.path.join(C.song_dir(slug), "poster_style.txt"), "w") as f: f.write(body["style"])
+                        POST.typeset(slug); return self._send(200, {"ok": True})
+                    except (OSError, ValueError) as e: L.ignored(LOG, "poster_typeset: no art yet (optional or expected)", e); return self._send(400, {"error": "Make the art first."})
+                prompt = str(body.get("prompt") or ""); style = body.get("style")
+                try: POST.IO.check_cap(POST.media_cfg.load()["image_quality"], None, POST.SIZE)
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                POSTER[slug] = {"running": True, "error": ""}
+                def pw():
+                    err = ""
+                    try: POST.generate(slug, prompt, style); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "poster made via ui"))
+                    except (ValueError, RuntimeError) as e: L.ignored(LOG, "pw: refused or failed (shown to the owner)", e); err = str(e)[:300]
+                    except Exception as e: L.soft(LOG, "pw_error"); err = str(e)[:300]
+                    POSTER[slug] = {"running": False, "error": err}
+                threading.Thread(target=pw, daemon=True).start()
+                return self._send(200, {"ok": True})
             if p.startswith("/api/visuals/"):
                 act = p.rsplit("/", 1)[1]; D = C.song_dir(slug)
                 try:

@@ -12,10 +12,10 @@ export function MembersOnly({ children, studio = false }: { children: ReactNode;
   if (!me.guest) return <>{children}</>;
   return (
     <div className="card stack" style={{ maxWidth: 560 }}>
-      <h2>{studio ? "The studio is for the owner" : "Want your own playlists?"}</h2>
-      <p>{studio ? "Sign in on the studio address to manage songs, schedules and settings." : PITCH}</p>
+      <h2>{studio ? "This page is not available here" : "Want your own playlists?"}</h2>
+      {!studio && <p>{PITCH}</p>}
       <div className="row">
-        {studio && me.studioUrl && <a className="btn p" href={`${me.studioUrl}/app/`}>Studio sign in</a>}
+        {!studio && <Link className="btn p" to="/join">Create account</Link>}
         <Link className="btn" to="/">Browse songs</Link>
       </div>
     </div>

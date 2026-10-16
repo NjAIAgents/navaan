@@ -11,7 +11,7 @@ function mock(routes: Record<string, (init?: RequestInit) => unknown | Response>
 }
 const at = (path: string) => render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
 const posts = (f: ReturnType<typeof mock>, path: string) => f.mock.calls.filter(([u]) => u === path).map(([, i]) => JSON.parse(String(i?.body)));
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { try { localStorage.clear(); } catch { /* storage blocked */ } cleanup(); vi.unstubAllGlobals(); });
 
 const pl = (o: object = {}) => ({ id: "11111111-1111-1111-1111-111111111111", name: "Evening", description: "", visibility: "private", tracks: 2, updated_at: "2026-10-16T00:00:00Z", ...o });
 const detail = (o: object = {}) => ({ id: "11111111-1111-1111-1111-111111111111", name: "Evening", description: "", visibility: "private", tracks: [{ slug: "song-001", title: "One", position: "a" }, { slug: "song-002", title: "Two", position: "b" }, { slug: "song-003", title: "Three", position: "c" }], ...o });
@@ -41,6 +41,8 @@ describe("a playlist", () => {
   it("moves a song up and down by saying which song it goes after", async () => {
     const f = setup(); at("/library/playlists/11111111-1111-1111-1111-111111111111");
     await screen.findByRole("heading", { name: "Evening", level: 1 });
+    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true"); expect(screen.queryByRole("button", { name: "Move Three up" })).toBeNull(); expect(screen.getByText(/switch to List/)).toBeInTheDocument();   // grid by default; ordering is in the list
+    fireEvent.click(screen.getByRole("button", { name: "List" })); expect(localStorage.getItem("navaan.view.playlist")).toBe("list");
     fireEvent.click(screen.getByRole("button", { name: "Move Three up" })); await waitFor(() => expect(posts(f, "/api/playlists/move")).toHaveLength(1));
     expect(posts(f, "/api/playlists/move")[0]).toMatchObject({ slug: "song-003", after: "song-001" });          // up one: after the song two above
     fireEvent.click(screen.getByRole("button", { name: "Move Two up" })); await waitFor(() => expect(posts(f, "/api/playlists/move")).toHaveLength(2));

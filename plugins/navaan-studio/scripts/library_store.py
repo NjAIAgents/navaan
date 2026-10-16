@@ -32,8 +32,18 @@ def _owned(c, uid, pid, lock=False):
 
 
 def playlists(uid):
-    return _tx(lambda c: [{**r, "id": str(r["id"]), "updated_at": r["updated_at"].isoformat()} for r in c.execute(
-        "SELECT p.id, p.name, p.description, p.visibility, p.updated_at, (SELECT count(*) FROM playlist_tracks t WHERE t.playlist_id = p.id) AS tracks FROM playlists p WHERE p.user_id = ?::uuid ORDER BY p.updated_at DESC", (uid,)).fetchall()])
+    """The person's playlists, newest first, each with its song count and the cover of its first song that has one (cover slug and colour, for a tile)."""
+    def go(c):
+        rows = c.execute("SELECT p.id, p.name, p.description, p.visibility, p.updated_at, (SELECT count(*) FROM playlist_tracks t WHERE t.playlist_id = p.id) AS tracks FROM playlists p WHERE p.user_id = ?::uuid ORDER BY p.updated_at DESC", (uid,)).fetchall()
+        order = c.execute("SELECT pt.playlist_id::text AS pid, pt.track_id::text AS track_id FROM playlist_tracks pt JOIN playlists p ON p.id = pt.playlist_id WHERE p.user_id = ?::uuid ORDER BY pt.position", (uid,)).fetchall() if rows else []
+        return rows, order
+    rows, order = _tx(go)
+    info = K.tracks_by_ids({o["track_id"] for o in order}) if order else {}   # the catalog's own query knows which of its schemas to read
+    first = {}
+    for o in order:   # in song order: the first song with a cover is the playlist's cover
+        t = info.get(o["track_id"])
+        if t and t["art"] and o["pid"] not in first: first[o["pid"]] = t
+    return [{**r, "id": str(r["id"]), "updated_at": r["updated_at"].isoformat(), "cover": first[str(r["id"])]["slug"] if str(r["id"]) in first else None, "colour": first[str(r["id"])]["art"]["colour"] if str(r["id"]) in first else None} for r in rows]
 
 
 def create_playlist(user, name, description="", visibility="private"):
@@ -58,7 +68,7 @@ def get_playlist(uid, pid):
     p, rows = _tx(go)
     info = K.tracks_by_ids([r["track_id"] for r in rows]) if rows else {}
     return {"id": str(p["id"]), "name": p["name"], "description": p["description"], "visibility": p["visibility"],
-            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"]} for r in rows if r["track_id"] in info]}
+            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"], "art": info[r["track_id"]]["art"]} for r in rows if r["track_id"] in info]}
 
 
 def shared_playlist(pid):
@@ -72,7 +82,7 @@ def shared_playlist(pid):
     if not p: return None
     info = K.tracks_by_ids([r["track_id"] for r in rows]) if rows else {}
     return {"id": str(p["id"]), "name": p["name"], "description": p["description"], "visibility": p["visibility"],
-            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"]} for r in rows if r["track_id"] in info]}
+            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"], "art": info[r["track_id"]]["art"]} for r in rows if r["track_id"] in info]}
 
 
 def update_playlist(uid, pid, name=None, description=None, visibility=None):

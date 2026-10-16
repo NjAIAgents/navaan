@@ -13,10 +13,20 @@ export default function Feedback() {
   }, [days, unread]);
   useEffect(() => { load(); }, [load]);
   const mark = async (id: string, handled: boolean) => { try { await postJSON("/api/site/feedback/handle", { id, handled }); load(); } catch (e) { setErr(errText(e)); } };
+  const [ints, setInts] = useState<{ total: number; with_email: number; moods: Record<string, number>; genres: Record<string, number>; languages: Record<string, number> } | null>(null);
+  useEffect(() => { getJSON<typeof ints>("/api/site/interest").then(setInts).catch(() => setInts(null)); }, []);   // expected: the card is simply absent if it cannot load
+  const top = (o: Record<string, number>) => Object.entries(o).map(([k, n]) => `${k} (${n})`).join(", ") || "none yet";
   const total = (k: "up" | "down" | "love") => (rx ?? []).reduce((n, r) => n + r[k], 0);
   return (
     <>
       {err && <div className="card" role="alert"><h2>Could not load feedback</h2><p className="mu">{err}</p></div>}
+      {ints && typeof ints.total === "number" && (
+        <section className="sec" aria-labelledby="int-h">
+          <div className="sh"><h2 id="int-h">Asked for an account</h2></div>
+          <div className="card stack"><p>{ints.total} visitor{ints.total === 1 ? "" : "s"} asked for an account, {ints.with_email} left an email.</p>
+            <p className="mu">Moods: {top(ints.moods)}</p><p className="mu">Genres: {top(ints.genres)}</p><p className="mu">Languages: {top(ints.languages)}</p></div>
+        </section>
+      )}
       <section className="sec" aria-labelledby="rx-h">
         <div className="sh"><h2 id="rx-h">Reactions</h2><label className="sr" htmlFor="fb-days">Period</label>
           <select id="fb-days" className="field sel" value={days} onChange={(e) => setDays(e.target.value)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></div>

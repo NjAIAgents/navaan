@@ -44,6 +44,7 @@ export type SongDetail = {
   prompt_pack?: { aspect?: string; style_line: string; prompts: { n: number; section: string; prompt: string }[] } | null;
   try?: { running?: boolean; error?: string; files?: string[]; v?: number }; vertical?: { running?: boolean; error?: string; done?: number[] };
   visuals_problems?: string[];
+  poster?: { style: string; styles: string[]; prompt: string; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
 };
 
 export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };
@@ -77,9 +78,9 @@ export type Reply = { comment_id: string; username: string; text: string; posted
 export type Hit = { kind: "track" | "album" | "playlist" | "short"; id: string; slug: string | null; title: string; title_roman: string; score: number };
 
 // Library and plans (NAV-7)
-export type PlaylistRow = { id: string; name: string; description: string; visibility: "private" | "unlisted" | "public"; tracks: number; updated_at: string };
-export type PlaylistDetail = { id: string; name: string; description: string; visibility: PlaylistRow["visibility"]; mine?: boolean; tracks: { slug: string; title: string; position: string }[] };
-export type LibraryData = { tracks: { slug: string; title: string }[]; albums: { slug: string; title: string }[]; following: boolean };
+export type PlaylistRow = { id: string; name: string; description: string; visibility: "private" | "unlisted" | "public"; tracks: number; updated_at: string; cover?: string | null; colour?: string | null };
+export type PlaylistDetail = { id: string; name: string; description: string; visibility: PlaylistRow["visibility"]; mine?: boolean; tracks: { slug: string; title: string; position: string; art?: { colour: string | null } | null }[] };
+export type LibraryData = { tracks: { slug: string; title: string; art?: { colour: string | null } | null }[]; albums: { slug: string; title: string }[]; following: boolean };
 export type PlansData = {
   plans: { key: string; name: string; price_minor: number | null; currency: string | null; interval: string | null; buyable: boolean; entitlements: { feature: string; enabled: boolean; limit: number | null }[] }[];
   mine: { plan: { key: string; name: string; status: string }; entitlements: Record<string, { enabled: boolean; limit: number | null }>; unlimited: boolean; usage: { playlists: number } };

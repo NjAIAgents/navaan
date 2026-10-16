@@ -4,6 +4,7 @@ import { Equaliser } from "../components/Equaliser";
 import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
+import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
 import { SongAnalytics } from "../components/SongAnalytics";
 import { ScheduleCard } from "../components/SchedulePanel";
@@ -165,7 +166,7 @@ export default function Song() {
   const load = useCallback(() => getJSON<SongDetail>(`/api/song/${slug}`).then((x) => { setD(x); setErr(""); }).catch((e) => setErr(errText(e))), [slug]);
   useEffect(() => { void load(); }, [load]);
   const running = !!(d?.job.running || d?.job.queued);
-  const making = !!(d?.try?.running || d?.vertical?.running);   // a test or 9:16 picture is being made by a background thread
+  const making = !!(d?.try?.running || d?.vertical?.running || d?.poster?.running);   // a test or 9:16 picture is being made by a background thread
   useEffect(() => { if (!running && !making) return; const t = setInterval(() => void load(), 3000); return () => clearInterval(t); }, [running, making, load]);
 
   const act: Act = async (path, body) => {
@@ -225,6 +226,7 @@ export default function Song() {
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <ShareCard slug={slug} />}
       {!(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
       <MediaCard d={d} />
+      <PosterCard d={d} done={load} />
       <TextEditors d={d} done={load} />
       <ShotsEditor key={slug} d={d} done={load} />
       {insp && <NarrationCard d={d} done={load} />}

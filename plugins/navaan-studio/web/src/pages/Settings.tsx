@@ -4,6 +4,7 @@ import { RISKY, gateTitle } from "../lib/gates";
 import { errText } from "../lib/songs";
 
 type Do = (act: string, body: Record<string, unknown>) => Promise<boolean>;
+type Save = (act: string, body: Record<string, unknown>) => Promise<{ ok: boolean; message: string }>;
 
 function Login({ s, label }: { s: LoginState; label: string }) {
   if (!s.present) return <span className="chip">{label}: not set</span>;
@@ -12,13 +13,17 @@ function Login({ s, label }: { s: LoginState; label: string }) {
   return <span className="chip ok">{label}: working{d != null ? `, ${d < 0 ? "expired" : `${d} days left`}` : s.expires === "never" ? ", no expiry" : ""}</span>;
 }
 
-function TokenForm({ id, label, act, busy, onSave }: { id: string; label: string; act: string; busy: boolean; onSave: (token: string) => Promise<boolean> }) {
-  const [v, setV] = useState(""); void act;
+type Saved = { ok: boolean; message: string };
+
+// A secret is pasted here and never shown again. The answer (saved, or exactly why not) appears right under the box, where you are looking, not at the top of the page.
+function TokenForm({ id, label, busy, onSave }: { id: string; label: string; act?: string; busy: boolean; onSave: (token: string) => Promise<Saved> }) {
+  const [v, setV] = useState(""); const [res, setRes] = useState<Saved | null>(null); const [working, setWorking] = useState(false);
   return (
-    <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (v.trim() && await onSave(v.trim())) setV(""); }}>
+    <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (!v.trim()) return; setWorking(true); setRes(null); const r = await onSave(v.trim()); setWorking(false); setRes(r); if (r.ok) setV(""); }}>
       <label htmlFor={id}>{label}</label>
-      <input id={id} className="field" type="password" autoComplete="off" value={v} onChange={(e) => setV(e.target.value)} />
-      <button className="btn" type="submit" disabled={busy || !v.trim()}>Save token</button>
+      <input id={id} className="field" type="password" autoComplete="off" value={v} onChange={(e) => { setV(e.target.value); setRes(null); }} />
+      <button className="btn" type="submit" disabled={busy || working || !v.trim()}>{working ? "Checking…" : "Save token"}</button>
+      {res && <p role={res.ok ? "status" : "alert"} className={res.ok ? "mu" : ""} style={res.ok ? undefined : { color: "var(--bad)" }}>{res.message}</p>}
     </form>
   );
 }
@@ -48,7 +53,7 @@ function YouTube({ a, which, act, busy }: { a: SettingsAccount; which: "publish"
   );
 }
 
-function Account({ a, act, busy }: { a: SettingsAccount; act: Do; busy: boolean }) {
+function Account({ a, act, save, busy }: { a: SettingsAccount; act: Do; save: Save; busy: boolean }) {
   return (
     <section className="card stack" aria-labelledby={`ac-${a.type}`}>
       <h3 id={`ac-${a.type}`}>{a.type.charAt(0).toUpperCase() + a.type.slice(1)} {a.handle && <span className="mu">@{a.handle.replace(/^@/, "")}</span>}</h3>
@@ -56,8 +61,8 @@ function Account({ a, act, busy }: { a: SettingsAccount; act: Do; busy: boolean 
       <div className="row">
         <button className="btn" disabled={busy || !a.ig.present} onClick={() => void act("ig_refresh", { type: a.type, kind: "login" })}>Refresh Instagram token</button>
       </div>
-      <TokenForm id={`ig-${a.type}`} label="New Instagram token" act="ig_save" busy={busy} onSave={(token) => act("ig_save", { type: a.type, kind: "login", token })} />
-      <TokenForm id={`mk-${a.type}`} label="New Facebook token for peer data (optional)" act="ig_save" busy={busy} onSave={(token) => act("ig_save", { type: a.type, kind: "market", token })} />
+      <TokenForm id={`ig-${a.type}`} label="New Instagram token" busy={busy} onSave={(token) => save("ig_save", { type: a.type, kind: "login", token })} />
+      <TokenForm id={`mk-${a.type}`} label="New Facebook token for peer data (optional)" busy={busy} onSave={(token) => save("ig_save", { type: a.type, kind: "market", token })} />
       <YouTube a={a} which="publish" act={act} busy={busy} />
       <YouTube a={a} which="analytics" act={act} busy={busy} />
     </section>
@@ -91,7 +96,7 @@ function Gates({ d, act, busy }: { d: SettingsData; act: Do; busy: boolean }) {
   );
 }
 
-function Media({ d, act, busy }: { d: SettingsData; act: Do; busy: boolean }) {
+function Media({ d, act, save, busy }: { d: SettingsData; act: Do; save: Save; busy: boolean }) {
   const m = d.media; const [edit, setEdit] = useState<Record<string, string>>({});
   const names: [string, string][] = [["image_provider", "Pictures made by"], ["picture_director", "Picture plan written by"], ["image_model", "Picture model"], ["image_quality", "Picture quality"], ["image_size_landscape", "Landscape size"], ["image_size", "Vertical size"], ["narration_source", "Narration from"], ["voice", "Voice"], ["music", "Music"], ["motion", "Motion"]];
   return (
@@ -111,7 +116,7 @@ function Media({ d, act, busy }: { d: SettingsData; act: Do; busy: boolean }) {
         {(["openai", "elevenlabs"] as const).map((p) => (
           <div key={p} className="stack">
             <span className={`chip ${m.keys[p] ? "ok" : ""}`}>{p === "openai" ? "OpenAI" : "ElevenLabs"} key: {m.keys[p] ? "saved" : "not set"}</span>
-            <TokenForm id={`key-${p}`} label={`${p === "openai" ? "OpenAI" : "ElevenLabs"} key`} act="media_key" busy={busy} onSave={(token) => act("media_key", { provider: p, token })} />
+            <TokenForm id={`key-${p}`} label={`${p === "openai" ? "OpenAI" : "ElevenLabs"} key`} busy={busy} onSave={(token) => save("media_key", { provider: p, token })} />
           </div>
         ))}
       </div>
@@ -141,6 +146,11 @@ export default function Settings() {
     try { await postJSON(`/api/settings/${path}`, body); setErr(""); setOk("Saved."); await load(path.startsWith("ig_") || path.startsWith("yt_") || path === "claude_save"); return true; }
     catch (e) { setErr(errText(e)); return false; } finally { setBusy(false); }
   };
+  const save: Save = async (path, body) => {   // a token: tested by the server first; the answer comes back to the box it was typed in
+    setBusy(true);
+    try { const r = await postJSON<{ note?: string }>(`/api/settings/${path}`, body); setErr(""); await load(path.startsWith("ig_") || path === "claude_save"); return { ok: true, message: r?.note || "Saved." }; }
+    catch (e) { return { ok: false, message: errText(e) }; } finally { setBusy(false); }
+  };
   if (!d) return err ? <div className="card" role="alert"><h2>Could not load Settings</h2><p className="mu">{err}</p></div> : <p className="mu" role="status">Checking the logins…</p>;
   return (
     <>
@@ -150,11 +160,11 @@ export default function Settings() {
       <section className="sec" aria-labelledby="cn-h">
         <div className="sh"><h2 id="cn-h">Connections</h2><button className="btn g" disabled={busy} onClick={() => void load(true)}>Check again</button></div>
         <p className="mu">Checked {new Date(d.checked_at).toLocaleString()}. A token is never shown here after you save it.</p>
-        {d.accounts.map((a) => <Account key={a.type} a={a} act={act} busy={busy} />)}
+        {d.accounts.map((a) => <Account key={a.type} a={a} act={act} save={save} busy={busy} />)}
         <section className="card stack" aria-labelledby="cl-h">
           <h3 id="cl-h">Claude</h3>
           <span className={`chip ${d.claude.state === "ok" ? "ok" : "bad"}`}>{d.claude.state === "ok" ? `Working (${d.claude.credential || "signed in"})` : d.claude.state === "missing" ? "No token" : `Problem: ${d.claude.state}`}</span>
-          <TokenForm id="claude-token" label="Claude token (run claude setup-token where Claude Code is signed in)" act="claude_save" busy={busy} onSave={(token) => act("claude_save", { token })} />
+          <TokenForm id="claude-token" label="Claude token (run claude setup-token where Claude Code is signed in)" busy={busy} onSave={(token) => save("claude_save", { token })} />
         </section>
       </section>
       <section className="card stack" aria-labelledby="ex-h">
@@ -165,7 +175,7 @@ export default function Settings() {
         <AddAccount act={act} busy={busy} />
       </section>
       <Gates d={d} act={act} busy={busy} />
-      <Media d={d} act={act} busy={busy} />
+      <Media d={d} act={act} save={save} busy={busy} />
       <section className="sec" aria-labelledby="cs-h">
         <div className="sh"><h2 id="cs-h">Cloud storage</h2></div>
         <div className="card stack">

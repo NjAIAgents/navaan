@@ -64,6 +64,27 @@ class Keys(Base):
             M.key_save("elevenlabs", "ELEVENLABS_API_KEY=sk_" + "b" * 40)
         self.assertEqual(M.get_key("elevenlabs"), "sk_" + "b" * 40)
 
+    @staticmethod
+    def _http(code, body):
+        import io
+        return urllib.error.HTTPError("u", code, "no", {}, io.BytesIO(json.dumps(body).encode()))
+
+    def test_eleven_key_without_user_read_is_saved_with_a_note(self):
+        key = "sk_" + "c" * 40
+        err = self._http(401, {"detail": {"status": "missing_permissions", "message": "needs user_read"}})
+        with mock.patch("urllib.request.urlopen", side_effect=err):
+            r = M.key_save("elevenlabs", key)
+        self.assertEqual(M.get_key("elevenlabs"), key)
+        self.assertIn("Text to Speech", r["note"])
+
+    def test_eleven_invalid_key_says_so_in_words(self):
+        err = self._http(401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}})
+        with mock.patch("urllib.request.urlopen", side_effect=err):
+            with self.assertRaises(ValueError) as c:
+                M.key_save("elevenlabs", "sk_" + "d" * 40)
+        self.assertIn("not a valid key", str(c.exception))
+        self.assertFalse(M.get_key("elevenlabs"))
+
     def test_rejected_key_keeps_the_old_one(self):
         with mock.patch("urllib.request.urlopen") as u:
             u.return_value.read.return_value = b"x"

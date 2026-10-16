@@ -38,7 +38,7 @@ export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) 
       </div>
       <hr />
       {guest ? (
-        <>{studioUrl && <a href={`${studioUrl}/app/`}><Icon name="user" /> Studio sign in</a>}</>
+        <Link to="/join" onClick={onClose}><Icon name="user" /> Create account</Link>
       ) : (
         <>
           <Link to="/account" onClick={onClose}><Icon name="user" /> Account</Link>
