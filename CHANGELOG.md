@@ -6,6 +6,21 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-16
+
+### Added
+- The listener side of the app. A person without studio access now sees a listener app: Browse (newest, then by language, with covers that fade in), a song page with the big cover, one round Play button, the lyrics (line by line, with the current line marked and followed as the song plays, when timing exists), save, add to a playlist and share, and a full-screen play mode that opens from the Now playing bar and back with the keyboard (Escape) or the close button. A listener only ever sees songs that are published with a confirmed licence, and the studio stays closed to them.
+- Library gets a Songs tab you can filter by album, language and genre. Albums are real objects in the new app: create one, open it, add songs, put them in order (and the order persists), edit its kind, status, date and description, and delete it; a published album can only hold published songs, and its cover is its first song's.
+- Anyone signed in can share a song they can see (the link and preview work as before); you can stop any link you made, and the owner can stop any link. A playlist set to unlisted or public opens by its link for another person, read only; a private one is "not found". The new Account page downloads your data or deletes your account.
+- Browser checks for the listener side run in CI: browsing, playing with lyrics, a share link opened signed out, the free playlist limit, album create, reorder and reload, and the layout and accessibility checks on the listener screens in both themes.
+
+### Fixed
+- Search and the catalog no longer treat the key names of a song's metadata file (genre, composer, album, ...) as words about the song; the song's genre and language are now stored and used for the filters.
+- A request could leave its database connections open until a later clean-up; 200 requests left 82 open against a limit of 30 on the server. Each request now gives its connections back, and the server's connection limit is 60.
+
+### Changed
+- The app itself (`/app/`) is served to every signed-in person; what they can do is still decided route by route.
+
 ## [0.14.0] - 2026-10-16
 
 ### Added
@@ -140,7 +155,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/NjAIAgents/navaan/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/NjAIAgents/navaan/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/NjAIAgents/navaan/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/NjAIAgents/navaan/compare/v0.12.0...v0.12.1

@@ -5,10 +5,13 @@ import { UserMenu } from "./UserMenu";
 import { useMobile } from "./useMobile";
 import { useTheme } from "../theme/useTheme";
 import { getJSON } from "../lib/api";
+import { MeProvider, useMe } from "../lib/me";
 import { PlayerProvider, usePlayer } from "../lib/player";
+import { PlayMode } from "./PlayMode";
 import { Equaliser } from "./Equaliser";
 
 type Item = { to: string; label: string; icon: IconName; end?: boolean };
+const LISTENER_HIDES = new Set(["/studio", "/albums"]);   // the studio side is not shown to a person without studio access (the server refuses it anyway)
 export const NAV: Item[] = [
   { to: "/", label: "Home", icon: "home", end: true },
   { to: "/studio", label: "Studio", icon: "studio" },
@@ -39,12 +42,13 @@ function NowPlaying() {
         {p.playing ? <Equaliser /> : <span className="eq off" aria-hidden="true"><i /><i /><i /><i /></span>}
         <span className="tx"><b>{p.title || p.slug}</b></span>
         <button className="btn sm" onClick={() => void p.toggle(p.slug!, p.title)}>{p.playing ? "Pause" : "Play"}<span className="sr"> {p.title}</span></button>
+        <button className="btn g sq" onClick={() => p.setExpanded(true)} aria-label="Open play mode"><Icon name="expand" /></button>
       </> : <span role="alert" className="tx">{p.error}</span>}
     </div>
   );
 }
 
-export function Shell() { return <PlayerProvider><ShellFrame /></PlayerProvider>; }
+export function Shell() { return <MeProvider><PlayerProvider><ShellFrame /></PlayerProvider></MeProvider>; }
 
 function ShellFrame() {
   const { pathname } = useLocation();
@@ -53,13 +57,13 @@ function ShellFrame() {
   const { choice, setChoice } = useTheme();
   const [open, setOpen] = useState(false);
   const [version, setVersion] = useState<string | undefined>();
-  const [who, setWho] = useState("Account");
-  useEffect(() => { getJSON<{ user?: unknown }>("/api/me").then((m) => { if (typeof m?.user === "string" && m.user) setWho(m.user); }).catch(() => undefined); }, []);
+  const { user: who, studio } = useMe();
   useEffect(() => { getJSON<{ version?: unknown }>("/auth/state").then((s) => setVersion(typeof s?.version === "string" && s.version ? s.version : undefined)).catch(() => setVersion(undefined)); }, []);
   const close = useCallback(() => setOpen(false), []);
   const title = titleFor(pathname);
   useEffect(() => { document.title = title === "Home" ? "NAVAAN" : `${title} · NAVAAN`; close(); }, [title, close]);
   const inStudio = pathname.startsWith("/studio");
+  const nav2 = NAV.filter((n) => studio || !LISTENER_HIDES.has(n.to));
 
   return (
     <div className="app">
@@ -67,7 +71,7 @@ function ShellFrame() {
       <aside className="side" aria-label="Sidebar">
         <NavLink to="/" className="brand"><span className="mark" aria-hidden="true" /> <span className="disp" style={{ letterSpacing: ".14em" }}>NAVAAN</span></NavLink>
         <nav aria-label="Main" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {NAV.map((n) => (
+          {nav2.map((n) => (
             <div key={n.to}>
               <NavLink to={n.to} end={n.end} className="nv"><Icon name={n.icon} /> {n.label}</NavLink>
               {n.to === "/studio" && inStudio && (
@@ -93,7 +97,7 @@ function ShellFrame() {
             <Icon name="search" /><input name="q" type="search" aria-label="Search songs, albums, lyrics" placeholder="Search songs, albums, lyrics" autoComplete="off" />
           </form>
           <span className="sp" />
-          <a className="btn sm g" href="/legacy"><Icon name="external" /> Classic view</a>
+          {studio && <a className="btn sm g" href="/legacy"><Icon name="external" /> Classic view</a>}
         </header>
         <div className="mhead">
           <span className="mark" aria-hidden="true" />
@@ -104,9 +108,10 @@ function ShellFrame() {
         </div>
         <main id="main" key={pathname} className="page" tabIndex={-1}><Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></main>
         <NowPlaying />
+        <PlayMode />
       </div>
       <nav className="tabbar" aria-label="Main">
-        {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end}><Icon name={n.icon} />{n.label}</NavLink>)}
+        {nav2.map((n) => <NavLink key={n.to} to={n.to} end={n.end}><Icon name={n.icon} />{n.label}</NavLink>)}
       </nav>
       {open && mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile version={version} />}
     </div>

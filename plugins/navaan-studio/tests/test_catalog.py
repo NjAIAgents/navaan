@@ -67,6 +67,18 @@ class Catalog(Base):
         self.assertTrue(self.K.delete_album(slug)); self.assertFalse(self.K.delete_album(slug))
         self.assertEqual(self.K._conn().execute("SELECT count(*) AS n FROM tracks").fetchone()["n"], 3)   # tracks stay
 
+    def test_a_published_album_holds_only_published_songs_and_albums_report_each_songs_cover(self):
+        self.song("song-001", "One"); self.song("song-002", "Two", state="drafted", cloud=False); self.K.sync_item("song-001"); self.K.sync_item("song-002")
+        slug = self.K.save_album("", "My Album", "album", "draft")
+        c = self.K._conn(); aid = c.execute("SELECT id FROM albums WHERE slug = ?", (slug,)).fetchone()["id"]
+        for sl in ("song-001", "song-002"): c.execute("INSERT INTO album_tracks (album_id, track_id, position) SELECT ?::uuid, id, (SELECT count(*) + 1 FROM album_tracks WHERE album_id = ?::uuid) FROM tracks WHERE slug = ?", (str(aid), str(aid), sl))
+        c.commit()
+        with self.assertRaises(ValueError) as cm: self.K.save_album(slug, "My Album", "album", "published")
+        self.assertIn("song-002", str(cm.exception))
+        self.K.reorder(slug, ["song-001"]); self.assertEqual(self.K.save_album(slug, "My Album", "album", "published"), slug)
+        a = self.K.albums()[0]; self.assertEqual((a["status"], [(t["slug"], t["status"], t["art"] is not None) for t in a["tracks"]]), ("published", [("song-001", "published", True)]))   # the cover comes from the song
+        empty = self.K.save_album("", "Empty"); self.assertRaises(ValueError, self.K.save_album, empty, "Empty", "album", "published")
+
     def test_only_a_confirmed_licence_can_be_offered_and_a_sync_never_confirms(self):
         self.song("song-001", "One"); self.K.sync_item("song-001"); self.assertFalse(self.K.offerable("song-001")); self.assertFalse(self.K.offerable("ghost"))
         c = self.K._conn(); c.execute("UPDATE tracks SET license_status = 'confirmed' WHERE slug = 'song-001'"); c.commit()
@@ -82,6 +94,23 @@ class Catalog(Base):
         self.assertTrue(self.K.offerable("song-001")); self.assertFalse(self.K.set_license("ghost", "confirmed", "owner", "x"))
         self.assertRaises(ValueError, self.K.set_license, "song-001", "yes", "owner", "x"); self.assertRaises(ValueError, self.K.set_license, "song-001", "confirmed", "owner", " ")
         self.assertTrue(self.K.offerable("song-001"))   # a refused call changes nothing
+
+    def test_the_studios_id3_style_tags_give_language_and_genre_and_never_become_search_words(self):
+        D = self.song("song-001", "Tere Hone Se"); json.dump({"title": "x", "artist": "NAVAAN", "album": "a", "genre": "Hindi Romantic", "language": "Hindi", "composer": "NAVAAN", "isrc": ""}, open(os.path.join(D, "tags.json"), "w"))
+        self.K.sync_item("song-001"); self.K.sync_item("song-001")   # twice: nothing doubles
+        c = self.K._conn()
+        self.assertEqual(c.execute("SELECT language FROM tracks WHERE slug = 'song-001'").fetchone()["language"], "Hindi")
+        self.assertEqual([r["name"] for r in c.execute("SELECT g.name FROM genres g JOIN track_genres tg ON tg.genre_id = g.id").fetchall()], ["Hindi Romantic"])
+        text = c.execute("SELECT search_text, tags FROM search_documents").fetchone(); self.assertEqual(text["tags"], ["Hindi Romantic"])
+        for noise in ("composer", "artist", "isrc", "album"): self.assertNotIn(noise, text["search_text"])   # the object's key names are not words about the song
+        import search as S; self.assertEqual(S.search("composer"), []); self.assertEqual(S.search("hindi romantic")[0]["slug"], "song-001")
+        json.dump({"genre": "Acoustic ballad"}, open(os.path.join(D, "tags.json"), "w")); self.K.sync_item("song-001")   # a changed genre replaces the old link
+        self.assertEqual([r["name"] for r in c.execute("SELECT g.name FROM genres g JOIN track_genres tg ON tg.genre_id = g.id").fetchall()], ["Acoustic ballad"])
+
+    def test_timing_file_in_the_bucket_becomes_a_lyrics_timed_asset(self):
+        self.song("song-001", "One", extra=None)
+        m = json.load(open(os.path.join(self.C.song_dir("song-001"), "meta.json"))); m["cloud"]["objects"]["caption_timing.json"] = {"size": 99}; json.dump(m, open(os.path.join(self.C.song_dir("song-001"), "meta.json"), "w")); self.K.sync_item("song-001")
+        self.assertEqual([r["storage_key"] for r in self.K._conn().execute("SELECT storage_key FROM assets WHERE role = 'lyrics_timed'").fetchall()], ["navaan/songs/song-001/caption_timing.json"])
 
     def test_folders_that_are_not_items_are_skipped(self):
         os.makedirs(os.path.join(self.C.songs_root(), "_template")); json.dump({"type": "music"}, open(os.path.join(self.C.songs_root(), "_template", "meta.json"), "w"))

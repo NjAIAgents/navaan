@@ -61,6 +61,20 @@ def get_playlist(uid, pid):
             "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"]} for r in rows if r["track_id"] in info]}
 
 
+def shared_playlist(pid):
+    """A playlist anyone with its link may open: unlisted or public only (a private one is None), with only published songs. Read only."""
+    import re
+    if not re.match(r"^[0-9a-f-]{36}$", str(pid or "")): return None
+    def go(c):
+        p = c.execute("SELECT id, name, description, visibility FROM playlists WHERE id = ?::uuid AND visibility IN ('unlisted', 'public')", (pid,)).fetchone()
+        return (p, _keys(c, pid)) if p else (None, [])
+    p, rows = _tx(go)
+    if not p: return None
+    info = K.tracks_by_ids([r["track_id"] for r in rows]) if rows else {}
+    return {"id": str(p["id"]), "name": p["name"], "description": p["description"], "visibility": p["visibility"],
+            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"]} for r in rows if r["track_id"] in info]}
+
+
 def update_playlist(uid, pid, name=None, description=None, visibility=None):
     def go(c):
         p = _owned(c, uid, pid)

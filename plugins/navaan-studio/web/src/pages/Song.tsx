@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Equaliser } from "../components/Equaliser";
+import { KeepCard } from "../components/KeepCard";
+import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
 import { usePlayer } from "../lib/player";
-import { getJSON, postJSON, type LibraryData, type PlaylistRow, type SongDetail, type Step } from "../lib/api";
+import { getJSON, postJSON, type SongDetail, type Step } from "../lib/api";
 import { CLASSIC_ONLY, GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { classic, errText, nextAction } from "../lib/songs";
 
@@ -47,55 +49,6 @@ function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Ac
           <button className="btn" disabled={busy} onClick={() => setChanging(true)}>Request changes</button>
         </div>
       )}
-    </section>
-  );
-}
-
-// A link anyone can open to hear a 30 second preview. Only a published song with a confirmed licence can have one; the server says so if not.
-function ShareCard({ slug }: { slug: string }) {
-  const [link, setLink] = useState<{ token: string; url: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-  const make = async () => { setBusy(true); setMsg(""); try { setLink(await postJSON<{ token: string; url: string }>("/api/share", { slug })); } catch (e) { setMsg(errText(e)); } finally { setBusy(false); } };
-  const stop = async () => { if (!link) return; setBusy(true); try { await postJSON("/api/share/revoke", { token: link.token }); setLink(null); setMsg("That link no longer works."); } catch (e) { setMsg(errText(e)); } finally { setBusy(false); } };
-  return (
-    <section className="card stack" aria-labelledby="share-h">
-      <h2 id="share-h">Share</h2>
-      {link ? (
-        <>
-          <label htmlFor="share-url" className="mu">Anyone with this link hears a 30 second preview.</label>
-          <input id="share-url" className="field" readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} />
-          <div className="row"><button className="btn p" onClick={() => void navigator.clipboard?.writeText(link.url)}>Copy link</button><a className="btn" href={link.url} target="_blank" rel="noreferrer">Open <Icon name="external" /></a><button className="btn g" disabled={busy} onClick={() => void stop()}>Stop sharing</button></div>
-        </>
-      ) : <div className="row"><button className="btn" disabled={busy} onClick={() => void make()}>Create a share link</button></div>}
-      {msg && <p role="status" className="mu">{msg}</p>}
-    </section>
-  );
-}
-
-// Keep a published song: save it, or put it in one of your playlists. The server decides what is allowed (a playlist, a duplicate); its message is shown as it is.
-function KeepCard({ slug }: { slug: string }) {
-  const [saved, setSaved] = useState<boolean | null>(null);
-  const [lists, setLists] = useState<PlaylistRow[]>([]);
-  const [pick, setPick] = useState("");
-  const [msg, setMsg] = useState("");
-  useEffect(() => {
-    getJSON<LibraryData>("/api/library").then((l) => setSaved(l.tracks.some((t) => t.slug === slug))).catch(() => setSaved(null));
-    getJSON<PlaylistRow[]>("/api/playlists").then((p) => { setLists(p); setPick(p[0]?.id ?? ""); }).catch(() => setLists([]));
-  }, [slug]);
-  const save = async () => { try { await postJSON("/api/library/save", { kind: "track", slug, on: !saved }); setSaved(!saved); setMsg(""); } catch (e) { setMsg(errText(e)); } };
-  const add = async () => { try { await postJSON("/api/playlists/add", { id: pick, slug }); setMsg(`Added to "${lists.find((l) => l.id === pick)?.name}".`); } catch (e) { setMsg(errText(e)); } };
-  return (
-    <section className="card stack" aria-label="Keep this song">
-      <div className="row">
-        <button className="btn" aria-pressed={!!saved} onClick={() => void save()}>{saved ? "Saved" : "Save song"}</button>
-        {lists.length > 0 && <>
-          <label className="sr" htmlFor="add-pl">Playlist</label>
-          <select id="add-pl" className="field sel" value={pick} onChange={(e) => setPick(e.target.value)}>{lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
-          <button className="btn" onClick={() => void add()}>Add to playlist</button>
-        </>}
-      </div>
-      {msg && <p role="status" className="mu">{msg}</p>}
     </section>
   );
 }

@@ -61,9 +61,16 @@ export type Hit = { kind: "track" | "album" | "playlist" | "short"; id: string; 
 
 // Library and plans (NAV-7)
 export type PlaylistRow = { id: string; name: string; description: string; visibility: "private" | "unlisted" | "public"; tracks: number; updated_at: string };
-export type PlaylistDetail = { id: string; name: string; description: string; visibility: PlaylistRow["visibility"]; tracks: { slug: string; title: string; position: string }[] };
+export type PlaylistDetail = { id: string; name: string; description: string; visibility: PlaylistRow["visibility"]; mine?: boolean; tracks: { slug: string; title: string; position: string }[] };
 export type LibraryData = { tracks: { slug: string; title: string }[]; albums: { slug: string; title: string }[]; following: boolean };
 export type PlansData = {
   plans: { key: string; name: string; price_minor: number | null; currency: string | null; interval: string | null; buyable: boolean; entitlements: { feature: string; enabled: boolean; limit: number | null }[] }[];
   mine: { plan: { key: string; name: string; status: string }; entitlements: Record<string, { enabled: boolean; limit: number | null }>; unlimited: boolean; usage: { playlists: number } };
 };
+
+// Listener catalog (NAV-18)
+export type TrackRow = { slug: string; title: string; language: string; genre: string; albums: { slug: string; title: string }[]; licence: string; art: { colour: string | null } | null };
+export type TrackView = TrackRow & { lyrics: string; timed: boolean; timed_lines: [number, string][] | null };
+export type Filters = { albums: { slug: string; title: string }[]; languages: string[]; genres: string[] };
+export type AlbumTrack = { slug: string; title: string; position: number; status: string; licence: string; art: { colour: string | null } | null };
+export type AlbumRow = { id: string; slug: string; title: string; kind: "album" | "ep" | "single"; status: "draft" | "scheduled" | "published"; release_date: string | null; description: string; tracks: AlbumTrack[] };

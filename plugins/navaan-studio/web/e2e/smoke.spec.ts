@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const THEMES = ["midnight-cinema", "ivory-gold"];
 const PAGES = [["Home", "/app/"], ["Songs", "/app/studio/songs"], ["Song", "/app/studio/songs/song-001"], ["Inspiration", "/app/studio/inspiration"], ["Approvals", "/app/studio/approvals"],
-  ["Schedule", "/app/studio/schedule"], ["Analytics", "/app/studio/analytics"], ["Recommendations", "/app/studio/analytics?tab=recommendations"], ["Interactions", "/app/studio/analytics?tab=interactions"], ["Search", "/app/search?q=tere"], ["Library", "/app/library"], ["Plans", "/app/plans"]];
+  ["Schedule", "/app/studio/schedule"], ["Analytics", "/app/studio/analytics"], ["Recommendations", "/app/studio/analytics?tab=recommendations"], ["Interactions", "/app/studio/analytics?tab=interactions"], ["Search", "/app/search?q=tere"], ["Library", "/app/library"], ["Plans", "/app/plans"], ["Albums", "/app/albums"], ["Account", "/app/account"]];
 
 async function ready(page: Page) {
   await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 15_000 });
@@ -13,7 +13,7 @@ async function ready(page: Page) {
 test("a song goes from the list to an approved gate", async ({ page }, info) => {
   const slug = info.project.name === "mobile" ? "song-001" : "song-004";   // each project approves its own song
   await page.goto("/app/studio/songs");
-  await page.getByRole("link", { name: new RegExp(slug === "song-001" ? "Tere Hone Se" : "Pata Hi Na Chala") }).click();
+  await page.getByRole("link", { name: new RegExp(slug === "song-001" ? "Draft One" : "Draft Two") }).click();
   await expect(page.getByRole("heading", { name: "Lyrics", level: 2 })).toBeVisible();
   await expect(page.locator(".art")).toContainText("Tere hone se");
   await page.getByRole("button", { name: "Approve", exact: true }).click();
@@ -42,6 +42,19 @@ test("a playlist can be made, opened and deleted from the library", async ({ pag
   await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible(); await expect(page.getByText(/This playlist is empty/)).toBeVisible();
   await page.getByRole("button", { name: "Delete playlist" }).click(); await page.getByRole("button", { name: "Yes, delete" }).click();
   await expect(page.getByRole("heading", { name: "Library", level: 1 }).first()).toBeVisible(); await expect(page.getByRole("link", { name: new RegExp(name) })).toHaveCount(0);
+});
+
+test("an album can be made, filled, put in order, and keeps its order after a reload", async ({ page }, info) => {
+  const name = `Album ${info.project.name}`;
+  await page.goto("/app/albums"); await page.getByLabel("New album title").fill(name); await page.getByRole("button", { name: "Create" }).click();
+  await page.getByRole("link", { name: new RegExp(name) }).click(); await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+  for (const title of ["Tere Hone Se", "Pata Hi Na Chala"]) { await page.getByLabel("Song to add").selectOption({ label: title }); await page.getByRole("button", { name: "Add song" }).click(); await expect(page.getByRole("link", { name: new RegExp(title) })).toBeVisible(); }
+  const order = () => page.locator("ol.steps li .tx").allInnerTexts();
+  expect((await order()).map((t) => t.replace(/^\d+\.\s*/, ""))).toEqual(["Tere Hone Se", "Pata Hi Na Chala"]);
+  await page.getByRole("button", { name: "Move Tere Hone Se down" }).click(); await expect.poll(async () => (await order())[0]).toContain("Pata Hi Na Chala");
+  await page.reload(); await expect.poll(async () => (await order())[0]).toContain("Pata Hi Na Chala");   // the order persisted
+  await page.getByLabel("Status").selectOption("published"); await page.getByRole("button", { name: "Save details" }).click(); await expect(page.getByText("Saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Delete album" }).click(); await page.getByRole("button", { name: "Yes, delete" }).click(); await expect(page.getByRole("heading", { name: "Albums", level: 1 }).first()).toBeVisible();
 });
 
 test("plans compare Free and Premium and say Premium cannot be bought yet", async ({ page }) => {

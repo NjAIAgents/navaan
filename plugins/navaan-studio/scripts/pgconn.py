@@ -8,10 +8,33 @@ Description: make("billing") returns (conn, tx). A songs folder under the system
 import os, tempfile, threading
 import navaan_common as C
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("pgconn")
+
+
+_LOCALS = []   # every thread-local that holds a connection, so a request thread can let go of all of them
+
+
+def register(local):
+    """Add a threading.local with a .conn to the set release_thread() closes (the other stores use their own, not made by make())."""
+    if local not in _LOCALS: _LOCALS.append(local)
+    return local
+
+
+def release_thread():
+    """Close this thread's database connections. The portal runs one thread per request: without this each request leaves its connections open until the garbage collector finds them,
+    and a few busy seconds (a page load is six requests at once) can use up the database's connection limit."""
+    for local in _LOCALS:
+        c = getattr(local, "conn", None)
+        if c is not None:
+            local.conn = None
+            try:
+                if not c.closed: c.close()
+            except Exception: L.exc(LOG, "connection_close_failed")   # a connection that cannot be closed is already gone
 
 
 def make(base):
-    local = threading.local()
+    local = register(threading.local())
 
     def conn():
         root = C.songs_root()

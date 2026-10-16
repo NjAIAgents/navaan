@@ -53,7 +53,9 @@ class Access(unittest.TestCase):
         self.assertEqual(self.call("/api/client-log", "owner-tok", None, post=True)[0], 403)
 
     def test_a_listener_reaches_no_studio_route(self):
-        for path in ("/api/songs", "/api/settings", "/api/cloud", "/app/", "/legacy", "/", "/api/analytics"): self.assertEqual(self.call(path, "lis-tok")[0], 403, path)
+        for path in ("/api/songs", "/api/settings", "/api/cloud", "/legacy", "/", "/api/analytics"): self.assertEqual(self.call(path, "lis-tok")[0], 403, path)
+        code, body = self.call("/app/studio/songs", "lis-tok"); self.assertEqual(code, 200); self.assertIn(b"csrf-lis", body)   # the app itself is for every signed-in person; it only shows what the routes allow
+        self.assertEqual(self.call("/app/")[0], 200); self.assertNotIn(b"csrf-lis", self.call("/app/")[1])   # signed out: only the sign-in page
         self.assertEqual(self.call("/api/client-log", "lis-tok", "csrf-lis", post=True)[0], 403)
         self.assertEqual(self.call("/api/run", "lis-tok", "csrf-lis", post=True)[0], 403)
 
@@ -106,7 +108,8 @@ class Access(unittest.TestCase):
                   mock.patch.dict(os.environ, {"NAVAAN_CACHE_DIR": os.path.join(self.tmp.name, "cache")})):
             p.start(); self.addCleanup(p.stop)
         post = lambda tok, csrf, path, **b: self.call(path, tok, csrf, post=True, body=b)
-        self.assertEqual(post("lis-tok", "csrf-lis", "/api/share", slug="song-001")[0], 403)                      # a listener cannot make links yet
+        self.assertEqual(post("lis-tok", "csrf-lis", "/api/share", slug="song-001")[0], 404)   # a listener may share, but to them an unconfirmed song does not exist
+        code, body = post("owner-tok", "csrf-owner", "/api/share", slug="song-001"); self.assertEqual((code, json.loads(body)["error"][:20]), (400, "this track\'s licence"))   # the owner is told why
         code, body = post("owner-tok", "csrf-owner", "/api/share", slug="song-001"); self.assertEqual((code, json.loads(body)["error"][:20]), (400, "this track\'s licence"))   # not confirmed
         K.set_license("song-001", "confirmed", "owner", "paid plan")
         code, body = post("owner-tok", "csrf-owner", "/api/share", slug="song-001", start_ms=5000); tok = json.loads(body)["token"]; self.assertEqual(code, 200); self.assertTrue(json.loads(body)["url"].endswith("/s/" + tok))
@@ -123,6 +126,12 @@ class Access(unittest.TestCase):
         self.assertEqual(self.raw("/api/play?slug=ghost", "lis-tok")[0], 404); self.assertEqual(self.raw("/api/play?slug=song-001")[0], 401)
         self.assertEqual(json.loads(post("owner-tok", "csrf-owner", "/api/share/revoke", token=tok)[1]), {"revoked": True})
         self.assertEqual(self.raw("/s/" + tok)[0], 404); self.assertEqual(self.raw(f"/s/{tok}/preview.mp3")[0], 404)   # revoked: both stop
+        code, body = post("lis-tok", "csrf-lis", "/api/share", slug="song-001"); mine = json.loads(body)["token"]; self.assertEqual(code, 200)        # a listener shares a confirmed song
+        self.assertEqual(self.raw("/s/" + mine)[0], 200); self.assertEqual([x["token"] for x in json.loads(self.call("/api/share", "lis-tok")[1])], [mine]); self.assertEqual(json.loads(self.call("/api/share", "owner-tok")[1])[0]["token"], mine)
+        self.assertEqual(json.loads(post("owner-tok", "csrf-owner", "/api/share/revoke", token=mine)[1]), {"revoked": True})                            # the owner stops anyone's link
+        mine2 = json.loads(post("lis-tok", "csrf-lis", "/api/share", slug="song-001")[1])["token"]
+        other = CS.ensure_user("listener2", role="listener"); CS.create_session(auth.skey("lis2-tok"), other["id"], "csrf-lis2", "4.4.4.4", None, 3600)
+        self.assertEqual(json.loads(post("lis2-tok", "csrf-lis2", "/api/share/revoke", token=mine2)[1]), {"revoked": False}); self.assertEqual(self.raw("/s/" + mine2)[0], 200)   # not theirs
 
     def test_playlists_plans_and_account_over_http(self):
         import catalog_store as K, entitlements as E, library_store as L, navaan_common as C
@@ -156,6 +165,8 @@ class Access(unittest.TestCase):
         # playing needs the plan's audio.play; a play is recorded
         with mock.patch("objstore.par_url", lambda k, s=300: "https://bucket.example/" + k):
             json.dump({"type": "music", "state": "published", "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": "n/s1/", "objects": {"final.mp3": {"size": 5}}}}, open(os.path.join(C.songs_root(), "song-001", "meta.json"), "w")); K.sync_item("song-001")
+            self.assertEqual(self.raw("/api/play?slug=song-001", "lis-tok")[0], 404)                          # a listener only gets confirmed songs
+            self.assertEqual(self.raw("/api/play?slug=song-001", "owner-tok")[0], 200); K.set_license("song-001", "confirmed", "owner", "paid plan"); L._tx(lambda c: c.execute("DELETE FROM play_events"))
             self.assertEqual(self.raw("/api/play?slug=song-001", "lis-tok")[0], 200)
             self.assertEqual(L._conn().execute("SELECT count(*) AS n FROM play_events").fetchone()["n"], 1)
             own("/api/billing/entitlement", plan="free", feature="audio.play", enabled=False)
@@ -170,6 +181,49 @@ class Access(unittest.TestCase):
         left = L._conn().execute("SELECT user_id::text AS u FROM play_events").fetchall(); self.assertEqual(len(left), 1)   # their play went; the owner's own play is untouched
         self.assertEqual(left[0]["u"], CS.ensure_user("owner1")["id"])
         self.assertEqual(self.call("/api/me", "owner-tok")[0], 200)                                         # the owner's session is untouched
+
+    def test_browse_filters_track_page_lyrics_shared_playlists_and_the_local_bucket(self):
+        import catalog_store as K, library_store as L, entitlements as E, navaan_common as C, objstore
+        bucket = os.path.join(self.tmp.name, "bucket"); os.makedirs(bucket)
+        for m in (K, E, L): self.addCleanup(lambda m=m: hasattr(getattr(m, "_tx", None), "close") and m._tx.close())
+        self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
+        p = mock.patch.dict(os.environ, {"NAVAAN_OBJSTORE_DIR": bucket}); p.start(); self.addCleanup(p.stop)
+        specs = [("song-001", "Tere Hone Se", "Hindi", "Hindi Romantic", "First Light"), ("song-002", "Pata Hi Na Chala", "Hindi", "Indie", None), ("song-003", "From Then to Forever", "English", "Acoustic ballad", None)]
+        for slug, title, lang, genre, album in specs:
+            D = os.path.join(C.songs_root(), slug); os.makedirs(D); open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write(title)
+            open(os.path.join(D, "lyrics.txt"), "w", encoding="utf-8").write("line one\nline two"); json.dump({"genre": genre, "language": lang}, open(os.path.join(D, "tags.json"), "w"))
+            json.dump({"type": "music", "state": "published", **({"album": album} if album else {}), "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": f"n/{slug}/", "objects": {"final.mp3": {"size": 5}, "caption_timing.json": {"size": 40}}}}, open(os.path.join(D, "meta.json"), "w")); K.sync_item(slug)
+        os.makedirs(os.path.join(bucket, "n", "song-001")); open(os.path.join(bucket, "n", "song-001", "caption_timing.json"), "w").write('[[2.5, "line one"], [7, "line two"]]'); open(os.path.join(bucket, "n", "song-001", "final.mp3"), "wb").write(bytes(range(100)))
+        for sl in ("song-001", "song-003"): K.set_license(sl, "confirmed", "owner", "paid plan")   # song-002 stays unconfirmed
+        slugs = lambda tok, q="": [t["slug"] for t in json.loads(self.call("/api/catalog/tracks" + q, tok)[1])]
+        self.assertEqual(sorted(slugs("lis-tok")), ["song-001", "song-003"]); self.assertEqual(sorted(slugs("owner-tok")), ["song-001", "song-002", "song-003"])   # a listener never sees an unconfirmed song
+        self.assertEqual(slugs("owner-tok", "?language=English"), ["song-003"]); self.assertEqual(slugs("owner-tok", "?genre=Indie"), ["song-002"]); self.assertEqual(slugs("owner-tok", "?album=first-light"), ["song-001"]); self.assertEqual(slugs("owner-tok", "?language=Hindi&genre=Indie"), ["song-002"])
+        f = json.loads(self.call("/api/catalog/filters", "lis-tok")[1]); self.assertEqual((f["languages"], f["genres"], [a["slug"] for a in f["albums"]]), (["English", "Hindi"], ["Acoustic ballad", "Hindi Romantic"], ["first-light"]))
+        self.assertEqual(self.call("/api/catalog/tracks")[0], 401)
+        t = json.loads(self.call("/api/catalog/track/song-001", "lis-tok")[1]); self.assertEqual((t["title"], t["genre"], t["lyrics"], t["timed_lines"]), ("Tere Hone Se", "Hindi Romantic", "line one\nline two", [[2.5, "line one"], [7.0, "line two"]]))
+        self.assertEqual(self.call("/api/catalog/track/song-002", "lis-tok")[0], 404); self.assertEqual(self.call("/api/catalog/track/song-002", "owner-tok")[0], 200)   # unconfirmed: owner only
+        self.assertIsNone(json.loads(self.call("/api/catalog/track/song-003", "lis-tok")[1])["timed_lines"])   # no timing file: plain lyrics only
+        # the local bucket stands in for the real one: play link, range, no escape from the folder
+        st, h, b = self.raw("/api/play?slug=song-001", "lis-tok"); url = json.loads(b)["url"]; self.assertEqual(url, "/dev-bucket/n/song-001/final.mp3")
+        st, h, b = self.raw(url, headers={"Range": "bytes=10-19"}); self.assertEqual((st, h["Content-Range"], b), (206, "bytes 10-19/100", bytes(range(10, 20))))
+        self.assertEqual(self.raw(url)[0], 200); self.assertEqual(self.raw("/dev-bucket/..%2F..%2Fetc%2Fpasswd")[0], 404)
+        # a playlist opens by its link only when unlisted or public, and then read only
+        u = {"user_id": CS.ensure_user("listener1", role="listener")["id"], "roles": ["listener"]}; pid = L.create_playlist(u, "Evening", visibility="unlisted"); L.add_track(u["user_id"], pid, "song-001")
+        priv = L.create_playlist(u, "Mine", visibility="private")
+        r = json.loads(self.call("/api/playlists/" + pid, "owner-tok")[1]); self.assertEqual((r["name"], r["mine"], [t["slug"] for t in r["tracks"]]), ("Evening", False, ["song-001"]))
+        self.assertEqual(json.loads(self.call("/api/playlists/" + pid, "lis-tok")[1])["mine"], True); self.assertEqual(self.call("/api/playlists/" + priv, "owner-tok")[0], 404)   # private: nothing
+        self.assertEqual(self.call("/api/playlists/" + pid)[0], 401)
+        self.assertEqual(self.call("/api/playlists/delete", "owner-tok", "csrf-owner", post=True, body={"id": pid})[0], 404)                       # reading is not editing
+
+    def test_a_request_gives_its_database_connections_back(self):
+        """The portal runs a thread per request; each must close its connections, or a busy moment uses up the database's limit."""
+        import analytics_db as db
+        c = db.connect(os.path.join(self.tmp.name, "probe"), base="studio", isolate=True); self.addCleanup(c.close)
+        n = lambda: c.execute("SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database()").fetchone()["n"]
+        self.call("/api/songs", "owner-tok"); before = n()
+        for _ in range(40):
+            for path in ("/api/songs", "/api/catalog/tracks", "/api/playlists", "/api/plans", "/api/me"): self.call(path, "owner-tok")
+        c.commit(); self.assertLessEqual(n() - before, 3, "connections left open by 200 requests")
 
     def test_a_signed_out_visitor_reaches_nothing(self):
         self.assertEqual(self.call("/api/songs")[0], 401); self.assertEqual(self.call("/api/client-log", None, "x", post=True)[0], 401)

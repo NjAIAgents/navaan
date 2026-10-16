@@ -24,6 +24,7 @@ import analytics_db as db
 LOG = L.get("studio_store")
 
 _LOCAL = threading.local()
+import pgconn; pgconn.register(_LOCAL)
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 

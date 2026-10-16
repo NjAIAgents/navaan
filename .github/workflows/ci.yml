@@ -35,6 +35,8 @@ jobs:
           npm ci
           npm test
           npm run build
+      - name: ffmpeg and a Devanagari font, as in the production image (the share preview and the renderer tests need them; without ffmpeg those tests are skipped and the browser checks cannot seed audio)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-noto-core
       - name: Python packages the tests may use
         run: pip install cryptography pillow numpy opencv-python-headless "psycopg[binary]"
       - name: Unit tests (against the Postgres service above)
