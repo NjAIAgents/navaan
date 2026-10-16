@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
+import { Equaliser } from "../components/Equaliser";
 import { Icon } from "../components/Icon";
+import { usePlayer } from "../lib/player";
 import { getJSON, type SongRow } from "../lib/api";
 import { errText, itemPath, nextAction } from "../lib/songs";
 
@@ -12,6 +14,7 @@ export function ItemList({ type, title, blurb, noun }: { type: string; title: st
   const [rows, setRows] = useState<SongRow[] | null>(null);
   const [err, setErr] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const pl = usePlayer();
   useEffect(() => { getJSON<SongRow[]>("/api/songs").then((r) => setRows(r.filter((s) => s.type === type))).catch((e) => setErr(errText(e))); }, []);
   const shown = rows?.filter((s) => filter === "all" || s.status === filter) ?? [];
   return (
@@ -26,9 +29,9 @@ export function ItemList({ type, title, blurb, noun }: { type: string; title: st
         <div className="card" style={{ padding: 8 }}>
           {shown.length ? shown.map((s) => (
             <Link key={s.slug} className="q" to={itemPath(type, s.slug) ?? "/studio"}>
-              <Cover slug={s.slug} title={s.title} />
+              <Cover slug={s.slug} title={s.title} art={s.art} />
               <span className="tx"><b>{s.title || s.slug}</b><span className="s">{s.state ?? "new"} · {nextAction(s)}</span></span>
-              <span className={"chip " + (s.status === "approval" ? "wn" : s.published ? "ok" : "")} title="steps done">{s.steps_done}/{s.steps_total}</span>
+              {pl.slug === s.slug && pl.playing && <Equaliser />}<span className={"chip " + (s.status === "approval" ? "wn" : s.published ? "ok" : "")} title="steps done">{s.steps_done}/{s.steps_total}</span>
               <Icon name="chevron" />
             </Link>
           )) : <p className="empty">{rows.length ? `No ${noun}s in this view.` : `No ${noun}s yet.`}</p>}

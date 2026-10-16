@@ -23,6 +23,7 @@ export type SongRow = {
   slug: string; type: string; title: string; state: string | null; status: "approval" | "done" | "production";
   album: string; steps_done: number; steps_total: number; public: boolean; published: boolean; scheduled: string;
   next: { type: string; step?: string; gate?: string; label?: string };
+  art?: { colour: string | null } | null;
 };
 
 export type Step = {

@@ -15,7 +15,7 @@ function Row({ s }: { s: SongRow }) {
   const label = s.next?.gate ? `Waiting for you: ${s.next.gate.replace(/_/g, " ")}` : s.status === "done" ? (s.published ? "Published" : "Done") : s.next?.label || s.next?.step?.replace(/_/g, " ") || "In production";
   return (
     <Wrap s={s}>
-      <Cover slug={s.slug} title={s.title} />
+      <Cover slug={s.slug} title={s.title} art={s.art} />
       <span className="tx"><b>{s.title || s.slug}</b><span className="s">{s.slug} · {label}</span></span>
       <span className={"chip " + (s.status === "approval" ? "wn" : s.published ? "ok" : "")}>{s.steps_done}/{s.steps_total}</span>
       <Icon name="chevron" />

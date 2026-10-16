@@ -118,6 +118,7 @@ class Access(unittest.TestCase):
         self.assertEqual(self.raw("/img/song-001/320.webp", headers={"If-None-Match": h["ETag"]})[0], 304)
         self.assertEqual(self.raw("/img/song-001/999.webp")[0], 404); self.assertEqual(self.raw("/img/ghost/320.webp")[0], 404)
         code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [1])   # the page was opened once; the preview does not count
+        rows = json.loads(self.call("/api/songs", "owner-tok")[1]); self.assertEqual(rows[0]["art"], {"colour": "#c82828"})   # the list is told the cover exists and its colour (set by the first resize above)
         st, h, b = self.raw("/api/play?slug=song-001", "lis-tok"); self.assertEqual((st, json.loads(b)["url"]), (200, "https://bucket.example/navaan/songs/song-001/final.mp3"))
         self.assertEqual(self.raw("/api/play?slug=ghost", "lis-tok")[0], 404); self.assertEqual(self.raw("/api/play?slug=song-001")[0], 401)
         self.assertEqual(json.loads(post("owner-tok", "csrf-owner", "/api/share/revoke", token=tok)[1]), {"revoked": True})

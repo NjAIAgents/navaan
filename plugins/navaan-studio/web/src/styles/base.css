@@ -41,6 +41,7 @@ button { font: inherit; color: inherit; }
 .me { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--ln); }
 .who { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px; border: 0; border-radius: var(--r2); background: none; cursor: pointer; text-align: left; min-height: var(--tap); }
 .who:hover { background: var(--s2); }
+.av::before { content: attr(data-i); }   /* the initial is drawn, not text, so the button's visible text is just the name */
 .av { width: 32px; height: 32px; border-radius: 50%; background: var(--s3); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex: none; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .top { height: 64px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 32px; margin: 12px 12px 0; border-radius: var(--r3); box-shadow: var(--hi); }
@@ -158,3 +159,20 @@ button { font: inherit; color: inherit; }
 .search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--tx); font: inherit; outline: none; }
 .search input::placeholder { color: var(--mu); }
 .search:focus-within { outline: 2px solid var(--ac); outline-offset: 2px; }
+
+/* Motion, equaliser, now playing, glass fallback (NAV-20). Every animation stops under prefers-reduced-motion (rule above). */
+.page { animation: rtin .22s var(--ease) both; }
+@keyframes rtin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.cover img { filter: blur(8px); transition: opacity .6s var(--ease), filter .6s var(--ease); } .cover img.in { filter: none; }
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; width: 18px; flex: none; color: var(--ac); vertical-align: middle; }
+.eq i { flex: 1; height: 100%; background: currentColor; border-radius: 1px; transform-origin: bottom; animation: eq 0.9s ease-in-out infinite alternate; }
+.eq i:nth-child(1) { transform: scaleY(.5); animation-duration: .8s; } .eq i:nth-child(2) { transform: scaleY(.9); animation-duration: 1.1s; animation-delay: -.3s; }
+.eq i:nth-child(3) { transform: scaleY(.4); animation-duration: .7s; animation-delay: -.5s; } .eq i:nth-child(4) { transform: scaleY(.7); animation-duration: 1s; animation-delay: -.2s; }
+.eq.off i { animation: none; opacity: .5; }
+@keyframes eq { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+.np { position: fixed; z-index: 15; left: 256px; right: 24px; bottom: 16px; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: var(--r3); box-shadow: var(--shadow), var(--hi); }
+.np .tx { flex: 1; min-width: 0; } .np b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 899px) { .np { left: 12px; right: 12px; bottom: calc(92px + env(safe-area-inset-bottom)); } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card, .side, .top, .search, .seg, .tabbar, .sheet, .menu { background: var(--sheet); }
+}

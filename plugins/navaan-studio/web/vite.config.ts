@@ -8,5 +8,5 @@ export default defineConfig({
   plugins: [react()],
   build: { outDir: "dist", sourcemap: false, target: "es2022" },
   server: { proxy: { "/api": "http://127.0.0.1:8765", "/auth": "http://127.0.0.1:8765" } },
-  test: { globals: true, environment: "jsdom", setupFiles: ["./src/test-setup.ts"], css: false },
+  test: { globals: true, environment: "jsdom", setupFiles: ["./src/test-setup.ts"], css: false, include: ["src/**/*.test.{ts,tsx}"] },
 });
