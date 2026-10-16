@@ -123,7 +123,7 @@ button { font: inherit; color: inherit; }
 .fail { border-color: var(--bad); } .fail h2 { color: var(--bad); } .fail p { margin: 4px 0 12px; } code { font-size: 13px; word-break: break-all; }
 .chip.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
 .back { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--mu); text-decoration: none; margin-bottom: 4px; } .back .ic { transform: rotate(180deg); }
-.steps, .hist { list-style: none; margin: 0; padding: 8px; } .stp { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 6px 12px; } .stp .tx { flex: 1; min-width: 0; }
+.steps, .hist { list-style: none; margin: 0; padding: 8px; } .stp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-height: var(--tap); padding: 6px 12px; } .stp .tx { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }   /* a row with several buttons wraps them under the title on a phone instead of squeezing the title to nothing */
 .hist li { padding: 8px 12px; border-top: 1px solid var(--ln); font-size: 13px; } .hist li:first-child { border-top: 0; }
 
 /* Schedule (NAV-14): month calendar on a wide screen, the list always */
