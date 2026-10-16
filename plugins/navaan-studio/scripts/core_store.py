@@ -131,3 +131,20 @@ def failures(key):
 # ---- audit -----------------------------------------------------------------------------------------------------------------
 def audit(action, actor_id=None, subject=None, ip=None, detail=None):
     _run(lambda c: c.execute("INSERT INTO audit_log (actor_id, action, subject, ip, detail) VALUES (?, ?, ?, ?, ?)", (actor_id, action, subject, ip, _jsonb(detail or {}))))
+
+
+def delete_user(user_id):
+    """Remove a person: their credentials, sessions, roles and profile go with the row (cascade); the audit trail keeps a line without the link to them. Returns the username, or None."""
+    def f(c):
+        r = c.execute("SELECT username FROM users WHERE id = ?::uuid", (user_id,)).fetchone()
+        if not r: return None
+        c.execute("INSERT INTO audit_log (actor_id, action, subject, detail) VALUES (NULL, 'user_deleted', ?, ?)", (r["username"], _jsonb({})))
+        c.execute("DELETE FROM users WHERE id = ?::uuid", (user_id,))
+        return r["username"]
+    return _run(f)
+
+
+def user_summary(user_id):
+    """{"username", "email", "created_at"} for the account export, or None."""
+    r = _run(lambda c: c.execute("SELECT username, email, created_at FROM users WHERE id = ?::uuid", (user_id,)).fetchone())
+    return {"username": r["username"], "email": r["email"], "created_at": r["created_at"].isoformat()} if r else None

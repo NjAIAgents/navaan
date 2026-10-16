@@ -101,7 +101,7 @@ def _dsn_key():
     return re.sub(r"//[^@/]*@", "//", _dsn())
 
 
-_PROBE = {"analytics": "accounts", "studio": "items", "core": "users"}   # a table whose absence means nothing has been stored yet
+_PROBE = {"analytics": "accounts", "studio": "items", "core": "users", "catalog": "tracks", "billing": "plans", "library": "playlists"}   # a table whose absence means nothing has been stored yet
 
 
 def _connection_class():
