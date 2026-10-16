@@ -6,6 +6,13 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-16
+
+### Added
+- A catalog in Postgres (schema `catalog`): your published songs as tracks with their audio and cover files in the bucket, albums made from the album labels, and a search index. It is rebuilt from the studio at every start and after every run, so it never needs hand editing. Every track records its origin and a licence status that starts as unconfirmed; only you confirm it, and an unconfirmed track can never be put behind a plan.
+- Search that finds a song by typing it in Devanagari or in Roman letters (`/api/search?q=tere hone se` finds तेरे होने से), tolerating typos and accent differences; 10,000 tracks answer in about 40 ms (95th percentile). A listener account may search; it cannot use the studio.
+- An album editor API: create, edit, reorder and delete albums (`/api/albums`, `/api/albums/save`, `/api/albums/reorder`, `/api/albums/delete`). The screens come later.
+
 ## [0.7.0] - 2026-10-16
 
 ### Added
@@ -75,7 +82,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/NjAIAgents/navaan/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/NjAIAgents/navaan/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/NjAIAgents/navaan/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/NjAIAgents/navaan/compare/v0.4.0...v0.5.0

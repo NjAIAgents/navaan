@@ -3,10 +3,12 @@ Create songs, edit and review text, play media, approve gates (human clicks only
 import os, re, json, glob, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
+from urllib.parse import parse_qs, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
 import visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
 import jobs, worker
+import catalog_store, search as SEARCH
 import navaan_log as L
 LOG = L.get("web")
 
@@ -236,6 +238,12 @@ class H(BaseHTTPRequestHandler):
             if p in ("/", "/legacy") or p == "/app" or p.startswith("/app/"): return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
             return self._send(401, {"error": "sign in", "login": True})
         if p == "/api/me": return self._send(200, {"user": sess.get("user"), "roles": sess.get("roles", []), "permissions": sess.get("permissions", [])})   # any signed-in person
+        if p == "/api/search":   # one search for songs and albums, in Devanagari or Roman letters; a listener may use it (library.view), the studio is not needed
+            if not auth.can(sess, "library.view"): return self._send(403, {"error": "this account cannot search"})
+            q = parse_qs(urlparse(self.path).query)
+            try: limit = int((q.get("limit") or ["20"])[0])
+            except ValueError: return self._send(400, {"error": "limit is a number"})
+            return self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, limit)})
         if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})   # constitution V: no studio route for a listener
         csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         try:
@@ -260,37 +268,31 @@ class H(BaseHTTPRequestHandler):
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})
             if p == "/api/replies":
                 import comment_reply as CR
-                from urllib.parse import parse_qs, urlparse
                 pf = (parse_qs(urlparse(self.path).query).get("platform") or [""])[0]
                 if pf not in CR.PLATFORMS: return self._send(400, {"error": "bad platform"})
                 conn = CR.connect()
                 try: return self._send(200, {"items": CR.waiting(conn, pf)})
                 finally: conn.close()
             if p == "/api/analytics":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
                 if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
                 return self._send(200, analytics_api.overview(acc, (q.get("days") or ["30"])[0]))
             if p == "/api/analytics/youtube":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
                 if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
                 return self._send(200, analytics_api.yt_overview(acc, (q.get("days") or ["30"])[0]))
             if p == "/api/analytics/auto": return self._send(200, analytics_auto.settings())
             if p == "/api/besttime":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); lab = (q.get("type") or ["music"])[0]
                 if not analytics_api.ACCOUNT_OK.match(lab): return self._send(400, {"error": "bad type"})
                 if (q.get("platform") or ["instagram"])[0] == "youtube": return self._send(200, besttime.for_label_youtube(lab))
                 return self._send(200, besttime.for_label(lab))
             if p == "/api/schedule/suggest":
-                from urllib.parse import parse_qs, urlparse
                 sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
                 if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
                 try: return self._send(200, {"suggestion": PS.suggest(sl)})
                 except Exception as e: L.soft(LOG, "schedule_suggest_failed", item=sl); return self._send(200, {"suggestion": None, "error": str(e)[:200]})
             if p == "/api/schedule/options":
-                from urllib.parse import parse_qs, urlparse
                 ty = (parse_qs(urlparse(self.path).query).get("type") or ["music"])[0]; out = []
                 for s in songs():
                     m = navaan.meta(s)
@@ -303,12 +305,12 @@ class H(BaseHTTPRequestHandler):
                                 "schedule": PS.status_text(m)})
                 return self._send(200, {"songs": out})
             if p == "/api/analytics/song":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); sl = (q.get("slug") or [""])[0]
                 if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
                 return self._send(200, analytics_api.song_view(sl))
             if p == "/api/analytics/by-song": return self._send(200, analytics_api.by_song())
             if p == "/api/songs": return self._send(200, [song_row(s) for s in songs()])
+            if p == "/api/albums": return self._send(200, catalog_store.albums())
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
             m = re.match(r"^/media/([^/]+)/([^/]+)$", p)
@@ -451,7 +453,15 @@ class H(BaseHTTPRequestHandler):
                 name = str(body.get("name", "")).strip()[:80]; sl = [x for x in body.get("slugs", []) if isinstance(x, str) and SLUG.match(x)]
                 for x in sl:
                     navaan.edit_meta(x, lambda m: m.__setitem__("album", name) if name else m.pop("album", None))
+                    catalog_store.sync_item(x)   # the label puts the song into the catalog album of that name; the catalog's album is the one listeners see
                 return self._send(200, {"ok": True, "count": len(sl)})
+            if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
+                try:
+                    if p.endswith("/save"): return self._send(200, {"slug": catalog_store.save_album(str(body.get("slug") or ""), body.get("title"), body.get("kind") or "album", body.get("status") or "draft", body.get("release_date"), body.get("description") or "")})
+                    if p.endswith("/reorder"): return self._send(200, {"tracks": catalog_store.reorder(str(body.get("album") or ""), [str(x) for x in body.get("tracks") or []])})
+                    return self._send(200, {"deleted": catalog_store.delete_album(str(body.get("slug") or ""))})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except LookupError as e: return self._send(404, {"error": str(e)})
             if p == "/api/new":
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 import new_song

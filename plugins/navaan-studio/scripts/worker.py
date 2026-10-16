@@ -74,6 +74,9 @@ class Worker:
         except Exception:
             L.exc(LOG, "job_finish_failed", job_id=job_id)
         if rc == 0: N.STATUS.pop(slug, None)
+        try:
+            import catalog_store; catalog_store.sync_item(slug)   # a run may have published or archived the song: the catalog follows
+        except Exception: L.exc(LOG, "catalog_sync_failed", item=slug)
         return rc
 
     # ---- the scheduler's steps ---------------------------------------------------------------------------------------------
