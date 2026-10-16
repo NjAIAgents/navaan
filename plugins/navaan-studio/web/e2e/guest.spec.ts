@@ -10,7 +10,7 @@ test("the front door is the app, with no sign in, and only licensed songs", asyn
   await expect(page.getByRole("heading", { name: "Browse", level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: /Tere Hone Se/ }).first()).toBeVisible(); await expect(page.getByRole("link", { name: /Pata Hi Na Chala/ }).first()).toBeVisible();
   await expect(page.getByText(/passkey|Sign in with/i)).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Library" })).toHaveCount(0); await expect(page.getByRole("link", { name: "Studio" })).toHaveCount(0);   // nothing for members or the owner here
+  await expect(page.getByRole("link", { name: "Library" }).first()).toBeVisible(); await expect(page.getByRole("link", { name: "Studio" })).toHaveCount(0);   // the Library is open to visitors; nothing for the owner here
   await page.goto("/app/song/song-012"); await expect(page.getByRole("heading", { name: "This song is not available" })).toBeVisible();   // published but its licence is not confirmed: not offered
 });
 
@@ -44,6 +44,15 @@ test.describe("the public site opens dark", () => {
     await page.getByRole("button", { name: /Account menu/ }).first().click(); await page.getByRole("button", { name: /Ivory/ }).click(); await expect(page.locator("html")).toHaveAttribute("data-theme", "ivory-gold");
     await page.reload(); await expect(page.locator("html")).toHaveAttribute("data-theme", "ivory-gold");
   });
+});
+
+test("a visitor opens the Library, and Create playlist leads to Create account, which keeps what they like", async ({ page }) => {
+  await page.goto("/app/library");
+  await expect(page.getByText("Create your first playlist")).toBeVisible();
+  await page.getByRole("link", { name: /Create playlist/ }).click();
+  await expect(page.getByRole("heading", { name: "Create your account", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Calm" }).click(); await page.getByRole("button", { name: "Create my account" }).click();
+  await expect(page.getByText(/Accounts open soon/)).toBeVisible();
 });
 
 test("a visitor cannot reach the studio or anything that needs an account", async ({ page }) => {
