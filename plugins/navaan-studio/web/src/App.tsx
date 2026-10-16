@@ -10,6 +10,9 @@ import Songs from "./pages/Songs";
 const Browse = lazy(() => import("./pages/Browse"));
 const ListenerSong = lazy(() => import("./pages/ListenerSong"));
 const Account = lazy(() => import("./pages/Account"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Cloud = lazy(() => import("./pages/Cloud"));
+const Security = lazy(() => import("./pages/Security"));
 const Albums = lazy(() => import("./pages/Albums"));
 const Album = lazy(() => import("./pages/Album"));
 const Library = lazy(() => import("./pages/Library"));
@@ -33,6 +36,7 @@ export default function App() {
         <Route path="browse" element={<Browse />} />
         <Route path="song/:slug" element={<ListenerSong />} />
         <Route path="account" element={<Account />} />
+        <Route path="account/security" element={<Security />} />
         <Route path="studio" element={<Placeholder title="Studio" story="the Studio stories (NAV-13, NAV-14, NAV-15)" blurb="Songs, inspiration, approvals, schedule and analytics." hash="" />} />
         <Route path="studio/songs" element={<Songs />} />
         <Route path="studio/songs/:slug" element={<Song />} />
@@ -42,6 +46,8 @@ export default function App() {
         <Route path="studio/approvals" element={<Approvals />} />
         <Route path="studio/schedule" element={<Schedule />} />
         <Route path="studio/analytics" element={<Analytics />} />
+        <Route path="studio/settings" element={<Settings />} />
+        <Route path="studio/cloud" element={<Cloud />} />
         <Route path="search" element={<Search />} />
         <Route path="library" element={<Library />} />
         <Route path="library/playlists/:id" element={<Playlist />} />

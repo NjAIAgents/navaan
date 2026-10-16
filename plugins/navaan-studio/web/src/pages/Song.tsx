@@ -5,6 +5,8 @@ import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
 import { VisualsCard } from "../components/VisualsCard";
+import { SongAnalytics } from "../components/SongAnalytics";
+import { ScheduleCard } from "../components/SchedulePanel";
 import { MediaCard, NarrationCard, ShotsEditor, TextEditors } from "../components/SongEditors";
 import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type Question, type SongDetail, type Step } from "../lib/api";
@@ -196,10 +198,12 @@ export default function Song() {
       )}
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <KeepCard slug={slug} />}
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <ShareCard slug={slug} />}
+      {!(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
       <MediaCard d={d} />
       <TextEditors d={d} done={load} />
       <ShotsEditor key={slug} d={d} done={load} />
       {insp && <NarrationCard d={d} done={load} />}
+      {d.meta.type !== "inspiration" && d.meta.state === "published" && <SongAnalytics slug={slug} />}
       <section className="sec" aria-labelledby="steps-h">
         <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
         <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} />)}</ol>

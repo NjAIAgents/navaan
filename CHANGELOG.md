@@ -9,6 +9,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The song page in the new app edits a song's words and settings (title, lyrics, style, Instagram caption, quote, tags, brief) and its shot list (start, end, picture, camera move, label), and attaches or removes an inspiration's narration. The made audio and videos play on the page, with a link to each file; audio archived to the bucket plays after being fetched back. An unsaved edit is flagged, kept for the tab, and the browser warns before you leave; every save is recorded in the history with who made it.
 - The visuals gate is chosen in the new app: the look (video from pictures, one cover picture, or Google Flow clips), your own pictures (add, remove), the prompts to paste into Gemini or ChatGPT (write, copy), the two-picture OpenAI test, 9:16 versions, and camera and look notes. Nothing that spends credits runs without its approval, as before.
+- Settings in the new app (Settings in the account menu): each Instagram and YouTube connection with whether it works and what is wrong, refreshing or saving a token (a token is never shown again), YouTube sign in, the Claude token, which approvals approve themselves (the risky ones say what they do before they can be switched off), the picture, narration and music choices with their keys and this month's spend, and where cloud storage points.
+- A "Needs attention" banner on every studio screen when a sign in has expired or is about to, the schedule is paused, or the worker is down, with a link to where it is fixed.
+- Security in the new app (account menu): change the password (other sessions end), renew the recovery codes (shown once), add and remove passkeys, sign out.
+- Scheduling in the new app: set times for YouTube and Instagram from the recommended slots (the Reel must follow YouTube by 5 minutes), accept the suggested times, change or clear a schedule, from the Schedule screen or from the song; a view of the hours and weekdays that did best.
+- A Cloud page in the new app: what is archived in the bucket per song, whether the copy is verified, whether the local copy was cleaned, and a short-lived link to open any file; it says plainly when the cloud is not set up or not reachable.
+- The rest of Analytics in the new app: Collect now, Re-run analysis, Ask for advice (each runs only when pressed), the auto refresh schedule, peers and hashtag suggestions, linking a post or video to a song, and a song's own numbers on its page.
 
 ## [0.16.0] - 2026-10-16
 
