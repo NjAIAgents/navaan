@@ -30,13 +30,15 @@ export type Step = {
   id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean;
   status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null;
 };
+export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
-  meta: { type?: string; state?: string; album?: string; history?: string[] };
+  meta: { type?: string; state?: string; album?: string; history?: string[]; source?: string; suno?: { auto_failed?: string } };
+  files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
   failure: { step: string; error: string; ref: string } | null;
-  question: { text?: string } | null; needs_you: string;
+  question: Question | null; needs_you: string;
 };
 
 export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };

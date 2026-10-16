@@ -26,5 +26,11 @@ class RequestChanges(unittest.TestCase):
         self.assertIn("lyrics", self.N.meta("s1")["approvals"])   # a refusal changes nothing
 
 
+    def test_revoking_an_approval_records_who_and_reopens_the_gate(self):
+        self.N.set_gate("s1", "lyrics", True, "ui:owner"); self.assertIn("lyrics", self.N.meta("s1")["approvals"])
+        self.N.set_gate("s1", "lyrics", False, "ui:owner")
+        m = self.N.meta("s1"); self.assertNotIn("lyrics", m["approvals"]); self.assertTrue(m["history"][-1].endswith("gate lyrics revoked via ui:owner"))
+
+
 if __name__ == "__main__":
     unittest.main()

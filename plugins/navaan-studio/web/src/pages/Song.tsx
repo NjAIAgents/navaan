@@ -5,7 +5,8 @@ import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
 import { usePlayer } from "../lib/player";
-import { getJSON, postJSON, type SongDetail, type Step } from "../lib/api";
+import { getJSON, postJSON, type Question, type SongDetail, type Step } from "../lib/api";
+import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
 import { CLASSIC_ONLY, GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { classic, errText, nextAction } from "../lib/songs";
 
@@ -49,6 +50,71 @@ function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Ac
           <button className="btn" disabled={busy} onClick={() => setChanging(true)}>Request changes</button>
         </div>
       )}
+    </section>
+  );
+}
+
+// The agent asked a question and waits. Some answers need the text box (a file name, a note); the server checks that and says so.
+function QuestionCard({ q, act, busy }: { q: Question; act: Act; busy: boolean }) {
+  const [text, setText] = useState("");
+  const [err, setErr] = useState("");
+  const flagged = q.options.some((o) => o.text);
+  const answer = async (choice: string | null, needsText: boolean) => {
+    if (needsText && !text.trim()) return setErr("Type the answer in the box first.");
+    setErr(""); await act("/api/answer", { choice, text });
+  };
+  return (
+    <section className="card stack" aria-labelledby="q-h">
+      <h2 id="q-h">The agent is asking you</h2>
+      <p>{q.text}</p>
+      {(q.allow_text || flagged) && <><label htmlFor="q-text">Your answer</label><textarea id="q-text" className="field" rows={2} value={text} onChange={(e) => setText(e.target.value)} /></>}
+      <div className="row">
+        {q.options.length ? q.options.map((o) => <button key={o.id} className="btn" disabled={busy} onClick={() => void answer(o.id, o.text)}>{o.label}</button>)
+          : <button className="btn p" disabled={busy} onClick={() => void answer(null, true)}>Send answer</button>}
+      </div>
+      {err && <p role="alert" className="mu">{err}</p>}
+    </section>
+  );
+}
+
+// Suno gave the server a file it could not read: the MP3 can be uploaded here and the import carries on.
+function SunoUpload({ why, act, busy }: { why: string; act: Act; busy: boolean }) {
+  const [err, setErr] = useState("");
+  const pick = async (f: File | undefined) => {
+    if (!f) return;
+    if (f.size > MAX_AUDIO_BYTES) return setErr("That file is over 22 MB.");
+    setErr(""); await act("/api/suno/audio", { name: f.name, data: await fileB64(f) });
+  };
+  return (
+    <section className="card stack" aria-labelledby="su-h">
+      <h2 id="su-h">Upload the song's MP3</h2>
+      <p>Suno gave the server a file it cannot read. Download the MP3 from Suno while signed in, then pick it here. The import carries on by itself.</p>
+      {why && <p className="mu">{why}</p>}
+      <label htmlFor="su-file">MP3 file (up to 22 MB)</label>
+      <input id="su-file" className="field" type="file" accept="audio/*,.mp3,.m4a,.wav,.flac" disabled={busy} onChange={(e) => void pick(e.target.files?.[0])} />
+      {err && <p role="alert" className="mu">{err}</p>}
+    </section>
+  );
+}
+
+// What you have approved, with a way to take an approval back. The gate opens again and the history records who and when.
+function Approvals({ d, act, busy }: { d: SongDetail; act: Act; busy: boolean }) {
+  const [asking, setAsking] = useState<string | null>(null);
+  const given = Object.entries(d.approvals);
+  if (!given.length) return null;
+  return (
+    <section className="sec" aria-labelledby="ap-h">
+      <div className="sh"><h2 id="ap-h">Approved</h2><span className="n">{given.length}</span></div>
+      <ul className="card hist">
+        {given.map(([g, a]) => (
+          <li key={g} className="stp">
+            <span className="tx"><b>{gateTitle(g)}</b><span className="mu"> · {a.via.replace(/^ui:/, "")} · {new Date(a.at).toLocaleString()}</span></span>
+            {asking === g
+              ? <span className="row" role="group" aria-label={`Confirm revoking ${gateTitle(g)}`}><button className="btn p" disabled={busy} onClick={() => void act("/api/revoke", { gate: g }).then(() => setAsking(null))}>Yes, revoke</button><button className="btn g" onClick={() => setAsking(null)}>Keep</button></span>
+              : <button className="btn g" disabled={busy} onClick={() => setAsking(g)} aria-label={`Revoke approval of ${gateTitle(g)}`}>Revoke</button>}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -107,9 +173,9 @@ export default function Song() {
           </div>
         </section>
       )}
-      {(d.question || d.needs_you) && (
-        <section className="card" role="status"><h2>Waiting for your answer</h2><p>{d.question?.text || d.needs_you}</p><a className="btn" href={classic(slug)}>Answer in the classic view <Icon name="external" /></a></section>
-      )}
+      {d.question && <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />}
+      {!d.question && d.needs_you && <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>}
+      {d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] && <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />}
       {running ? (
         <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" onClick={() => void act("/api/stop", {})}>Stop</button></section>
       ) : gate ? (
@@ -131,6 +197,7 @@ export default function Song() {
         <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
         <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} />)}</ol>
       </section>
+      <Approvals d={d} act={act} busy={busy} />
       <section className="sec" aria-labelledby="hist-h">
         <div className="sh"><h2 id="hist-h">History</h2></div>
         <ul className="card hist">
