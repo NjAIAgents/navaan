@@ -9,7 +9,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [0.26.0] - 2026-10-17
 
 ### Changed
-- The NAVAAN logo (the N made of a sound wave) replaces the plain gradient square: in the sidebar and top bar (deep gold on the light theme), as the browser tab and phone home-screen icon, on the shared-link page, and on every poster. It is a low-resolution PNG for now; a larger or SVG original would make the poster crisper.
+- The NAVAAN logo (the N made of a sound wave) replaces the plain gradient square: in the sidebar and top bar (the black version on the light theme), as the browser tab and phone home-screen icon, on the shared-link page, and on every poster. It is a low-resolution PNG for now; a larger or SVG original would make the poster crisper.
 
 ## [0.25.1] - 2026-10-17
 

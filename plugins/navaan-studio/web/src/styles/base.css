@@ -31,7 +31,7 @@ button { font: inherit; color: inherit; }
 .side { flex: 0 0 232px; position: sticky; top: 12px; height: calc(100vh - 24px); margin: 12px 0 12px 12px; padding: 20px 12px; border-radius: var(--r4); box-shadow: var(--shadow), var(--hi); display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
 .brand { display: flex; gap: 10px; align-items: center; padding: 4px 12px 20px; font-weight: 700; letter-spacing: .14em; text-decoration: none; }
 .mark { width: 42px; height: 28px; flex: none; background: center / contain no-repeat url(/app/brand/mark.png); }   /* the NAVAAN logo mark (gold on dark) */
-[data-theme="ivory-gold"] .mark { background: var(--ac-ink, #8A6425); -webkit-mask: center / contain no-repeat url(/app/brand/mark.png); mask: center / contain no-repeat url(/app/brand/mark.png); }   /* light theme: the same shape in deep gold, gold on ivory is too faint */
+[data-theme="ivory-gold"] .mark { background-image: url(/app/brand/mark-black.png); }   /* light theme: the black version of the logo */
 .nv { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 0 12px; border-radius: var(--r2); color: var(--mu); text-decoration: none; font-weight: 500; transition: background .16s, color .16s; }
 .nv:hover { background: var(--s2); color: var(--tx); }
 .nv[aria-current="page"], .nv.on { background: var(--gloss), var(--s3); color: var(--tx); box-shadow: var(--hi), var(--shadow-sm); }
