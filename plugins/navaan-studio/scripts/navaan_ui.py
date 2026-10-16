@@ -192,6 +192,7 @@ def start_job(slug, all_steps=False, step=None, redo=False):
 
 
 CLIENT_LOG = {}  # client address -> times of recent browser error reports
+SITE_REACT = {}; SITE_FEEDBACK = {}   # per address: reactions and messages sent from the public site
 GUEST_READ = {}; GUEST_PLAY = {}   # per address: how often a visitor who is not signed in reads the catalogue and asks for songs
 GUEST = {"user": "", "user_id": "", "csrf": "", "roles": ["guest"], "permissions": [], "guest": True}   # someone not signed in on a public host
 CLIENT_LOG_LOCK = threading.Lock()
@@ -267,6 +268,23 @@ class H(BaseHTTPRequestHandler):
         if sh and (sess.get("guest") or sess.get("_studio")): out["studio_url"] = f"https://{sh}"   # a guest gets it as the place to sign in, the studio's owner as the way to the studio
         if lh and not self._public_host() and auth.can(sess, "studio.access"): out["public_url"] = f"https://{lh}"
         return out
+    def _site_post(self, p):
+        """The two things anyone may send from the public site: a reaction to a song, and a message. Counts and a message: no session, no cookie, nothing about the sender is kept (not even the address). Slowed down per address; a hidden field catches bots."""
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > 16384: return self._send(413, {"error": "that is too big"})
+        try: body = json.loads(self.rfile.read(n) or b"{}")
+        except Exception: return self._send(400, {"error": "bad json"})
+        if not isinstance(body, dict): return self._send(400, {"error": "bad json"})
+        try:
+            if p == "/api/site/react":
+                if not rate_ok(SITE_REACT, self._ip(), 60, 3600): return self._send(429, {"error": "that is a lot of reactions, try again later"})
+                ok = catalog_store.react(str(body.get("slug") or ""), (str(body["reaction"]) if body.get("reaction") is not None else None), body.get("previous") or None)
+                return self._send(200, {"ok": True}) if ok else self._send(404, {"error": "no such song"})
+            if not rate_ok(SITE_FEEDBACK, self._ip(), 5, 3600): return self._send(429, {"error": "you have sent a few already, try again in an hour"})
+            if body.get("website"): return self._send(200, {"ok": True})   # the hidden field a person never fills: a bot, thanked and ignored
+            catalog_store.add_feedback(str(body.get("slug") or ""), str(body.get("message") or ""), body.get("email"))
+            return self._send(200, {"ok": True})
+        except ValueError as e: return self._send(400, {"error": str(e)})
     def _guest_get(self, p, sess):
         """What anyone may do without signing in on a public host (the free site): browse, search, read a song's page, play it. Nothing else. True when answered."""
         if p == "/" or p == "/app" or p.startswith("/app/") or p in ("/privacy", "/terms"): return False   # the app itself and the legal pages
@@ -530,6 +548,16 @@ class H(BaseHTTPRequestHandler):
                     out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
                 return self._send(200, sorted(out, key=lambda e: e["at"]))
             if p == "/api/albums": return self._send(200, catalog_store.albums())
+            if p == "/api/site/reactions":   # how the public site's visitors reacted, per song
+                q = parse_qs(urlparse(self.path).query)
+                try: d = int((q.get("days") or ["0"])[0]) or None
+                except ValueError: return self._send(400, {"error": "days is a number"})
+                return self._send(200, catalog_store.reactions(d))
+            if p == "/api/site/feedback":   # the messages visitors sent
+                q = parse_qs(urlparse(self.path).query)
+                try: lim, off = int((q.get("limit") or ["50"])[0]), int((q.get("offset") or ["0"])[0])
+                except ValueError: return self._send(400, {"error": "limit and offset are numbers"})
+                return self._send(200, catalog_store.feedback_list(lim, off, (q.get("unhandled") or ["0"])[0] == "1"))
             if p == "/api/tracks": return self._send(200, catalog_store.tracks())   # the audit table: origin, plan tier, licence status per track
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
@@ -592,6 +620,7 @@ class H(BaseHTTPRequestHandler):
         org = self.headers.get("Origin")
         if org and org != ("https://" if self._https() else "http://") + (self.headers.get("Host") or ""): return self._send(403, {"error": "forbidden origin"})
         ck = self.headers.get("Cookie")
+        if self.path in ("/api/site/react", "/api/site/feedback") and self._public_host(): return self._site_post(self.path)
         if self.path.startswith("/auth/"):
             sec = secrets_status()
             if self.path.startswith("/auth/setup") and sec and sec["status"] != "ok": return self._send(503, {"error": "Secrets are waiting for Vault. The login is restored from Vault once it is unsealed; try again then."})
@@ -699,6 +728,10 @@ class H(BaseHTTPRequestHandler):
                     navaan.edit_meta(x, lambda m: m.__setitem__("album", name) if name else m.pop("album", None))
                     catalog_store.sync_item(x)   # the label puts the song into the catalog album of that name; the catalog's album is the one listeners see
                 return self._send(200, {"ok": True, "count": len(sl)})
+            if p == "/api/site/feedback/handle":
+                fid = str(body.get("id") or "")
+                if not re.match(r"^[0-9a-f-]{36}$", fid): return self._send(400, {"error": "bad id"})
+                return self._send(200, {"ok": catalog_store.feedback_handled(fid, bool(body.get("handled", True)))})
             if p == "/api/catalog/license":   # the owner decides what may be offered behind a plan; an editor cannot
                 if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner decides licences"})
                 try: ok = catalog_store.set_license(str(body.get("slug") or ""), body.get("status"), sess.get("user") or "owner", body.get("note"), body.get("plan"))

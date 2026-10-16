@@ -48,7 +48,7 @@ function NowPlaying() {
     <div className="np card" role="region" aria-label="Now playing">
       {p.slug ? <>
         <button className="np-open" onClick={() => p.setExpanded(true)} aria-label="Open play mode">
-          <Cover slug={p.slug} title={p.title} size={44} />
+          <Cover slug={p.slug} title={p.title} size={44} art={{ colour: null }} />
           <span className="tx"><b>{p.title || p.slug}</b>{p.playing ? <Equaliser /> : <span className="eq off" aria-hidden="true"><i /><i /><i /><i /></span>}</span>
         </button>
         <Transport />

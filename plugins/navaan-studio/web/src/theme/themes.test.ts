@@ -30,18 +30,16 @@ describe.each(THEMES)("theme $id", (t) => {
 
 describe("choosing a theme", () => {
   it("resolves system by the device", () => { expect(resolve("system", false)).toBe("midnight-cinema"); expect(resolve("system", true)).toBe("ivory-gold"); expect(resolve("ivory-gold", false)).toBe("ivory-gold"); });
-  it("reads only known ids and falls back to system", () => {
-    expect(readChoice({ getItem: () => "ivory-gold" })).toBe("ivory-gold");
-    expect(readChoice({ getItem: () => "neon" })).toBe("system");
-    expect(readChoice({ getItem: () => { throw new Error("blocked"); } })).toBe("system");
-    expect(readChoice(null)).toBe("system");
+  it("opens dark until someone chooses, and reads only known ids", () => {
+    expect(readChoice({ getItem: () => "ivory-gold" })).toBe("ivory-gold"); expect(readChoice({ getItem: () => "system" })).toBe("system");   // "match my device" is a choice
+    expect(readChoice({ getItem: () => null })).toBe("midnight-cinema"); expect(readChoice({ getItem: () => "neon" })).toBe("midnight-cinema");
+    expect(readChoice({ getItem: () => { throw new Error("blocked"); } })).toBe("midnight-cinema"); expect(readChoice(null)).toBe("midnight-cinema");
   });
-  it("saves a choice, forgets it for system, and survives a blocked store", () => {
-    const m = new Map<string, string>();
-    const st = { setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
+  it("saves every choice, system included, and survives a blocked store", () => {
+    const m = new Map<string, string>(); const st = { setItem: (k: string, v: string) => void m.set(k, v) };
     saveChoice("ivory-gold", st); expect(m.get(STORAGE_KEY)).toBe("ivory-gold");
-    saveChoice("system", st); expect(m.has(STORAGE_KEY)).toBe(false);
-    expect(() => saveChoice("ivory-gold", { setItem() { throw new Error("blocked"); }, removeItem() {} })).not.toThrow();
+    saveChoice("system", st); expect(m.get(STORAGE_KEY)).toBe("system");
+    expect(() => saveChoice("ivory-gold", { setItem() { throw new Error("blocked"); } })).not.toThrow();
   });
   it("sets data-theme on the document", () => {
     const win = { matchMedia: () => ({ matches: true }) } as unknown as Window;

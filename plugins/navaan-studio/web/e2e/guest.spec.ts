@@ -26,6 +26,26 @@ test("a visitor plays a whole song with its lyrics, shares it, and is told what 
   await page.getByRole("button", { name: "Add to playlist" }).click(); await expect(page.getByText(/Accounts are coming soon/)).toBeVisible();
 });
 
+test("a visitor reacts to a song and sends feedback, and the owner sees both", async ({ page, request }, info) => {
+  const note = `Feedback from the ${info.project.name} check ${Date.now()}`;
+  await page.goto("/app/song/song-011"); await expect(page.getByRole("heading", { name: "Pata Hi Na Chala", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: /Love it/ }).click(); await expect(page.getByRole("button", { name: /Love it/ })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Thumbs up", exact: true }).click(); await expect(page.getByRole("button", { name: "Thumbs up", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /Send feedback/ }).click(); await page.getByLabel("Your message").fill(note); await page.getByRole("button", { name: "Send", exact: true }).click(); await expect(page.getByText(/Thank you/)).toBeVisible();
+  const owner = `http://127.0.0.1:${process.env.E2E_PORT ?? "8799"}`;   // the studio side of the same data
+  const messages = await (await request.get(`${owner}/api/site/feedback?limit=50`)).json(); expect(messages.map((m: { message: string }) => m.message)).toContain(note);
+  const rx = await (await request.get(`${owner}/api/site/reactions`)).json(); const row = rx.find((r: { slug: string }) => r.slug === "song-011"); expect(row.up + row.love).toBeGreaterThan(0);
+});
+
+test.describe("the public site opens dark", () => {
+  test.use({ colorScheme: "light" });   // even on a device that prefers light
+  test("until the visitor chooses, and the choice is kept", async ({ page }) => {
+    await page.goto("/app/"); await expect(page.locator("html")).toHaveAttribute("data-theme", "midnight-cinema");
+    await page.getByRole("button", { name: /Account menu/ }).first().click(); await page.getByRole("button", { name: /Ivory/ }).click(); await expect(page.locator("html")).toHaveAttribute("data-theme", "ivory-gold");
+    await page.reload(); await expect(page.locator("html")).toHaveAttribute("data-theme", "ivory-gold");
+  });
+});
+
 test("a visitor cannot reach the studio or anything that needs an account", async ({ page }) => {
   for (const path of ["/api/songs", "/api/settings", "/api/playlists", "/api/library", "/api/account"]) expect((await page.request.get(path)).status(), path).toBe(403);
   expect((await page.request.get("/api/catalog/tracks")).status()).toBe(200); expect((await page.request.get("/legacy")).status()).toBe(403);

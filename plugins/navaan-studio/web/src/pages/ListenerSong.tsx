@@ -4,6 +4,7 @@ import { Cover } from "../components/Cover";
 import { Equaliser } from "../components/Equaliser";
 import { Icon } from "../components/Icon";
 import { KeepCard } from "../components/KeepCard";
+import { SongFeedback } from "../components/SongFeedback";
 import { Lyrics } from "../components/Lyrics";
 import { ShareDialog } from "../components/ShareCard";
 import { Transport } from "../components/Transport";
@@ -40,6 +41,7 @@ export default function ListenerSong() {
       </section>
       <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} /></section>
       <KeepCard slug={slug} />
+      <SongFeedback slug={slug} title={t.title} />
       {sharing && <ShareDialog slug={slug} title={t.title} onClose={() => setSharing(false)} />}
     </>
   );

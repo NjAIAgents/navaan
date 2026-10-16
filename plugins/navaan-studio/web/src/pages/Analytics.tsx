@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getJSON, type Overview } from "../lib/api";
 import { errText } from "../lib/songs";
+import Feedback from "./analytics/Feedback";
 import Interactions from "./analytics/Interactions";
 import Numbers from "./analytics/Numbers";
 import Recs from "./analytics/Recs";
 import { Actions, Auto, Hashtags, Peers } from "./analytics/Extras";
 import { Loading } from "../components/Loading";
 
-const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"]] as const;
+const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"], ["feedback", "Feedback"]] as const;
 
 // Studio > Analytics: numbers, advice and audience replies on their own tabs. The state is in the address, so a view can be linked.
 export default function Analytics() {
@@ -36,7 +37,7 @@ export default function Analytics() {
       </div>
       <div id="panel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="stack" style={{ gap: 20 }}>
         {err && <div className="card" role="alert"><h2>Could not load analytics</h2><p className="mu">{err}</p></div>}
-        {tab === "interactions" ? <Interactions platform={platform} /> : (
+        {tab === "feedback" ? <Feedback /> : tab === "interactions" ? <Interactions platform={platform} /> : (
           <>
             {!d && !err && <Loading />}
             {d?.empty && <div className="card"><p className="empty">Nothing collected yet{d.error ? ` (${d.error})` : ""}.</p></div>}
@@ -44,7 +45,7 @@ export default function Analytics() {
             {d && !d.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
             {d && !d.empty && (tab === "recommendations" ? <Recs d={d} reload={load} /> : <Numbers d={d} platform={platform} reload={load} />)}
             {d && !d.empty && tab === "analytics" && platform === "instagram" && <><Peers d={d} /><Hashtags d={d} /></>}
-            {tab !== "interactions" && <Auto />}
+            {(tab === "analytics" || tab === "recommendations") && <Auto />}
           </>
         )}
       </div>

@@ -69,6 +69,28 @@ class Catalog(Base):
         pages = [[r["slug"] for r in self.K.browse(True, limit=3, offset=o)] for o in (0, 3, 6, 9)]
         self.assertEqual([len(p) for p in pages], [3, 3, 1, 0]); self.assertEqual(sum(pages, []), for_all); self.assertEqual(len(set(for_all)), 7)
 
+    def test_reactions_are_counted_per_song_and_can_be_changed_and_only_for_songs_a_visitor_may_hear(self):
+        self.song("song-001", "One"); self.song("song-002", "Two"); self.K.sync_all(); self.K.set_license("song-001", "confirmed", "owner", "t")
+        self.assertTrue(self.K.react("song-001", "up")); self.assertTrue(self.K.react("song-001", "love")); self.assertTrue(self.K.react("song-001", "up"))
+        self.assertTrue(self.K.react("song-001", "down", previous="up"))   # changed their mind: one up less, one down more
+        r = {x["slug"]: x for x in self.K.reactions()}; self.assertEqual((r["song-001"]["up"], r["song-001"]["down"], r["song-001"]["love"]), (1, 1, 1))
+        self.assertTrue(self.K.react("song-001", "down", previous="down")); self.assertEqual({x["slug"]: x for x in self.K.reactions()}["song-001"]["down"], 1)   # the same again changes nothing
+        self.assertTrue(self.K.react("song-001", None, previous="love")); self.assertEqual({x["slug"]: x for x in self.K.reactions()}["song-001"]["love"], 0)   # taken back
+        self.assertRaises(ValueError, self.K.react, "song-001", None)   # nothing to count
+        self.assertFalse(self.K.react("song-002", "up"))   # song-002's licence is not confirmed: a visitor cannot react to what they cannot hear
+        self.assertFalse(self.K.react("nope", "up"))
+        for bad in ("meh", "", "UP"): self.assertRaises(ValueError, self.K.react, "song-001", bad)
+        self.assertRaises(ValueError, self.K.react, "song-001", "up", "sideways")
+        self.assertEqual(self.K.reactions(days=7)[0]["slug"], "song-001")   # most loved first
+
+    def test_feedback_is_kept_with_an_optional_email_and_checked(self):
+        self.song("song-001", "One"); self.K.sync_all(); self.K.set_license("song-001", "confirmed", "owner", "t")
+        a = self.K.add_feedback("song-001", "  Lovely second verse  ", "fan@example.com"); b = self.K.add_feedback("", "The site is great", ""); self.assertNotEqual(a, b)
+        rows = self.K.feedback_list(); self.assertEqual([(r["message"], r["email"], r["slug"]) for r in rows], [("The site is great", None, None), ("Lovely second verse", "fan@example.com", "song-001")])
+        for msg, mail in (("", None), ("   ", None), ("x" * 2001, None), ("ok", "not an email"), ("ok", "a@b")): self.assertRaises(ValueError, self.K.add_feedback, "song-001", msg, mail)
+        self.assertTrue(self.K.feedback_handled(a)); self.assertEqual([r["message"] for r in self.K.feedback_list(unhandled_only=True)], ["The site is great"]); self.assertTrue(self.K.feedback_handled(a, False))
+        self.assertFalse(self.K.feedback_handled("00000000-0000-0000-0000-000000000000"))
+
     def test_album_crud_and_reorder_in_one_transaction(self):
         for i, n in enumerate(("One", "Two", "Three"), 1): self.song(f"song-00{i}", n); self.K.sync_item(f"song-00{i}")
         slug = self.K.save_album("", "My Album", "ep", "draft", "2026-11-01", "d")
