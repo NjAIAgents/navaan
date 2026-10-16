@@ -6,6 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-16
+
+### Added
+- Songs list a page at a time: the Library's Songs tab and the playlist's Add songs panel load 24, then more as you scroll (or with a Show more button), and say nothing more when there is no more. `GET /api/catalog/tracks` takes `limit` and `offset`.
+- Add a song to a playlist from anywhere a song is listed (Library songs, album pages): a plus button opens your playlists and a New playlist form. A playlist page has an Add songs panel with search, marks songs already in it, and an editable description.
+- Creating a playlist asks for its name, what it is for, and who can see it (private, unlisted or public, each explained), not only a name.
+
+### Changed
+- Moving between screens is smooth: each block of a new screen eases in (opacity and movement only, so nothing shifts), and a quick load shows nothing instead of a flash of "Loading…"; a slower one shows soft placeholder blocks.
+
 ## [0.20.0] - 2026-10-16
 
 ### Added
@@ -223,7 +233,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/NjAIAgents/navaan/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/NjAIAgents/navaan/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/NjAIAgents/navaan/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/NjAIAgents/navaan/compare/v0.18.0...v0.18.1

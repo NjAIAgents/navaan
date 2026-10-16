@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { getJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 function Row({ title, rows }: { title: string; rows: TrackRow[] }) {
   const id = "row-" + title.replace(/\W+/g, "-").toLowerCase();
@@ -33,7 +34,7 @@ export default function Browse() {
     <>
       <div className="ph"><h1 className="disp">Browse</h1><p>Songs by NAVAAN.</p></div>
       {err && <div className="card" role="alert"><h2>Could not load the songs</h2><p className="mu">{err}</p></div>}
-      {!rows && !err && <p className="mu" role="status">Loading…</p>}
+      {!rows && !err && <Loading />}
       {rows && !rows.length && <div className="card"><p className="empty">No songs are out yet.</p></div>}
       {rows && rows.length > 0 && <Row title="Newest" rows={rows.slice(0, 8)} />}
       {albums.length > 0 && (

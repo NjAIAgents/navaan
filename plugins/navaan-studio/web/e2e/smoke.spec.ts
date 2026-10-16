@@ -10,6 +10,11 @@ async function ready(page: Page) {
   await page.waitForLoadState("networkidle");
 }
 
+// The Library's New playlist form asks for a name, what it is for, and who can see it.
+async function newPlaylist(page: Page, name: string) {
+  await page.getByRole("button", { name: /New playlist/ }).click(); await page.getByLabel("Name", { exact: true }).fill(name); await page.getByRole("button", { name: "Create playlist" }).click();
+}
+
 test("a song goes from the list to an approved gate", async ({ page }, info) => {
   const slug = info.project.name === "mobile" ? "song-001" : "song-004";   // each project approves its own song
   await page.goto("/app/studio/songs");
@@ -66,7 +71,7 @@ test("the schedule shows missed and blocked publishes", async ({ page }, info) =
 test("a playlist can be made, opened and deleted from the library", async ({ page }, info) => {
   const name = `E2E ${info.project.name}`;
   await page.goto("/app/library");
-  await page.getByLabel("New playlist name").fill(name); await page.getByRole("button", { name: "Create" }).click();
+  await newPlaylist(page, name);
   await page.getByRole("link", { name: new RegExp(name) }).click();
   await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible(); await expect(page.getByText(/This playlist is empty/)).toBeVisible();
   await page.getByRole("button", { name: "Delete playlist" }).click(); await page.getByRole("button", { name: "Yes, delete" }).click();

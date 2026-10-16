@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getJSON, type PlansData } from "../lib/api";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 const LABEL: Record<string, string> = { "playlists.max": "Playlists", "audio.play": "Listen to every song", "library.save": "Save songs and albums", "audio.quality_hi": "High quality audio", offline: "Listen offline", "ads.off": "No ads" };
 const label = (f: string) => LABEL[f] ?? f;
@@ -10,7 +11,7 @@ export default function Plans() {
   const [d, setD] = useState<PlansData | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => { getJSON<PlansData>("/api/plans").then(setD).catch((e) => setErr(errText(e))); }, []);
-  if (!d) return err ? <div className="card" role="alert"><h2>Could not load the plans</h2><p className="mu">{err}</p></div> : <p className="mu" role="status">Loading…</p>;
+  if (!d) return err ? <div className="card" role="alert"><h2>Could not load the plans</h2><p className="mu">{err}</p></div> : <Loading />;
   const cell = (e: PlansData["plans"][number]["entitlements"][number] | undefined) => !e || !e.enabled ? "Not included" : e.limit == null ? "Included" : `Up to ${e.limit}`;
   const features = [...new Set(d.plans.flatMap((p) => p.entitlements.map((e) => e.feature)))];
   const mine = d.mine;

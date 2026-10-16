@@ -17,6 +17,7 @@ const PATHS: Record<string, string> = {
   chart: "M4 20V10M10 20V4M16 20v-8M22 20H2",
   play: "M8 5v14l11-7z",
   pause: "M7 5h4v14H7zM13 5h4v14h-4z",
+  plus: "M12 5v14M5 12h14",
   next: "M6 5v14l9-7zM17 5h2v14h-2z",
   prev: "M18 5v14l-9-7zM5 5h2v14H5z",
   download: "M12 3v12M7 11l5 5 5-5M5 20h14",

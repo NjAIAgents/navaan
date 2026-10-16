@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { getJSON, postJSON, type BestTime, type SchedOption, type Schedule, type Suggestion } from "../lib/api";
 import { fmtL, plusMin, toIso, toLocalIn } from "../lib/datetime";
 import { errText } from "../lib/songs";
+import { Loading } from "./Loading";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Which hours and weekdays did best, from the analytics. The bars are decoration: the sentence is the content.
 export function BestTimes({ b, label }: { b: BestTime | null; label: string }) {
-  if (!b) return <p className="mu" role="status">Loading…</p>;
+  if (!b) return <Loading />;
   if (b.empty || !b.hours) return <p className="mu">{(b.notes ?? []).join(" ") || "Not enough data yet. Run Collect on the Analytics page."}</p>;
   const top = (v: number[], n: number) => v.map((x, i) => [x, i] as const).sort((a, c) => c[0] - a[0]).slice(0, n).map(([, i]) => i);
   const hours = top(b.hours, 3).sort((a, c) => a - c); const days = top(b.weekdays ?? [], 3);

@@ -4,6 +4,7 @@ import { Cover } from "../components/Cover";
 import { getJSON, type SongRow } from "../lib/api";
 import { GATE_TITLE, gateTitle } from "../lib/gates";
 import { classic, errText, itemPath } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 const KIND: Record<string, string> = { music: "Song", inspiration: "Inspiration" };
 
@@ -18,7 +19,7 @@ export default function Approvals() {
     <>
       <div className="ph"><h1 className="disp">Approvals</h1><p>Everything waiting for your yes, in one list.</p></div>
       {err && <div className="card" role="alert"><h2>Could not load approvals</h2><p className="mu">{err}</p></div>}
-      {!rows && !err && <p className="mu" role="status">Loading…</p>}
+      {!rows && !err && <Loading />}
       {rows && !rows.length && <div className="card"><p className="empty">Nothing is waiting for you.</p></div>}
       {gates.map((g) => {
         const items = rows!.filter((r) => (r.next.gate ?? "") === g);

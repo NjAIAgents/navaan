@@ -4,6 +4,7 @@ import { Icon } from "../components/Icon";
 import { Link } from "react-router-dom";
 import { itemPath } from "../lib/songs";
 import { getJSON, type SongRow } from "../lib/api";
+import { Loading } from "../components/Loading";
 
 const classic = (slug: string) => `/legacy#/song/${slug}`;
 
@@ -42,7 +43,7 @@ export default function Home() {
     <>
       <div className="ph"><h1 className="disp">Welcome back</h1><p>What needs you, what is being made, and what is out.</p></div>
       {err && <div className="card" role="alert"><h2>Could not load your songs</h2><p className="mu">{err}</p></div>}
-      {!rows && !err && <p className="mu" role="status">Loading…</p>}
+      {!rows && !err && <Loading />}
       {rows && (
         <>
           <Group title="Needs you" rows={rows.filter((r) => r.status === "approval")} empty="Nothing is waiting for you." />

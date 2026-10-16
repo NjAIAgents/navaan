@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getJSON, postJSON, type Reply } from "../../lib/api";
 import { errText } from "../../lib/songs";
+import { Loading } from "../../components/Loading";
 
 function Item({ c, platform, done }: { c: Reply; platform: string; done: () => void }) {
   const [text, setText] = useState(c.reply?.draft ?? "");
@@ -46,7 +47,7 @@ export default function Interactions({ platform }: { platform: "instagram" | "yo
   return (
     <>
       {err && <div className="card" role="alert"><h2>Could not load comments</h2><p className="mu">{err}</p></div>}
-      {!items && !err && <p className="mu" role="status">Loading…</p>}
+      {!items && !err && <Loading />}
       {items && !items.length && <div className="card"><p className="empty">No comments are waiting for a reply.</p></div>}
       {items?.map((c) => <Item key={c.comment_id} c={c} platform={platform} done={() => void load()} />)}
     </>
