@@ -268,6 +268,13 @@ def add_preview_asset(audio_asset_id, track_id, key, size):
                             "ON CONFLICT (owner_kind, owner_id, role, storage_key) DO NOTHING", (track_id, key, size, audio_asset_id)))
 
 
+def cover_art():
+    """{slug: dominant colour or None} for every published track that has a cover in the bucket: what a list needs to paint a placeholder and ask for /img."""
+    rows = _tx(lambda c: c.execute("SELECT DISTINCT ON (t.slug) t.slug, a.dominant_colour FROM tracks t JOIN assets a ON a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' "
+                                   "WHERE t.status = 'published' ORDER BY t.slug, a.created_at").fetchall())
+    return {r["slug"]: r["dominant_colour"] for r in rows}
+
+
 def play_key(slug):
     """The bucket key of the full audio of a track a listener may play: published, and not marked not_allowed. This is the one seam the plans (NAV-7) fill with can()."""
     r = _tx(lambda c: c.execute("SELECT license_status FROM tracks WHERE slug = ? AND status = 'published'", (slug,)).fetchone())

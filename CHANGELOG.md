@@ -6,6 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-16
+
+### Added
+- Motion and playback in the new app: a short fade when you move between screens, covers that fade in over their dominant colour in the right size (AVIF or WebP, 320, 640 or 1280) with no layout shift, an equaliser that marks the song that is playing, and a Play button on a published song with a Now playing bar that keeps playing while you move around. All motion stops when your device asks for reduced motion, and the glass panels become solid without backdrop-filter support or when reduced transparency is on.
+- Quality gates that run on every pull request: browser checks at 390x844 and 1280x800 in both themes on ten screens (no horizontal scroll, touch targets of 44px, no serious accessibility violation including colour contrast in the real layout), and a Lighthouse mobile gate (performance and accessibility of 90 or more on the main screens). They sit next to the existing checks for colour literals and theme contrast. Run them yourself with `npm run e2e` in `plugins/navaan-studio/web/e2e`.
+
+### Changed
+- The app's files are sent gzipped and each screen loads when you open it, so the first paint on a slow phone connection is faster (Lighthouse mobile performance 87 to 98).
+- The account button's name now matches what it shows, which the new browser check flagged on a desktop.
+
 ## [0.12.1] - 2026-10-16
 
 ### Fixed
@@ -119,7 +129,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/NjAIAgents/navaan/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/NjAIAgents/navaan/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/NjAIAgents/navaan/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/NjAIAgents/navaan/compare/v0.10.0...v0.11.0

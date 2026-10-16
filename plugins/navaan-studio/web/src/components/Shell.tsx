@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Icon, type IconName } from "./Icon";
 import { UserMenu } from "./UserMenu";
 import { useMobile } from "./useMobile";
 import { useTheme } from "../theme/useTheme";
 import { getJSON } from "../lib/api";
+import { PlayerProvider, usePlayer } from "../lib/player";
+import { Equaliser } from "./Equaliser";
 
 type Item = { to: string; label: string; icon: IconName; end?: boolean };
 export const NAV: Item[] = [
@@ -28,7 +30,23 @@ export function titleFor(path: string): string {
   return NAV.find((n) => (n.end ? path === n.to : path.startsWith(n.to)))?.label ?? "NAVAAN";
 }
 
-export function Shell() {
+function NowPlaying() {
+  const p = usePlayer();
+  if (!p.slug && !p.error) return null;
+  return (
+    <div className="np card" role="region" aria-label="Now playing">
+      {p.slug ? <>
+        {p.playing ? <Equaliser /> : <span className="eq off" aria-hidden="true"><i /><i /><i /><i /></span>}
+        <span className="tx"><b>{p.title || p.slug}</b></span>
+        <button className="btn sm" onClick={() => void p.toggle(p.slug!, p.title)}>{p.playing ? "Pause" : "Play"}<span className="sr"> {p.title}</span></button>
+      </> : <span role="alert" className="tx">{p.error}</span>}
+    </div>
+  );
+}
+
+export function Shell() { return <PlayerProvider><ShellFrame /></PlayerProvider>; }
+
+function ShellFrame() {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const mobile = useMobile();
@@ -64,7 +82,7 @@ export function Shell() {
         </nav>
         <div className="me" style={{ position: "relative" }}>
           <button className="who" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={`Account menu, ${who}`}>
-            <span className="av" aria-hidden="true">{who.slice(0, 1).toUpperCase()}</span><span>{who}</span><span className="sp" /><Icon name="chevron" />
+            <span className="av" data-i={who.slice(0, 1).toUpperCase()} aria-hidden="true" /><span>{who}</span><span className="sp" /><Icon name="chevron" />
           </button>
           {open && !mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile={false} version={version} />}
         </div>
@@ -82,9 +100,10 @@ export function Shell() {
           <h1 className="disp">{title}</h1>
           <span className="sp" />
           <Link className="btn g sq" to="/search" aria-label="Search"><Icon name="search" /></Link>
-          <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" aria-hidden="true">{who.slice(0, 1).toUpperCase()}</span></button>
+          <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" data-i={who.slice(0, 1).toUpperCase()} aria-hidden="true" /></button>
         </div>
-        <main id="main" className="page" tabIndex={-1}><Outlet /></main>
+        <main id="main" key={pathname} className="page" tabIndex={-1}><Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></main>
+        <NowPlaying />
       </div>
       <nav className="tabbar" aria-label="Main">
         {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end}><Icon name={n.icon} />{n.label}</NavLink>)}

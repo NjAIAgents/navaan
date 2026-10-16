@@ -35,6 +35,18 @@ class App(unittest.TestCase):
         code, h, _ = self.get("/app", follow=False)
         self.assertEqual((code, h["Location"]), (308, "/app/"))
 
+    def test_big_files_are_gzipped_for_a_browser_that_accepts_it_and_small_ones_are_not(self):
+        import gzip
+        big = "console.log('x');" * 400
+        with open(os.path.join(self.dist, "assets", "big-abc.js"), "w") as f: f.write(big)
+        def raw(path, enc):
+            req = urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", headers={"Host": f"127.0.0.1:{self.port}", **({"Accept-Encoding": enc} if enc else {})})
+            with urllib.request.urlopen(req, timeout=10) as r: return dict(r.headers), r.read()
+        h, b = raw("/app/assets/big-abc.js", "gzip, deflate, br"); self.assertEqual((h["Content-Encoding"], h["Vary"]), ("gzip", "Accept-Encoding")); self.assertEqual(gzip.decompress(b).decode(), big); self.assertLess(len(b), len(big) // 5)
+        h, b = raw("/app/assets/big-abc.js", None); self.assertNotIn("Content-Encoding", h); self.assertEqual(b.decode(), big)   # no Accept-Encoding: plain
+        h, b = raw("/app/assets/app-abc.js", "gzip"); self.assertNotIn("Content-Encoding", h); self.assertEqual(b, b"console.log(1)")   # too small to be worth it
+        self.assertEqual(raw("/app/assets/big-abc.js", "gzip")[1], raw("/app/assets/big-abc.js", "gzip")[1])   # the same bytes every time (cached)
+
     def test_hashed_assets_are_cached_for_a_year_with_the_right_type(self):
         code, h, body = self.get("/app/assets/app-abc.js")
         self.assertEqual((code, body), (200, b"console.log(1)")); self.assertIn("immutable", h["Cache-Control"]); self.assertIn("javascript", h["Content-Type"])

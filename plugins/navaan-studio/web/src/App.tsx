@@ -1,14 +1,17 @@
+import { lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import Home from "./pages/Home";
 import Placeholder from "./pages/Placeholder";
-import Analytics from "./pages/Analytics";
-import Approvals from "./pages/Approvals";
-import Inspiration from "./pages/Inspiration";
-import Schedule from "./pages/Schedule";
-import Search from "./pages/Search";
-import Song from "./pages/Song";
 import Songs from "./pages/Songs";
+
+// Each screen is loaded when it is opened, so the first paint carries only the shell, Home and the Songs list.
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Approvals = lazy(() => import("./pages/Approvals"));
+const Inspiration = lazy(() => import("./pages/Inspiration"));
+const Schedule = lazy(() => import("./pages/Schedule"));
+const Search = lazy(() => import("./pages/Search"));
+const Song = lazy(() => import("./pages/Song"));
 
 export default function App() {
   return (

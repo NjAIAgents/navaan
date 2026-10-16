@@ -30,7 +30,7 @@ export default function Approvals() {
                 const to = itemPath(s.type, s.slug);
                 return (
                   <div className="q" key={s.slug}>
-                    <Cover slug={s.slug} title={s.title} />
+                    <Cover slug={s.slug} title={s.title} art={s.art} />
                     <span className="tx"><b>{s.title || s.slug}</b><span className="s">{KIND[s.type] ?? s.type} · {s.slug}</span></span>
                     {to ? <Link className="btn p" to={to}>Review<span className="sr"> {s.title || s.slug}</span></Link> : <a className="btn p" href={classic(s.slug)}>Review<span className="sr"> {s.title || s.slug}</span></a>}
                   </div>
