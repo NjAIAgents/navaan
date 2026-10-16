@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-theme="midnight-cinema">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="navaan-token" content="__TOKEN__">
+  <meta name="color-scheme" content="dark light">
+  <title>NAVAAN</title>
+  <script>
+    // Set the theme before first paint so there is no flash. Mirrors src/theme/themes.ts (a test keeps the ids in step).
+    (function () {
+      var id = "midnight-cinema", c = "system";
+      try { c = localStorage.getItem("navaan.theme") || "system"; } catch (e) { /* private window: system */ }
+      if (c === "midnight-cinema" || c === "ivory-gold") id = c;
+      else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) id = "ivory-gold";
+      document.documentElement.setAttribute("data-theme", id);
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

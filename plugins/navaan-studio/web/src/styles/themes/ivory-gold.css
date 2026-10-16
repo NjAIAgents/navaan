@@ -1,0 +1,23 @@
+/* Theme "Ivory & Gold" (light): ivory ground, antique gold, terracotta; navy text. Same tokens as every theme (see midnight-cinema.css). */
+[data-theme="ivory-gold"] {
+  color-scheme: light;
+  --bg: #F7F4EF;
+  --s1: rgba(255, 255, 255, .62); --s2: rgba(255, 255, 255, .8); --s3: rgba(255, 255, 255, .96);
+  --ln: rgba(39, 50, 71, .15);
+  --tx: #273247; --mu: #4F586C; --dim: #7A8296;
+  --ac: #7D5A1F; --vi: #C77B5B; --g1: #C79A56; --g2: #B08040; --ab: #B58B4A; --on-action: #0B1020;
+  --ok: #0F7A55; --wn: #8A5A12; --bad: #B3392B;
+  --bar: rgba(255, 255, 255, .72); --sheet: rgba(255, 255, 255, .92);
+  --blur: blur(26px) saturate(170%) brightness(1.04);
+  --shadow: 0 10px 36px rgba(60, 48, 30, .14); --shadow-sm: 0 4px 14px rgba(60, 48, 30, .12); --hi: inset 0 1px 0 rgba(255, 255, 255, .95);
+  --scrim: rgba(42, 33, 69, .28); --on-media: #FFFFFF; --media-fill: rgba(255, 255, 255, .35); --media-edge: rgba(255, 255, 255, .55);
+  --cov1: linear-gradient(160deg, #1B3A5C, #5C86A8); --cov2: linear-gradient(190deg, #7A4A3A, #D79A6B); --cov3: linear-gradient(155deg, #4A3B6C, #D6A66B); --cov4: linear-gradient(135deg, #2C5A66, #7FB3AE);
+  --glow: rgba(214, 180, 119, .4); --glow2: rgba(199, 123, 91, .22); --orb-a: rgba(214, 180, 119, .6);
+  --glass-fill: linear-gradient(145deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, .44) 52%, rgba(255, 255, 255, .62));
+  --gloss: linear-gradient(180deg, rgba(255, 255, 255, .75), rgba(255, 255, 255, 0) 42%), radial-gradient(120% 70% at 0% 0%, rgba(255, 255, 255, .7), transparent 56%);
+  --rim: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(181, 139, 74, .28) 38%, rgba(255, 255, 255, .25) 68%, rgba(255, 255, 255, .95));
+  --orbs: radial-gradient(circle at 14% 12%, var(--orb-a) 0 18%, transparent 19%), radial-gradient(circle at 88% 22%, rgba(232, 200, 170, .7) 0 14%, transparent 15%),
+          radial-gradient(circle at 64% 90%, rgba(199, 123, 91, .42) 0 18%, transparent 19%), radial-gradient(circle at 8% 84%, rgba(160, 190, 230, .5) 0 12%, transparent 13%);
+  --field: radial-gradient(ellipse 60% 50% at 96% -4%, rgba(214, 180, 119, .42), transparent 64%), radial-gradient(ellipse 55% 50% at 0% 0%, rgba(232, 223, 209, .9), transparent 64%),
+           radial-gradient(ellipse 60% 50% at 92% 108%, rgba(199, 123, 91, .2), transparent 64%);
+}
