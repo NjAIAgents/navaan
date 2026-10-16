@@ -17,7 +17,8 @@
   navaan.py caption <slug> [--set TEXT | --file PATH | --feedback TEXT]   show the Instagram caption awaiting approval, replace it, or have the agent rewrite it
   navaan.py question <slug>           show a question the agent is waiting on
   navaan.py answer <slug> [--choice ID] [--text TEXT]   answer it (the web UI shows the same question as a card)
-  navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run
+  navaan.py serve [--port 8765]       local web UI on 127.0.0.1: create, review, approve, run (a worker runs in its threads unless NAVAAN_WORKER=external)
+  navaan.py worker [--slots 2]        the job runner and the publishing schedule as their own process (compose.yml service `worker`)
 
 Steps: lyrics, suno (or suno_import for an imported song), visuals_mode (your own pictures, the default, or Flow; with own pictures the steps are shots, a director's shot list you approve, then a local render, see docs/VISUALS.md), visuals (Flow), captions (only when captions.enabled is true, off by default), video, youtube_meta, publish_youtube (private), youtube_short (private), instagram_caption, go_public (video and Short public), publish_instagram, archive (uploads the whole song and records the bucket URLs in meta.json), cleanup (last: deletes the local media after the bucket is checked).
 Gates (human only): lyrics, suno_download, listen, credits, captions_setup, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload, local_cleanup, go_public. Approvals live in <local_dir>/songs/<slug>/meta.json.
@@ -25,10 +26,11 @@ Songs live in storage.local_dir from navaan.config.json (outside the plugin and 
 Claude steps run `claude -p` with an allowlist of tools, because headless runs cannot answer permission prompts (override the command with NAVAAN_CLAUDE_CMD, the flags with NAVAAN_CLAUDE_FLAGS). Browser steps (Suno, Flow) need Claude in Chrome enabled; set
 NAVAAN_CLAUDE_BROWSER_FLAG=--chrome if your Claude Code needs the flag. Scripts steps run the tools in this folder.
 """
-import os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re, hashlib
+import codecs, contextvars, os, sys, json, time, glob, shlex, subprocess, datetime, threading, secrets, mimetypes, re, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import setup_captions
 import media_cfg
+import navaan_log as L
 from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root, item_type, account
 import navaan_common as C
 import publish_schedule as PS
@@ -82,7 +84,7 @@ def auto_gates(slug):
                     import visuals_cfg, media_cfg
                     visuals_cfg.save(D, "own", "video", "", "", pictures_later=media_cfg.load()["image_provider"] == "openai")
                 set_gate(slug, g, True, "auto (gate switched off in Settings)"); done.append(g)
-            except SystemExit: pass
+            except SystemExit as _e: L.ignored(LOG, "auto_gates: SystemExit (optional or expected)", _e); pass
             ap = meta(slug).get("approvals", {})
     return done
 
@@ -323,12 +325,20 @@ def account_problem_for(t, sid):
     return ""
 
 
-def meta(slug): return load_json(os.path.join(song_dir(slug), "meta.json"), default={})
+def meta(slug):
+    """An item's state, from Postgres (studio_store). meta.json in the folder is only the write-through export."""
+    song_dir(slug)   # exits with a clear message when there is no such folder
+    return C.item_load(slug, {})
 
 
 def save_meta(slug, m):
-    p = os.path.join(song_dir(slug), "meta.json")
-    json.dump(m, open(p, "w", encoding="utf-8"), indent=2, ensure_ascii=False); open(p, "a").write("\n")
+    """Replace the stored state (last write wins). Use edit_meta when you read it first and something else may write meanwhile."""
+    song_dir(slug); C.item_save(slug, m)
+
+
+def edit_meta(slug, fn):
+    """Locked read-modify-write: fn(doc) changes the item's state in place; the web page, the scheduler and a step cannot overwrite each other."""
+    song_dir(slug); return C.item_update(slug, fn)
 
 
 def log_hist(m, text): m.setdefault("history", []).append(f"{now()} {text}")
@@ -366,17 +376,60 @@ def plan(slug):
             elif not d: nxt = {"type": "run", "step": s["id"]}
     return rows, (nxt or {"type": "done"})
 
+LOG = L.get("pipeline")
+
 
 PROC = {}   # slug -> the process the running step started (its own process group)
 STOP = set()   # slugs whose run the user asked to stop
 
 
+MAX_LOGGED_LINES = 3000   # per command; a render prints thousands of progress lines, the per-step file keeps all of them
+MAX_LOGGED_LINE = 1000
+
+
+def _pump(stream, logf):
+    """Copy a command's output to the per-step file exactly as it comes, and into the log stream line by line (split on newline and carriage return, which ffmpeg uses for progress)."""
+    buf, n, cut = "", 0, 0
+    dec = codecs.getincrementaldecoder("utf-8")("replace")   # a character split across two reads stays whole
+    def emit(line):
+        nonlocal n, cut
+        line = line.strip()
+        if not line: return
+        if n >= MAX_LOGGED_LINES: cut += 1; return
+        n += 1; L.event(LOG, "info", "step_output", line=line[:MAX_LOGGED_LINE])
+    while True:
+        chunk = os.read(stream.fileno(), 4096)
+        if not chunk: break
+        text = dec.decode(chunk); logf.write(text); logf.flush(); buf += text
+        parts = re.split(r"[\r\n]", buf); buf = parts.pop()
+        for ln in parts: emit(ln)
+        if len(buf) > 8192: emit(buf); buf = ""
+    tail = dec.decode(b"", final=True); logf.write(tail); buf += tail; emit(buf)
+    if cut: L.event(LOG, "warning", "step_output_truncated", lines_not_logged=cut, kept_in="the per-step log file")
+
+
 def run_cmd(cmd, logf, env=None, slug=None):
-    logf.write(f"\n$ {' '.join(shlex.quote(c) for c in cmd)}\n"); logf.flush()
-    p = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=find_root(), env=env, start_new_session=True)
+    shown = " ".join(shlex.quote(c) for c in cmd)
+    logf.write(f"\n$ {shown}\n"); logf.flush()
+    L.event(LOG, "info", "command_started", cmd=shown[:300])   # a claude command carries the whole prompt; only the start is logged
+    t0 = time.time()
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=find_root(), env=env, start_new_session=True)
     if slug: PROC[slug] = p
-    try: return p.wait()
+    def reader():
+        try: _pump(p.stdout, logf)
+        except Exception:
+            L.exc(LOG, "step_output_reader_failed")
+            try:
+                while os.read(p.stdout.fileno(), 65536): pass   # keep draining so the child never blocks on a full pipe
+            except OSError as e: L.ignored(LOG, "pipe closed while draining", e)
+    t = threading.Thread(target=contextvars.copy_context().run, args=(reader,), daemon=True); t.start()   # the copy carries item, step and job_id into the reader
+    try:
+        rc = p.wait(); t.join(3)   # a helper the step left behind may keep the pipe open; do not wait for it past the step itself
+        if t.is_alive(): L.event(LOG, "warning", "command_output_still_open", note="a child process still holds the output pipe; not waiting for it")
+        L.event(LOG, "info" if rc == 0 else "warning", "command_finished", rc=rc, seconds=round(time.time() - t0, 1))
+        return rc
     finally:
+        if not t.is_alive(): p.stdout.close()
         if slug and PROC.get(slug) is p: PROC.pop(slug, None)
 
 
@@ -386,12 +439,12 @@ def stop(slug):
     STOP.add(slug); p = PROC.get(slug)
     if p and p.poll() is None:
         try: os.killpg(p.pid, signal.SIGTERM)
-        except OSError: pass
+        except OSError as _e: L.ignored(LOG, "stop: OSError (optional or expected)", _e); pass
         def hard():
             time.sleep(6)
             if p.poll() is None:
                 try: os.killpg(p.pid, signal.SIGKILL)
-                except OSError: pass
+                except OSError as _e: L.ignored(LOG, "hard: OSError (optional or expected)", _e); pass
         threading.Thread(target=hard, daemon=True).start()
     return True
 
@@ -409,7 +462,7 @@ def read_question(slug):
     p = qfile(song_dir(slug))
     if not os.path.exists(p): return None
     try: q = json.load(open(p, encoding="utf-8"))
-    except Exception: return None
+    except Exception as _e: L.soft(LOG, "read_question_error"); return None
     if not isinstance(q, dict) or not str(q.get("text", "")).strip(): return None
     opts = [{"id": re.sub(r"[^A-Za-z0-9_-]", "_", str(o.get("id", i)))[:40], "label": str(o.get("label", o.get("id", i))), "text": bool(o.get("text"))} for i, o in enumerate(q.get("options") or []) if isinstance(o, dict)]
     out = {"text": str(q["text"]).strip(), "options": opts, "allow_text": bool(q.get("allow_text")) or not opts}
@@ -423,7 +476,7 @@ def question_open(slug):
     if not q: return None
     if q["id"] in meta(slug).get("answers", {}):
         try: os.remove(qfile(song_dir(slug)))
-        except OSError: pass
+        except OSError as _e: L.ignored(LOG, "question_open: OSError (optional or expected)", _e); pass
         return None
     return q
 
@@ -439,11 +492,12 @@ def set_answer(slug, choice=None, text=None, via="cli"):
     if flagged:  # some buttons take the text box, the others ignore it, so typing a filename can never ride along with Cancel
         if choice in flagged and not (text or "").strip(): sys.exit("this answer needs the text box filled in")
         if choice not in flagged: text = ""
-    m = meta(slug)
-    m.setdefault("answers", {})[q["id"]] = {"at": now(), "via": via, "question": q["text"], "choice": choice or "", "choice_label": lab.get(choice, ""), "text": (text or "").strip()}
-    log_hist(m, f"question answered via {via}: {lab.get(choice) or (text or '').strip()[:80]}"); save_meta(slug, m)
+    def put(m):
+        m.setdefault("answers", {})[q["id"]] = {"at": now(), "via": via, "question": q["text"], "choice": choice or "", "choice_label": lab.get(choice, ""), "text": (text or "").strip()}
+        log_hist(m, f"question answered via {via}: {lab.get(choice) or (text or '').strip()[:80]}")
+    edit_meta(slug, put)
     try: os.replace(qfile(song_dir(slug)), os.path.join(song_dir(slug), "logs", f"question-{q['id']}.json"))
-    except OSError: pass
+    except OSError as _e: L.ignored(LOG, "set_answer: OSError (optional or expected)", _e); pass
     return q["id"]
 
 
@@ -463,10 +517,10 @@ USED = set()  # slugs whose open answers were handed to an agent in the current 
 
 def consume_answers(slug):
     """An answer belongs to the run that follows it. After that run, it no longer applies, so a later Redo starts clean."""
-    m = meta(slug); ch = False
-    for r in m.get("answers", {}).values():
-        if not r.get("consumed"): r["consumed"] = now(); ch = True
-    if ch: save_meta(slug, m)
+    def mark(m):
+        for r in m.get("answers", {}).values():
+            if not r.get("consumed"): r["consumed"] = now()
+    edit_meta(slug, mark)
 
 
 def question_cmd(slug, a):
@@ -511,9 +565,15 @@ def claude_cmd(slug, s):
 
 
 def run(slug, step=None, dry=False, retries=2):
-    try: return _run(slug, step, dry, retries)
-    finally:
-        if slug in USED: USED.discard(slug); consume_answers(slug)
+    with L.ctx(item=slug, job_id=L.current("job_id") or L.new_job_id(slug)):
+        try: return _run(slug, step, dry, retries)
+        except SystemExit as e:
+            if e.code not in (0, None): L.event(LOG, "warning", "run_exit", exit=str(e.code)[:300])
+            raise
+        except Exception:
+            L.exc(LOG, "run_crashed"); raise
+        finally:
+            if slug in USED: USED.discard(slug); consume_answers(slug)
 
 
 def _run(slug, step=None, dry=False, retries=2):
@@ -521,7 +581,8 @@ def _run(slug, step=None, dry=False, retries=2):
     if nxt["type"] == "done": print("all steps done"); return 0
     if nxt["type"] == "gate": show_gate(slug, nxt["gate"]); print(f"waiting for your approval: gate '{nxt['gate']}' (step {nxt['step']}). Run: navaan.py approve {slug} {nxt['gate']}"); return 3
     sid = step or nxt["step"]; s = next((x for x in steps(slug, D) if x["id"] == sid), None)
-    if not s: print(f"no such step: {sid}"); return 2
+    L.bind(step=sid)
+    if not s: print(f"no such step: {sid}"); L.event(LOG, "warning", "no_such_step"); return 2
     bg = s.get("before")
     ap_msg = account_problem(slug, sid); nyp = os.path.join(D, "needs_you.txt")
     if ap_msg and not dry:
@@ -542,7 +603,7 @@ def _run(slug, step=None, dry=False, retries=2):
         try:
             sg = PS.suggest(slug)
             if sg: print(f"Tip: the analytics suggest publishing at {PS.parse(sg['youtube_at'] or sg['instagram_at']).astimezone():%a %b %d %H:%M}. See it with: navaan.py schedule {slug} --suggest")
-        except Exception: pass
+        except Exception as _e: L.soft(LOG, "run_error"); pass
     if s["id"] == "publish_instagram" and not public_done(meta(slug)): print("Publish to YouTube first: the Reel links to the public full video. Approve gate 'go_public' and run that step."); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
@@ -568,28 +629,34 @@ def _run(slug, step=None, dry=False, retries=2):
     lp = os.path.join(D, "logs", f"{sid}.log"); env = account_env(slug)
     for attempt in range(1, retries + 2):
         RUN[slug] = {"step": sid, "attempt": attempt, "attempts": retries + 1, "started": time.time(), "failed": None}
+        L.event(LOG, "info", "step_started", attempt=attempt, attempts=retries + 1, kind=s["kind"], label=s["label"])
         with open(lp, "a", encoding="utf-8") as lf:
             lf.write(f"\n=== {now()} {sid} attempt {attempt} ===\n")
             ok = all(run_cmd(c, lf, env, slug) == 0 for c in cmds)
         if s["kind"] == "claude": C.note_claude_result(ok, open(lp, encoding="utf-8", errors="replace").read()[-2000:] if not ok else "")
         m = meta(slug)
         if slug in STOP:   # the user pressed Stop: no retry, no next step
-            STOP.discard(slug); log_hist(m, f"step {sid} stopped by the user"); save_meta(slug, m)
+            STOP.discard(slug); edit_meta(slug, lambda d: log_hist(d, f"step {sid} stopped by the user")); L.event(LOG, "info", "step_stopped_by_user")
             RUN[slug] = {"step": None, "failed": sid, "log": lp, "stopped": True}
             print(f"step {sid} stopped by you"); return 130
         if ok and s["done"](m):
-            if s.get("sets_after"): m["state"] = s["sets_after"]
-            log_hist(m, f"step {sid} done (attempt {attempt})"); save_meta(slug, m); RUN.pop(slug, None); print("done", sid); return 0
-        log_hist(m, f"step {sid} attempt {attempt} did not finish"); save_meta(slug, m)
+            def finish(d):
+                if s.get("sets_after"): d["state"] = s["sets_after"]
+                log_hist(d, f"step {sid} done (attempt {attempt})")
+            edit_meta(slug, finish); RUN.pop(slug, None); print("done", sid); L.event(LOG, "info", "step_done", attempt=attempt); return 0
+        edit_meta(slug, lambda d: log_hist(d, f"step {sid} attempt {attempt} did not finish"))
+        L.event(LOG, "warning", "step_attempt_failed", attempt=attempt, commands_ok=ok, output_file=lp)
         q = question_open(slug)
         if q:
             RUN[slug] = {"step": None, "failed": sid, "log": lp}
+            L.event(LOG, "info", "step_waiting_for_answer")
             print(f"step {sid} is waiting for your answer: {q['text']}"); return 6
         if os.path.exists(os.path.join(D, "needs_you.txt")):
             RUN[slug] = {"step": None, "failed": sid, "log": lp}
             print(f"step {sid} is waiting for you: {open(os.path.join(D, 'needs_you.txt'), encoding='utf-8').read().strip()}"); return 5
         if attempt <= retries: time.sleep(5 * attempt)
     RUN[slug] = {"step": None, "failed": sid, "log": lp}
+    L.event(LOG, "error", "step_failed", attempts=retries + 1, output_file=lp)
     print(f"step {sid} failed after {retries + 1} attempts. See {lp}"); return 1
 
 
@@ -598,6 +665,18 @@ STATUS = {}  # slug -> short text for the web UI ("running lyrics", "waiting for
 
 
 def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
+    with L.ctx(item=slug, job_id=L.current("job_id") or L.new_job_id(slug)):
+        L.event(LOG, "info", "pipeline_started", wait=wait, until=until)
+        try: rc = _pipeline(slug, wait, poll, until, timeout, max_steps)
+        except SystemExit as e:
+            L.event(LOG, "warning", "pipeline_exit", exit=str(e.code)[:300]); raise
+        except Exception:
+            L.exc(LOG, "pipeline_crashed"); raise
+        L.event(LOG, "info" if rc in (0, 130) else "warning", "pipeline_finished", rc=rc)
+        return rc
+
+
+def _pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
     """Run every step in order. Stops at a gate (or waits for you to approve it when wait=True), on a failed step, or when done.
     Approvals are only ever read here, never written."""
     t0 = time.time(); steps_run = 0
@@ -669,13 +748,15 @@ def redo(slug, sid, pending=True):
         for src in glob.glob(os.path.join(D, pat)):
             rel = os.path.relpath(src, D); tgt = os.path.join(dest, rel); os.makedirs(os.path.dirname(tgt), exist_ok=True)
             shutil.move(src, tgt); moved += 1
-    m = meta(slug); ap = m.setdefault("approvals", {})
-    # Only this step is redone. Later steps and their approvals stay as they are; only a credit gate is asked again.
-    if st.get("before") == "credits":
-        ap.pop("credits", None)
-        if pending: m["redo_pending"] = sid  # the UI starts this step as soon as credits are approved again
-    if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
-    log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}"); save_meta(slug, m)
+    def reset(m):
+        ap = m.setdefault("approvals", {})
+        # Only this step is redone. Later steps and their approvals stay as they are; only a credit gate is asked again.
+        if st.get("before") == "credits":
+            ap.pop("credits", None)
+            if pending: m["redo_pending"] = sid  # the UI starts this step as soon as credits are approved again
+        if m.get("state") in ("accepted", "media_ready", "approved") and sid in ("suno", "suno_import", "lyrics"): m["state"] = "draft"
+        log_hist(m, f"step {sid} redo: {moved} file(s) moved to _prev/{os.path.basename(dest)}")
+    edit_meta(slug, reset)
     RUN.pop(slug, None); st["_dest"] = dest
     for nm in ("needs_you.txt", "question.json"):
         pth = os.path.join(D, nm)
@@ -699,12 +780,14 @@ def redo_from(slug, sid):
     and the credits, shots and media approvals are cleared so each is asked again. Returns the steps redone. The caller then runs the pipeline."""
     rng = redo_range(slug, sid); D = song_dir(slug); by = {s["id"]: s for s in steps(slug, D)}
     for i in rng: redo(slug, i, pending=False)
-    m = meta(slug); ap = m.setdefault("approvals", {})
-    for i in rng:
-        for g in (by[i].get("before"), by[i].get("after")):
-            if g in ("credits", "shots", "media"): ap.pop(g, None)
-    if m.get("state") in ("approved", "media_ready"): m["state"] = "accepted"
-    log_hist(m, f"restart from {sid}: redone {', '.join(rng)}"); save_meta(slug, m)
+    def clear(m):
+        ap = m.setdefault("approvals", {})
+        for i in rng:
+            for g in (by[i].get("before"), by[i].get("after")):
+                if g in ("credits", "shots", "media"): ap.pop(g, None)
+        if m.get("state") in ("approved", "media_ready"): m["state"] = "accepted"
+        log_hist(m, f"restart from {sid}: redone {', '.join(rng)}")
+    edit_meta(slug, clear)
     print(f"restart from {sid}: {len(rng)} step(s) redone ({', '.join(rng)}). Approve the credits gate to make new pictures.")
     return rng
 
@@ -751,14 +834,14 @@ def caption_cmd(slug, a):
     txt = opt("--set") if "--set" in a else (open(os.path.expanduser(opt("--file")), encoding="utf-8").read() if "--file" in a else None)
     if txt is not None:
         open(p, "w", encoding="utf-8").write(txt.strip() + "\n")
-        m = meta(slug); m.get("approvals", {}).pop("instagram_caption", None); log_hist(m, "instagram caption edited by user, approval cleared"); save_meta(slug, m)
+        edit_meta(slug, lambda m: (m.get("approvals", {}).pop("instagram_caption", None), log_hist(m, "instagram caption edited by user, approval cleared")))
         print("caption saved. Approve gate 'instagram_caption' to continue.")
     elif "--feedback" in a:
         fb = opt("--feedback") or ""
         if not fb.strip(): sys.exit("usage: navaan.py caption <slug> --feedback \"what to change\"")
         if os.path.exists(p): os.replace(p, os.path.join(D, "instagram.prev.txt"))
         open(os.path.join(D, "caption_feedback.txt"), "w", encoding="utf-8").write(fb.strip() + "\n")
-        m = meta(slug); m.get("approvals", {}).pop("instagram_caption", None); log_hist(m, "instagram caption rewrite requested"); save_meta(slug, m)
+        edit_meta(slug, lambda m: (m.get("approvals", {}).pop("instagram_caption", None), log_hist(m, "instagram caption rewrite requested")))
         rc = run(slug, step="instagram_caption")
         if rc != 0 and os.path.exists(os.path.join(D, "instagram.prev.txt")) and not os.path.exists(p): os.replace(os.path.join(D, "instagram.prev.txt"), p)
         if rc == 0: os.path.exists(p) and print("new caption written.")
@@ -768,14 +851,27 @@ def caption_cmd(slug, a):
 
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
-    m = meta(slug); ap = m.setdefault("approvals", {})
     if on and gate in SHA_FILES and not gate_sha(song_dir(slug), gate): sys.exit(f"no {SHA_FILES[gate]} to approve yet. Run that step first.")
-    if on: ap[gate] = {"at": now(), "via": via, **({"sha": gate_sha(song_dir(slug), gate)} if gate in SHA_FILES else {})}
-    else: ap.pop(gate, None)
-    D = song_dir(slug)
-    for s in steps(slug, D):
-        if on and s.get("after") == gate and s.get("sets"): m["state"] = s["sets"]
-    log_hist(m, f"gate {gate} {'approved' if on else 'revoked'} via {via}"); save_meta(slug, m)
+    D = song_dir(slug); sha = gate_sha(D, gate) if (on and gate in SHA_FILES) else None
+    def put(m):
+        ap = m.setdefault("approvals", {})
+        if on: ap[gate] = {"at": now(), "via": via, **({"sha": sha} if gate in SHA_FILES else {})}
+        else: ap.pop(gate, None)
+        for s in steps(slug, D):
+            if on and s.get("after") == gate and s.get("sets"): m["state"] = s["sets"]
+        log_hist(m, f"gate {gate} {'approved' if on else 'revoked'} via {via}")
+    edit_meta(slug, put)
+
+
+def request_changes(slug, gate, note, via):
+    """Send an item back instead of approving it (FR-023): drops any approval of the gate, keeps the note in the history, never counts as an approval."""
+    if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
+    note = " ".join(str(note or "").split())[:500]
+    if not note: sys.exit("say what should change")
+    def put(m):
+        m.setdefault("approvals", {}).pop(gate, None)
+        log_hist(m, f"changes requested at {gate} via {via}: {note}")
+    edit_meta(slug, put)
 
 
 def status(slug=None):
@@ -789,6 +885,7 @@ def status(slug=None):
 def main(argv):
     if not argv: print(__doc__); return 0
     c, a = argv[0], argv[1:]
+    L.setup(stdout=(c in ("serve", "worker")))   # the command line keeps its own output readable; `serve` also writes the log to stdout for the container
     if c == "init": return subprocess.call([PY, os.path.join(HERE, "setup_profile.py")] + a)
     if c == "new": return subprocess.call([PY, os.path.join(HERE, "new_song.py")] + a)
     if c == "account": return account_cmd(a[0] if a else "inspiration")
@@ -832,12 +929,12 @@ def main(argv):
             print(f"suggested: YouTube public {loc(sg['youtube_at'])}, Reel {loc(sg['instagram_at'])}  (confidence {sg['confidence']}; {', '.join(sg['basis']) or 'followers online'}) {sg['note']}")
             if "--accept" not in a: print(f"Schedule these times: navaan.py schedule {a[0]} --accept   (approvals stay yours)"); return 0
             try: s = PS.accept(a[0])
-            except ValueError as e: sys.exit(f"navaan: {e}")
+            except ValueError as e: L.ignored(LOG, "main: ValueError (optional or expected)", e); sys.exit(f"navaan: {e}")
             print("scheduled:", PS.status_text({"schedule": s}), "\nStill needed from you before then: approve go_public, instagram_caption and publish_instagram. Keep the portal or `navaan.py schedule-run --loop` running."); return 0
         if not a or not opt("--at"): sys.exit('usage: navaan.py schedule <slug> --at "2026-10-16 18:30" [--youtube-at "2026-10-16 18:15"] | --suggest | --accept   (your computer\'s local time)')
         def utc(x): return PS.iso(datetime.datetime.strptime(x.replace("T", " "), "%Y-%m-%d %H:%M").astimezone())
         try: s = PS.set_schedule(a[0], utc(opt("--at")), utc(opt("--youtube-at")) if opt("--youtube-at") else None)
-        except ValueError as e: sys.exit(f"navaan: {e}")
+        except ValueError as e: L.ignored(LOG, "main: ValueError (optional or expected)", e); sys.exit(f"navaan: {e}")
         print("scheduled:", PS.status_text({"schedule": s}), "\nStill needed from you before then: approve go_public, instagram_caption and publish_instagram. Keep the portal or `navaan.py schedule-run --loop` running."); return 0
     if c == "schedule-clear": PS.clear(a[0]); print("cleared"); return 0
     if c == "schedules":
@@ -849,7 +946,12 @@ def main(argv):
         fire = lambda sl, sid: run(sl, step=sid)
         if "--loop" in a: print("scheduler running, checking every minute. Ctrl+C to stop.", flush=True); PS.loop(fire); return 0
         print(PS.tick(fire) or "nothing due"); return 0
+    if c == "worker":   # the job runner and the schedule, as its own process (compose.yml service `worker`)
+        import worker; return worker.main(a)
     if c == "serve":
+        import studio_store; studio_store.auto()   # first start after the move: every songs/*/meta.json into Postgres, verified, or stop (the release then rolls back)
+        import catalog_store; catalog_store.auto()   # the catalog follows the studio; it can always be rebuilt, so a failure is logged, never fatal
+        import analytics_to_postgres; analytics_to_postgres.auto()   # first start after the move to Postgres: bring the SQLite history across, verified, or stop (the release then rolls back)
         import navaan_ui; return navaan_ui.serve(int(a[a.index("--port") + 1]) if "--port" in a else 8765)
     print(__doc__); return 2
 

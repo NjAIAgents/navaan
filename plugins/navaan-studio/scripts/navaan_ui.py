@@ -1,11 +1,18 @@
 """Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
-import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html, hashlib
+import os, re, json, glob, gzip, hashlib, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
+from urllib.parse import parse_qs, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
 import visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
+import jobs, worker
+import catalog_store, search as SEARCH
+import media, objstore, share_page
+import library_store, entitlements, uuid, pgconn
+import navaan_log as L
+LOG = L.get("web")
 
 TOKEN = secrets.token_urlsafe(24)
 PUBLIC_HOST = lambda: os.environ.get("NAVAAN_PUBLIC_HOST", "").strip().lower()  # extra allowed Host, e.g. navaan.njlabs.dev
@@ -17,8 +24,51 @@ def secrets_status():
         d = json.load(open(f, encoding="utf-8"))
         if time.time() - d.get("at", 0) > 120: d.update(status="waiting", detail="sync stopped")
         return d
-    except (OSError, ValueError):
+    except (OSError, ValueError) as _e:
+        L.ignored(LOG, "secrets_status: OSError/ValueError (optional or expected)", _e)
         return {"status": "waiting", "detail": "no status yet"} if os.environ.get("NAVAAN_VAULT_ADDR") else None
+
+
+def app_version():
+    """The release number, set in one place: plugin.json (tests keep marketplace.json, web/package.json and CHANGELOG.md equal to it)."""
+    try:
+        with open(os.path.join(navaan.HERE, "..", ".claude-plugin", "plugin.json"), encoding="utf-8") as f: return str(json.load(f).get("version", ""))
+    except (OSError, ValueError) as e:
+        L.ignored(LOG, "no plugin.json next to the scripts: no version to show", e); return ""
+
+
+def web_dist():
+    """Where the built app (plugins/navaan-studio/web/dist) is; NAVAAN_WEB_DIST overrides it for tests."""
+    return os.environ.get("NAVAAN_WEB_DIST") or os.path.join(navaan.HERE, "..", "web", "dist")
+
+
+def web_file(rel):
+    """(bytes, content type, cache header) for a file of the built app, or None. Never leaves the dist folder."""
+    root = os.path.realpath(web_dist()); p = os.path.realpath(os.path.join(root, rel))
+    if not (p == root or p.startswith(root + os.sep)) or not os.path.isfile(p): return None
+    ct = mimetypes.guess_type(p)[0] or "application/octet-stream"
+    body = open(p, "rb").read()
+    if rel.startswith("assets/"): return body, ct, "public, max-age=31536000, immutable"   # file names carry a content hash
+    return body, ct, "no-store"
+
+
+GZ_TYPES = ("text/css", "text/javascript", "application/javascript", "image/svg+xml", "application/json", "text/html")
+GZ_CACHE = {}   # md5 of the bytes -> gzipped bytes; the built app is a handful of files, so this stays small
+def gz(data, ctype, accept):
+    """(body, extra headers): the file gzipped when the browser accepts it and it is worth it. The built app is served by this process, so without this a phone downloads 300 KB of script uncompressed."""
+    if len(data) < 1024 or ctype not in GZ_TYPES or "gzip" not in (accept or ""): return data, {}
+    k = hashlib.md5(data).digest()
+    if k not in GZ_CACHE:
+        if len(GZ_CACHE) > 64: GZ_CACHE.clear()
+        GZ_CACHE[k] = gzip.compress(data, 9, mtime=0)
+    return GZ_CACHE[k], {"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
+
+
+def worker_state():
+    """embedded (development: threads of this process) | on (a separate worker has reported in lately) | down (jobs are queued but nobody will run them)."""
+    if not worker.external(): return "embedded"
+    try: return "on" if jobs.workers_alive() else "down"
+    except Exception: L.soft(LOG, "worker_state_failed"); return "down"
 
 
 def scheduler_on(): return os.environ.get("NAVAAN_SCHEDULER", "on").lower() != "off"  # off on the Mac once the server owns the schedule
@@ -31,12 +81,15 @@ def scheduler_state():
 
 TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
-JOBS = {}  # slug -> {"running": bool, "rc": int|None}
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
+LOCAL_USER = str(uuid.uuid5(uuid.NAMESPACE_URL, "navaan-local-dev-user"))   # the one person when the login is off
+LOCAL_LISTENER = str(uuid.uuid5(uuid.NAMESPACE_URL, "navaan-local-dev-listener"))   # the same, signed in as a listener
+LISTENER_ROUTES = (("/api/playlists", "library.view", "playlists.write"), ("/api/library", "library.view", "playlists.write"), ("/api/plans", "library.view", None), ("/api/account", "account.manage", "account.manage"),
+                   ("/api/catalog", "library.view", None), ("/api/share", "library.view", "playlists.write"))   # prefix, permission to read, to change
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
 
@@ -48,7 +101,7 @@ def song_row(s):
     """One line per song for the dashboard, library and approvals views."""
     D = C.song_dir(s); m = navaan.meta(s)
     try: rows, n = navaan.plan(s)
-    except SystemExit: rows, n = [], {"type": "none"}
+    except SystemExit as _e: L.ignored(LOG, "song_row: SystemExit (optional or expected)", _e); rows, n = [], {"type": "none"}
     pub = m.get("published", {}); its = list(pub.get("youtube_items", [])) + ([pub["youtube_short"]] if pub.get("youtube_short", {}).get("id") else [])
     cl = m.get("cloud", {}); public = navaan.public_done(m)
     ig_on = navaan.ig_enabled(m)
@@ -76,7 +129,7 @@ def cloud_view(refresh=False):
     pre = (prefix.strip("/") + "/") if prefix else ""
     out = {"configured": True, "provider": prov, "bucket": bucket, "region": region, "prefix": pre, "songs": []}
     try: objs = storage.list_objects(prov, bucket, pre, region)
-    except RuntimeError as e: out["error"] = str(e); return out
+    except RuntimeError as e: L.ignored(LOG, "cloud_view: RuntimeError (optional or expected)", e); out["error"] = str(e); return out
     by = {}
     for k, sz in objs.items():
         rel = k[len(pre):]; slug, _, name = rel.partition("/")
@@ -97,7 +150,7 @@ def cloud_view(refresh=False):
 def detail(slug):
     D = C.song_dir(slug)
     try: navaan.auto_gates(slug)   # gates switched off in Settings approve themselves
-    except Exception: pass
+    except Exception as _e: L.soft(LOG, "detail_error"); pass
     m = navaan.meta(slug); rows, nxt = navaan.plan(slug)
     fl = {}
     for f in sorted(os.listdir(D)):
@@ -114,11 +167,14 @@ def detail(slug):
         # The agent command line carries the whole prompt and fills the box. Show a short marker instead, so the real output is visible.
         raw = re.sub(r"(?s)\$ claude -p '.*?'(?= --(?:permission-mode|allowedTools|add-dir|chrome))", "$ claude -p <prompt hidden>", raw)
         logs[os.path.basename(lp)[:-4]] = raw[-6000:]
-    rn = dict(navaan.RUN.get(slug) or {})
+    jv = jobs.view(slug)   # a worker process runs the steps; it publishes progress through the job row
+    rn = dict(jv["progress"] or {})
     if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
     rn.pop("started", None)
-    return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": JOBS.get(slug, {}), "status_text": navaan.STATUS.get(slug, ""),
-            "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
+    # rc 5 and 6 are "waiting for you", not failures. The ref is the job id every log line of the run carries (job_id in app.jsonl).
+    failure = {"step": rn.get("failed") or "", "error": jv.get("error", ""), "ref": jv.get("id", "")} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6)) else None
+    return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
+            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
             "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
@@ -128,49 +184,237 @@ def detail(slug):
 
 
 def start_job(slug, all_steps=False, step=None, redo=False):
-    if JOBS.get(slug, {}).get("running"): return False
-    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None); navaan.STOP.discard(slug)
-    def w():
-        try: rc = navaan.pipeline(slug, wait=True) if all_steps else (navaan.redo_run(slug, step) if redo else navaan.run(slug, step=step))
-        except SystemExit as e: rc = 1
-        except Exception: rc = 1
-        JOBS[slug] = {"running": False, "rc": rc}
-        navaan.STATUS.pop(slug, None) if rc == 0 else None
-    threading.Thread(target=w, daemon=True).start(); return True
+    """Queue the run for a worker (jobs.py). False when the item already has a queued or running job."""
+    kind = "pipeline" if all_steps else ("redo" if redo else "step")
+    return bool(jobs.enqueue(slug, kind, {"all": all_steps, "step": step, "redo": redo}))
+
+
+CLIENT_LOG = {}  # client address -> times of recent browser error reports
+CLIENT_LOG_LOCK = threading.Lock()
+def rate_ok(store, ip, n, per=60):
+    """At most n requests per `per` seconds per address in this store."""
+    t = time.time()
+    with CLIENT_LOG_LOCK:
+        q = [x for x in store.get(ip, []) if t - x < per]
+        if len(q) >= n: store[ip] = q; return False
+        q.append(t); store[ip] = q; return True
+
+
+def client_log_ok(ip, n=30, per=60):
+    """At most n browser reports per minute per address, so a broken page cannot flood the log."""
+    return rate_ok(CLIENT_LOG, ip, n, per)
+
+
+PUBLIC_LOG = {}  # client address -> times of recent requests to the public pages (/s and /img)
 
 
 class H(BaseHTTPRequestHandler):
     server_version = "navaan"
-    def log_message(self, *a): pass
+    def log_message(self, fmt, *a): L.event(LOG, "debug", "http_server_message", msg=(fmt % a if a else fmt))
+    def send_response(self, code, message=None): self._status = code; super().send_response(code, message)
+    def send_header(self, k, v):
+        if k.lower() == "content-length" and str(v).isdigit(): self._bytes = int(v)
+        super().send_header(k, v)
+    def _handle(self, fn):
+        """Every request: an id (returned as X-Request-Id), one access record, and any unexpected error logged once with its stack."""
+        self._rid = L.new_request_id(self.headers.get("X-Request-Id")); self._status = 0; self._bytes = 0; self._err_logged = False; t0 = time.time()
+        with L.ctx(request_id=self._rid, method=self.command, path=self.path.split("?")[0][:200], ip=self._ip()):
+            try: fn()
+            except (BrokenPipeError, ConnectionResetError) as e: L.ignored(LOG, "the browser closed the connection", e)
+            except Exception:
+                L.exc(LOG, "request_failed"); self._err_logged = True
+                if not self._status:   # once a reply has started, a second status line would corrupt it
+                    try: self._send(500, {"error": f"internal error (ref {self._rid})", "request_id": self._rid})
+                    except Exception: L.exc(LOG, "request_failed_reply")
+            ms = int((time.time() - t0) * 1000)
+            pgconn.release_thread()   # this request's thread ends here: give its database connections back now
+            routine = self.command == "GET" and (self._status in (200, 206, 304) and ms < 1000 or self._status in (401, 403, 404))  # the page polls; routine polls stay at debug
+            L.event(LOG, "debug" if routine else "info", "http_request", status=self._status, ms=ms, bytes=self._bytes)
+    def do_GET(self): self._handle(self._do_GET)
+    def do_POST(self): self._handle(self._do_POST)
     def _send(self, code, body, ctype="application/json", extra=None):
         b = body if isinstance(body, bytes) else (json.dumps(body, ensure_ascii=False) if not isinstance(body, str) else body).encode()
         self.send_response(code); self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith(("text", "application/json")) else ""))
-        self.send_header("Content-Length", str(len(b))); self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(b)))
+        if "Cache-Control" not in (extra or {}): self.send_header("Cache-Control", "no-store")
+        if getattr(self, "_rid", None): self.send_header("X-Request-Id", self._rid)
         for k, v in (extra or {}).items(): self.send_header(k, v)
         self.end_headers(); self.wfile.write(b)
+        if code >= 400 and ctype.startswith("application/json") and not getattr(self, "_err_logged", False):
+            err = body.get("error") if isinstance(body, dict) else None
+            ei = sys.exc_info() if code >= 500 and sys.exc_info()[0] else None  # inside an except block this is the error that caused the reply
+            LOG.log(logging.ERROR if code >= 500 else (logging.DEBUG if code == 401 else logging.INFO), "http_error", exc_info=ei, extra={"fields": {"status": code, "error": str(err)[:300]}})
+            if code >= 500: self._err_logged = True
     def _host_ok(self):
         h = (self.headers.get("Host") or "").split(":")[0]
         return h in ("127.0.0.1", "localhost") or (bool(PUBLIC_HOST()) and h == PUBLIC_HOST())
     def _ip(self):  # real client address; X-Real-IP only when a trusted proxy sits in front (NAVAAN_TRUST_PROXY=1)
         return (self.headers.get("X-Real-IP") or "").strip() if TRUST_PROXY() and self.headers.get("X-Real-IP") else self.client_address[0]
     def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
-    def do_GET(self):
+    def _acct(self, sess):
+        """{user_id, roles} of the signed-in person. With the login off (development) there is one local person."""
+        return {"user_id": sess.get("user_id") or (LOCAL_USER if "owner" in sess.get("roles", []) else LOCAL_LISTENER), "roles": sess.get("roles", [])}
+    def _listener_get(self, p, sess):
+        """Routes a listener may use (they need library.view or account.manage, not the studio). Everything is scoped to the signed-in person."""
+        u = self._acct(sess); uid = u["user_id"]
+        studio = auth.can(sess, "studio.access")   # the studio sees every published track; a listener only those with a confirmed licence
+        if p == "/api/catalog/tracks":
+            q = parse_qs(urlparse(self.path).query); one = lambda k: (q.get(k) or [None])[0] or None
+            return self._send(200, catalog_store.browse(studio, one("album"), one("language"), one("genre")))
+        if p == "/api/catalog/filters": return self._send(200, catalog_store.filters(studio))
+        m = re.match(r"^/api/catalog/track/([A-Za-z0-9][A-Za-z0-9_-]{0,40})$", p)
+        if m:
+            v = catalog_store.track_view(m.group(1), studio)
+            if not v: return self._send(404, {"error": "no such song"})
+            try: v["timed_lines"] = media.timed_lyrics(v["slug"]) if v["timed"] else None
+            except Exception: L.exc(LOG, "timed_lyrics_failed", item=v["slug"]); v["timed_lines"] = None   # the page still shows the plain lyrics
+            return self._send(200, v)
+        if p == "/api/share": return self._send(200, catalog_store.shares(None if auth.can(sess, "studio.settings") else sess.get("user") or "owner"))
+        if p == "/api/playlists": return self._send(200, library_store.playlists(uid))
+        m = re.match(r"^/api/playlists/([0-9a-f-]{36})$", p)
+        if m:
+            try: return self._send(200, {**library_store.get_playlist(uid, m.group(1)), "mine": True})
+            except LookupError: pass   # expected: not yours; an unlisted or public playlist opens by its link below, a private one is "not found" like any other that is not there
+            other = library_store.shared_playlist(m.group(1))
+            return self._send(200, {**other, "mine": False}) if other else self._send(404, {"error": "no such playlist"})
+        if p == "/api/library": return self._send(200, library_store.library(uid))
+        if p == "/api/plans":
+            return self._send(200, {"plans": entitlements.plans(), "mine": {"plan": entitlements.plan_for(uid), "entitlements": entitlements.entitlements(uid), "unlimited": "owner" in u["roles"],
+                                                                         "usage": {"playlists": len(library_store.playlists(uid))}}})
+        if p == "/api/account/export":
+            if not auth.can(sess, "account.manage"): return self._send(403, {"error": "this account cannot export"})
+            import core_store
+            data = {"account": core_store.user_summary(uid), "library": library_store.export(uid), "plan": entitlements.export(uid)}
+            return self._send(200, json.dumps(data, ensure_ascii=False, indent=2), "application/json", {"Content-Disposition": 'attachment; filename="navaan-account-export.json"'})
+        return self._send(404, {"error": "not found"})
+    def _listener_post(self, p, body, sess):
+        u = self._acct(sess); uid = u["user_id"]
+        try:
+            if p == "/api/playlists/create":
+                try: return self._send(200, {"id": library_store.create_playlist(u, body.get("name"), body.get("description") or "", body.get("visibility") or "private")})
+                except library_store.LimitError as e: d = e.decision; return self._send(403, {"error": str(e), "limit": d.limit, "plan": d.plan, "upgrade": "/app/plans"})
+            pid = str(body.get("id") or "")
+            if p == "/api/playlists/update": library_store.update_playlist(uid, pid, body.get("name"), body.get("description"), body.get("visibility")); return self._send(200, {"ok": True})
+            if p == "/api/playlists/delete": library_store.delete_playlist(uid, pid); return self._send(200, {"ok": True})
+            if p == "/api/playlists/add": library_store.add_track(uid, pid, str(body.get("slug") or ""), body.get("after")); return self._send(200, {"ok": True})
+            if p == "/api/playlists/remove": library_store.remove_track(uid, pid, str(body.get("slug") or "")); return self._send(200, {"ok": True})
+            if p == "/api/playlists/move": library_store.move_track(uid, pid, str(body.get("slug") or ""), body.get("after")); return self._send(200, {"ok": True})
+            if p == "/api/library/save": library_store.save(uid, str(body.get("kind") or ""), str(body.get("slug") or ""), bool(body.get("on", True))); return self._send(200, {"ok": True})
+            if p in ("/api/share", "/api/share/revoke"):   # a link to a published, licence-confirmed song: the page and preview are public, the owner can stop any link
+                who = sess.get("user") or "owner"
+                if p.endswith("/revoke"): return self._send(200, {"revoked": catalog_store.revoke_share(str(body.get("token") or ""), who, auth.can(sess, "studio.settings"))})
+                sl = str(body.get("slug") or "")
+                if not auth.can(sess, "studio.access") and not catalog_store.track_view(sl, False): return self._send(404, {"error": "no such published track"})   # to a listener an unconfirmed song does not exist, so its state is not given away
+                tok = catalog_store.create_share(sl, who, int(body.get("start_ms") or 0))
+                try: media.ensure_preview(sl)   # cut now, so the first visitor does not wait for it
+                except Exception: L.exc(LOG, "preview_failed", item=sl); catalog_store.revoke_share(tok, who, True); return self._send(502, {"error": "could not make the preview from the audio in the bucket"})
+                return self._send(200, {"token": tok, "url": f"{self._base()}/s/{tok}"})
+            if p == "/api/library/follow": library_store.follow(uid, bool(body.get("on", True))); return self._send(200, {"ok": True})
+            if p == "/api/account/delete":
+                if "owner" in u["roles"]: return self._send(403, {"error": "the owner account cannot be deleted here"})
+                if body.get("confirm") != "delete my account": return self._send(400, {"error": 'type "delete my account" to confirm'})
+                import core_store
+                who = core_store.user_summary(uid)
+                if who:
+                    for s in catalog_store.shares(who["username"]): catalog_store.revoke_share(s["token"], who["username"])   # their links stop working
+                library_store.erase(uid); entitlements.erase(uid); core_store.delete_user(uid)   # the sessions go with the person
+                return self._send(200, {"ok": True, "deleted": True})
+        except LookupError as e: return self._send(404, {"error": str(e)})
+        except ValueError as e: return self._send(400, {"error": str(e)})
+        return self._send(404, {"error": "not found"})
+    def _dev_bucket(self, key):
+        from urllib.parse import unquote
+        path = objstore.local_path(unquote(key))
+        if not path or not os.path.isfile(path): return self._send(404, {"error": "not found"})
+        data = open(path, "rb").read(); ct = mimetypes.guess_type(path)[0] or "application/octet-stream"; rng = self.headers.get("Range"); hdr = {"Accept-Ranges": "bytes", "Cache-Control": "no-store"}
+        m = re.match(r"bytes=(\d*)-(\d*)$", rng or "")
+        if m and (m.group(1) or m.group(2)):   # one byte range, as an audio element asks for when seeking
+            a = int(m.group(1)) if m.group(1) else max(0, len(data) - int(m.group(2))); b = min(int(m.group(2)) if m.group(1) and m.group(2) else len(data) - 1, len(data) - 1)
+            if a > b: return self._send(416, b"", ct, {**hdr, "Content-Range": f"bytes */{len(data)}"})
+            return self._send(206, data[a:b + 1], ct, {**hdr, "Content-Range": f"bytes {a}-{b}/{len(data)}"})
+        return self._send(200, data, ct, hdr)
+    def _base(self):
+        h = PUBLIC_HOST() or (self.headers.get("Host") or "")
+        return f"{'https' if (self._https() or PUBLIC_HOST()) else 'http'}://{h}"
+    def _public(self, p):
+        """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3]. Nothing here needs a session; everything is limited per address."""
+        if not rate_ok(PUBLIC_LOG, self._ip(), 240): return self._send(429, {"error": "slow down"}, extra={"Retry-After": "30"})
+        try:
+            m = re.match(r"^/img/([A-Za-z0-9_-]{1,40})/(\d{2,4})\.(webp|avif|jpg)$", p)
+            if m:
+                try: r = media.variant(m.group(1), int(m.group(2)), m.group(3))
+                except ValueError: r = None   # expected: a size or format that does not exist is simply a 404
+                if not r: return self._send(404, {"error": "not found"})
+                data, etag, mime = r
+                hdr = {"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"}
+                if self.headers.get("If-None-Match") == etag: return self._send(304, b"", mime, hdr)
+                return self._send(200, data, mime, hdr)
+            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3)?$", p)
+            if m:
+                t = catalog_store.open_share(m.group(1), count=not m.group(2))
+                if not t: return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if m.group(2): return self._send(302, b"", "text/plain", {"Location": objstore.par_url(media.ensure_preview(t["slug"]), 300)})
+                cv = catalog_store.cover_asset(t["slug"])
+                return self._send(200, share_page.render(t, m.group(1), self._base(), (cv or {}).get("dominant_colour"), bool(cv)), "text/html")
+        except Exception:
+            L.exc(LOG, "public_failed", path=p[:60]); return self._send(502, {"error": "not available right now"})
+        return self._send(404, {"error": "not found"})
+    def _do_GET(self):
         if not self._host_ok(): return self._send(403, {"error": "bad host"})
         p = self.path.split("?")[0]
         if p in ("/privacy", "/terms"):  # public on purpose: Google asks for these links on the OAuth consent screen
             return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
+        if p.startswith("/dev-bucket/") and objstore.local_dir(): return self._dev_bucket(p[len("/dev-bucket/"):])   # the local stand-in for the bucket (development, browser checks)
+        if p.startswith(("/s/", "/img/")): return self._public(p)   # shared links and cover pictures: no sign in, published and confirmed tracks only
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
             if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
-            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
+            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["version"] = app_version(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
-        if not auth.session(ck):  # not signed in: only the sign in page is served
-            if p == "/": return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
+        sess = auth.session(ck)
+        if not sess:  # not signed in: only the sign in page is served
+            if p in ("/", "/legacy") or p == "/app" or p.startswith("/app/"): return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
             return self._send(401, {"error": "sign in", "login": True})
+        if p == "/api/me": return self._send(200, {"user": sess.get("user"), "roles": sess.get("roles", []), "permissions": sess.get("permissions", [])})   # any signed-in person
+        if p == "/api/search":   # one search for songs and albums, in Devanagari or Roman letters; a listener may use it (library.view), the studio is not needed
+            if not auth.can(sess, "library.view"): return self._send(403, {"error": "this account cannot search"})
+            q = parse_qs(urlparse(self.path).query)
+            try: limit = int((q.get("limit") or ["20"])[0])
+            except ValueError: return self._send(400, {"error": "limit is a number"})
+            return self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, limit)})
+        csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
+        # the app itself (NAV-8) is for every signed-in person, a listener included; what it may call is decided route by route
+        if p == "/app": return self._send(308, b"", "text/plain", {"Location": "/app/"})
+        if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
+            rel = p[5:]
+            f = web_file(rel) if rel and "." in os.path.basename(rel) else None
+            if f: body, enc = gz(f[0], f[1], self.headers.get("Accept-Encoding")); return self._send(200, body, f[1], {"Cache-Control": f[2], **enc})
+            if rel and "." in os.path.basename(rel): return self._send(404, {"error": "not found"})
+            idx = web_file("index.html")
+            if not idx: return self._send(503, "The new app is not built. In plugins/navaan-studio/web run: npm ci && npm run build", "text/plain")
+            return self._send(200, idx[0].replace(b"__TOKEN__", csrf.encode()), "text/html", {"Cache-Control": "no-store"})
+        for pre, rd, _wr in LISTENER_ROUTES:
+            if p == pre or p.startswith(pre + "/"):
+                if not auth.can(sess, rd): return self._send(403, {"error": "this account cannot use that"})
+                return self._listener_get(p, sess)
+        if p == "/api/play":   # a short-lived link to the audio in the bucket: the audio never passes through this server (FR-016)
+            if not auth.can(sess, "library.view"): return self._send(403, {"error": "this account cannot play"})
+            sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
+            key = catalog_store.play_key(sl, confirmed_only=not auth.can(sess, "studio.access")) if SLUG.match(sl) else None
+            if not key: return self._send(404, {"error": "no such track to play"})
+            who = self._acct(sess)
+            d = entitlements.can(who, "audio.play")
+            if not d: return self._send(403, {"error": d.message(), "plan": d.plan, "upgrade": "/app/plans"})
+            try: library_store.record_play(who["user_id"], sl, "direct")
+            except Exception: L.exc(LOG, "play_record_failed", item=sl)   # a play that cannot be counted must still play
+            try: return self._send(200, {"url": objstore.par_url(key, 300), "expires_in": 300})
+            except Exception: L.exc(LOG, "play_link_failed", item=sl); return self._send(502, {"error": "cannot make a play link right now"})
+        if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})   # constitution V: no studio route for a listener
+        csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         try:
-            if p == "/":
-                page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
+            if p in ("/", "/legacy"):   # the classic view, kept until the new app has every screen
+                page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", csrf)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
             if p == "/api/alerts":
@@ -181,55 +425,61 @@ class H(BaseHTTPRequestHandler):
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})
             if p == "/api/replies":
                 import comment_reply as CR
-                from urllib.parse import parse_qs, urlparse
                 pf = (parse_qs(urlparse(self.path).query).get("platform") or [""])[0]
                 if pf not in CR.PLATFORMS: return self._send(400, {"error": "bad platform"})
                 conn = CR.connect()
                 try: return self._send(200, {"items": CR.waiting(conn, pf)})
                 finally: conn.close()
             if p == "/api/analytics":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
                 if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
                 return self._send(200, analytics_api.overview(acc, (q.get("days") or ["30"])[0]))
             if p == "/api/analytics/youtube":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); acc = (q.get("account") or ["all"])[0]
                 if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
                 return self._send(200, analytics_api.yt_overview(acc, (q.get("days") or ["30"])[0]))
             if p == "/api/analytics/auto": return self._send(200, analytics_auto.settings())
             if p == "/api/besttime":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); lab = (q.get("type") or ["music"])[0]
                 if not analytics_api.ACCOUNT_OK.match(lab): return self._send(400, {"error": "bad type"})
                 if (q.get("platform") or ["instagram"])[0] == "youtube": return self._send(200, besttime.for_label_youtube(lab))
                 return self._send(200, besttime.for_label(lab))
             if p == "/api/schedule/suggest":
-                from urllib.parse import parse_qs, urlparse
                 sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
                 if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
                 try: return self._send(200, {"suggestion": PS.suggest(sl)})
-                except Exception as e: return self._send(200, {"suggestion": None, "error": str(e)[:200]})
+                except Exception as e: L.soft(LOG, "schedule_suggest_failed", item=sl); return self._send(200, {"suggestion": None, "error": str(e)[:200]})
             if p == "/api/schedule/options":
-                from urllib.parse import parse_qs, urlparse
                 ty = (parse_qs(urlparse(self.path).query).get("type") or ["music"])[0]; out = []
                 for s in songs():
                     m = navaan.meta(s)
                     if C.item_type(m) != ty or navaan.ig_done(m) or m.get("cleanup"): continue
                     D = C.song_dir(s); ap = m.get("approvals", {}); tp = os.path.join(D, "title.txt")
                     try: _, nx = navaan.plan(s)
-                    except SystemExit: continue
+                    except SystemExit as _e: L.ignored(LOG, "_do_GET: SystemExit (optional or expected)", _e); continue
                     out.append({"slug": s, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "", "next": nx.get("step") or "done", "public": navaan.public_done(m),
                                 "missing_gates": [g for g in ("go_public", "instagram_caption", "publish_instagram") if not navaan.gate_ok(D, ap, g)],
                                 "schedule": PS.status_text(m)})
                 return self._send(200, {"songs": out})
             if p == "/api/analytics/song":
-                from urllib.parse import parse_qs, urlparse
                 q = parse_qs(urlparse(self.path).query); sl = (q.get("slug") or [""])[0]
                 if not SLUG.match(sl): return self._send(400, {"error": "bad slug"})
                 return self._send(200, analytics_api.song_view(sl))
             if p == "/api/analytics/by-song": return self._send(200, analytics_api.by_song())
-            if p == "/api/songs": return self._send(200, [song_row(s) for s in songs()])
+            if p == "/api/songs":
+                try: art = catalog_store.cover_art()   # published songs with a cover in the bucket: the list asks /img for it and paints the dominant colour first
+                except Exception: L.exc(LOG, "cover_art_failed"); art = {}   # the list still works, with letter tiles
+                rows = [song_row(s) for s in songs()]
+                for r in rows: r["art"] = {"colour": art[r["slug"]]} if r["slug"] in art else None
+                return self._send(200, rows)
+            if p == "/api/schedule":   # every scheduled publish, for the Schedule screen
+                out = []
+                for sl in songs():
+                    tp = os.path.join(C.song_dir(sl), "title.txt")
+                    out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
+                return self._send(200, sorted(out, key=lambda e: e["at"]))
+            if p == "/api/albums": return self._send(200, catalog_store.albums())
+            if p == "/api/tracks": return self._send(200, catalog_store.tracks())   # the audit table: origin, plan tier, licence status per track
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
             m = re.match(r"^/media/([^/]+)/([^/]+)$", p)
@@ -249,7 +499,15 @@ class H(BaseHTTPRequestHandler):
             r = subprocess.run([C.tool("ffmpeg"), "-v", "error", "-y", "-i", f, "-vf", f"scale='min({w},iw)':-2", "-frames:v", "1", "-q:v", "4", tmp], capture_output=True, timeout=30)
             if r.returncode != 0 or not os.path.isfile(tmp): return f
             os.replace(tmp, out); return out
-        except (Exception, SystemExit): return f
+        except (Exception, SystemExit): L.ignored(LOG, "thumbnail failed, the original is served", sys.exc_info()[1]); return f   # any failure (no ffmpeg, a broken picture) serves the original
+    def _client_log(self, body):
+        """Errors the browser caught or could not catch (spec FR-035). Capped, rate limited and scrubbed by navaan_log."""
+        if not client_log_ok(self._ip()): return self._send(429, {"error": "too many reports"})
+        f = {k: str(body.get(k, ""))[:n] for k, n in (("message", 500), ("stack", 3000), ("page", 200), ("src", 200), ("line", 10), ("where", 80), ("path", 200), ("status", 10), ("ui_request_id", 40), ("what", 80))}
+        sess = auth.session(self.headers.get("Cookie")); f["user"] = (sess or {}).get("user", "") if isinstance(sess, dict) else ""
+        f["kind"] = str(body.get("kind", "error"))[:20]
+        L.event(L.get("client"), "error" if f["kind"] in ("error", "rejection", "api_network", "api_json") else "warning", "client_" + f["kind"], **{k: v for k, v in f.items() if v})
+        return self._send(200, {"ok": True})
     def _media(self, slug, name, w=0):
         D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
         if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
@@ -277,8 +535,8 @@ class H(BaseHTTPRequestHandler):
                     chunk = fh.read(min(1 << 20, left))
                     if not chunk: break
                     self.wfile.write(chunk); left -= len(chunk)
-        except (BrokenPipeError, ConnectionResetError): pass
-    def do_POST(self):
+        except (BrokenPipeError, ConnectionResetError) as _e: L.ignored(LOG, "_media: BrokenPipeError/ConnectionResetError (optional or expected)", _e); pass
+    def _do_POST(self):
         if not self._host_ok(): return self._send(403, {"error": "forbidden"})
         org = self.headers.get("Origin")
         if org and org != ("https://" if self._https() else "http://") + (self.headers.get("Host") or ""): return self._send(403, {"error": "forbidden origin"})
@@ -290,12 +548,24 @@ class H(BaseHTTPRequestHandler):
             except Exception: return self._send(400, {"error": "bad json"})
             code, obj, cookies = auth.handle_post(self.path.split("?")[0], b, ck, self.headers.get("Host"), ip=self._ip(), https=self._https())
             return self._send(code, obj, extra={"Set-Cookie": cookies[0]} if cookies else None)
-        if not auth.session(ck): return self._send(401, {"error": "sign in", "login": True})
-        if self.headers.get("X-Navaan-Token") != TOKEN: return self._send(403, {"error": "forbidden"})
+        sess = auth.session(ck)
+        if not sess: return self._send(401, {"error": "sign in", "login": True})
+        need = next((wr for pre, _rd, wr in LISTENER_ROUTES if wr and (self.path == pre or self.path.startswith(pre + "/"))), None)   # routes a listener may change things through
+        if not need and not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})
+        if need and not auth.can(sess, need): return self._send(403, {"error": "this account cannot do that"})
+        if not hmac.compare_digest((self.headers.get("X-Navaan-Token") or "").encode(), (sess.get("csrf") or TOKEN).encode()): return self._send(403, {"error": "forbidden"})   # this session's token
         try: body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path
+        if need: return self._listener_post(p, body, sess)
         try:
+            if p == "/api/billing/entitlement":   # the owner changes what a plan includes: a data change, no screen or release (SC-008)
+                if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner changes plans"})
+                try:
+                    if not entitlements.set_entitlement(str(body.get("plan") or ""), str(body.get("feature") or ""), bool(body.get("enabled", True)), body.get("limit")): return self._send(404, {"error": "no such plan"})
+                except (ValueError, TypeError) as e: return self._send(400, {"error": str(e)})
+                return self._send(200, {"ok": True})
+            if p == "/api/client-log": return self._client_log(body)
             if p == "/api/analytics/link":
                 try: analytics_api.link_post(str(body.get("media_id") or ""), str(body.get("slug") or "")); return self._send(200, {"ok": True})
                 except ValueError as e: return self._send(400, {"error": str(e)})
@@ -375,10 +645,23 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/album":
                 name = str(body.get("name", "")).strip()[:80]; sl = [x for x in body.get("slugs", []) if isinstance(x, str) and SLUG.match(x)]
                 for x in sl:
-                    m = navaan.meta(x); m["album"] = name
-                    if not name: m.pop("album", None)
-                    navaan.save_meta(x, m)
+                    navaan.edit_meta(x, lambda m: m.__setitem__("album", name) if name else m.pop("album", None))
+                    catalog_store.sync_item(x)   # the label puts the song into the catalog album of that name; the catalog's album is the one listeners see
                 return self._send(200, {"ok": True, "count": len(sl)})
+            if p == "/api/catalog/license":   # the owner decides what may be offered behind a plan; an editor cannot
+                if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner decides licences"})
+                try: ok = catalog_store.set_license(str(body.get("slug") or ""), body.get("status"), sess.get("user") or "owner", body.get("note"), body.get("plan"))
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                if not ok: return self._send(404, {"error": "no such track"})
+                auth._audit("track_license", user=sess.get("user"), ip=self._ip(), slug=body.get("slug"), status=body.get("status"), plan=body.get("plan"))
+                return self._send(200, {"ok": True})
+            if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
+                try:
+                    if p.endswith("/save"): return self._send(200, {"slug": catalog_store.save_album(str(body.get("slug") or ""), body.get("title"), body.get("kind") or "album", body.get("status") or "draft", body.get("release_date"), body.get("description") or "")})
+                    if p.endswith("/reorder"): return self._send(200, {"tracks": catalog_store.reorder(str(body.get("album") or ""), [str(x) for x in body.get("tracks") or []])})
+                    return self._send(200, {"deleted": catalog_store.delete_album(str(body.get("slug") or ""))})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except LookupError as e: return self._send(404, {"error": str(e)})
             if p == "/api/new":
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 import new_song
@@ -398,31 +681,35 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/suno/audio":
                 import suno_import
                 if not SLUG.match(slug) or not os.path.isdir(C.song_dir(slug)): return self._send(404, {"error": "no such song"})
-                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song"})
                 try: suno_import.save_upload(slug, body.get("name"), str(body.get("data") or ""))
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True, "started": start_job(slug, True)})
             if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
             if p == "/api/approve":
-                navaan.set_gate(slug, body["gate"], True, "ui"); started = False
+                navaan.set_gate(slug, body["gate"], True, f"ui:{sess.get('user') or 'owner'}"); started = False
                 m = navaan.meta(slug); sid = m.get("redo_pending")
                 if sid and body["gate"] == "credits":
-                    m.pop("redo_pending", None); navaan.save_meta(slug, m); started = start_job(slug, False, sid)
+                    navaan.edit_meta(slug, lambda d: d.pop("redo_pending", None)); started = start_job(slug, False, sid)
                 return self._send(200, {"ok": True, "started": started})
             if p == "/api/answer":
                 qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
                 return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
+            if p == "/api/request-changes":
+                try: navaan.request_changes(slug, body.get("gate"), body.get("note"), f"ui:{sess.get('user') or 'owner'}")
+                except SystemExit as e: return self._send(400, {"error": str(e)})
+                return self._send(200, {"ok": True})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, "ui"); return self._send(200, {"ok": True})
             if p == "/api/redo":
-                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song"})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
             if p == "/api/restart":   # redo this step and every step after it through the render, then run until the credits gate
-                if JOBS.get(slug, {}).get("running"): return self._send(409, {"error": "a run is in progress for this song. Press Stop first."})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song. Press Stop first."})
                 try: navaan.redo_from(slug, body.get("step"))
                 except SystemExit as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"started": start_job(slug, True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
-            if p == "/api/stop": return self._send(200, {"stopped": navaan.stop(slug) if JOBS.get(slug, {}).get("running") else False})
+            if p == "/api/stop": return self._send(200, {"stopped": jobs.request_cancel(slug)})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
                 import narration
                 if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
@@ -430,7 +717,8 @@ class H(BaseHTTPRequestHandler):
                 try:
                     if p.endswith("remove"): narration.remove(D); r = {}
                     else: r = narration.save(D, body.get("audio_name"), str(body.get("audio") or ""), str(body.get("srt") or ""), str(body.get("text") or ""))
-                    m = navaan.meta(slug); navaan.log_hist(m, "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines" + (", timing pending" if r.get("timing") else ""))); navaan.save_meta(slug, m)
+                    note = "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines" + (", timing pending" if r.get("timing") else ""))
+                    navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                     return self._send(200, {"ok": True, **r})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p.startswith("/api/visuals/"):
@@ -450,8 +738,8 @@ class H(BaseHTTPRequestHandler):
                         def tw():
                             err = ""
                             try: SIO.main([slug, "--try"])
-                            except SystemExit as e: err = "" if e.code in (0, None) else str(e.code)[:300]
-                            except Exception as e: err = str(e)[:300]
+                            except SystemExit as e: L.ignored(LOG, "tw: SystemExit (optional or expected)", e); err = "" if e.code in (0, None) else str(e.code)[:300]
+                            except Exception as e: L.soft(LOG, "tw_error"); err = str(e)[:300]
                             TRY[slug] = {"running": False, "error": err}
                         threading.Thread(target=tw, daemon=True).start()
                         return self._send(200, {"ok": True})
@@ -465,14 +753,15 @@ class H(BaseHTTPRequestHandler):
                         def vw():
                             err = ""
                             try: SIO.main([slug, "--vertical", ",".join(str(x) for x in pics)])
-                            except SystemExit as e: err = "" if e.code in (0, None) else str(e.code)[:300]
-                            except Exception as e: err = str(e)[:300]
+                            except SystemExit as e: L.ignored(LOG, "vw: SystemExit (optional or expected)", e); err = "" if e.code in (0, None) else str(e.code)[:300]
+                            except Exception as e: L.soft(LOG, "vw_error"); err = str(e)[:300]
                             VERT[slug] = {"running": False, "error": err}
                         threading.Thread(target=vw, daemon=True).start()
                         return self._send(200, {"ok": True})
                     if act == "save":
                         import media_cfg; v = V.save(D, str(body.get("mode") or ""), body.get("layout"), body.get("camera", ""), body.get("scene", ""), pictures_later=media_cfg.load()["image_provider"] == "openai")
-                        m = navaan.meta(slug); navaan.log_hist(m, f"visuals chosen via ui: {v['mode']}{' ' + v.get('layout', '') if v['mode'] == 'own' else ''}"); navaan.save_meta(slug, m)
+                        note = f"visuals chosen via ui: {v['mode']}{' ' + v.get('layout', '') if v['mode'] == 'own' else ''}"
+                        navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                         return self._send(200, {"ok": True, "visuals": v})
                     return self._send(404, {"error": "unknown visuals action"})
                 except ValueError as e: return self._send(400, {"error": str(e)})
@@ -506,20 +795,15 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
 
-def _fire(slug, sid):
-    """A scheduled step starts: show it as a running job in the portal, like a click on Run."""
-    JOBS[slug] = {"running": True, "rc": None}; navaan.RUN.pop(slug, None)
-    try: rc = navaan.run(slug, step=sid)
-    except SystemExit: rc = 1
-    except Exception: rc = 1
-    JOBS[slug] = {"running": False, "rc": rc}
-    return rc
-
-
 def serve(port=8765):
+    L.setup(stdout=True)
+    L.event(LOG, "info", "server_starting", port=port, bind=os.environ.get("NAVAAN_BIND", "127.0.0.1"), scheduler=scheduler_on())
     threading.Thread(target=analytics_auto.loop, daemon=True).start()  # refreshes the analytics on the schedule set on the Analytics page
-    if scheduler_on(): threading.Thread(target=PS.loop, args=(_fire, lambda s: JOBS.get(s, {}).get("running") or scheduler_state() == "paused"), daemon=True).start()  # publishes what you scheduled, once its gates are approved
-    else: print("Scheduler is off (NAVAAN_SCHEDULER=off): this portal will not publish on schedule.", flush=True)
+    if worker.external():
+        print("Jobs and the schedule run in the separate worker process (NAVAAN_WORKER=external).", flush=True)
+    else:
+        worker.start_background()   # development: one process runs the web server and a worker in threads
+        if not scheduler_on(): print("Scheduler is off (NAVAAN_SCHEDULER=off): this portal will not publish on schedule.", flush=True)
     cf = auth.ensure_setup_code()
     if auth.disabled(): print("WARNING: NAVAAN_AUTH=off, the portal has no login", flush=True)
     elif cf: print(f"First run: open the portal and create your login. Setup code is in {cf}", flush=True)

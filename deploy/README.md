@@ -100,6 +100,25 @@ Google sign in is also Mac only: run `publish_youtube.py auth` on the Mac, then 
 ## Cleaned songs: files come back from the bucket on demand
 After a song is archived and cleaned locally, its pictures and audio are only in the bucket. The portal fetches a missing picture or audio file for a song that has a recorded cloud copy the first time something asks for it (covers in the library, `/media/...`), and the YouTube upload and thumbnail steps fetch the file they need. Each fetch is one `oci os object get` of that single file (about 2 s), the key comes from the song's own `cloud.prefix`, paths outside a song folder are refused, and a file that is not in the bucket is remembered for an hour so it is not asked for again. Videos are not fetched by the picture route (too big for a page load); the upload step still fetches the one video it needs. Fetched files stay on the server's disk until the next local cleanup.
 
+## Logs
+
+One structured log stream (JSON lines, one object per event) for the portal, the scheduler and every pipeline run (NAV-12; spec `specs/002-platform-foundation`, FR-034 and FR-035).
+
+| Where | What | Kept |
+|-------|------|------|
+| `docker logs navaan` (stdout) | every event; Docker rotates it at 50 MB x 5 | until rotated |
+| `/opt/navaan/data/state/logs/app.jsonl` | the same stream, rotated at midnight UTC | 14 days |
+| `/opt/navaan/data/state/logs/runs/<job_id>.jsonl` | one whole pipeline run in order (every step, every output line) | 30 days |
+| `songs/<slug>/logs/<step>.log` | the raw output of each step, as before | with the song |
+
+Each record has `ts` (UTC), `level`, `service`, `component`, `event`, and the ids that apply: `request_id`, `job_id`, `item`, `step`, `user`, plus `error.type`, `error.message` and `error.stack` for errors. An error page names its request: look it up with
+```sh
+docker logs navaan 2>&1 | grep <request id>          # or: grep <id> /opt/navaan/data/state/logs/app.jsonl
+```
+Secrets, tokens, passwords, email addresses and query strings are masked before anything is written. The browser reports its own errors to `/api/client-log`, so a page that fails shows up here too. The same error is written at most once a minute; the next record says how many were held back (`suppressed`). `NAVAAN_LOG_LEVEL=DEBUG` adds the routine polls and every deliberately ignored error. The logs are not part of the nightly backup (they are not state).
+
+**Loki later, no code change:** run Grafana Alloy or Promtail on the VM, tail the container's stdout (or `app.jsonl`), parse the JSON, and use only `service`, `env`, `level` and `component` as labels. Keep `request_id`, `job_id`, `item` and `step` in the record body, not as labels, so the index stays small.
+
 ## Backup and restore
 `deploy/backup/backup.sh` runs nightly at 03:17 UTC as root (`/etc/cron.d/navaan-backup`, log `/var/log/navaan-backup.log`). It always keeps a local copy (newest 7 in `/opt/navaan/backups`, mode 700) and uploads to the OCI bucket `navaan` (prefix `navaan-backup/`, 14 days kept) through the VM's instance principal, using the `ghcr.io/oracle/oci-cli` container because the VM has no `oci` CLI. Exit code 3 means the local copy exists but the upload failed.
 
@@ -134,3 +153,104 @@ docker network connect engagehub-network navaan         # recovers in about 16 s
 
 ## Rollback
 Remove the two navaan mounts and the `navaan-network` network from the `engagehub-nginx` service, `cd /opt/engagehub && docker compose up -d nginx`, delete `/opt/navaan/nginx/navaan.conf`. DNS and the certificate can stay. `docker compose -f deploy/compose.yml down` stops NAVAAN. The Mac portal keeps working; set its `NAVAAN_SCHEDULER` back to `on` only after the server's is `off`.
+
+## Postgres (NAV-3, spec 002)
+
+Analytics lives in a Postgres container dedicated to this project, part of `compose.yml` like the app: `pg-init` (makes the two passwords once, each in its own volume; the app mounts only its own),
+`postgres` (17, 512 MB cap, data in `/opt/navaan/data/pg`) and the app, which waits for it to be healthy. The database is on the internal `navaan-db` network only: no published
+port, and nginx cannot reach it. Two roles: `postgres` (superuser, maintenance and the nightly dump) and **`navaan_app`**, which the app uses. It owns database `navaan`, cannot
+create roles or databases, and is created by `deploy/postgres/init.sh` on the first start. There is nothing to prepare on the VM; check `free -m` first because the container adds up to 512 MB.
+
+**Cutover from SQLite is automatic.** On the first start after the release, `navaan.py serve` copies the old `analytics.db` into Postgres in one transaction, checks every table's
+row count and content checksum, and commits only if all match (log events `cutover_started`, `cutover_done`). If anything differs, nothing is written, the start fails, the container
+never becomes healthy and the release pipeline rolls the image back; the SQLite file is never changed, so the old release runs on as before. After a good copy the SQLite file stays as
+the rollback copy: delete it by hand after about 14 days. Rolling back after a good cutover returns to that file, so analytics collected since are only in Postgres.
+
+**Where the app connects.** The compose file sets `NAVAAN_PG_HOST`, `NAVAAN_PG_USER` and `NAVAAN_PG_PASSWORD_FILE`. The same settings can live in `navaan.config.json`
+(`NAVAAN_PG_*` environment variables win; `NAVAAN_DATABASE_URL` wins over both). The config holds the path of the password file, never the password:
+```json
+"database": {"host": "navaan-postgres", "port": 5432, "name": "navaan", "user": "navaan_app", "password_file": "/pgsecret/pg_app_password"}
+```
+
+**Development and tests.** `docker compose -f deploy/compose.dev.yml up -d` starts a Postgres on 127.0.0.1:5432 (role `navaan_app`, no password, database `navaan`), which is
+what `analytics_db` uses with nothing configured. If another Postgres already holds 5432 (check `lsof -nP -iTCP:5432 -sTCP:LISTEN`), start it with `NAVAAN_PG_PORT=5440 docker compose -f deploy/compose.dev.yml up -d` and put `"database": {"port": 5440}` in `navaan.config.json` (or export `NAVAAN_PG_PORT`). Run the tests with `python -m unittest discover -s plugins/navaan-studio/tests`; each test gets its own throwaway schema.
+
+**Check by hand** (prove an old file and Postgres agree, or redo a copy): `python3 plugins/navaan-studio/scripts/analytics_to_postgres.py --sqlite <file> [--replace] [--dry-run]`
+prints rows and a checksum per table and exits 0 only when every table matches.
+
+**Backup and restore.** The nightly `backup.sh` puts a `pg_dump -Fc` in the archive (the live `pg` folder is left out of the tarball). Restore drill, run once before relying on it
+(a 115 KB analytics dump restored in 1 s on 2026-10-15):
+```sh
+tar -xzf navaan-data-<stamp>.tar.gz navaan-data/state/navaan.pgdump
+docker exec navaan-postgres psql -U postgres -c 'CREATE DATABASE drill OWNER navaan_app'
+docker exec -i navaan-postgres pg_restore -U postgres -d drill --no-owner --role=navaan_app < navaan-data/state/navaan.pgdump
+docker exec navaan-postgres psql -U postgres -d drill -At -c 'select count(*) from analytics.yt_daily'
+```
+Migrations are numbered SQL in `plugins/navaan-studio/db/migrations/<schema>/`, applied once each when the app connects, recorded in `core.schema_migrations`. A release's migration must
+work with the previous release too, because the pipeline rolls back the image but not the schema.
+
+### Studio state (NAV-4)
+
+What each song's `meta.json` held (state, approvals, history, published links, schedule, cloud and cleanup records) now lives in Postgres, schema `studio`, table `items` (the whole document, lossless) plus
+projections (`approvals`, `item_history`, `publications`, `schedules`) that are rewritten in the same transaction on every save. **Source of truth: `studio.items.doc`.** The song folders keep their media and
+step files; `meta.json` is still written after every save as a write-through export (temp file and rename, before the commit; if the write fails the save fails), so the bucket upload, the previous
+release and anything that reads the file keep working.
+
+**First start after the release:** `navaan.py serve` imports every `songs/*/meta.json` that Postgres does not have yet, reads each back and compares (`studio_import_done` in the log). If any file is unreadable or
+differs after import, the start fails, the container never becomes healthy and the pipeline rolls the image back; the files are never changed by the import.
+
+**Edits made outside the app** (a Claude step that follows a skill saying "record it in meta.json", a person, or the previous release after a rollback) are detected: when the file on disk is not the one we last wrote,
+its content is taken in as the newer state (`meta_json_edited_outside`). A file that is not valid JSON is ignored and logged (`meta_json_invalid`), and the stored state is kept.
+
+**Concurrency:** writes that read first (approve, answer, step results, the scheduler's claim) use `studio_store.update`, which locks the item's row, so the web page, the scheduler and a running step cannot overwrite
+each other. The scheduler counts an attempt under that lock before it fires a step, so two schedulers never run the same step. Tested with 40 pairs of simultaneous ticks.
+
+**Rollback:** the previous image reads the exported `meta.json` files, which are current. Anything it changes is taken back in by the next release through the outside-edit check.
+
+### Accounts, sessions and roles (NAV-5 stage 1)
+
+Schema `core` (migration `core/0001`): `users`, `roles` (owner, editor, listener), `role_permissions`, `user_roles`, `sessions`, `audit_log`, `login_attempts`, and `credentials`, `identities`, `user_profiles` (created for the listener stories, unused so far).
+
+- **Your login** is unchanged: password, authenticator code, passkeys and recovery codes stay in `auth.json`, delivered by Vault into tmpfs, so they are never in a database dump. A `users` row for you (role owner) is created at your first sign-in so sessions, roles and the audit trail work the same for everyone.
+- **Sessions** are rows in `core.sessions`, keyed by the SHA-256 of the cookie value, ending after 7 days or 7 idle days, or when revoked; a password change ends your other sessions. The older `sessions.json` is read once, moved to `sessions.json.imported`, and its live sessions carry over.
+- **CSRF**: every session has its own token, filled into `index.html` and the classic page when they are served; a POST needs the token of the session it comes with.
+- **Permissions**: a route asks for a permission (`studio.access`, `studio.approve`, ...), never a role name. Every studio route needs `studio.access`, which only owner and editor have; `GET /api/me` answers for any signed-in account.
+- **Lockout**: 5 failed sign-ins from one address lock that address, growing to 15 minutes; kept in `core.login_attempts`, so a restart does not reset it.
+- **Audit**: `core.audit_log` (`login`, `login_failed`, `logout`, `owner_setup`, `password_changed`, `passkey_added`, `passkey_removed`, `recovery_codes_renewed`, `user_created`); sign-in attempts older than 30 days and audit rows older than 400 days are pruned.
+- **Database down**: `/auth/state` (the health check) still answers; signing in and every studio call fail closed.
+- **Rollback**: the previous image reads `auth.json` and keeps its own sessions: you sign in again once, nothing else is lost.
+
+### Jobs and the worker (NAV-4 stage 2)
+
+The web server no longer runs steps or the publishing schedule. A click on Run, an approval that starts the next step, an answer, Redo or Restart **queues a job** in Postgres (`studio.jobs`); the
+`worker` service (same image, `navaan.py worker`, container `navaan-worker`) claims it and runs it exactly as the web server used to, and publishes the progress the portal shows
+(the old RUN and STATUS texts, through the job row). The schedule runs in the worker too, each step recorded as a job.
+
+- **One active job per item.** A second trigger while one is queued or running is refused (the old "a run is in progress").
+- **Lease and retry.** A running job has a lease its worker extends every 5 s. If the worker stops (deploy, crash, host restart) the lease runs out, `reap()` puts the job back in the queue and the next
+  worker runs it again; after 2 attempts it fails with "the worker stopped before the job finished". A clean stop gives the lease back at once. A step that fails by itself is a failed job, not a retry.
+- **Stop** from the portal sets a flag the worker sees at its next heartbeat, then stops the step and everything it started.
+- **If the worker is down** the portal still queues jobs and `/api/status` reports `"worker": "down"`; they run when it is back. `docker logs navaan-worker`, and per-run files in `state/logs/worker/runs/`.
+- **Slots.** `NAVAAN_WORKER_SLOTS` (default 2) items run in parallel; ffmpeg and Remotion are heavy, so watch memory before raising it.
+- **Development.** `navaan.py serve` runs a worker in its own threads unless `NAVAAN_WORKER=external`, so one process is still enough on a laptop.
+- **Rollback.** The previous image has no worker: its web server runs steps itself. After a rollback stop the worker container (`docker stop navaan-worker`); queued jobs wait in the table.
+
+### The new app (NAV-8)
+
+A React + Vite + TypeScript app in `plugins/navaan-studio/web/`, served by the portal at **`/app/`**; the classic page stays at `/` and `/legacy` until the new app has every screen. It is built in a separate stage of
+`deploy/Dockerfile` (only `dist` enters the image; nothing to run on the VM) and in CI (`npm ci`, `npm test`, `npm run build`). nginx needs no change: it already proxies every path.
+
+- **Themes are data.** `src/styles/themes/<id>.css` is one block of variables (`[data-theme="midnight-cinema"]`, `[data-theme="ivory-gold"]`); components read variables only. `npm test` fails on a colour literal
+  outside those files and on a theme whose text falls under 4.5:1 contrast. Add a theme: copy a file, change the values, add its id to `src/theme/themes.ts` and the inline script in `index.html` (a test keeps them equal).
+- **The choice** (Midnight Cinema, Ivory & Gold, or match the device) is kept per device in `localStorage` and applied before first paint. The full Appearance page (tone slider, accent palette) is NAV-17.
+- **Auth is the portal's.** The same session cookie and the per-process token (a `<meta name="navaan-token">` filled in when `index.html` is served) as the classic page. A signed-out visit to `/app/` shows the sign-in page.
+- **Screens not built yet** link to the classic view for that area, so nothing is lost while they move over (stories NAV-13 to NAV-19).
+- **Development.** `cd plugins/navaan-studio/web && npm install && npm run dev` proxies `/api` and `/auth` to a portal on 127.0.0.1:8765.
+
+## Releasing
+
+One version, set in `plugins/navaan-studio/.claude-plugin/plugin.json`, mirrored in `.claude-plugin/marketplace.json` and `plugins/navaan-studio/web/package.json`; `CHANGELOG.md` (Keep a Changelog, SemVer, 0.y.z until the public listener app) names the latest release. `test_version.py` fails when they drift. The signed-in portal reports it (`/auth/state`, `version`) and the account menu of the new app shows it.
+
+1. **While you work**: add entries under `## [Unreleased]` in `CHANGELOG.md` when a change is one a person using or running the studio would notice (a feature, a fix, a change, a removal, a security fix). Refactors, tests and docs-only edits are not listed. `/changelog` writes the entries from the commits.
+2. **To release**: `python3 deploy/bump-version.py X.Y.Z` (patch for fixes, minor for features while 0.y.z). It refuses an empty `[Unreleased]`, edits the four version files and turns `[Unreleased]` into `[X.Y.Z] - <date>`, then prints the commit and tag commands. It never runs git.
+3. Commit that on a branch, merge to `develop`, release `develop` to `main` as usual (the deploy is the release), then tag the release merge commit: `git tag -a vX.Y.Z -m "NAVAAN Studio X.Y.Z" <sha>` and `git push origin vX.Y.Z`. The GitHub Release body can be the changelog section (`/release-notes`).

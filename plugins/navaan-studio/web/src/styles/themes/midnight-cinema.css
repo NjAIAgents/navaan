@@ -1,0 +1,26 @@
+/* Theme "Midnight Cinema" (dark): navy ground, moonlit gold, ember. A theme is one block of variables; components read variables and never colours.
+   To add a theme: copy this file, rename the selector, change the values, add its id to src/theme/themes.ts. No component or screen changes.
+   Tokens: ground --bg, glass surfaces --s1..--s3, edge --ln, text --tx/--mu/--dim, accent text --ac, secondary accent --vi, action gradient --g1/--g2 with --on-action text,
+   status --ok/--wn/--bad, floating bars --bar/--sheet, material --blur (none = flat), depth --shadow/--hi, atmosphere --glow/--field/--orbs, media overlays --on-media/--media-fill/--scrim. */
+[data-theme="midnight-cinema"] {
+  color-scheme: dark;
+  --bg: #0B1020;
+  --s1: rgba(23, 36, 58, .58); --s2: rgba(36, 52, 80, .62); --s3: rgba(56, 74, 106, .62);
+  --ln: rgba(242, 238, 231, .13);
+  --tx: #F2EEE7; --mu: #B7BCCB; --dim: #8E96AA;
+  --ac: #D6B477; --vi: #A96F52; --g1: #E4C88F; --g2: #C9A056; --ab: #D6B477; --on-action: #0B1020;
+  --ok: #6FD3A8; --wn: #F0B964; --bad: #F08A7E;
+  --bar: rgba(11, 16, 32, .64); --sheet: rgba(17, 26, 46, .88);
+  --blur: blur(26px) saturate(185%) brightness(1.1);
+  --shadow: 0 12px 40px rgba(0, 0, 0, .45); --shadow-sm: 0 4px 14px rgba(0, 0, 0, .22); --hi: inset 0 1px 0 rgba(242, 238, 231, .1);
+  --scrim: rgba(8, 6, 20, .5); --on-media: #FFFFFF; --media-fill: rgba(255, 255, 255, .35); --media-edge: rgba(255, 255, 255, .55);
+  --cov1: linear-gradient(160deg, #0D1730, #2F5878); --cov2: linear-gradient(190deg, #2E1B2C, #8A4A34); --cov3: linear-gradient(155deg, #1B2145, #D08A52); --cov4: linear-gradient(135deg, #0E2A3A, #2C6A6C);
+  --glow: rgba(214, 180, 119, .24); --glow2: rgba(169, 111, 82, .22); --orb-a: rgba(214, 180, 119, .42);
+  --glass-fill: linear-gradient(145deg, rgba(70, 96, 146, .38), rgba(23, 36, 58, .34) 52%, rgba(46, 68, 108, .32));
+  --gloss: linear-gradient(180deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, 0) 42%), radial-gradient(120% 70% at 0% 0%, rgba(255, 255, 255, .2), transparent 56%);
+  --rim: linear-gradient(135deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .1) 28%, rgba(255, 255, 255, .03) 62%, rgba(214, 180, 119, .4));
+  --orbs: radial-gradient(circle at 14% 12%, rgba(70, 120, 210, .55) 0 18%, transparent 19%), radial-gradient(circle at 88% 22%, var(--orb-a) 0 14%, transparent 15%),
+          radial-gradient(circle at 64% 90%, rgba(169, 111, 82, .5) 0 18%, transparent 19%), radial-gradient(circle at 8% 84%, rgba(90, 70, 160, .4) 0 12%, transparent 13%);
+  --field: radial-gradient(ellipse 60% 50% at 6% -8%, rgba(60, 100, 170, .36), transparent 62%), radial-gradient(ellipse 55% 45% at 98% 0%, rgba(214, 180, 119, .18), transparent 62%),
+           radial-gradient(ellipse 70% 50% at 60% 114%, rgba(169, 111, 82, .22), transparent 62%);
+}

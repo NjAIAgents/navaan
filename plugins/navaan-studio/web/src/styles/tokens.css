@@ -1,0 +1,9 @@
+/* Tokens that do not change with the theme: shape, motion, type, spacing. Colours live only in themes/*.css. */
+:root {
+  --r1: 8px; --r2: 14px; --r3: 22px; --r4: 26px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --font-ui: "Manrope Variable", "Noto Sans Devanagari", system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", "Noto Serif Devanagari", serif;
+  --tap: 44px;              /* minimum target size */
+  --gutter: 16px;
+}

@@ -33,6 +33,8 @@ import os, sys, json, time, re, uuid, argparse, datetime, urllib.request, urllib
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("ig_collect")
 
 DEFAULT_HOST = "https://graph.instagram.com"
 DEFAULT_VERSION = "v23.0"
@@ -76,7 +78,8 @@ class Client:
         try:
             raw = e.read().decode("utf-8", "replace")
             body = json.loads(raw).get("error", {})
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "err_error")
             body = {}
         msg = (body.get("message") or raw[:200] or str(e)).replace(self.token, "***")
         code = body.get("code")
@@ -90,8 +93,10 @@ class Client:
                 with self.opener(urllib.request.Request(url), timeout=60) as r:
                     return json.load(r)
             except urllib.error.HTTPError as e:
+                L.ignored(LOG, "get: HTTPError (optional or expected)", e)
                 err = self._err(e)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                L.ignored(LOG, "get: URLError/TimeoutError/ConnectionError (optional or expected)", e)
                 err = ApiError(0, None, str(getattr(e, "reason", e)).replace(self.token, "***"), retriable=True)
             if not err.retriable or attempt == 4:
                 raise err
@@ -118,7 +123,8 @@ def norm_ts(s):
     s2 = re.sub(r"([+-]\d\d)(\d\d)$", r"\1:\2", s.replace("Z", "+00:00"))
     try:
         dt = datetime.datetime.fromisoformat(s2)
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "norm_ts: ValueError (optional or expected)", _e)
         return s
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
@@ -128,7 +134,8 @@ def norm_ts(s):
 def parse_ts(s):
     try:
         return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) if s else None
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "parse_ts: ValueError (optional or expected)", _e)
         return None
 
 
@@ -429,7 +436,7 @@ def ig_ref(value):
 
 def link_songs(conn):
     """Refresh the songs table from the song folders and tie posts to songs through published.instagram in meta.json."""
-    from navaan_common import songs_root, load_json
+    from navaan_common import songs_root, load_json, item_load
     root = songs_root()
     if not os.path.isdir(root):
         return 0
@@ -438,7 +445,7 @@ def link_songs(conn):
         d = os.path.join(root, slug)
         if slug.startswith("_") or not os.path.isdir(d):
             continue
-        meta = load_json(os.path.join(d, "meta.json"), default={})
+        meta = item_load(slug, {}) if os.path.exists(os.path.join(d, "meta.json")) else {}
         tags = load_json(os.path.join(d, "tags.json"), default={})
         title = tags.get("title")
         if not title and os.path.exists(os.path.join(d, "title.txt")):
@@ -514,7 +521,8 @@ def collect_hashtags(ctx):
     try:
         from navaan_common import cfg
         configured = [str(t).lstrip("#").lower() for t in (cfg("analytics.hashtags", []) or [])]
-    except SystemExit:
+    except SystemExit as _e:
+        L.ignored(LOG, "collect_hashtags: SystemExit (optional or expected)", _e)
         configured = []
     tags = list(dict.fromkeys(configured + own_hashtags(ctx.conn, ctx.uid)))
     if not tags:
@@ -580,6 +588,7 @@ def collect(conn, client, uid, label, only=ALL_COLLECTORS, opts=None, market=Non
                     ctx.errors.append({"where": name, "error": str(e)[:300]})
         status = "ok" if not ctx.errors else "partial"
     except ApiError as e:
+        L.ignored(LOG, "collect: ApiError (optional or expected)", e)
         status = "failed"
         ctx.errors.append({"where": "auth" if e.auth else "run", "error": str(e)[:300] + (" Token expired or invalid: refresh the long-lived token." if e.auth else "")})
     conn.execute(f"UPDATE accounts SET last_collected_at = {db.PH} WHERE ig_user_id = {db.PH}", (db.utcnow(), uid)) if status != "failed" else None
@@ -637,7 +646,7 @@ def cmd_collect(a):
 
 def cmd_status(a):
     conn = db.connect(a.db)
-    print("database:", db.db_path(a.db))
+    print("database:", db.where())
     for acc in db.rows(conn, "SELECT * FROM accounts ORDER BY label"):
         if a.account not in ("all", acc["label"]):
             continue
@@ -686,7 +695,7 @@ def cmd_mention(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", help="database file (default: NAVAAN_DB, analytics.db_path, or ~/.local/share/navaan/analytics.db)")
+    ap.add_argument("--db", help="ignored: the database is Postgres (NAVAAN_DATABASE_URL, NAVAAN_PG_HOST)")
     sp = ap.add_subparsers(dest="cmd", required=True)
     c = sp.add_parser("collect"); c.add_argument("--account", default="music"); c.add_argument("--only"); c.add_argument("--days", type=int, default=7)
     c.add_argument("--max-pages", type=int, default=20); c.add_argument("--force", action="store_true"); c.set_defaults(fn=cmd_collect)
@@ -695,6 +704,6 @@ if __name__ == "__main__":
     pe = sp.add_parser("peers", help="creators to benchmark against (public numbers via Business Discovery)"); pe.add_argument("action", choices=["add", "remove", "list"])
     pe.add_argument("names", nargs="*"); pe.add_argument("--label"); pe.add_argument("--note"); pe.set_defaults(fn=cmd_peers)
     m = sp.add_parser("mention"); m.add_argument("--media-id"); m.add_argument("--comment-id"); m.add_argument("--account", default="music"); m.set_defaults(fn=cmd_mention)
-    sp.add_parser("dbpath").set_defaults(fn=lambda a: print(db.db_path(a.db)))
+    sp.add_parser("dbpath").set_defaults(fn=lambda a: print(db.where()))
     a = ap.parse_args()
     a.fn(a)

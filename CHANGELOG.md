@@ -1,0 +1,180 @@
+# Changelog
+
+All notable changes to NAVAAN Studio are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/) (0.y.z until the public listener app exists).
+The version lives in `plugins/navaan-studio/.claude-plugin/plugin.json` and is mirrored in `.claude-plugin/marketplace.json` and `plugins/navaan-studio/web/package.json`; a test keeps them and this file in step.
+Release steps are in `deploy/README.md` (Releasing). Only changes a person using or running the studio would notice are listed; refactors, tests and docs-only edits are in the git history.
+
+## [Unreleased]
+
+## [0.15.1] - 2026-10-16
+
+### Changed
+- The classic dashboard loads small cover pictures instead of the full-size ones: the first load pulled about 11 MB of PNG covers; list cards, small covers and the hero now ask for a 160, 480 or 960 pixel JPEG (made once with ffmpeg and kept), while a song's own page and downloads still use the full file. If a thumbnail cannot be made, the original is served and the reason is logged.
+
+## [0.15.0] - 2026-10-16
+
+### Added
+- The listener side of the app. A person without studio access now sees a listener app: Browse (newest, then by language, with covers that fade in), a song page with the big cover, one round Play button, the lyrics (line by line, with the current line marked and followed as the song plays, when timing exists), save, add to a playlist and share, and a full-screen play mode that opens from the Now playing bar and back with the keyboard (Escape) or the close button. A listener only ever sees songs that are published with a confirmed licence, and the studio stays closed to them.
+- Library gets a Songs tab you can filter by album, language and genre. Albums are real objects in the new app: create one, open it, add songs, put them in order (and the order persists), edit its kind, status, date and description, and delete it; a published album can only hold published songs, and its cover is its first song's.
+- Anyone signed in can share a song they can see (the link and preview work as before); you can stop any link you made, and the owner can stop any link. A playlist set to unlisted or public opens by its link for another person, read only; a private one is "not found". The new Account page downloads your data or deletes your account.
+- Browser checks for the listener side run in CI: browsing, playing with lyrics, a share link opened signed out, the free playlist limit, album create, reorder and reload, and the layout and accessibility checks on the listener screens in both themes.
+
+### Fixed
+- Search and the catalog no longer treat the key names of a song's metadata file (genre, composer, album, ...) as words about the song; the song's genre and language are now stored and used for the filters.
+- A request could leave its database connections open until a later clean-up; 200 requests left 82 open against a limit of 30 on the server. Each request now gives its connections back, and the server's connection limit is 60.
+
+### Changed
+- The app itself (`/app/`) is served to every signed-in person; what they can do is still decided route by route.
+
+## [0.14.0] - 2026-10-16
+
+### Added
+- Plans and playlists. Every person is on the Free plan (3 playlists) until they are moved; what a plan includes is data, so you can raise a limit with one change and it applies at once with no release (`POST /api/billing/entitlement`, owner only). Premium is shown but cannot be bought yet. The new Plans page compares them and shows how much of yours you have used; the owner is never limited.
+- Library in the new app: create playlists, open one, rename it, change who can see it, put songs in order (move up and down) and remove them; save songs from a song's page or add them to a playlist. Two edits to one playlist at the same time are both kept, in a sensible order. A playlist, a saved song or a play belongs to one person; another person gets "not found".
+- Listening needs the plan's `audio.play` (everyone has it for now) and each play is recorded per person and song, in monthly partitions so old detail can be removed by dropping a month.
+- Account export and delete: `GET /api/account/export` downloads everything held about a person, and `POST /api/account/delete` (typing "delete my account") removes their library, plan, sessions and links; the owner account cannot be deleted this way.
+
+### Not yet
+Point-in-time recovery, error tracking and the uptime check, and the security review of the public surface, are still to do before anyone can sign up.
+
+## [0.13.0] - 2026-10-16
+
+### Added
+- Motion and playback in the new app: a short fade when you move between screens, covers that fade in over their dominant colour in the right size (AVIF or WebP, 320, 640 or 1280) with no layout shift, an equaliser that marks the song that is playing, and a Play button on a published song with a Now playing bar that keeps playing while you move around. All motion stops when your device asks for reduced motion, and the glass panels become solid without backdrop-filter support or when reduced transparency is on.
+- Quality gates that run on every pull request: browser checks at 390x844 and 1280x800 in both themes on ten screens (no horizontal scroll, touch targets of 44px, no serious accessibility violation including colour contrast in the real layout), and a Lighthouse mobile gate (performance and accessibility of 90 or more on the main screens). They sit next to the existing checks for colour literals and theme contrast. Run them yourself with `npm run e2e` in `plugins/navaan-studio/web/e2e`.
+
+### Changed
+- The app's files are sent gzipped and each screen loads when you open it, so the first paint on a slow phone connection is faster (Lighthouse mobile performance 87 to 98).
+- The account button's name now matches what it shows, which the new browser check flagged on a desktop.
+
+## [0.12.1] - 2026-10-16
+
+### Fixed
+- The 30 second share preview no longer carries the song's embedded cover picture and tags, which made it a third bigger than it needed to be.
+
+## [0.12.0] - 2026-10-16
+
+### Added
+- Share links. On a published song with a confirmed licence, Studio > Songs now has a Share section: Create a share link gives a link anyone can open without an account (`/s/<token>`). It shows a branded card with the cover and a 30 second preview, and chats show a preview card with the song's title and cover. You can stop a link at any time and it stops working at once; opens are counted. The preview is cut once from the audio in the bucket and stored next to it.
+- Cover pictures in three sizes (320, 640, 1280) as AVIF, WebP or JPEG (`/img/<song>/<size>.<format>`), made from the original in the bucket on first request, cached, and served with a one year cache lifetime and an ETag, so they still work after the studio's local copy is archived. The first request also records the cover's size and dominant colour.
+- Play links: `GET /api/play?slug=` returns a link that expires after 5 minutes and goes straight to the bucket, so audio never passes through this server; it refuses a track that is not published or is marked not allowed.
+- Search in the new app: the search box in the top bar (and a Search icon on a phone) finds songs and albums in Devanagari or Roman letters.
+
+### Changed
+- Links to files in the bucket are made with the OCI SDK instead of a command line process per link, and one link is reused for its lifetime.
+
+## [0.11.0] - 2026-10-16
+
+### Added
+- Studio > Analytics in the new app, in three tabs. Analytics: the headline numbers, a line per metric, and your posts or videos (a table on a desktop, stacked cards on a phone), for Instagram or YouTube, one account or all, the last 7, 30 or 90 days. Recommendations: each with its evidence, the action and the expected effect, Done or Dismiss, and the Done and Dismissed lists with Reopen. Interactions: unreplied comments where you edit a reply or ask Claude for a draft, then Approve and send; nothing is posted until you press it and confirm for that one comment. It reads the same data as the classic Analytics page, so the numbers match; the view is in the address, so it can be linked.
+
+## [0.10.0] - 2026-10-16
+
+### Added
+- Studio > Inspiration, Approvals and Schedule in the new app. Inspiration lists your quotes and short videos and opens each on its own pipeline steps (quote, originality, background, typography, render), with the same gate, Approve and Request changes as songs. Approvals is one list of everything waiting for your yes across songs and inspiration, grouped by what is asked, with one Review action each. Schedule is a month calendar (Monday first) with every YouTube and Instagram time, a day-by-day list under it, and missed or blocked publishes marked; on a phone it is the list only. `GET /api/schedule` serves it.
+- Home opens inspiration items in the new app too.
+
+## [0.9.0] - 2026-10-16
+
+### Added
+- The owner decides, per track, whether it may be offered behind a plan: `POST /api/catalog/license` (owner only, audited) sets confirmed, unconfirmed or not allowed with a note, and `GET /api/tracks` lists every track with its origin, Suno model, plan tier and licence. The same decision can be made from a shell: `python3 catalog_store.py license confirmed "why" --plan paid`.
+- A new song records the Suno plan tier at import when `suno.plan` is set in `navaan.config.json`.
+
+### Fixed
+- The Postgres container gets 256 MB of shared memory instead of Docker's 64 MB default, so a large index build can no longer crash it. The database container restarts once at this deploy; the data is on its volume.
+- The catalog sync no longer logs an error for the `_template` folder at every start.
+
+## [0.8.0] - 2026-10-16
+
+### Added
+- A catalog in Postgres (schema `catalog`): your published songs as tracks with their audio and cover files in the bucket, albums made from the album labels, and a search index. It is rebuilt from the studio at every start and after every run, so it never needs hand editing. Every track records its origin and a licence status that starts as unconfirmed; only you confirm it, and an unconfirmed track can never be put behind a plan.
+- Search that finds a song by typing it in Devanagari or in Roman letters (`/api/search?q=tere hone se` finds तेरे होने से), tolerating typos and accent differences; 10,000 tracks answer in about 40 ms (95th percentile). A listener account may search; it cannot use the studio.
+- An album editor API: create, edit, reorder and delete albums (`/api/albums`, `/api/albums/save`, `/api/albums/reorder`, `/api/albums/delete`). The screens come later.
+
+## [0.7.0] - 2026-10-16
+
+### Added
+- Studio > Songs in the new app (`/app/studio/songs`): the list of songs with state, next action and filters, and a song page with the step list, the approval gate with the text you are approving, Approve and Request changes, a failed step with its log reference and a Retry, and the history with who and when. Music songs on Home open there; inspiration and the other screens still open in the classic view.
+- Request changes: send a song back with a note instead of approving. It drops any approval of that gate and keeps the note in the history; it never counts as an approval and does not start a run by itself.
+
+### Changed
+- Approvals and requested changes made in the new app record who made them in the history (for example `via ui:owner`).
+
+## [0.6.0] - 2026-10-16
+
+### Added
+- People, roles and permissions in Postgres (schema `core`). You are the `owner`; a `listener` role exists for the public app. The studio refuses any account without studio access, and `GET /api/me` says who you are and what you may do. The new app shows your name.
+- An audit trail of sign-ins, failed sign-ins, sign-outs, password and passkey changes (who, what, when, from where, never a secret).
+
+### Changed
+- Sessions are in Postgres instead of `sessions.json` (existing sessions carry over, so the deploy does not sign you out), and each session has its own CSRF token instead of one for the whole server.
+- The sign-in lockout (5 failures from one address, growing to 15 minutes) is in Postgres too, so it survives a restart. Your password, authenticator secret, passkeys and recovery codes stay in `auth.json` from Vault, out of database backups.
+
+## [0.5.0] - 2026-10-16
+
+### Added
+- This changelog, and one version number across the plugin, the marketplace entry and the web app; the account menu in the new app shows it and the signed-in portal reports it. `deploy/bump-version.py` makes a release.
+- A new app at `/app/` (React, Vite, TypeScript): Midnight Cinema and Ivory & Gold themes as data, glass panels with flat buttons, a mobile-first shell (sidebar and top bar on a desktop, header and floating tab bar on a phone), an account menu with the theme choice kept per device, and a Home screen on your real songs. The classic page stays at `/` and `/legacy` until every screen has moved over.
+
+### Changed
+- The sign-in page returns you to the page you asked for instead of always the classic page.
+
+## [0.4.0] - 2026-10-15
+
+### Added
+- One structured JSON log for the whole app (web, pipeline and browser errors), a log per pipeline run, request ids on every reply, and a rule that no error is swallowed silently.
+- Postgres as the database, in its own container with its own role: analytics moved over automatically at the first start, verified table by table, with the SQLite file kept as the rollback copy.
+- The state of every song and inspiration (what `meta.json` held) in Postgres, with locked updates so the web page, the scheduler and a running step cannot overwrite each other; the scheduler claims a due step under that lock, so a post is published once. `meta.json` is still written as an export, and edits made to it outside the app are taken in.
+- A job queue and a separate worker container: a run survives a deploy or a crash of the web server, an interrupted job is retried once, Stop works across processes, and the schedule runs in the worker.
+
+### Changed
+- Song and inspiration folders are local working data and are no longer tracked in git; media stays in the OCI bucket.
+- The dev Postgres host port is configurable (`NAVAAN_PG_PORT`).
+
+## [0.3.0] - 2026-10-15
+
+### Added
+- Music Short and Reel without a browser, with lyric captions on the reel; the reel is its own step and can be redone alone; watermark, reel fit and hook pick.
+- Narration for inspiration shorts: upload a ready-made narration (audio plus subtitles), time lines from audio alone with Whisper, or have ElevenLabs speak it (voice choice, cache and cap).
+- OpenAI pictures for inspiration shorts and for songs (director prompts, picture roles, cinematic look, matching people, 9:16), motion loops under the camera move, a Try the first 2 pictures card, a pictures-per-song setting with a run cap, and a Stop button.
+- Restart Produce from a chosen step through the render.
+- Gate switches in Settings, and media settings (voice, keys).
+
+### Changed
+- Faster: parallel speech recognition, a pre-blurred reel backdrop, an ffmpeg renderer for the Shots video and the reel (Remotion stays as the fallback), a cached caption-package check and media ETags (the song list went from about 2.3 s to 0.02 s).
+- Instagram publishing on the server reads the OCI region from instance metadata; the song MP3 can be uploaded when Suno audio is unreadable.
+
+### Fixed
+- The song page no longer fails with `missing prompt_pack.json`; picture steps no longer repeat runs.
+
+## [0.2.0] - 2026-10-13
+
+### Added
+- NAVAAN on the server: Docker deploy on the Oracle VM at `navaan.njlabs.dev`, secrets from Vault, nightly backup to the OCI bucket, and the server owning the publishing schedule.
+- A release pipeline: CI on every pull request, deploy to production on a merge to `main` with an automatic roll back of the image when the health check fails.
+- Sign-in with a password and authenticator code, passkeys alone, recovery codes, per-IP lockout, 7-day sessions that survive restarts; privacy and terms pages.
+- Comment replies (Claude drafts, you approve and send each one) and best-time-to-publish suggestions for the schedule.
+
+## [0.1.0]
+
+### Added
+- The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
+
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...v0.15.1
+[0.15.0]: https://github.com/NjAIAgents/navaan/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/NjAIAgents/navaan/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/NjAIAgents/navaan/compare/v0.12.1...v0.13.0
+[0.12.1]: https://github.com/NjAIAgents/navaan/compare/v0.12.0...v0.12.1
+[0.12.0]: https://github.com/NjAIAgents/navaan/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/NjAIAgents/navaan/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/NjAIAgents/navaan/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/NjAIAgents/navaan/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/NjAIAgents/navaan/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/NjAIAgents/navaan/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/NjAIAgents/navaan/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/NjAIAgents/navaan/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/NjAIAgents/navaan/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/NjAIAgents/navaan/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/NjAIAgents/navaan/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/NjAIAgents/navaan/releases/tag/v0.1.0

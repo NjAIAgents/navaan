@@ -2,6 +2,7 @@
 import os, sys, tempfile, unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import comment_reply as cr
 

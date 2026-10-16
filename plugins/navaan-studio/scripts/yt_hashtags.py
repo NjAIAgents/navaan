@@ -18,6 +18,8 @@ import os, sys, re, json, glob, argparse, datetime, collections
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("yt_hashtags")
 
 UTC = datetime.timezone.utc
 SCHEMA = """CREATE TABLE IF NOT EXISTS yt_hashtag_posts (
@@ -65,13 +67,15 @@ def own_tags(conn, label, limit=AUTO_TAGS):
     try:
         import navaan_common as C
         root = C.songs_root()
-    except (SystemExit, Exception):
+    except (SystemExit, Exception) as _e:
+        L.soft(LOG, "own_tags_error")
         return []
     for r in rows:
         p = os.path.join(root, r["slug"], "youtube.json")
         try:
             desc = json.load(open(p, encoding="utf-8")).get("description") or ""
-        except (OSError, ValueError):
+        except (OSError, ValueError) as _e:
+            L.ignored(LOG, "own_tags: OSError/ValueError (optional or expected)", _e)
             continue
         for t in {x.lower() for x in HASHTAG.findall(desc)}:
             if t not in GENERIC and re.sub(r"[^a-z0-9]", "", t) not in brand:
@@ -86,7 +90,8 @@ def pick_tags(conn, label, override=None):
         try:
             from navaan_common import cfg
             tags = [str(t).strip().lstrip("#").lower() for t in (cfg("analytics.yt_hashtags." + label) or [])]
-        except (SystemExit, Exception):
+        except (SystemExit, Exception) as _e:
+            L.soft(LOG, "pick_tags_error")
             tags = []
         tags = tags or own_tags(conn, label)
     return [t for t in dict.fromkeys(tags) if re.fullmatch(r"[a-z0-9_]{2,40}", t)][:MAX_TAGS]
@@ -98,7 +103,8 @@ def recently_collected(conn, label, now, gap_days=MIN_GAP_DAYS):
         return False
     try:
         t = datetime.datetime.strptime(r["t"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    except ValueError:
+    except ValueError as _e:
+        L.ignored(LOG, "recently_collected: ValueError (optional or expected)", _e)
         return False
     return (now - t).total_seconds() < gap_days * 86400
 
@@ -142,6 +148,7 @@ def collect_step(ctx):
     try:
         r = collect(ctx.conn, ctx.client, ctx.label, ctx.channel_id, tags, ctx.now)
     except Exception as e:
+        L.soft(LOG, "collect_step_error")
         ctx.errors.append({"where": "hashtags", "error": str(e)[:300]})
         return
     ctx.bump("hashtag_posts", r["posts"])

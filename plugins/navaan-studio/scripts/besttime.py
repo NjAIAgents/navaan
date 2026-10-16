@@ -15,6 +15,8 @@ YouTube has its own block further down (analyze_youtube): your own videos, viewe
 analyze(conn, label, now=None) -> {"hours": [24 scores 0 to 100], "weekdays": [7 scores, Monday first], "slots": [...], "basis": {...}, "notes": [...]}"""
 import datetime
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("besttime")
 
 UTC = datetime.timezone.utc
 W_ONLINE, W_OWN, W_PEERS = 0.5, 0.3, 0.2
@@ -24,9 +26,10 @@ DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sun
 
 def _ts(s):
     try: return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) if s else None
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "ts_error")
         try: return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(UTC)
-        except Exception: return None
+        except Exception as _e: L.soft(LOG, "ts_error"); return None
 
 
 def _norm(v):
@@ -51,9 +54,8 @@ def signals(conn, label):
     last = db.one(conn, f"SELECT MAX(captured_on) AS d FROM online_hours WHERE ig_user_id = {db.PH}", (uid,))["d"]
     online = [0.0] * 24
     if last:
-        rows = db.rows(conn, f"SELECT hour, AVG(followers) AS f FROM online_hours WHERE ig_user_id = {db.PH} AND captured_on >= "
-                             f"(SELECT date(MAX(captured_on), '-13 day') FROM online_hours WHERE ig_user_id = {db.PH}) GROUP BY hour", (uid, uid)) \
-            if getattr(db, "PH", "?") == "?" else db.rows(conn, f"SELECT hour, AVG(followers) AS f FROM online_hours WHERE ig_user_id = {db.PH} GROUP BY hour", (uid,))
+        since = (datetime.date.fromisoformat(last[:10]) - datetime.timedelta(days=13)).isoformat()   # the last 14 days of data, worked out here so the SQL is the same on SQLite and Postgres
+        rows = db.rows(conn, f"SELECT hour, AVG(followers) AS f FROM online_hours WHERE ig_user_id = {db.PH} AND captured_on >= {db.PH} GROUP BY hour", (uid, since))
         for r in rows:
             if r["f"] is not None and 0 <= int(r["hour"]) < 24: online[int(r["hour"])] = float(r["f"])
     posts = db.rows(conn, f"""SELECT m.posted_at, sn.views, sn.reach FROM media m
@@ -133,12 +135,12 @@ def analyze(conn, label, now=None):
 
 def for_label(label, db_file=None):
     try: conn = db.connect(db_file, readonly=True)
-    except Exception as e: return {"empty": True, "reason": "db_error", "error": str(e)[:200]}
+    except Exception as e: L.soft(LOG, "for_label_error"); return {"empty": True, "reason": "db_error", "error": str(e)[:200]}
     if conn is None: return {"empty": True, "reason": "no_database"}
     try: return analyze(conn, label)
     finally:
         try: conn.close()
-        except Exception: pass
+        except Exception as _e: L.soft(LOG, "for_label_error"); pass
 
 
 
@@ -202,7 +204,8 @@ def _yt_peers(conn, label, now):
     Returns (hours, n) or (None, n) when fewer than MIN_YT_PEERS posts older than PEER_MIN_AGE_D days exist. Posting hours are UTC, the peers' own time zones are unknown."""
     try:
         rows = db.rows(conn, f"SELECT published_at, views, tag FROM yt_hashtag_posts WHERE label = {db.PH} AND views IS NOT NULL", (label,))
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "yt_peers_error")
         return None, 0
     pool = []
     for r in rows:
@@ -311,13 +314,13 @@ def analyze_youtube(conn, label, now=None):
 
 def for_label_youtube(label, db_file=None):
     try: conn = db.connect(db_file, readonly=True)
-    except Exception as e: return {"empty": True, "reason": "db_error", "error": str(e)[:200]}
+    except Exception as e: L.soft(LOG, "for_label_youtube_error"); return {"empty": True, "reason": "db_error", "error": str(e)[:200]}
     if conn is None: return {"empty": True, "reason": "no_database"}
     try: return analyze_youtube(conn, label)
-    except Exception as e: return {"empty": True, "reason": "error", "error": str(e)[:200]}
+    except Exception as e: L.soft(LOG, "for_label_youtube_error"); return {"empty": True, "reason": "error", "error": str(e)[:200]}
     finally:
         try: conn.close()
-        except Exception: pass
+        except Exception as _e: L.soft(LOG, "for_label_youtube_error"); pass
 
 
 if __name__ == "__main__":

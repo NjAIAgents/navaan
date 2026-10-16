@@ -3,6 +3,14 @@
 # Nothing from songs/, navaan.config.json or any credential is baked in (constitution II, VI).
 FROM node:22-bookworm-slim AS node
 
+# The new app (NAV-8): built here, only dist goes into the image. Tests run in CI (npm test), not in the image build.
+FROM node:22-bookworm-slim AS webbuild
+WORKDIR /w
+COPY plugins/navaan-studio/web/package.json plugins/navaan-studio/web/package-lock.json ./
+RUN npm ci
+COPY plugins/navaan-studio/web/ ./
+RUN npm run build
+
 FROM python:3.13-slim-bookworm
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 NPM_CONFIG_UPDATE_NOTIFIER=false
 
@@ -20,8 +28,8 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 RUN npm install -g @anthropic-ai/claude-code \
- && pip install cryptography pillow numpy opencv-python-headless requests google-api-python-client google-auth google-auth-oauthlib oci-cli \
- && python3 -c "import googleapiclient.discovery, google.oauth2.credentials, google.auth.transport.requests, google_auth_oauthlib.flow, PIL, cryptography, numpy, cv2" \
+ && pip install cryptography pillow numpy opencv-python-headless requests google-api-python-client google-auth google-auth-oauthlib oci-cli "psycopg[binary]" \
+ && python3 -c "import googleapiclient.discovery, google.oauth2.credentials, google.auth.transport.requests, google_auth_oauthlib.flow, PIL, cryptography, numpy, cv2, psycopg" \
  && oci --version
 
 RUN useradd --create-home --uid 10001 navaan && mkdir -p /app /opt/navaan-src && chown navaan:navaan /app
@@ -36,6 +44,8 @@ RUN python3 /tmp/setup_captions.py --yes && python3 /tmp/setup_captions.py --che
 
 COPY --chown=navaan:navaan .claude-plugin /opt/navaan-src/.claude-plugin
 COPY --chown=navaan:navaan plugins /opt/navaan-src/plugins
+# the built app, served by the portal at /app/
+COPY --from=webbuild --chown=navaan:navaan /w/dist /opt/navaan-src/plugins/navaan-studio/web/dist
 
 # Install the plugin from the local marketplace so `claude -p "Use the <skill> skill"` resolves, then use that same copy
 # for the portal (one copy of the code, same as the skills run). /opt/navaan-plugin points at the installed copy.

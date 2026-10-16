@@ -12,6 +12,8 @@ import os, sys, json, datetime
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import analytics_db as db
+import navaan_log as _nl
+_LOG = _nl.get("yt_reco")
 import ig_reco as R
 from ig_reco import f, med, mean, parse_ts, tags_in
 
@@ -37,8 +39,8 @@ def settings():
     try:
         from navaan_common import cfg
         t.update({k: v for k, v in (cfg("analytics.youtube_thresholds", {}) or {}).items() if k in t})
-    except SystemExit:
-        pass
+    except SystemExit as _e:
+        _nl.ignored(_LOG, "no profile yet, the default thresholds are used", _e)
     return t
 
 

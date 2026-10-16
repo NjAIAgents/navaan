@@ -13,7 +13,14 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: {POSTGRES_PASSWORD: test, POSTGRES_DB: navaan}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,10 +29,36 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: New app (tests, colour-literal check, build)
+        working-directory: plugins/navaan-studio/web
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: ffmpeg and a Devanagari font, as in the production image (the share preview and the renderer tests need them; without ffmpeg those tests are skipped and the browser checks cannot seed audio)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-noto-core
       - name: Python packages the tests may use
-        run: pip install cryptography pillow numpy opencv-python-headless
-      - name: Unit tests
+        run: pip install cryptography pillow numpy opencv-python-headless "psycopg[binary]"
+      - name: Unit tests (against the Postgres service above)
+        env:
+          NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
         run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
+      - name: Browser checks (Playwright at 390x844 and 1280x800, both themes, axe-core) and Lighthouse mobile gate
+        working-directory: plugins/navaan-studio/web/e2e
+        env:
+          NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
+        run: |
+          npm ci
+          command -v google-chrome >/dev/null || npx playwright install --with-deps chrome
+          npx playwright test
+          node lighthouse.mjs
+      - name: Browser check results (only when they fail)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: plugins/navaan-studio/web/e2e/test-results
+          if-no-files-found: ignore
       - name: Shell scripts parse
         run: |
           for f in deploy/*.sh deploy/backup/*.sh; do bash -n "$f" && echo "ok $f"; done

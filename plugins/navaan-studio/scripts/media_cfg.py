@@ -9,6 +9,8 @@ usage() / add_usage()    this month's ElevenLabs seconds and OpenAI dollars, so 
 The conf folder is ~/.config/navaan (NAVAAN_CONF_DIR overrides it). On the server the files are synced to Vault.
 """
 import os, re, json, time, datetime, urllib.request, urllib.error
+import navaan_log as L
+LOG = L.get("media_cfg")
 
 # Voices the narration can use. The ids are not secret. Frank is the default.
 VOICES = {
@@ -59,7 +61,8 @@ def _read_json(path, default):
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError) as _e:
+        L.ignored(LOG, "_read_json: OSError/ValueError (optional or expected)", _e)
         return default
 
 
@@ -74,7 +77,8 @@ def load():
         try:
             v = float(raw.get(k, d))
             out[k] = min(hi, max(lo, v))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _e:
+            L.ignored(LOG, "load: TypeError/ValueError (optional or expected)", _e)
             out[k] = d
     return out
 
@@ -111,7 +115,8 @@ def _read_env(path):
             k, _, v = line.strip().partition("=")
             if k and v.strip():
                 out[k] = v.strip().strip("\"'")
-    except OSError:
+    except OSError as _e:
+        L.ignored(LOG, "_read_env: OSError (optional or expected)", _e)
         pass
     return out
 
@@ -132,8 +137,10 @@ def _live_test(provider, key):
         urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=20).read(1)
         return True, ""
     except urllib.error.HTTPError as e:
+        L.ignored(LOG, "_live_test: HTTPError (optional or expected)", e)
         return False, "%s refused the key (HTTP %s)." % (provider.capitalize(), e.code)
     except Exception as e:
+        L.soft(LOG, "live_test_error")
         return False, "Could not reach %s: %s" % (provider.capitalize(), str(e).replace(key, "<key>")[:120])
 
 

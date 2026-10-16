@@ -3,6 +3,7 @@ import json, os, sys, tempfile, unittest, datetime
 
 SCRIPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
 sys.path.insert(0, SCRIPTS)
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import ig_reco as rc
 import yt_reco as yr
@@ -36,7 +37,7 @@ class Base(unittest.TestCase):
         self.n += 1
         vid = f"v{self.n}"
         if slug:
-            self.conn.execute("INSERT OR REPLACE INTO songs (slug, title, language, genre, updated_at) VALUES (?,?,?,?,?)", (slug, slug.title(), lang, "Pop", NOW))
+            db.upsert(self.conn, "songs", {"slug": slug, "title": slug.title(), "language": lang, "genre": "Pop", "updated_at": NOW}, ("slug",))
         self.conn.execute("INSERT INTO yt_videos (video_id, channel_id, slug, kind, title, published_at, duration_s, privacy, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
                           (vid, CH, slug, kind, title or f"Title {self.n}", ts(age), 200 if kind == "video" else 40, privacy, NOW, NOW))
         if views is not None:
@@ -51,7 +52,7 @@ class Base(unittest.TestCase):
 
     def daily(self, metric, d):
         for k, v in d.items():
-            self.conn.execute("INSERT OR REPLACE INTO yt_daily (channel_id, period_end, metric, value, collected_at) VALUES (?,?,?,?,?)", (CH, day(k), metric, v, NOW))
+            db.upsert(self.conn, "yt_daily", {"channel_id": CH, "period_end": day(k), "metric": metric, "value": v, "collected_at": NOW}, ("channel_id", "period_end", "metric"))
         self.conn.commit()
 
     def healthy(self):

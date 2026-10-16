@@ -14,6 +14,8 @@ The pictures live in songs/<slug>/images/. The portal uploads them there; from a
 import os, sys, json, re, base64
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("visuals_cfg")
 
 IMG_EXT = (".jpg", ".jpeg", ".png", ".webp")
 MIN_VIDEO = 4
@@ -94,7 +96,7 @@ def main(a):
         v = load(D); print(json.dumps({"visuals": v, "images": own_images(D), "problems": problems(D, v)}, indent=2)); return 0
     if "--mode" in a:
         try: v = save(D, opt("--mode"), opt("--layout") or None, opt("--camera"), opt("--scene"))
-        except ValueError as e: sys.exit(f"navaan: {e}")
+        except ValueError as e: L.ignored(LOG, "main: ValueError (optional or expected)", e); sys.exit(f"navaan: {e}")
         print("saved", json.dumps(v)); return 0
     if not os.path.exists(vpath(D)):
         sys.exit("navaan: choose the visuals first (portal song page, or: visuals_cfg.py <slug> --mode own --layout video)")

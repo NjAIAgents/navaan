@@ -2,6 +2,7 @@
 import os, sys, tempfile, unittest, datetime
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
+import _pgenv  # noqa: F401  (must come before analytics_db)
 import analytics_db as db
 import yt_hashtags as H
 import besttime as B

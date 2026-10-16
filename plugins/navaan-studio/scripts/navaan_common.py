@@ -5,6 +5,8 @@ Tools: ffmpeg and ffprobe are found on PATH, with common macOS locations as fall
 Font for captions: env NAVAAN_FONT (path[:index]), else a Devanagari capable system font.
 """
 import os, re, shutil, subprocess, sys, json, time
+import navaan_log as L
+LOG = L.get("navaan_common")
 
 
 def find_root():
@@ -39,7 +41,7 @@ def load_claude_env(conf_dir=None):
         for line in open(os.path.join(conf_dir or os.path.expanduser("~/.config/navaan"), "claude.env"), encoding="utf-8"):
             k, _, v = line.strip().partition("=")
             if k in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY") and v.strip(): os.environ[k] = v.strip().strip("\"'")
-    except OSError: pass
+    except OSError as _e: L.ignored(LOG, "load_claude_env: OSError (optional or expected)", _e); pass
 
 
 def note_claude_result(ok, log_tail=""):
@@ -194,11 +196,33 @@ def account(ctype):
 
 
 def meta_path(slug):
+    """The write-through export of an item's state. The state itself lives in Postgres (studio_store); read and write it with item_load, item_update, item_save."""
     return os.path.join(song_dir(slug), "meta.json")
 
 
+def item_load(slug, default=None):
+    import studio_store
+    return studio_store.load(slug, default)
+
+
+def item_save(slug, m):
+    import studio_store
+    studio_store.save(slug, m)
+
+
+def item_update(slug, fn):
+    """Read-modify-write under a row lock: fn(doc) changes the document in place. Use this when a step writes while the web page or the scheduler may too."""
+    import studio_store
+    return studio_store.update(slug, fn)
+
+
+def item_exists(slug):
+    import studio_store
+    return studio_store.exists(slug)
+
+
 def approved(slug, gate):
-    return bool(load_json(meta_path(slug), default={}).get("approvals", {}).get(gate))
+    return bool((item_load(slug, {}) or {}).get("approvals", {}).get(gate))
 
 
 def require_approval(slug, gate):

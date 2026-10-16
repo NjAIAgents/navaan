@@ -10,8 +10,10 @@ Two ways, pauses first:
 Writes songs/<slug>/voiceover.srt, contiguous cues like the ones a narration tool exports. Nothing is generated or spent.
 """
 import os, sys, re, json, subprocess
+import navaan_log as L
+LOG = L.get("narration_sync")
 try: import numpy as np
-except ImportError: np = None  # main() then runs again inside the caption tools' python
+except ImportError as _e: L.ignored(LOG, "module: ImportError (optional or expected)", _e); np = None  # main() then runs again inside the caption tools' python
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -269,7 +271,7 @@ def sync(D, lines, allow_whisper=True, force_whisper=False, lang="en", ffmpeg="f
     cues = None; info = {}
     if lines and not force_pauses and not force_whisper:
         try: cues, info = by_whisper_lines(x, lines, lang)  # Whisper's positions first, the pauses only when it is not available
-        except Exception as e: cues, info = None, {"whisper_lines_failed": str(e)[:120]}
+        except Exception as e: L.soft(LOG, "sync_error"); cues, info = None, {"whisper_lines_failed": str(e)[:120]}
     if lines and not force_whisper and cues is None:
         cues, info = by_pauses(x, lines)
         if cues is None: why = info; info = {}
@@ -301,8 +303,9 @@ def main(a):
     lines = [l for l in (q.get("lines") or []) if str(l).strip()]
     flag = os.path.join(D, "narration_sync.json")
     try: info = sync(D, lines, force_whisper="--whisper" in a, force_pauses="--pauses" in a, lang=(q.get("language") or "en")[:2], ffmpeg=C.tool("ffmpeg"))
-    except ImportError: _again_in_venv(a + ["--whisper"] if "--whisper" not in a else a); sys.exit("navaan: Whisper needs the caption tools. Approve the captions_setup gate, or run setup_captions.py --yes.")
+    except ImportError as _e: L.ignored(LOG, "main: ImportError (optional or expected)", _e); _again_in_venv(a + ["--whisper"] if "--whisper" not in a else a); sys.exit("navaan: Whisper needs the caption tools. Approve the captions_setup gate, or run setup_captions.py --yes.")
     except RuntimeError as e:
+        L.ignored(LOG, "main: RuntimeError (optional or expected)", e)
         if "caption tools" in str(e): json.dump({"needs_whisper": True, "why": str(e)}, open(flag, "w"))  # the next run asks for the captions_setup gate first
         sys.exit(f"navaan: {e}")
     if os.path.exists(flag): os.remove(flag)

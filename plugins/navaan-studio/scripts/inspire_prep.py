@@ -183,7 +183,7 @@ def snap(t, bts, lo, hi, tol=0.4):
 
 def brand_name(slug):
     """Text of the end card: the handle of the account this item posts to. Music items post to NAVAAN, so they get no end card."""
-    t = C.item_type(C.load_json(os.path.join(C.song_dir(slug), "meta.json")))
+    t = C.item_type(C.item_load(slug, {}))
     if t == "music": return ""
     h = (C.account(t).get("handle") or "").strip()
     return h.lstrip("@")
@@ -191,7 +191,7 @@ def brand_name(slug):
 
 def watermark(slug):
     """The handle shown at the bottom is the account this item posts to (accounts.<type>), never the NAVAAN one."""
-    h = (C.account(C.item_type(C.load_json(os.path.join(C.song_dir(slug), "meta.json")))).get("handle") or "").strip()
+    h = (C.account(C.item_type(C.item_load(slug, {}))).get("handle") or "").strip()
     return ("@" + h.lstrip("@")) if h else "NAVAAN"
 
 

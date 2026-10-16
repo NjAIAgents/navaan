@@ -7,6 +7,8 @@ Cloud: where a finished song is archived (oci, s3 or gcs). It is checked with th
 import os, sys, json, shutil, subprocess, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import plugin_dir, plugin_repo_root
+import navaan_log as L
+LOG = L.get("storage")
 
 PROVIDERS = ("none", "oci", "s3", "gcs")
 CLI = {"oci": "oci", "s3": "aws", "gcs": "gcloud"}
@@ -49,7 +51,7 @@ def check_local(path, create=False):
     if not os.path.isdir(p):
         if create:
             try: os.makedirs(p, exist_ok=True)
-            except OSError as e: return [("error", f"cannot create {p}: {e}")]
+            except OSError as e: L.ignored(LOG, "check_local: OSError (optional or expected)", e); return [("error", f"cannot create {p}: {e}")]
             out.append(("ok", f"created {p}"))
         else:
             out.append(("warn", f"{p} does not exist yet (it will be created)"))
@@ -62,6 +64,7 @@ def check_local(path, create=False):
         with tempfile.NamedTemporaryFile(dir=p, prefix=".navaan-check-", delete=True) as f: f.write(b"ok")
         out.append(("ok", f"{p} is writable"))
     except OSError as e:
+        L.ignored(LOG, "check_local: OSError (optional or expected)", e)
         out.append(("error", f"{p} is not writable: {e}"))
     g = _git_root(p)
     if g:
@@ -69,7 +72,8 @@ def check_local(path, create=False):
     try:
         free = shutil.disk_usage(p).free / 1e9
         out.append(("warn" if free < 2 else "ok", f"{free:.1f} GB free"))
-    except OSError:
+    except OSError as _e:
+        L.ignored(LOG, "check_local: OSError (optional or expected)", _e)
         pass
     return out
 
@@ -78,9 +82,11 @@ def _run(cmd, timeout=40):
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
-    except FileNotFoundError:
+    except FileNotFoundError as _e:
+        L.ignored(LOG, "_run: FileNotFoundError (optional or expected)", _e)
         return 127, "", f"{cmd[0]} not found"
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as _e:
+        L.ignored(LOG, "_run: TimeoutExpired (optional or expected)", _e)
         return 124, "", "timed out"
 
 
@@ -103,7 +109,7 @@ def fetch_missing(path, retry_after=3600):
     if full == root or len(parts) < 2 or any(x in ("", ".", "..") for x in parts) or not full.startswith(root + os.sep): return False
     if time.time() - _MISSING.get(full, 0) < retry_after or full in _FETCHING: return False
     try: cl = (json.load(open(os.path.join(root, parts[0], "meta.json"), encoding="utf-8")).get("cloud") or {})
-    except (OSError, ValueError): return False
+    except (OSError, ValueError) as _e: L.ignored(LOG, "fetch_missing: OSError/ValueError (optional or expected)", _e); return False
     if cl.get("provider") != "oci" or not (cl.get("bucket") and cl.get("namespace") and cl.get("uploaded_at")): return False
     key = (cl.get("prefix") or "").strip("/") + "/" + "/".join(parts[1:])
     tmp = full + ".part"; _FETCHING.add(full)
@@ -116,7 +122,7 @@ def fetch_missing(path, retry_after=3600):
         _FETCHING.discard(full)
         if os.path.exists(tmp):
             try: os.remove(tmp)
-            except OSError: pass
+            except OSError as _e: L.ignored(LOG, "fetch_missing: OSError (optional or expected)", _e); pass
 
 
 def check_cloud(provider, bucket, prefix="", region="", write=False):
@@ -250,6 +256,15 @@ def signed_url(provider, bucket, region, key, hours=1):
     """A link that opens one object for a short time, made with the user's own CLI login. oci: pre-authenticated request, s3: presign."""
     import datetime
     if provider == "oci":
+        try: import objstore   # the SDK path: no process per link, and the same cache the play endpoint uses
+        except ImportError: objstore = None   # expected: no oci SDK in this environment, the command line below does it
+        same = False
+        if objstore:
+            try: same = bucket == objstore.bucket()
+            except RuntimeError: same = False   # expected: no oci bucket in the profile; the command line below reports it
+        if same and key:
+            try: return objstore.par_url(key, int(hours * 3600))
+            except Exception as e: L.exc(LOG, "oci_sdk_link_failed", key=key); raise RuntimeError(f"cannot make a link: {str(e)[:200]}") from e
         ns, err = _oci_ns()
         if not ns: raise RuntimeError(f"oci is not configured: {err[:200]}")
         exp = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")

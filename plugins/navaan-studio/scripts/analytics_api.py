@@ -5,6 +5,8 @@ start_collect(account) runs ig_collect.py in a child process so the portal never
 Nothing here writes to Instagram."""
 import os, re, sys, json, subprocess, threading, time
 import analytics_db as db
+import navaan_log as L
+LOG = L.get("analytics_api")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 COLLECT = {"running": False, "account": None, "rc": None, "tail": "", "started": 0, "finished": 0}
@@ -39,13 +41,14 @@ def overview(account="all", days=30, db_file=None):
     try:
         conn = db.connect(db_file, readonly=True)
     except Exception as e:
-        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.db_path(db_file), "collect": dict(COLLECT)}
+        L.soft(LOG, "overview_error")
+        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.where(), "collect": dict(COLLECT)}
     if conn is None:
-        return {"empty": True, "reason": "no_database", "db": db.db_path(db_file), "collect": dict(COLLECT)}
+        return {"empty": True, "reason": "no_database", "db": db.where(), "collect": dict(COLLECT)}
     try:
         accounts = db.rows(conn, "SELECT ig_user_id, label, username, last_collected_at FROM accounts ORDER BY CASE WHEN label = 'music' THEN 0 ELSE 1 END, label")
         if not accounts:
-            return {"empty": True, "reason": "no_data", "db": db.db_path(db_file), "collect": dict(COLLECT)}
+            return {"empty": True, "reason": "no_data", "db": db.where(), "collect": dict(COLLECT)}
         sel = [a for a in accounts if account in ("all", a["label"])] or accounts
         uids = [a["ig_user_id"] for a in sel]
         marks = _in(len(uids))
@@ -105,15 +108,15 @@ def overview(account="all", days=30, db_file=None):
         reco = recommendations(conn, uids)
         peers = peer_block(conn, uids)
         try: hashtags = hashtag_block(conn, uids)
-        except Exception as e: hashtags = {"error": str(e)[:200]}
+        except Exception as e: L.soft(LOG, "overview_error"); hashtags = {"error": str(e)[:200]}
         try:
             import besttime
             bt = {a["label"]: besttime.analyze(conn, a["label"]) for a in sel}
-        except Exception as e: bt = {"error": str(e)[:200]}
+        except Exception as e: L.soft(LOG, "overview_error"); bt = {"error": str(e)[:200]}
         return {"empty": False, "reco": reco, "peers": peers, "hashtags": hashtags, "besttime": bt, "accounts": accounts, "account": account, "days": days, "kpis": kpis,
                 "series": {"followers": followers, "views": series("views"), "reach": series("reach"), "interactions": series("total_interactions")},
                 "posts": posts, "patterns": patterns, "waiting": waiting, "audience": aud, "hours": hours, "runs": runs,
-                "db": db.db_path(db_file), "collect": dict(COLLECT)}
+                "db": db.where(), "collect": dict(COLLECT)}
     finally:
         conn.close()
 
@@ -131,6 +134,7 @@ def song_view(slug, db_file=None):
     try:
         conn = db.connect(db_file, readonly=True)
     except Exception as e:
+        L.soft(LOG, "song_view_error")
         return {"empty": True, "reason": "db_error", "error": str(e), "collect": dict(COLLECT)}
     if conn is None:
         return {"empty": True, "reason": "no_database", "collect": dict(COLLECT)}
@@ -164,7 +168,8 @@ def song_view(slug, db_file=None):
                 ids = {f["finding_id"] for f in fs}
                 recs = _recs_for(conn, uid, "instagram", ids)
                 p["findings"], p["recommendations"] = fs, recs
-            except Exception:
+            except Exception as _e:
+                L.soft(LOG, "song_view_error")
                 p["findings"], p["recommendations"] = [], []
         unlinked = []
         if not posts:
@@ -175,7 +180,8 @@ def song_view(slug, db_file=None):
         tot = {k: sum((p[k] or 0) for p in posts) for k in ("views", "reach", "saved", "shares", "like_count", "comments_count")}
         try:
             yt = yt_song(conn, slug)
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "song_view_error")
             yt = {"videos": [], "unlinked": [], "totals": {}}
         return {"empty": False, "slug": slug, "posts": posts, "totals": tot, "unlinked": unlinked, "youtube": yt, "collect": dict(COLLECT), "yt_collect": dict(YT_COLLECT)}
     finally:
@@ -186,7 +192,8 @@ def by_song(db_file=None):
     """{slug: {posts, views, reach, saved, likes, yt_videos, yt_views}} from the latest snapshot of every linked post and video. Empty dict when there is no database."""
     try:
         conn = db.connect(db_file, readonly=True)
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "by_song_error")
         return {}
     if conn is None:
         return {}
@@ -201,7 +208,8 @@ def by_song(db_file=None):
                 WHERE v.slug IS NOT NULL AND v.deleted_at IS NULL GROUP BY v.slug"""):
                 e = out.setdefault(r["slug"], {"posts": 0, "views": None, "reach": None, "saved": None, "likes": None})
                 e["yt_videos"], e["yt_views"] = r["videos"], r["views"]
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "by_song_error")
             pass
         return out
     finally:
@@ -242,16 +250,18 @@ def yt_overview(account="all", days=30, db_file=None):
     try:
         conn = db.connect(db_file, readonly=True)
     except Exception as e:
-        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.db_path(db_file), "collect": collect}
+        L.soft(LOG, "yt_overview_error")
+        return {"empty": True, "reason": "db_error", "error": str(e), "db": db.where(), "collect": collect}
     if conn is None:
-        return {"empty": True, "reason": "no_database", "db": db.db_path(db_file), "collect": collect}
+        return {"empty": True, "reason": "no_database", "db": db.where(), "collect": collect}
     try:
         try:
             channels = db.rows(conn, "SELECT channel_id, label, title, handle, last_collected_at, analytics_ok FROM yt_channels ORDER BY CASE WHEN label = 'music' THEN 0 ELSE 1 END, label")
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "yt_overview_error")
             channels = []
         if not channels:
-            return {"empty": True, "reason": "no_data", "db": db.db_path(db_file), "collect": collect}
+            return {"empty": True, "reason": "no_data", "db": db.where(), "collect": collect}
         sel = [c for c in channels if account in ("all", c["label"])] or channels
         cids = [c["channel_id"] for c in sel]
         marks = _in(len(cids))
@@ -317,12 +327,12 @@ def yt_overview(account="all", days=30, db_file=None):
         try:
             import besttime
             bt = {c["label"]: besttime.analyze_youtube(conn, c["label"]) for c in sel}
-        except Exception as e: bt = {"error": str(e)[:200]}
+        except Exception as e: L.soft(LOG, "yt_overview_error"); bt = {"error": str(e)[:200]}
         return {"empty": False, "reco": recommendations(conn, cids, "youtube"), "besttime": bt, "accounts": channels, "account": account, "days": days, "kpis": kpis,
                 "analytics_ok": all(c["analytics_ok"] for c in sel),
                 "series": {"subscribers": subs, "views": views, "watch_hours": [[d, round((v or 0) / 60.0, 1)] for d, v in minutes], "subs_gained": gained},
                 "videos": videos, "patterns": patterns, "traffic": traffic, "audience": aud, "retention": retention, "waiting": waiting, "runs": runs,
-                "db": db.db_path(db_file), "collect": dict(YT_COLLECT)}
+                "db": db.where(), "collect": dict(YT_COLLECT)}
     finally:
         conn.close()
 
@@ -355,7 +365,8 @@ def yt_song(conn, slug):
             ids = {f["finding_id"] for f in fs}
             recs = _recs_for(conn, cid, "youtube", ids)
             v["findings"], v["recommendations"] = fs, recs
-        except Exception:
+        except Exception as _e:
+            L.soft(LOG, "yt_song_error")
             v["findings"], v["recommendations"] = [], []
     unlinked = []
     if not vids:
@@ -442,6 +453,7 @@ def hashtag_block(conn, uids, write=False):
             json.dump(out, open(path, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
             out["file"] = path
         except Exception as e:
+            L.soft(LOG, "hashtag_block_error")
             out["file_error"] = str(e)[:200]
     return out
 
@@ -459,7 +471,7 @@ def peer_block(conn, uids):
         by.setdefault(m["username"], []).append(m)
     def ts(x):
         try: return datetime.datetime.strptime(x[:19], "%Y-%m-%dT%H:%M:%S")
-        except Exception: return None
+        except Exception as _e: L.soft(LOG, "ts_error"); return None
     def summarize(ms, followers):
         likes = [m["like_count"] for m in ms if m["like_count"] is not None]
         coms = [m["comments_count"] for m in ms if m["comments_count"] is not None]
@@ -517,7 +529,8 @@ def recommendations(conn, uids, platform="instagram"):
         last = db.one(conn, f"SELECT MAX(last_seen_at) AS t FROM findings WHERE ig_user_id IN ({marks})", uids)["t"]
         open_findings = db.one(conn, f"SELECT COUNT(*) AS n FROM findings WHERE ig_user_id IN ({marks}) AND status = 'open'", uids)["n"]
         fresh_notes = db.one(conn, f"SELECT COUNT(*) AS n FROM market_notes WHERE platform IN ('any', {db.PH})", (platform,))["n"]
-    except Exception:
+    except Exception as _e:
+        L.soft(LOG, "recommendations_error")
         return {"ready": False, "open": [], "done": [], "dismissed": [], "findings": 0, "notes": 0, "analyzed_at": None, "ask": dict(ask_state)}
     out = {"open": [], "done": [], "dismissed": []}
     for r in recs:
@@ -553,7 +566,7 @@ def analyze_now(account="all", db_file=None, platform="instagram"):
         res = [dict(label=r["label"], **ig_reco.analyze(conn, r["ig_user_id"])) for r in rows]
         ig_reco.outcomes(conn)
         try: hashtag_block(conn, [r["ig_user_id"] for r in rows], write=True)
-        except Exception: pass
+        except Exception as _e: L.soft(LOG, "analyze_now_error"); pass
         return res
     finally:
         conn.close()
@@ -578,7 +591,7 @@ def rules_path():
 
 def _rules_load():
     try: return json.load(open(rules_path(), encoding="utf-8"))
-    except Exception: return []
+    except Exception as _e: L.soft(LOG, "rules_load_error"); return []
 
 
 def _rules_save(rules):
@@ -607,7 +620,7 @@ def implement_rec(rec_id, db_file=None):
         if r["category"] == "hashtags" and r["platform"] == "instagram":
             uids = [x["ig_user_id"] for x in db.rows(conn, "SELECT ig_user_id FROM accounts")]
             try: hashtag_block(conn, uids, write=True)
-            except Exception: pass
+            except Exception as _e: L.soft(LOG, "implement_rec_error"); pass
         rules = [x for x in _rules_load() if x.get("rec_id") != rec_id]
         rules.append({"rec_id": rec_id, "account": r["label"], "platform": r["platform"], "category": r["category"], "title": r["title"], "action": r["action"],
                       "applied_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
@@ -653,9 +666,11 @@ def start_ask(account="all", platform="instagram"):
         try:
             p = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=os.environ.get("NAVAAN_ROOT") or os.getcwd())
             ask.update(rc=p.returncode, tail=((p.stdout or "") + (p.stderr or "")).strip()[-1800:])
-        except FileNotFoundError:
+        except FileNotFoundError as _e:
+            L.ignored(LOG, "work: FileNotFoundError (optional or expected)", _e)
             ask.update(rc=127, tail="The claude command was not found. Install Claude Code, or set NAVAAN_CLAUDE_CMD.")
         except Exception as e:
+            L.soft(LOG, "work_error")
             ask.update(rc=2, tail=str(e)[:500])
         ask.update(running=False, finished=int(time.time()))
     threading.Thread(target=work, daemon=True).start()
@@ -678,6 +693,7 @@ def start_collect(account="all", platform="instagram"):
                                capture_output=True, text=True, timeout=1800, cwd=os.environ.get("NAVAAN_ROOT") or os.getcwd())
             st.update(rc=p.returncode, tail=((p.stdout or "") + (p.stderr or "")).strip()[-1500:])
         except Exception as e:
+            L.soft(LOG, "work_error")
             st.update(rc=2, tail=str(e)[:500])
         st.update(running=False, finished=int(time.time()))
     threading.Thread(target=work, daemon=True).start()

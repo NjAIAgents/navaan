@@ -13,14 +13,22 @@ services:
     restart: unless-stopped
     environment:
       NAVAAN_PUBLIC_HOST: navaan.njlabs.dev
+      NAVAAN_LOG_DIR: /home/navaan/.local/share/navaan/logs   # app.jsonl (14 days) and runs/<job>.jsonl on the persistent state folder; see "Logs" in deploy/README.md
       OCI_CLI_AUTH: instance_principal     # the Cloud storage tab runs `oci` with the VM's own identity (no key file on the server)
+      NAVAAN_PG_HOST: navaan-postgres
+      NAVAAN_PG_USER: navaan_app
+      NAVAAN_PG_PASSWORD_FILE: /pgsecret/pg_app_password
       NAVAAN_TRUST_PROXY: "1"            # nginx sets X-Real-IP and X-Forwarded-Proto; the port is reachable only on navaan-network
       NAVAAN_SCHEDULER: ${NAVAAN_SCHEDULER:-on}    # the server owns the schedule since 2026-10-14; the Mac runs with NAVAAN_SCHEDULER=off (deploy/README.md)
+      NAVAAN_WORKER: external              # jobs and the schedule run in the worker service below, not in this process
       NAVAAN_VAULT_ADDR: ${NAVAAN_VAULT_ADDR:-http://engagehub-vault:8200}
       NAVAAN_VAULT_ROLE_ID_FILE: /run/secrets/vault_role_id
       NAVAAN_VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id
     secrets: [vault_role_id, vault_secret_id]
+    depends_on:
+      postgres: {condition: service_healthy}
     volumes:
+      - pgapp:/pgsecret:ro               # the app role's password only; database settings can also sit in navaan.config.json under "database" (deploy/README.md)
       - /opt/navaan/data/songs:/app/songs
       - /opt/navaan/data/state:/home/navaan/.local/share/navaan
       - /opt/navaan/data/navaan.config.json:/app/navaan.config.json
@@ -28,7 +36,7 @@ services:
     tmpfs:
       - /home/navaan/.config/navaan:mode=0700,uid=10001,gid=10001,size=16m   # materialised secrets and auth.json, memory only
       - /tmp:size=2g
-    networks: [navaan-network, vault]
+    networks: [navaan-network, navaan-db, vault]
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/auth/state', timeout=5)"]
       interval: 30s
@@ -37,9 +45,98 @@ services:
       start_period: 90s   # the entrypoint waits up to 60 s for Vault before starting the portal
     logging:
       driver: json-file
+      options: {max-size: 50m, max-file: "5"}   # the JSON log stream goes to stdout too; a shipper such as Grafana Alloy or Promtail can tail it later
+
+  # The job runner and the publishing schedule (NAV-4 stage 2): the same image and secrets, started as `navaan.py worker`. It claims jobs the web server queued in
+  # studio.jobs, runs them, and publishes their progress. A deploy or a crash of the web server no longer kills a running step; a job interrupted by a restart of this
+  # service is retried once (its lease runs out, or it is released on a clean stop). No nginx, no password gate: it serves nothing.
+  worker:
+    image: navaan:local
+    container_name: navaan-worker
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      NAVAAN_ROLE: worker
+      NAVAAN_WORKER: external
+      NAVAAN_WORKER_SLOTS: ${NAVAAN_WORKER_SLOTS:-2}     # items run in parallel; ffmpeg and Remotion are heavy, raise only after watching memory
+      NAVAAN_LOG_DIR: /home/navaan/.local/share/navaan/logs/worker   # its own folder: two processes must not rotate the same file
+      OCI_CLI_AUTH: instance_principal
+      NAVAAN_PG_HOST: navaan-postgres
+      NAVAAN_PG_USER: navaan_app
+      NAVAAN_PG_PASSWORD_FILE: /pgsecret/pg_app_password
+      NAVAAN_SCHEDULER: ${NAVAAN_SCHEDULER:-on}
+      NAVAAN_VAULT_ADDR: ${NAVAAN_VAULT_ADDR:-http://engagehub-vault:8200}
+      NAVAAN_VAULT_ROLE_ID_FILE: /run/secrets/vault_role_id
+      NAVAAN_VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id
+    secrets: [vault_role_id, vault_secret_id]
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes:
+      - pgapp:/pgsecret:ro
+      - /opt/navaan/data/songs:/app/songs
+      - /opt/navaan/data/state:/home/navaan/.local/share/navaan
+      - /opt/navaan/data/navaan.config.json:/app/navaan.config.json
+    tmpfs:
+      - /home/navaan/.config/navaan:mode=0700,uid=10001,gid=10001,size=16m
+      - /tmp:size=2g
+    networks: [navaan-network, navaan-db, vault]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys, time; sys.exit(0 if time.time() - float(open('/tmp/navaan-worker.alive').read()) < 60 else 1)"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options: {max-size: 50m, max-file: "5"}
+
+  # Postgres, dedicated to this project (NAV-3, spec 002). Always part of the stack: the app waits for it to be healthy. No published port; it is on the
+  # navaan-db network, which only the app joins (internal: no outside route either). Data in /opt/navaan/data/pg, backed up nightly by pg_dump (backup.sh).
+  pg-init:                  # makes the two passwords once, each in its own volume (the app can read only its own); nothing else ever sees them in the repo or in logs
+    image: postgres:17-alpine
+    container_name: navaan-pg-init
+    restart: "no"
+    entrypoint: ["sh", "-c", "umask 077; for f in /pgadmin/pg_admin_password /pgapp/pg_app_password; do [ -s $$f ] || head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \\n' > $$f; chmod 0444 $$f; done"]
+    volumes: ["pgadmin:/pgadmin", "pgapp:/pgapp"]
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: navaan-postgres
+    restart: unless-stopped
+    depends_on:
+      pg-init: {condition: service_completed_successfully}
+    environment:
+      POSTGRES_USER: postgres                                  # maintenance only; the app uses navaan_app, created by deploy/postgres/init.sh
+      POSTGRES_PASSWORD_FILE: /pgadmin/pg_admin_password
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=60", "-c", "log_min_duration_statement=500"]
+    mem_limit: 512m          # the VM is shared with EngageHub and Relayent; raise only after checking free memory
+    shm_size: 256mb          # Docker's default /dev/shm is 64 MB; a parallel index build or sort needs more and Postgres then crashes (seen on the dev container)
+    volumes:
+      - /opt/navaan/data/pg:/var/lib/postgresql/data
+      - pgadmin:/pgadmin:ro
+      - pgapp:/pgapp:ro                      # init.sh sets the app role's password from it
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/10-navaan.sh:ro
+    networks: [navaan-db]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d navaan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
       options: {max-size: 10m, max-file: "3"}
 
+volumes:
+  pgadmin:
+    name: navaan-pgadmin
+  pgapp:
+    name: navaan-pgapp
+
 networks:
+  navaan-db:
+    name: navaan-db
+    internal: true
   navaan-network:
     name: navaan-network      # engagehub-nginx joins this one (deploy/nginx/README.md)
   vault:

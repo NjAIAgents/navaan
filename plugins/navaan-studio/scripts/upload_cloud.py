@@ -10,8 +10,10 @@ Credentials are your own CLI login (oci, aws or gcloud). Nothing is stored in th
 """
 import os, sys, json, datetime, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, cfg, require_approval, meta_path, load_json
+from navaan_common import song_dir, cfg, require_approval, meta_path, load_json, item_load, item_save
 import storage
+import navaan_log as L
+LOG = L.get("upload_cloud")
 
 
 def verify(write=False):
@@ -27,7 +29,7 @@ def record(slug, uploaded_at=None, uri=None):
     prov, bucket, region = cfg("storage.cloud_provider", "none"), cfg("storage.cloud_bucket"), cfg("storage.cloud_region", "")
     D = song_dir(slug)
     dest, ns, local, remote, missing, mism = storage.compare(prov, bucket, cfg("storage.cloud_prefix", ""), region, D, slug)
-    m = load_json(meta_path(slug), default={}); old = m.get("cloud", {})
+    m = item_load(slug, {}); old = m.get("cloud", {})
     objs = {k: {"size": local[k], "url": storage.object_url(prov, bucket, region, ns, dest + k)} for k in sorted(local) if dest + k in remote}
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     m["cloud"] = {"uploaded_at": uploaded_at or old.get("uploaded_at") or now, "uri": uri or old.get("uri") or f"{prov}://{ns + '/' if ns else ''}{bucket}/{dest}",
@@ -36,7 +38,7 @@ def record(slug, uploaded_at=None, uri=None):
                   "missing": missing, "size_mismatch": mism, "objects": objs}
     if old.get("cleanup_ok") is not None: m["cloud"]["cleanup_ok"] = old["cleanup_ok"]
     m.setdefault("history", []).append(f"{now} cloud record {len(objs)} files verified={m['cloud']['verified']}")
-    json.dump(m, open(meta_path(slug), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    item_save(slug, m)
     print(f"recorded {len(objs)} objects under {dest}, verified={m['cloud']['verified']}" + (f", missing {missing}" if missing else "") + (f", size mismatch {mism}" if mism else ""))
     return 0 if m["cloud"]["verified"] else 1
 
@@ -66,9 +68,9 @@ def run_watched(cmd):
             if time.time() - last[0] > STALL_S:
                 hung = True; print(f"upload stalled for {STALL_S}s, stopping it (try {n} of {TRIES})", flush=True)
                 try: os.killpg(p.pid, signal.SIGTERM)
-                except Exception: p.terminate()
+                except Exception as _e: L.soft(LOG, "run_watched_error"); p.terminate()
                 try: p.wait(timeout=20)
-                except Exception: p.kill()
+                except Exception as _e: L.soft(LOG, "run_watched_error"); p.kill()
                 break
         t.join(timeout=5)
         if not hung: return p.returncode
@@ -95,8 +97,8 @@ def main(argv):
     up = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print("uploaded", uri, "verifying against the bucket")
     rc = record(slug, uploaded_at=up, uri=uri)
-    m = load_json(meta_path(slug), default={}); m.setdefault("history", []).append(f"{up} cloud upload to {uri}")
-    json.dump(m, open(meta_path(slug), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    m = item_load(slug, {}); m.setdefault("history", []).append(f"{up} cloud upload to {uri}")
+    item_save(slug, m)
     if rc: print("the bucket does not match the local folder. Nothing may be cleaned up until it does. Run the archive step again."); return 1
     return 0
 
