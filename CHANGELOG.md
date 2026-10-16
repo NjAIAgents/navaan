@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-16
+
+### Added
+- Studio > Inspiration, Approvals and Schedule in the new app. Inspiration lists your quotes and short videos and opens each on its own pipeline steps (quote, originality, background, typography, render), with the same gate, Approve and Request changes as songs. Approvals is one list of everything waiting for your yes across songs and inspiration, grouped by what is asked, with one Review action each. Schedule is a month calendar (Monday first) with every YouTube and Instagram time, a day-by-day list under it, and missed or blocked publishes marked; on a phone it is the list only. `GET /api/schedule` serves it.
+- Home opens inspiration items in the new app too.
+
 ## [0.9.0] - 2026-10-16
 
 ### Added
@@ -92,7 +98,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/NjAIAgents/navaan/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/NjAIAgents/navaan/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/NjAIAgents/navaan/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/NjAIAgents/navaan/compare/v0.6.0...v0.7.0

@@ -124,3 +124,14 @@ button { font: inherit; color: inherit; }
 .back { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--mu); text-decoration: none; margin-bottom: 4px; } .back .ic { transform: rotate(180deg); }
 .steps, .hist { list-style: none; margin: 0; padding: 8px; } .stp { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 6px 12px; } .stp .tx { flex: 1; min-width: 0; }
 .hist li { padding: 8px 12px; border-top: 1px solid var(--ln); font-size: 13px; } .hist li:first-child { border-top: 0; }
+
+/* Schedule (NAV-14): month calendar on a wide screen, the list always */
+.mon { margin: 0; font-size: 18px; font-weight: 600; min-width: 11ch; text-align: center; }
+.cal { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; padding: 8px; }
+.cal th { padding: 8px 4px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mu); text-align: left; }
+.cal td { vertical-align: top; height: 104px; padding: 6px; border-top: 1px solid var(--ln); overflow: hidden; }
+.cal td.out { opacity: .4; } .cal .dn { display: block; margin-bottom: 4px; font-size: 13px; color: var(--mu); }
+.ent { display: block; margin-bottom: 4px; padding: 4px 8px; border-radius: var(--r1); background: var(--s3); border: 1px solid var(--ln); color: var(--tx); font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ent.ok { color: var(--ok); } .ent.wn { color: var(--wn); } .ent.bad { color: var(--bad); }
+.dayh { margin: 8px 12px 4px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mu); }
+@media (max-width: 899px) { .cal { display: none; } }

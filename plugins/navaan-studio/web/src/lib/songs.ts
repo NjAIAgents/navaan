@@ -12,3 +12,6 @@ export function nextAction(s: Pick<SongRow, "status" | "next" | "published">): s
   if (n?.step) return `Next: ${stepLabel(n.step)}`;
   return "In production";
 }
+
+/** Where an item opens: songs and inspiration have screens in the new app, anything else opens in the classic view. */
+export const itemPath = (type: string, slug: string) => (type === "music" ? `/studio/songs/${slug}` : type === "inspiration" ? `/studio/inspiration/${slug}` : null);

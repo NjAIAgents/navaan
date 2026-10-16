@@ -31,9 +31,11 @@ export type Step = {
 };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
-  meta: { state?: string; album?: string; history?: string[] };
+  meta: { type?: string; state?: string; album?: string; history?: string[] };
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
   failure: { step: string; error: string; ref: string } | null;
   question: { text?: string } | null; needs_you: string;
 };
+
+export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };
