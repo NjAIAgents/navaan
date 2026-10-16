@@ -7,9 +7,10 @@ type Player = {
   slug: string | null; title: string; playing: boolean; error: string; expanded: boolean; hasNext: boolean; hasPrev: boolean;
   toggle: (slug: string, title: string, queue?: QItem[]) => Promise<void>; next: () => void; prev: () => void; seek: (seconds: number) => void; setExpanded: (on: boolean) => void;
   volume: number; muted: boolean; setVolume: (v: number) => void; toggleMute: () => void;
+  shuffle: boolean; setShuffle: (on: boolean) => void;
 };
 const noop = async () => undefined;
-const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", expanded: false, hasNext: false, hasPrev: false, volume: 1, muted: false, setVolume: () => undefined, toggleMute: () => undefined, toggle: noop, next: () => undefined, prev: () => undefined, seek: () => undefined, setExpanded: () => undefined });
+const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", expanded: false, hasNext: false, hasPrev: false, volume: 1, muted: false, setVolume: () => undefined, toggleMute: () => undefined, shuffle: false, setShuffle: () => undefined, toggle: noop, next: () => undefined, prev: () => undefined, seek: () => undefined, setExpanded: () => undefined });
 const PosCtx = createContext<{ position: number; duration: number }>({ position: 0, duration: 0 });
 export const usePlayer = () => useContext(Ctx);
 /** The playing position, apart from the rest so that only what shows time re-renders four times a second. */
@@ -31,6 +32,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const setVolume = useCallback((v: number) => { const x = Math.min(1, Math.max(0, v)); setVol(x); if (x > 0) setMuted(false); try { localStorage.setItem("navaan-volume", String(x)); } catch { /* expected: storage can be blocked */ } }, []);
   const toggleMute = useCallback(() => setMuted((m) => !m), []);
   useEffect(() => { const a = audio.current; if (a) { a.volume = volume; a.muted = muted || volume === 0; } }, [volume, muted]);   // a phone's own buttons set the real loudness; this is the app's share of it
+  const [shuffle, setShuf] = useState(() => { try { return localStorage.getItem("navaan-shuffle") === "1"; } catch { return false; } });   // expected: storage can be blocked
+  const setShuffle = useCallback((on: boolean) => { setShuf(on); try { localStorage.setItem("navaan-shuffle", on ? "1" : "0"); } catch { /* expected: storage can be blocked */ } }, []);
+  const played = useRef<string[]>([]);   // the songs played in this run, so Back goes where you were and shuffle does not repeat a song until every other one has played
   const retried = useRef(false);
   const start = useCallback(async (slug: string, at = 0) => {
     const a = audio.current!;
@@ -40,13 +44,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
   const begin = useCallback(async (slug: string, title: string) => {
     setError(""); setCur({ slug, title }); setPos({ position: 0, duration: 0 }); retried.current = false;
+    if (played.current[played.current.length - 1] !== slug) played.current.push(slug);
     try { await start(slug); } catch (e) { setCur({ slug: null, title: "" }); setError(errText(e)); }
   }, [start]);
   const toggle = useCallback(async (slug: string, title: string, q?: QItem[]) => {
     const a = audio.current; if (!a) return;
     setError("");
     if (cur.slug === slug) { if (a.paused) await a.play().catch((e) => setError(errText(e))); else a.pause(); return; }
-    if (q?.length) setQueue(q);
+    if (q?.length) { setQueue(q); played.current = []; }
     else if (!queue.some((x) => x.slug === slug)) {
       setQueue([{ slug, title }]);   // at least this song, then the catalogue fills in so Next has somewhere to go
       getJSON<TrackRow[]>("/api/catalog/tracks").then((rows) => { if (Array.isArray(rows) && rows.some((r) => r.slug === slug)) setQueue(rows.map((r) => ({ slug: r.slug, title: r.title }))); }).catch(() => undefined);   // expected: no list means no Next
@@ -54,13 +59,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     await begin(slug, title);
   }, [cur.slug, queue, begin]);
   const at = queue.findIndex((x) => x.slug === cur.slug);
-  const hasNext = at >= 0 && at < queue.length - 1, hasPrev = at > 0;
-  const next = useCallback(() => { if (at >= 0 && at < queue.length - 1) void begin(queue[at + 1].slug, queue[at + 1].title); }, [at, queue, begin]);
+  const hasNext = at >= 0 && (shuffle ? queue.length > 1 : at < queue.length - 1), hasPrev = at > 0 || (shuffle && played.current.length > 1);
+  const pickShuffled = useCallback(() => {   // a song nobody has played in this round; when all have, a new round without the one that just played
+    const done = new Set(played.current); let pool = queue.filter((x) => !done.has(x.slug) && x.slug !== cur.slug);
+    if (!pool.length) { played.current = cur.slug ? [cur.slug] : []; pool = queue.filter((x) => x.slug !== cur.slug); }
+    return pool[Math.floor(Math.random() * pool.length)];
+  }, [queue, cur.slug]);
+  const next = useCallback(() => {
+    if (shuffle) { const n = queue.length > 1 ? pickShuffled() : undefined; if (n) void begin(n.slug, n.title); return; }
+    if (at >= 0 && at < queue.length - 1) void begin(queue[at + 1].slug, queue[at + 1].title);
+  }, [shuffle, at, queue, begin, pickShuffled]);
   const prev = useCallback(() => {
     const a = audio.current;
-    if (a && (a.currentTime > 3 || at <= 0)) { a.currentTime = 0; return; }   // a few seconds in, Back restarts the song; at the start it goes to the one before
-    if (at > 0) void begin(queue[at - 1].slug, queue[at - 1].title);
-  }, [at, queue, begin]);
+    if (a && a.currentTime > 3) { a.currentTime = 0; return; }   // a few seconds in, Back restarts the song
+    if (shuffle && played.current.length > 1) { played.current.pop(); const was = played.current.pop(); const item = queue.find((x) => x.slug === was); if (item) void begin(item.slug, item.title); return; }
+    if (at > 0) void begin(queue[at - 1].slug, queue[at - 1].title); else if (a) a.currentTime = 0;
+  }, [shuffle, at, queue, begin]);
   const seek = useCallback((seconds: number) => { const a = audio.current; if (a && Number.isFinite(seconds)) { a.currentTime = Math.max(0, seconds); setPos((p) => ({ ...p, position: a.currentTime })); } }, []);
   const onError = () => {
     const a = audio.current; if (!a || !cur.slug || !a.src) return;
@@ -78,7 +92,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       ms.setActionHandler("nexttrack", hasNext ? next : null); ms.setActionHandler("previoustrack", prev);
     } catch (e) { void e; }   // expected: a browser without these controls
   }, [cur, hasNext, next, prev]);
-  const value = useMemo(() => ({ ...cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, setExpanded, volume, muted, setVolume, toggleMute }), [cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, volume, muted, setVolume, toggleMute]);
+  const value = useMemo(() => ({ ...cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, setExpanded, volume, muted, setVolume, toggleMute, shuffle, setShuffle }), [cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, volume, muted, setVolume, toggleMute, shuffle, setShuffle]);
   const tick = () => { const a = audio.current; if (a) setPos({ position: a.currentTime || 0, duration: Number.isFinite(a.duration) ? a.duration : 0 }); };
   const ended = () => { setPlaying(false); if (hasNext) next(); };
   return (

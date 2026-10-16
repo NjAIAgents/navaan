@@ -146,6 +146,32 @@ describe("playlists: adding songs, and paging", () => {
   });
 });
 
+describe("shuffle", () => {
+  const rows = ["song-001", "song-002", "song-003", "song-004"].map((slug, i) => ({ slug, title: `Song ${i + 1}`, language: "Hindi", genre: "", albums: [], licence: "confirmed", art: null }));
+  const album = { id: "a1", slug: "first-light", title: "First Light", kind: "album", status: "published", release_date: null, description: "", tracks: rows.map((r, i) => ({ slug: r.slug, title: r.title, position: i + 1, status: "published", licence: "confirmed", art: null })) };
+  const plays = (f: ReturnType<typeof route>) => f.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith("/api/play?slug=")).map((u) => u.split("=")[1]);
+  it("plays every song once in a random order before any repeats, remembers it is on, and Back returns to the song before", async () => {
+    try { localStorage.clear(); } catch { /* storage may be blocked */ }
+    const f = route(LISTENER, { ...{ "/api/catalog/track/song-001": () => track(), "/api/play": () => ({ url: "https://bucket.example/a.mp3" }), "/api/library": () => ({ tracks: [], albums: [], following: false }), "/api/playlists": () => [] }, "/api/catalog/tracks": () => rows });
+    const rnd = vi.spyOn(Math, "random").mockReturnValue(0.99);   // always the last of what is left
+    at("/song/song-001"); fireEvent.click(await screen.findByRole("button", { name: "Play" })); const bar = await screen.findByRole("region", { name: "Now playing" }); await waitFor(() => expect(within(bar).getByRole("button", { name: "Next" })).toBeEnabled());
+    const shuffle = within(bar).getByRole("button", { name: "Shuffle" }); fireEvent.click(shuffle); await waitFor(() => expect(within(bar).getByRole("button", { name: "Shuffle" })).toHaveAttribute("aria-pressed", "true")); expect(localStorage.getItem("navaan-shuffle")).toBe("1");
+    for (let i = 0; i < 3; i++) { const n = plays(f).length; fireEvent.click(within(bar).getByRole("button", { name: "Next" })); await waitFor(() => expect(plays(f).length).toBe(n + 1)); }
+    expect(new Set(plays(f)).size).toBe(4);   // song-001 and three others: no repeat yet
+    const n = plays(f).length; fireEvent.click(within(bar).getByRole("button", { name: "Next" })); await waitFor(() => expect(plays(f).length).toBe(n + 1)); expect(plays(f)[n]).not.toBe(plays(f)[n - 1]);   // a new round, not the song that just played
+    const before = plays(f)[n - 1]; fireEvent.click(within(bar).getByRole("button", { name: "Back" })); await waitFor(() => expect(plays(f).length).toBe(n + 2)); expect(plays(f)[n + 1]).toBe(before);   // Back goes where you were
+    rnd.mockRestore();
+  });
+  it("Shuffle on an album turns it on and starts a random song of that album, not the one playing", async () => {
+    try { localStorage.clear(); } catch { /* storage may be blocked */ }
+    const f = route(LISTENER, { "/api/catalog/album/first-light": () => album, "/api/play": () => ({ url: "https://bucket.example/a.mp3" }), "/api/catalog/tracks": () => rows });
+    vi.spyOn(Math, "random").mockReturnValue(0.5); at("/album/first-light"); fireEvent.click(await screen.findByRole("button", { name: "Shuffle First Light" }));
+    await waitFor(() => expect(plays(f).length).toBe(1)); expect(["song-001", "song-002", "song-003", "song-004"]).toContain(plays(f)[0]); expect(localStorage.getItem("navaan-shuffle")).toBe("1");
+    const bar = await screen.findByRole("region", { name: "Now playing" }); expect(within(bar).getByRole("button", { name: "Shuffle" })).toHaveAttribute("aria-pressed", "true");
+    vi.restoreAllMocks();
+  });
+});
+
 describe("Library filters", () => {
   it("shows the answer for the latest choice even when an earlier one answers later", async () => {
     const row = (slug: string, title: string, genre: string) => ({ slug, title, language: "Hindi", genre, albums: [], licence: "confirmed", art: null });

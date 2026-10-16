@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
+import { ShuffleButton } from "../components/ShuffleButton";
 import { AddSongs } from "../components/AddSongs";
 import { getJSON, postJSON, type PlaylistDetail } from "../lib/api";
 import { errText } from "../lib/songs";
@@ -29,7 +30,7 @@ export default function Playlist() {
   const down = (i: number) => act("/api/playlists/move", { slug: t[i].slug, after: t[i + 1].slug });
   return (
     <>
-      <div className="ph"><Link className="back" to="/library"><Icon name="chevron" />Library</Link><h1 className="disp">{p.name}</h1><p>{t.length} song{t.length === 1 ? "" : "s"}</p>{t.length > 0 && <div className="row"><PlayButton queue={queue} label={p.name} size="big" /></div>}</div>
+      <div className="ph"><Link className="back" to="/library"><Icon name="chevron" />Library</Link><h1 className="disp">{p.name}</h1><p>{t.length} song{t.length === 1 ? "" : "s"}</p>{t.length > 0 && <div className="row"><PlayButton queue={queue} label={p.name} size="big" /><ShuffleButton queue={queue} label={p.name} /></div>}</div>
       {err && <div className="card" role="alert"><p className="mu">{err}</p></div>}
       {!mine && <p className="mu" role="note">Shared with you. You can listen, but not change it.</p>}
       {mine && <form className="row" onSubmit={(e) => { e.preventDefault(); void act("/api/playlists/update", { name }); }}>
