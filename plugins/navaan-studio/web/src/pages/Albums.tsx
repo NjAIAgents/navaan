@@ -4,6 +4,7 @@ import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { getJSON, postJSON, type AlbumRow } from "../lib/api";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 export const coverOf = (a: AlbumRow) => a.tracks.find((t) => t.art);
 
@@ -27,7 +28,7 @@ export default function Albums() {
         <select id="al-kind" className="field sel" value={kind} onChange={(e) => setKind(e.target.value)}><option value="album">Album</option><option value="ep">EP</option><option value="single">Single</option></select>
         <button className="btn p" type="submit" disabled={!title.trim()}>Create</button>
       </form>
-      {!rows && !err && <p className="mu" role="status">Loading…</p>}
+      {!rows && !err && <Loading />}
       {rows && (
         <div className="card" style={{ padding: 8 }}>
           {rows.length ? rows.map((a) => {

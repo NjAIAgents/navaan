@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, getJSON, postJSON } from "../lib/api";
 import { b2u, u2b } from "../lib/webauthn";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 type AuthState = { state?: string; user?: string; off?: boolean; idle_min?: number; recovery_left?: number; passkey_ok?: boolean; passkey_host_hint?: string; passkeys?: { id: string; name: string; added?: number }[] };
 
@@ -31,7 +32,7 @@ export default function Security() {
     } catch (e) { if (e instanceof ApiError) throw e; return `Passkey cancelled or failed: ${(e as Error).name || e}`; }
   });
   const signOut = async () => { try { await postJSON("/auth/logout"); } finally { location.reload(); } };
-  if (!s) return err ? <div className="card" role="alert"><h2>Could not load</h2><p className="mu">{err}</p></div> : <p className="mu" role="status">Loading…</p>;
+  if (!s) return err ? <div className="card" role="alert"><h2>Could not load</h2><p className="mu">{err}</p></div> : <Loading />;
   if (s.off) return <div className="card"><h1 className="disp">Security</h1><p className="mu">Sign in is switched off for this run (NAVAAN_AUTH=off).</p></div>;
   return (
     <>

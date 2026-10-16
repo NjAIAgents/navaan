@@ -13,6 +13,7 @@ import { getJSON, postJSON, type Question, type SongDetail, type Step } from "..
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { classic, errText, nextAction } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
 
@@ -174,7 +175,7 @@ export default function Song() {
     finally { setPending(false); }
   };
 
-  if (!d) return err ? <div className="card" role="alert"><h2>Could not load this song</h2><p className="mu">{err}</p><Link className="btn" to="/studio/songs">Back to Songs</Link></div> : <p className="mu" role="status">Loading…</p>;
+  if (!d) return err ? <div className="card" role="alert"><h2>Could not load this song</h2><p className="mu">{err}</p><Link className="btn" to="/studio/songs">Back to Songs</Link></div> : <Loading />;
 
   const title = d.text["title.txt"]?.trim() || slug;
   const insp = d.meta.type === "inspiration"; const list = insp ? "/studio/inspiration" : "/studio/songs";

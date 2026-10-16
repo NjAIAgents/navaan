@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { getJSON, postJSON, type CloudData, type CloudSong } from "../lib/api";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 const mb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 type Kind = "audio" | "video" | "image" | "edit" | "file";
@@ -51,7 +52,7 @@ export default function Cloud() {
     } catch (e) { setFileErr((m) => ({ ...m, [key]: errText(e) })); } finally { setBusy(""); }
   };
   const onClose = (key: string) => setLinks((m) => { const n = { ...m }; delete n[key]; return n; });
-  if (!d) return err ? <div className="card" role="alert"><h2>Could not load Cloud</h2><p className="mu">{err}</p></div> : <p className="mu" role="status">Loading…</p>;
+  if (!d) return err ? <div className="card" role="alert"><h2>Could not load Cloud</h2><p className="mu">{err}</p></div> : <Loading />;
   return (
     <>
       <div className="ph"><h1 className="disp">Cloud</h1><p>What is archived in the bucket.</p></div>

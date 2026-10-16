@@ -63,6 +63,13 @@ describe("quality rules in the stylesheet", () => {
   it("falls back to solid surfaces without backdrop-filter and with reduced transparency", () => {
     expect(css).toMatch(/@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)/); expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\)/);
   });
-  it("fades a route in with the page's own animation", () => { expect(css).toMatch(/\.page \{ animation: rtin/); });
+  it("eases each block of a new screen in with opacity and transform only (nothing that shifts the layout)", () => {
+    expect(css).toMatch(/\.page > \* \{ animation: rise /); const rise = css.slice(css.indexOf("@keyframes rise")); expect(rise.slice(0, rise.indexOf("}") + 1)).toMatch(/opacity: 0; transform: translateY\(8px\)/); expect(rise.slice(0, 160)).not.toMatch(/margin|height|width|top|left/);
+  });
+  it("shows no loading placeholder for a quick answer and soft blocks for a slow one, with the words always there for screen readers", async () => {
+    vi.useFakeTimers(); const { Loading } = await import("./Loading"); const { container } = render(<Loading />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…"); expect(container.querySelector(".skel")).toBeNull();
+    await act(async () => { vi.advanceTimersByTime(200); }); expect(container.querySelector(".skel")).not.toBeNull(); vi.useRealTimers();
+  });
 });
 void act;

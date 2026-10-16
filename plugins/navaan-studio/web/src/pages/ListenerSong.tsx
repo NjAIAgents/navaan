@@ -10,6 +10,7 @@ import { Transport } from "../components/Transport";
 import { getJSON, type TrackView } from "../lib/api";
 import { usePlayer, usePosition } from "../lib/player";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 // A song as a listener sees it: the big cover, one round Play button, who and what it is, the lyrics (following the song when timing exists), keep and share.
 export default function ListenerSong() {
@@ -19,7 +20,7 @@ export default function ListenerSong() {
   const [sharing, setSharing] = useState(false);
   const pl = usePlayer(); const { position, duration } = usePosition();
   useEffect(() => { setT(null); getJSON<TrackView>(`/api/catalog/track/${slug}`).then(setT).catch((e) => setErr(errText(e))); }, [slug]);
-  if (!t) return err ? <div className="card" role="alert"><h2>This song is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <p className="mu" role="status">Loading…</p>;
+  if (!t) return err ? <div className="card" role="alert"><h2>This song is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <Loading />;
   const mine = pl.slug === slug, playing = mine && pl.playing;
   return (
     <>

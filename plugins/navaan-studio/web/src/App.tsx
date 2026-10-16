@@ -6,6 +6,7 @@ import { useMe } from "./lib/me";
 import Placeholder from "./pages/Placeholder";
 import Songs from "./pages/Songs";
 import StudioHome from "./pages/StudioHome";
+import { Loading } from "./components/Loading";
 
 // Each screen is loaded when it is opened, so the first paint carries only the shell, Home and the Songs list.
 const Browse = lazy(() => import("./pages/Browse"));
@@ -28,7 +29,7 @@ const Search = lazy(() => import("./pages/Search"));
 const Song = lazy(() => import("./pages/Song"));
 
 // Home is the studio dashboard for the studio side and Browse for a listener.
-function HomeSwitch() { const me = useMe(); return !me.ready ? <p className="mu" role="status">Loading…</p> : me.studio ? <Home /> : <Browse />; }
+function HomeSwitch() { const me = useMe(); return !me.ready ? <Loading /> : me.studio ? <Home /> : <Browse />; }
 
 export default function App() {
   return (

@@ -6,6 +6,7 @@ import { PlayButton } from "../components/PlayButton";
 import { getJSON, type AlbumRow } from "../lib/api";
 import { usePlayer } from "../lib/player";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 // An album as a listener sees it: its cover, who and what it is, play from the top, and the songs in order. Only songs they may hear are in it.
 export default function ListenerAlbum() {
@@ -13,7 +14,7 @@ export default function ListenerAlbum() {
   const [a, setA] = useState<AlbumRow | null>(null); const [err, setErr] = useState("");
   const pl = usePlayer();
   useEffect(() => { setA(null); getJSON<AlbumRow>(`/api/catalog/album/${slug}`).then(setA).catch((e) => setErr(errText(e))); }, [slug]);
-  if (!a) return err ? <div className="card" role="alert"><h2>This album is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <p className="mu" role="status">Loading…</p>;
+  if (!a) return err ? <div className="card" role="alert"><h2>This album is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <Loading />;
   const queue = a.tracks.map((t) => ({ slug: t.slug, title: t.title })); const c = a.tracks.find((t) => t.art);
   return (
     <>

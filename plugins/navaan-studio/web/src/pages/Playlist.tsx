@@ -4,6 +4,7 @@ import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
 import { getJSON, postJSON, type PlaylistDetail } from "../lib/api";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 const VIS = ["private", "unlisted", "public"] as const;
 
@@ -19,7 +20,7 @@ export default function Playlist() {
   const load = useCallback(() => getJSON<PlaylistDetail>(`/api/playlists/${id}`).then((x) => { setP(x); setName(x.name); setErr(""); }).catch((e) => setErr(errText(e))), [id]);
   useEffect(() => { void load(); }, [load]);
   const act = async (path: string, body: Record<string, unknown>) => { setBusy(true); try { await postJSON(path, { id, ...body }); setErr(""); await load(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
-  if (!p) return err ? <div className="card" role="alert"><h2>Could not open this playlist</h2><p className="mu">{err}</p><Link className="btn" to="/library">Back to Library</Link></div> : <p className="mu" role="status">Loading…</p>;
+  if (!p) return err ? <div className="card" role="alert"><h2>Could not open this playlist</h2><p className="mu">{err}</p><Link className="btn" to="/library">Back to Library</Link></div> : <Loading />;
   const t = p.tracks; const mine = p.mine !== false;
   const queue = t.map((x) => ({ slug: x.slug, title: x.title }));
   const up = (i: number) => act("/api/playlists/move", { slug: t[i].slug, after: i >= 2 ? t[i - 2].slug : "" });   // after the song two above, or to the top

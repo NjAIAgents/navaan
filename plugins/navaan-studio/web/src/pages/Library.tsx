@@ -5,6 +5,7 @@ import { Cover } from "../components/Cover";
 import { ApiError, getJSON, postJSON, type Filters, type LibraryData, type PlaylistRow, type TrackRow } from "../lib/api";
 import { useMe } from "../lib/me";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 type Limit = { error: string; upgrade?: string };
 
@@ -34,7 +35,7 @@ function Songs() {
         {pick("genre", "Genre", (f?.genres ?? []).map((x) => ({ value: x, label: x })))}
       </div>
       {err && <div className="card" role="alert"><p className="mu">{err}</p></div>}
-      {!rows && !err && <p className="mu" role="status">Loading…</p>}
+      {!rows && !err && <Loading />}
       {rows && (
         <div className="card" style={{ padding: 8 }} aria-live="polite">
           {rows.length ? rows.map((t) => (
@@ -85,7 +86,7 @@ export default function Library() {
           <button className="btn p" type="submit" disabled={busy || !name.trim()}>Create</button>
         </form>
         {limit && <div className="card" role="alert"><h2>Playlist limit reached</h2><p>{limit.error}</p><Link className="btn p" to={limit.upgrade ?? "/plans"}><Icon name="star" />See the plans</Link></div>}
-        {!lists && !err && <p className="mu" role="status">Loading…</p>}
+        {!lists && !err && <Loading />}
         {lists && (
           <div className="card" style={{ padding: 8 }}>
             {lists.length ? lists.map((p) => (

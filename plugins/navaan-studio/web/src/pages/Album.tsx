@@ -6,6 +6,7 @@ import { PlayButton } from "../components/PlayButton";
 import { getJSON, postJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { coverOf } from "./Albums";
+import { Loading } from "../components/Loading";
 
 // One album: the hero with its cover, title, kind and status; the details; the songs in order (up, down, remove) and a way to add more. A published album may only hold published songs: the server says so.
 export default function Album() {
@@ -28,7 +29,7 @@ export default function Album() {
   }, [slug]);
   useEffect(() => { void load(); }, [load]);
   const run = async (fn: () => Promise<unknown>, ok = "") => { setBusy(true); setNote(""); try { await fn(); await load(); setNote(ok); } catch (e) { setNote(errText(e)); } finally { setBusy(false); } };
-  if (!a) return err ? <div className="card" role="alert"><h2>Could not open this album</h2><p className="mu">{err}</p><Link className="btn" to="/albums">Back to Albums</Link></div> : <p className="mu" role="status">Loading…</p>;
+  if (!a) return err ? <div className="card" role="alert"><h2>Could not open this album</h2><p className="mu">{err}</p><Link className="btn" to="/albums">Back to Albums</Link></div> : <Loading />;
   const order = a.tracks.map((t) => t.slug);
   const reorder = (next: string[]) => run(() => postJSON("/api/albums/reorder", { album: slug, tracks: next }));
   const move = (i: number, d: number) => { const n = [...order]; [n[i], n[i + d]] = [n[i + d], n[i]]; return reorder(n); };
