@@ -26,7 +26,7 @@ export default function Analytics() {
       <div className="row">
         <div className="seg" role="group" aria-label="Platform">{(["instagram", "youtube"] as const).map((p) => <button key={p} aria-pressed={platform === p} onClick={() => set("platform", p)}>{p === "youtube" ? "YouTube" : "Instagram"}</button>)}</div>
         <label className="sr" htmlFor="acc">Account</label>
-        <select id="acc" className="field sel" value={account} onChange={(e) => set("account", e.target.value)}><option value="all">All accounts</option>{d?.accounts.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}</select>
+        <select id="acc" className="field sel" value={account} onChange={(e) => set("account", e.target.value)}><option value="all">All accounts</option>{d?.accounts?.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}</select>
         <label className="sr" htmlFor="days">Period</label>
         <select id="days" className="field sel" value={days} onChange={(e) => set("days", e.target.value)}>{["7", "30", "90"].map((x) => <option key={x} value={x}>Last {x} days</option>)}</select>
       </div>

@@ -65,6 +65,10 @@ describe("Analytics extras (NAV-28)", () => {
     vi.stubGlobal("fetch", vi.fn((u: string) => Promise.resolve(u.startsWith("/api/me") ? json(OWNER) : u.startsWith("/api/analytics/song") ? json({ empty: false, totals: { views: 120, reach: 90, saved: 7, shares: 2 }, posts: [{ media_id: "m2", permalink: "https://ig/p/2", product_type: "REELS", account: "music", views: 120, comments_total: 3, compare: { views_vs_median: 1.5, views_rank: 1, account_posts: 8 } }], unlinked: [], youtube: { videos: [{ video_id: "v1", title: "Tere", url: "https://yt/v1", views: 55 }] } }) : u.startsWith("/api/song/") ? json({ slug: "song-001", steps: [], next: { type: "done" }, text: { "title.txt": "Tere" }, files: {}, meta: { type: "music", state: "published", history: [] }, approvals: {}, job: { running: false, queued: false, rc: null }, status_text: "", failure: null, question: null, needs_you: "" }) : json([]))));
     at("/studio/songs/song-001"); expect(await screen.findByRole("heading", { name: "How it is doing" })).toBeInTheDocument(); expect(screen.getByText(/1.5× the account's median/)).toBeInTheDocument(); expect(screen.getByRole("link", { name: "Tere" })).toBeInTheDocument();
   });
+  it("shows an empty state with the Collect button, not an error screen, when nothing is collected yet (a fresh database)", async () => {
+    stub({ overview: { empty: true, reason: "no_database", db: "x", collect: { running: false } } });
+    at(); expect(await screen.findByText(/Nothing collected yet/)).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Collect now" })).toBeInTheDocument(); expect(screen.queryByText("This screen hit a problem")).toBeNull();
+  });
   it("has no serious accessibility violations", async () => {
     stub(); const { container } = at(); await screen.findByRole("heading", { name: "Auto refresh" });
     const r = await axe.run(container, { rules: { "color-contrast": { enabled: false } } }); expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);

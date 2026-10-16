@@ -96,6 +96,28 @@ describe("a song for a listener", () => {
   });
 });
 
+describe("Library filters", () => {
+  it("shows the answer for the latest choice even when an earlier one answers later", async () => {
+    const row = (slug: string, title: string, genre: string) => ({ slug, title, language: "Hindi", genre, albums: [], licence: "confirmed", art: null });
+    let releaseSlow: (r: Response) => void = () => undefined;
+    const f = vi.fn((u: string) => {
+      if (u.startsWith("/api/me")) return Promise.resolve(json(OWNER));
+      if (u.startsWith("/api/catalog/filters")) return Promise.resolve(json({ albums: [], languages: ["Hindi"], genres: ["Indie pop"] }));
+      if (u === "/api/catalog/tracks?language=Hindi") return new Promise<Response>((res) => { releaseSlow = res; });   // the first choice answers last
+      if (u === "/api/catalog/tracks?language=Hindi&genre=Indie+pop") return Promise.resolve(json([row("song-002", "Pata Hi Na Chala", "Indie pop")]));
+      if (u.startsWith("/api/library")) return Promise.resolve(json({ tracks: [], albums: [], following: false }));
+      if (u.startsWith("/api/catalog/tracks")) return Promise.resolve(json([row("song-001", "Tere Hone Se", "Romantic"), row("song-002", "Pata Hi Na Chala", "Indie pop")]));
+      return Promise.resolve(json([]));
+    });
+    vi.stubGlobal("fetch", f); at("/library"); fireEvent.click(await screen.findByRole("tab", { name: "Songs" }));
+    await screen.findByRole("link", { name: /Tere Hone Se/ });
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "Hindi" } }); fireEvent.change(screen.getByLabelText("Genre"), { target: { value: "Indie pop" } });
+    expect(await screen.findByRole("link", { name: /Pata Hi Na Chala/ })).toBeInTheDocument();
+    releaseSlow(json([row("song-001", "Tere Hone Se", "Romantic"), row("song-002", "Pata Hi Na Chala", "Indie pop")]));   // now the stale answer arrives
+    await new Promise((r) => setTimeout(r, 50)); expect(screen.queryByRole("link", { name: /Tere Hone Se/ })).toBeNull(); expect(screen.getByRole("link", { name: /Pata Hi Na Chala/ })).toBeInTheDocument();
+  });
+});
+
 describe("Library songs", () => {
   it("filters by album, language and genre through the server and links to the song", async () => {
     const f = route(OWNER, { "/api/catalog/filters": () => ({ albums: [{ slug: "first-light", title: "First Light" }], languages: ["English", "Hindi"], genres: ["Indie"] }), "/api/catalog/tracks": () => [{ slug: "song-001", title: "Tere Hone Se", language: "Hindi", genre: "Indie", albums: [{ slug: "first-light", title: "First Light" }], licence: "unconfirmed", art: null }], "/api/playlists": () => [], "/api/library": () => ({ tracks: [], albums: [], following: false }) });
