@@ -3,6 +3,8 @@
 *.mp4
 *.wav
 *.png
+!plugins/navaan-studio/scripts/brand/*.png
+!plugins/navaan-studio/web/public/brand/*.png
 songs/*/takes/
 .venv/
 
