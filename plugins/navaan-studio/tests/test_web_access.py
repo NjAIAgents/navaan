@@ -85,6 +85,16 @@ class Access(unittest.TestCase):
             for i in range(6): last = post("/api/site/feedback", {"message": f"spam {i}"})[0]
             self.assertEqual(last, 429)   # five messages an hour from one address
 
+    def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
+        d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
+        open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")
+        with mock.patch.dict(os.environ, {"NAVAAN_WEB_DIST": d}):
+            st, h, b = self.raw("/app/moods/night-wide.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("max-age", h["Cache-Control"])
+            self.assertEqual(self.raw("/app/brand/mark.png")[0], 200)
+            self.assertEqual(self.raw("/app/moods/missing.webp")[0], 404)
+            self.assertEqual(self.raw("/app/moods/../index.html")[0], 404)   # nothing else of the app leaks without a sign in
+            st, h, b = self.raw("/app/index.html"); self.assertNotIn(b"TOPSECRETAPP", b)   # the app itself still asks for a sign in
+
     def test_a_visitor_can_ask_for_an_account_with_what_they_like_and_only_the_studio_reads_the_count(self):
         env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
         with mock.patch.dict(os.environ, env):

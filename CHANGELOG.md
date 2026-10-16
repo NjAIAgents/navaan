@@ -7,6 +7,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [Unreleased]
 
 ### Changed
+- The studio sign in page has the new look: the night picture behind, the NAVAAN logo above the card, gold instead of pink. The logo and the mood pictures are public files so this page can show them before anyone has signed in.
+
+### Changed
 - The public site's Library is open to visitors: they can browse every song, and Create playlist (or Add to playlist) leads to Create account, which asks what they like (mood, genres, languages) and an optional email for when accounts open. Studio > Analytics > Feedback shows how many asked and what they like.
 - The public site no longer offers a Studio sign in: the owner signs in on studio.navaan.online (signed in, Studio and Settings still show on the public site).
 

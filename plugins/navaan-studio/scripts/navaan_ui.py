@@ -443,6 +443,10 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
         if p.startswith("/dev-bucket/") and objstore.local_dir(): return self._dev_bucket(p[len("/dev-bucket/"):])   # the local stand-in for the bucket (development, browser checks)
         if p.startswith(("/s/", "/img/")): return self._public(p)   # shared links and cover pictures: no sign in, published and confirmed tracks only
+        if p.startswith(("/app/brand/", "/app/moods/")):   # the logo and the mood pictures are public art: the sign in page shows them before anyone has signed in
+            f = web_file(p[5:]) if ".." not in p else None
+            if not f: return self._send(404, {"error": "not found"})
+            return self._send(200, f[0], f[1], {"Cache-Control": "public, max-age=86400"})
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
