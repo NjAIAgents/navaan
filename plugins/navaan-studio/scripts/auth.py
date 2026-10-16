@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """auth.py  login for the NAVAAN portal: password, then a second factor (authenticator app code, passkey, or a recovery code).
 
-Everything lives in ~/.config/navaan/auth.json (mode 600), never in the project: a scrypt password hash, the TOTP secret,
-hashes of the recovery codes and the passkey public keys. Sessions last 7 days and survive a restart: only a hash of each session token is kept,
-in sessions.json (mode 600) next to analytics.db in ~/.local/share/navaan (env NAVAAN_SESSIONS_DIR).
+The owner's credentials live in ~/.config/navaan/auth.json (mode 600), never in the project and never in the database (so not in its backups): a scrypt password hash, the TOTP secret,
+hashes of the recovery codes and the passkey public keys. Sessions last 7 days and survive a restart: a row in Postgres (core.sessions, see core_store.py) keyed by a hash of the
+session token, with its own CSRF token, the person's roles and permissions. Sign-in attempts and the audit trail are there too. The older sessions.json (env NAVAAN_SESSIONS_DIR) is read once and moved aside.
 Standard library only; passkeys also need the `cryptography` package (the rest works without it).
 
 First run: the portal shows a setup page. It asks for the setup code that is written to ~/.config/navaan/auth_setup_code
@@ -13,6 +13,7 @@ CLI:  auth.py status | setup-code | reset      reset deletes the login, the next
 Dev only: NAVAAN_AUTH=off turns the login off for that process."""
 import os, sys, json, time, hmac, hashlib, base64, secrets, struct, threading, re
 import navaan_log as L
+import core_store as CS
 LOG = L.get("auth")
 
 DIR = os.environ.get("NAVAAN_AUTH_DIR") or os.path.expanduser("~/.config/navaan")
@@ -23,11 +24,11 @@ SESSION_MAX = 7 * 24 * 3600   # the browser stays signed in for a week
 SESSION_IDLE = 7 * 24 * 3600
 TICKET_TTL = 300
 LOCK = threading.Lock()
-SESSIONS = {}   # sha256(token) -> {"created", "last", "user"}; mirrored to sessions.json so a restart does not sign you out
-_LOADED = False
+_LEGACY_DONE = False
+_GC_AT = 0.0
+PERMISSIONS = ("studio.access", "studio.approve", "studio.settings", "library.view", "playlists.write", "account.manage")   # what NAVAAN_AUTH=off grants (development only)
 TICKETS = {}    # ticket -> {"exp", "user", "tries", "challenge"}
 PENDING = {}    # setup in progress: {"exp", "user", "pw", "secret"}
-THROTTLE = {}   # ip -> {"fails", "until"}; one counter per client address so a stranger cannot lock you out
 CTX = threading.local()  # per request: .ip and .https, set by state() and handle_post()
 
 
@@ -130,22 +131,32 @@ def use_recovery(d, code):
 
 
 # ---------- throttle ----------
+# One counter per client address, in Postgres (core.login_attempts): a stranger cannot lock you out, and it survives a restart.
 def _ip(): return getattr(CTX, "ip", "") or "local"
 
 
 def locked():
-    t = THROTTLE.get(_ip())
-    return max(0, int(t["until"] - now())) if t else 0
+    n, last = CS.failures(_ip())
+    return max(0, int(last + min(900, 15 * 2 ** (n - 5)) - now())) if n >= 5 else 0
 
 
 def fail():
-    if len(THROTTLE) > 5000: THROTTLE.clear()
-    t = THROTTLE.setdefault(_ip(), {"fails": 0, "until": 0.0}); t["fails"] += 1
-    if t["fails"] >= 5: t["until"] = now() + min(900, 15 * 2 ** (t["fails"] - 5))
-    L.event(LOG, "warning", "auth_failed", ip=_ip(), fails=t["fails"], locked_seconds=max(0, int(t["until"] - now())))   # a failed sign-in is not an error in the app, but it is worth seeing
+    CS.record_attempt(_ip(), False)
+    n, last = CS.failures(_ip())
+    until = last + min(900, 15 * 2 ** (n - 5)) if n >= 5 else 0
+    L.event(LOG, "warning", "auth_failed", ip=_ip(), fails=n, locked_seconds=max(0, int(until - now())))   # a failed sign-in is not an error in the app, but it is worth seeing
+    _audit("login_failed", ip=_ip(), fails=n)
 
 
-def ok_reset(): THROTTLE.pop(_ip(), None)
+def ok_reset(): CS.record_attempt(_ip(), True)
+
+
+def _audit(action, user=None, **detail):
+    """A line in the audit trail. It must never break signing in, so a failure is logged and swallowed."""
+    try:
+        CS.audit(action, actor_id=(user or {}).get("id") if isinstance(user, dict) else None, subject=(user or {}).get("username") if isinstance(user, dict) else user, ip=detail.pop("ip", _ip()), detail=detail)
+    except Exception:
+        L.exc(LOG, "audit_failed", action=action)
 
 
 # ---------- sessions ----------
@@ -155,32 +166,30 @@ def skey(token): return hashlib.sha256(token.encode()).hexdigest()
 def sess_file(): return os.path.join(os.environ.get("NAVAAN_SESSIONS_DIR") or os.path.expanduser("~/.local/share/navaan"), "sessions.json")
 
 
-def _persist():
-    """Write the session hashes (caller holds LOCK). A failed write only means a restart signs you out."""
+def _import_legacy_sessions():
+    """Once per process: sessions.json from before Postgres is taken in (so a deploy does not sign you out), then moved aside."""
+    global _LEGACY_DONE
+    if _LEGACY_DONE: return
+    _LEGACY_DONE = True
+    p = sess_file()
     try:
-        p = sess_file(); os.makedirs(os.path.dirname(p), exist_ok=True)
-        fd = os.open(p + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f: json.dump(SESSIONS, f)
-        os.replace(p + ".tmp", p); os.chmod(p, 0o600)
-    except OSError as _e: L.ignored(LOG, "_persist: OSError (optional or expected)", _e); pass
-
-
-def _load():
-    """Read sessions.json once per process (caller holds LOCK)."""
-    global _LOADED
-    if _LOADED: return
-    _LOADED = True
-    try:
-        with open(sess_file(), encoding="utf-8") as f: d = json.load(f)
-        n = now()
-        for k, v in d.items():
-            if isinstance(v, dict) and n - v.get("created", 0) <= SESSION_MAX and n - v.get("last", 0) <= SESSION_IDLE: SESSIONS.setdefault(k, v)
-    except (OSError, ValueError) as _e: L.ignored(LOG, "_load: OSError/ValueError (optional or expected)", _e); pass
+        with open(p, encoding="utf-8") as f: old = json.load(f)
+    except (OSError, ValueError) as _e: L.ignored(LOG, "no sessions.json to import", _e); return
+    n = now(); taken = 0
+    for h, v in (old or {}).items():
+        if not isinstance(v, dict) or n - v.get("created", 0) > SESSION_MAX or n - v.get("last", 0) > SESSION_IDLE: continue
+        u = CS.ensure_user(clean_user(v.get("user")) or "navaan", role="owner")
+        CS.import_session(h, u["id"], secrets.token_urlsafe(24), v.get("created", n), v.get("last", n), SESSION_MAX); taken += 1
+    try: os.replace(p, p + ".imported")
+    except OSError as _e: L.ignored(LOG, "cannot move sessions.json aside", _e)
+    L.event(LOG, "info", "legacy_sessions_imported", sessions=taken)
 
 
 def start_session(user):
-    t = secrets.token_urlsafe(32); n = now()
-    with LOCK: _load(); SESSIONS[skey(t)] = {"created": n, "last": n, "user": user}; _persist()
+    t = secrets.token_urlsafe(32)
+    u = CS.ensure_user(clean_user(user) or user, role="owner")
+    CS.create_session(skey(t), u["id"], secrets.token_urlsafe(24), _ip(), getattr(CTX, "ua", None), SESSION_MAX)
+    _audit("login", u, ip=_ip())
     return t
 
 
@@ -198,29 +207,37 @@ def token_from(cookie_hdr):
 
 
 def session(cookie_hdr):
-    """The live session for this Cookie header, or None. Touches the idle clock."""
-    if disabled(): return {"user": "local"}
-    t = skey(token_from(cookie_hdr)); n = now()
-    with LOCK:
-        _load()
-        s = SESSIONS.get(t)
-        if not s: return None
-        if n - s["created"] > SESSION_MAX or n - s["last"] > SESSION_IDLE: SESSIONS.pop(t, None); _persist(); return None
-        s["last"] = n; return s
+    """The live session for this Cookie header, or None: {"user", "user_id", "csrf", "roles", "permissions"}. Touches the idle clock. A database error means no session (closed, not open)."""
+    if disabled(): return {"user": "local", "user_id": "", "csrf": "", "roles": ["owner"], "permissions": list(PERMISSIONS)}
+    tok = token_from(cookie_hdr)
+    if not tok: return None
+    try:
+        _import_legacy_sessions()
+        return CS.get_session(skey(tok), SESSION_IDLE)
+    except Exception:
+        L.exc(LOG, "session_lookup_failed"); return None
+
+
+def can(sess, permission):
+    """Whether this session may do `permission` (a route asks for a permission, never for a role name)."""
+    return bool(sess) and permission in (sess.get("permissions") or ())
 
 
 def end_session(cookie_hdr):
-    with LOCK: _load(); SESSIONS.pop(skey(token_from(cookie_hdr)), None); _persist()
+    tok = token_from(cookie_hdr)
+    if tok: CS.revoke_session(skey(tok))
 
 
 def _gc():
+    global _GC_AT
     n = now()
     with LOCK:
         for k in [k for k, v in TICKETS.items() if v["exp"] < n]: TICKETS.pop(k, None)
-        _load(); gone = [k for k, v in SESSIONS.items() if n - v["created"] > SESSION_MAX or n - v["last"] > SESSION_IDLE]
-        for k in gone: SESSIONS.pop(k, None)
-        if gone: _persist()
         if PENDING.get("exp", 1e18) < n: PENDING.clear()
+    if n - _GC_AT > 600:   # the database part is cheap but not free: every ten minutes is enough
+        _GC_AT = n
+        try: CS.gc(SESSION_IDLE)
+        except Exception: L.exc(LOG, "auth_gc_failed")
 
 
 # ---------- CBOR (just enough for WebAuthn) ----------
@@ -355,7 +372,9 @@ def state(cookie_hdr, host="", ip="", https=False):
     if s: return {"state": "authed", "user": s["user"], "passkeys": [{"id": p["id"], "name": p["name"], "added": p.get("added")} for p in d.get("passkeys", [])],
                   "recovery_left": len(d.get("recovery", [])), "passkey_ok": bool(rp and passkeys_available()), "passkey_host_hint": "" if rp else "Open http://localhost:8765 instead of the IP address to use passkeys.",
                   "idle_min": SESSION_IDLE // 60}
-    return {"state": "login", "passkey_ready": bool(d.get("passkeys") and rp and passkeys_available()), "locked": locked()}
+    try: lk = locked()
+    except Exception: L.exc(LOG, "locked_check_failed"); lk = 0   # the health check reads this: a database outage must not make the portal look dead
+    return {"state": "login", "passkey_ready": bool(d.get("passkeys") and rp and passkeys_available()), "locked": lk}
 
 
 def handle_post(path, body, cookie_hdr, host, ip="", https=False):
@@ -389,7 +408,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             save(nd); user = PENDING["user"]; PENDING.clear()
             try: os.remove(CODE_FILE)
             except OSError as _e: L.ignored(LOG, "handle_post: OSError (optional or expected)", _e); pass
-            ok_reset()
+            ok_reset(); _audit("owner_setup", user)
             return 200, {"ok": True, "recovery": codes}, [cookie_header(start_session(user))]
         if not d.get("pw"): return err(403, "not set up")
         # ---- sign in ----
@@ -409,11 +428,12 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
                 if t["tries"] > 6: TICKETS.pop(body.get("ticket"), None); return err(401, "Too many wrong codes. Sign in again.")
             code = str(body.get("code", ""))
             step = totp_check(d["totp"]["secret"], code, d["totp"].get("last", 0))
+            method = "totp"
             if step: d["totp"]["last"] = step; save(d)
-            elif re.search(r"[a-f]|-", code.lower()) and use_recovery(d, code): save(d)
+            elif re.search(r"[a-f]|-", code.lower()) and use_recovery(d, code): save(d); method = "recovery_code"
             else: fail(); return err(401, "Wrong code.")
             with LOCK: TICKETS.pop(body["ticket"], None)
-            ok_reset()
+            ok_reset(); _audit("login_method", d["user"], method=method)
             return 200, {"ok": True, "recovery_left": len(d.get("recovery", []))}, [cookie_header(start_session(d["user"]))]
         if path == "/auth/passkey/begin":  # sign in with a passkey alone: it proves who you are (device + Touch ID or PIN), so no password or code
             if locked(): return err(429, f"Too many tries. Wait {locked()} s.", locked=locked())
@@ -429,19 +449,19 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             try: assert_verify(d, host, body.get("ticket", ""), body)
             except Exception as e: L.event(LOG, "warning", "passkey_failed", reason=str(e)[:100]); fail(); return err(401, "Passkey failed: " + str(e)[:100])
             with LOCK: TICKETS.pop(body.get("ticket", ""), None)
-            ok_reset()
+            ok_reset(); _audit("login_method", d["user"], method="passkey")
             return 200, {"ok": True}, [cookie_header(start_session(d["user"]))]
         # ---- everything below needs a session ----
         if not authed: return err(401, "sign in")
         if path == "/auth/logout":
-            end_session(cookie_hdr); return 200, {"ok": True}, [cookie_header("", clear=True)]
+            end_session(cookie_hdr); _audit("logout", authed.get("user")); return 200, {"ok": True}, [cookie_header("", clear=True)]
         if path == "/auth/passkey/register-options": return 200, reg_options(d, host, d["user"]), []
         if path == "/auth/passkey/register":
-            reg_verify(d, host, body); return 200, {"ok": True}, []
+            reg_verify(d, host, body); _audit("passkey_added", authed.get("user")); return 200, {"ok": True}, []
         if path == "/auth/passkey/remove":
             before = len(d.get("passkeys", []))
             d["passkeys"] = [p for p in d.get("passkeys", []) if p["id"] != body.get("id")]
-            if len(d["passkeys"]) != before: save(d)
+            if len(d["passkeys"]) != before: save(d); _audit("passkey_removed", authed.get("user"))
             return 200, {"ok": True}, []
         if path in ("/auth/password", "/auth/recovery"):
             if locked(): return err(429, f"Too many tries. Wait {locked()} s.")
@@ -451,12 +471,10 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
                 new = str(body.get("new", "")); prob = pw_problem(new)
                 if prob: return err(400, prob)
                 d["pw"] = hash_pw(new); save(d)
-                keep = skey(token_from(cookie_hdr))
-                with LOCK:
-                    for k in [k for k in SESSIONS if k != keep]: SESSIONS.pop(k, None)  # other sessions are signed out
-                    _persist()
+                gone = CS.revoke_others(authed["user_id"], skey(token_from(cookie_hdr)))  # other sessions are signed out
+                _audit("password_changed", authed.get("user"), other_sessions_ended=gone)
                 return 200, {"ok": True}, []
-            codes, hashes = new_recovery(); d["recovery"] = hashes; save(d)
+            codes, hashes = new_recovery(); d["recovery"] = hashes; save(d); _audit("recovery_codes_renewed", authed.get("user"))
             return 200, {"ok": True, "recovery": codes}, []
         return err(404, "unknown")
     except ValueError as e: L.ignored(LOG, "handle_post: ValueError (optional or expected)", e); return err(400, str(e))
@@ -476,6 +494,8 @@ def main(a):
         for f in (FILE, sess_file()):  # the login and every remembered session
             try: os.remove(f)
             except OSError as _e: L.ignored(LOG, "main: OSError (optional or expected)", _e); pass
+        try: CS.revoke_all()
+        except Exception as e: print("note: could not end the sessions in the database:", e)
         print("login removed. The next portal start asks for a new setup code; restart the portal."); return 0
     print(__doc__); return 1
 

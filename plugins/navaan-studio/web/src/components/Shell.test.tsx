@@ -26,7 +26,7 @@ describe("the shell", () => {
   });
   it("opens the account menu with the themes and closes on Escape", () => {
     at("/albums");
-    fireEvent.click(screen.getAllByRole("button", { name: /Navjyot|Account menu/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Account menu/ })[0]);
     const dlg = screen.getByRole("dialog", { name: "Account menu" });
     for (const label of [/Midnight Cinema/, /Ivory & Gold/, /Match my device/, /Sign out/]) expect(within(dlg).getByRole("button", { name: label })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -35,10 +35,15 @@ describe("the shell", () => {
   it("shows the version in the account menu when the portal reports one", async () => {
     vi.stubGlobal("fetch", vi.fn((u: string) => Promise.resolve(new Response(u.includes("/auth/state") ? JSON.stringify({ state: "authed", version: "9.9.9" }) : "[]", { status: 200, headers: { "Content-Type": "application/json" } }))));
     at("/albums");
-    await screen.findByRole("button", { name: /Account menu/ });
+    await screen.findAllByRole("button", { name: /Account menu/ });
     await new Promise((r) => setTimeout(r, 20));   // let the state request land
-    fireEvent.click(screen.getAllByRole("button", { name: /Navjyot|Account menu/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Account menu/ })[0]);
     expect(await screen.findByText("NAVAAN 9.9.9")).toBeInTheDocument();
+  });
+  it("shows who is signed in from /api/me", async () => {
+    vi.stubGlobal("fetch", vi.fn((u: string) => Promise.resolve(new Response(u.includes("/api/me") ? JSON.stringify({ user: "meera", roles: ["owner"], permissions: [] }) : "[]", { status: 200, headers: { "Content-Type": "application/json" } }))));
+    at("/albums");
+    expect(await screen.findAllByRole("button", { name: "Account menu, meera" })).not.toHaveLength(0);
   });
   it("lists what needs you, what is in production and what is done", async () => {
     const rows = [

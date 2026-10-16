@@ -15,7 +15,7 @@ PostgreSQL 17. Six schemas. Reviewed 2026-10-15 (13 findings applied below). The
 
 | Table | Key columns | Rules |
 |-------|-------------|-------|
-| `users` | id, email (citext, unique), display_name, status, email_verified_at, locale, preferences jsonb | one row per person; `preferences.appearance` holds `{tone: 0..10, accent: key, match_device: bool}`, `preferences.personalise` holds the taste on/off switch, notifications go here too |
+| `users` | id, username, email (lower-case, unique on lower(email); no `citext` extension, so no superuser is needed), display_name, status, email_verified_at, locale, preferences jsonb | one row per person; `preferences.appearance` holds `{tone: 0..10, accent: key, match_device: bool}`, `preferences.personalise` holds the taste on/off switch, notifications go here too |
 | `user_profiles` | user_id (pk), display_name, avatar_asset_id, bio, country, languages text[], updated_at | no date of birth or phone number (constitution XV) |
 | `credentials` | user_id, kind (`password`/`passkey`/`totp`/`recovery`), hash or public key or secret, label, last_used_at | owner's existing auth migrates here |
 | `identities` | user_id, provider (`google`/`apple`/...), subject, email, linked_at | unique (provider, subject); empty until those providers are added |
