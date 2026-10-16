@@ -1,9 +1,11 @@
 """Tests for the portal login (auth.py): setup code, password plus TOTP, replay, recovery code, per-IP throttle, cookie flags, expiry.
 Run: python3 -W ignore -m unittest test_auth   (from this folder)"""
 import os, sys, tempfile, unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
-import auth
+import _pgenv  # noqa: F401
+import auth, core_store as CS
 
 PW = "correct horse battery"
 H = "localhost:8765"
@@ -15,17 +17,23 @@ class Base(unittest.TestCase):
         auth.DIR = self.tmp.name
         auth.FILE = os.path.join(self.tmp.name, "auth.json")
         auth.CODE_FILE = os.path.join(self.tmp.name, "auth_setup_code")
-        os.environ["NAVAAN_SESSIONS_DIR"] = self.tmp.name; auth._LOADED = False
-        for m in (auth.SESSIONS, auth.TICKETS, auth.PENDING, auth.THROTTLE): m.clear()
+        os.environ["NAVAAN_SESSIONS_DIR"] = self.tmp.name; auth._LEGACY_DONE = False
+        CS._LOCAL.conn = None   # sessions, attempts and the audit trail are in Postgres: this folder is under the temp directory, so it gets its own throwaway schema
+        for m in (auth.TICKETS, auth.PENDING): m.clear()
         os.environ.pop("NAVAAN_AUTH", None)
 
     def tearDown(self):
-        os.environ.pop("NAVAAN_SESSIONS_DIR", None); self.tmp.cleanup()
+        os.environ.pop("NAVAAN_SESSIONS_DIR", None)
+        if getattr(CS._LOCAL, "conn", None): CS._LOCAL.conn.close(); CS._LOCAL.conn = None
+        self.tmp.cleanup()
 
     def restart(self):
-        """What a portal restart does to memory: everything gone, then sessions.json is read on first use."""
-        for m in (auth.SESSIONS, auth.TICKETS, auth.PENDING, auth.THROTTLE): m.clear()
-        auth._LOADED = False
+        """What a portal restart does to memory: tickets and a setup in progress are gone; sessions and sign-in attempts are in Postgres and stay."""
+        for m in (auth.TICKETS, auth.PENDING): m.clear()
+        auth._LEGACY_DONE = False
+
+    def sql(self, q, params=()):
+        return CS._run(lambda c: c.execute(q, params).fetchall() if q.lstrip().upper().startswith("SELECT") else c.execute(q, params).rowcount)
 
     def post(self, path, body, ck=None, ip="1.1.1.1", https=False):
         return auth.handle_post(path, body, ck, H, ip=ip, https=https)
@@ -152,21 +160,19 @@ class Cookies(Base):
 class Expiry(Base):
     def test_seven_day_limit(self):
         ck, _, _ = self.setup_login()
-        tok = auth.skey(auth.token_from(ck))
-        auth.SESSIONS[tok]["created"] -= auth.SESSION_MAX + 1
+        self.sql("UPDATE sessions SET expires_at = now() - interval '1 second' WHERE token_hash = ?", (auth.skey(auth.token_from(ck)),))
         self.assertIsNone(auth.session(ck))
 
     def test_idle_limit(self):
         ck, _, _ = self.setup_login()
-        tok = auth.skey(auth.token_from(ck))
-        auth.SESSIONS[tok]["last"] -= auth.SESSION_IDLE + 1
+        self.sql("UPDATE sessions SET last_seen_at = now() - (? * interval '1 second') WHERE token_hash = ?", (auth.SESSION_IDLE + 1, auth.skey(auth.token_from(ck))))
         self.assertIsNone(auth.session(ck))
 
     def test_activity_keeps_session(self):
         ck, _, _ = self.setup_login()
-        tok = auth.skey(auth.token_from(ck))
-        auth.SESSIONS[tok]["last"] -= auth.SESSION_IDLE - 60
+        self.sql("UPDATE sessions SET last_seen_at = now() - (? * interval '1 second') WHERE token_hash = ?", (auth.SESSION_IDLE - 60, auth.skey(auth.token_from(ck))))
         self.assertIsNotNone(auth.session(ck))
+        self.assertEqual(self.sql("SELECT last_seen_at > now() - interval '1 minute' AS fresh FROM sessions")[0]["fresh"], True)   # and the idle clock restarted
 
 
 class Remembered(Base):
@@ -175,12 +181,12 @@ class Remembered(Base):
         self.restart()
         self.assertEqual(auth.state(ck, H)["state"], "authed")
 
-    def test_file_holds_hashes_not_tokens_and_is_private(self):
+    def test_database_holds_hashes_not_tokens(self):
         ck, _, _ = self.setup_login()
-        raw = open(auth.sess_file()).read()
-        self.assertNotIn(auth.token_from(ck), raw)
-        self.assertIn(auth.skey(auth.token_from(ck)), raw)
-        self.assertEqual(os.stat(auth.sess_file()).st_mode & 0o777, 0o600)
+        rows = self.sql("SELECT * FROM sessions")
+        self.assertEqual(len(rows), 1)
+        self.assertNotIn(auth.token_from(ck), " ".join(str(v) for v in rows[0].values()))
+        self.assertEqual(rows[0]["token_hash"], auth.skey(auth.token_from(ck)))
 
     def test_logout_is_forgotten_after_restart(self):
         ck, _, _ = self.setup_login()
@@ -189,8 +195,7 @@ class Remembered(Base):
 
     def test_expired_session_not_restored(self):
         ck, _, _ = self.setup_login()
-        auth.SESSIONS[auth.skey(auth.token_from(ck))]["created"] -= auth.SESSION_MAX + 1
-        with auth.LOCK: auth._persist()
+        self.sql("UPDATE sessions SET expires_at = now() - interval '1 second'")
         self.restart()
         self.assertIsNone(auth.session(ck))
 
@@ -204,6 +209,66 @@ class Remembered(Base):
 
     def test_cookie_lasts_a_week(self):
         self.assertIn("Max-Age=604800", auth.cookie_header("tok"))
+
+    def test_the_older_sessions_json_is_taken_in_once_and_moved_aside(self):
+        import json, time
+        tok = "legacy-token-123"; now = time.time()
+        with open(auth.sess_file(), "w") as f: json.dump({auth.skey(tok): {"created": now - 100, "last": now - 50, "user": "nj"}, "deadbeef": {"created": now - 99999999, "last": now - 99999999, "user": "nj"}}, f)
+        ck = f"{auth.COOKIE}={tok}"
+        s = auth.session(ck)
+        self.assertEqual((s["user"], s["roles"]), ("nj", ["owner"])); self.assertTrue(s["csrf"])
+        self.assertFalse(os.path.exists(auth.sess_file())); self.assertTrue(os.path.exists(auth.sess_file() + ".imported"))
+        self.assertEqual(self.sql("SELECT COUNT(*) AS n FROM sessions")[0]["n"], 1)   # the expired one was not imported
+
+
+class Core(Base):
+    """Roles, permissions, a CSRF token per session, the audit trail, attempts in the database (NAV-5 stage 1)."""
+    def test_a_signed_in_owner_has_the_owner_role_and_the_studio_permissions(self):
+        ck, _, _ = self.setup_login()
+        s = auth.session(ck)
+        self.assertEqual(s["roles"], ["owner"]); self.assertTrue(auth.can(s, "studio.access")); self.assertTrue(auth.can(s, "studio.approve"))
+        self.assertFalse(auth.can(None, "studio.access")); self.assertFalse(auth.can(s, "nonsense"))
+
+    def test_every_session_has_its_own_csrf_token(self):
+        ck, sec, _ = self.setup_login()
+        c, j, ck2 = self.login(auth.totp(sec, int(auth.now() // 30) + 1)); ck2 = ck2[0].split(";")[0]
+        a, b = auth.session(ck)["csrf"], auth.session(ck2)["csrf"]
+        self.assertTrue(a and b and a != b)
+
+    def test_a_listener_has_no_studio_permission(self):
+        u = CS.ensure_user("listener1", role="listener")
+        tok = "listener-token"; CS.create_session(auth.skey(tok), u["id"], "csrf-l", "9.9.9.9", None, 3600)
+        s = auth.session(f"{auth.COOKIE}={tok}")
+        self.assertEqual(s["roles"], ["listener"]); self.assertFalse(auth.can(s, "studio.access")); self.assertTrue(auth.can(s, "library.view"))
+
+    def test_a_disabled_person_cannot_use_a_session(self):
+        u = CS.ensure_user("gone", role="listener"); tok = "gone-token"; CS.create_session(auth.skey(tok), u["id"], "c", None, None, 3600)
+        self.assertIsNotNone(auth.session(f"{auth.COOKIE}={tok}"))
+        self.sql("UPDATE users SET status = 'disabled' WHERE username = 'gone'")
+        self.assertIsNone(auth.session(f"{auth.COOKIE}={tok}"))
+
+    def test_sign_ins_and_failures_reach_the_audit_trail_without_secrets(self):
+        ck, sec, _ = self.setup_login()
+        self.login("000000"); self.post("/auth/logout", {}, ck=ck)
+        actions = [r["action"] for r in self.sql("SELECT action FROM audit_log ORDER BY id")]
+        for a in ("user_created", "owner_setup", "login", "login_failed", "logout"): self.assertIn(a, actions)
+        blob = " ".join(str(r["detail"]) + str(r["subject"]) for r in self.sql("SELECT subject, detail FROM audit_log"))
+        for secret in (PW, sec): self.assertNotIn(secret, blob)
+
+    def test_a_lockout_survives_a_restart(self):
+        self.setup_login()
+        for _ in range(5): self.post("/auth/login", {"user": "nj", "password": "wrong"}, ip="7.7.7.7")
+        self.restart()
+        c, j, _ = self.post("/auth/login", {"user": "nj", "password": PW}, ip="7.7.7.7")
+        self.assertEqual(c, 429); self.assertGreater(j["locked"], 0)
+        self.assertEqual(self.post("/auth/login", {"user": "nj", "password": PW}, ip="8.8.8.8")[0], 200)   # another address is not locked out
+
+    def test_the_health_check_state_survives_a_database_outage(self):
+        self.setup_login()
+        with mock.patch.object(CS, "failures", side_effect=RuntimeError("database down")):
+            self.assertEqual(auth.state(None, H)["state"], "login")
+        with mock.patch.object(CS, "get_session", side_effect=RuntimeError("database down")):
+            self.assertIsNone(auth.session(f"{auth.COOKIE}=whatever"))   # closed, not open
 
 
 class UserName(Base):

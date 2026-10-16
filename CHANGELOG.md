@@ -6,6 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-16
+
+### Added
+- People, roles and permissions in Postgres (schema `core`). You are the `owner`; a `listener` role exists for the public app. The studio refuses any account without studio access, and `GET /api/me` says who you are and what you may do. The new app shows your name.
+- An audit trail of sign-ins, failed sign-ins, sign-outs, password and passkey changes (who, what, when, from where, never a secret).
+
+### Changed
+- Sessions are in Postgres instead of `sessions.json` (existing sessions carry over, so the deploy does not sign you out), and each session has its own CSRF token instead of one for the whole server.
+- The sign-in lockout (5 failures from one address, growing to 15 minutes) is in Postgres too, so it survives a restart. Your password, authenticator secret, passkeys and recovery codes stay in `auth.json` from Vault, out of database backups.
+
 ## [0.5.0] - 2026-10-16
 
 ### Added
@@ -56,7 +66,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/NjAIAgents/navaan/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/NjAIAgents/navaan/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/NjAIAgents/navaan/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/NjAIAgents/navaan/compare/v0.2.0...v0.3.0
