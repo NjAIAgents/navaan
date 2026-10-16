@@ -39,3 +39,19 @@ export type SongDetail = {
 };
 
 export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };
+
+// Analytics (NAV-15): the same payloads the classic Analytics page reads.
+export type Rec = {
+  rec_id: string; title: string; why: string; action: string; expected_effect: string; priority: number; category: string; confidence: string; status: "open" | "done" | "dismissed";
+  dismissed_reason: string | null; account: string; evidence: { title: string; severity: string }[];
+};
+export type Overview = {
+  empty?: boolean; reason?: string; error?: string; account: string; days: number; accounts: { label: string }[];
+  kpis: Record<string, number | null>; series: Record<string, [string, number][]>;
+  posts?: { media_id: string; title: string; slug: string; posted_at: string; permalink: string; views: number; reach: number; saved: number; shares: number; engagement_rate: number | null }[];
+  videos?: { video_id: string; title: string; kind: string; published_at: string; url: string; views: number; likes: number; comments: number; avg_view_s: number | null }[];
+  reco: { ready: boolean; open: Rec[]; done: Rec[]; dismissed: Rec[]; analyzed_at?: string };
+  runs: { started_at: string; status: string; errors: number; first_error: string }[];
+  collect: { running: boolean };
+};
+export type Reply = { comment_id: string; username: string; text: string; posted_at: string; post_id: string; post: string; account: string; link: string; reply: { draft: string | null; status: string; error: string | null } | null };
