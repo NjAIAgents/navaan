@@ -87,13 +87,13 @@ def sync_item(slug):
     pub = m.get("published", {}); cloud = m.get("cloud", {})
     published = m.get("state") == "published" or bool(pub.get("youtube_items") and all(i.get("privacy") == "public" for i in pub["youtube_items"]))
     origin = "suno" if (m.get("suno_url") or m.get("suno_model")) else "unknown"
-    detail = {k: m[k] for k in ("suno_model",) if m.get(k)}
+    detail = {k: m[k] for k in ("suno_model", "suno_plan") if m.get(k)}
 
     def go(c):
         aid = _artist(c)
         t = c.execute("INSERT INTO tracks (artist_id, slug, studio_slug, title, lyrics_text, status, published_at, origin, origin_detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
                       "ON CONFLICT (slug) DO UPDATE SET title = excluded.title, lyrics_text = excluded.lyrics_text, status = excluded.status, "
-                      "published_at = COALESCE(tracks.published_at, excluded.published_at), origin = excluded.origin, origin_detail = excluded.origin_detail, updated_at = now() "
+                      "published_at = COALESCE(tracks.published_at, excluded.published_at), origin = excluded.origin, origin_detail = tracks.origin_detail || excluded.origin_detail, updated_at = now() "
                       "RETURNING id", (aid, slug, slug, title, lyrics, "published" if published else "draft",
                                        (_ts(cloud.get("uploaded_at")) or datetime.datetime.now(datetime.timezone.utc)) if published else None, origin, db_json(detail))).fetchone()
         tid = str(t["id"])
@@ -131,6 +131,7 @@ def sync_all():
     out = []
     for p in sorted(glob.glob(os.path.join(C.songs_root(), "*", "meta.json"))):
         slug = os.path.basename(os.path.dirname(p))
+        if slug.startswith("_"): continue   # _template and the like are not items
         try:
             if sync_item(slug): out.append(slug)
         except Exception: L.exc(LOG, "catalog_sync_failed", item=slug)   # one bad song must not hide the rest
@@ -141,6 +142,25 @@ def auto():
     """At portal start: bring the catalog up to date with the studio. Never stops the portal (the catalog can be rebuilt any time)."""
     try: n = sync_all(); L.event(LOG, "info", "catalog_synced", tracks=len(n)); return n
     except Exception: L.exc(LOG, "catalog_auto_failed"); return []
+
+
+LICENSES = ("unconfirmed", "confirmed", "not_allowed")
+
+
+def set_license(slug, status, by, note, plan=None):
+    """The owner's decision on one track (FR-017, constitution XI): confirmed, unconfirmed or not_allowed, with who decided and why. plan is the Suno plan tier at generation time.
+    Nothing but this changes license_status. Returns True when the track exists."""
+    if status not in LICENSES: raise ValueError("status is " + ", ".join(LICENSES))
+    note = " ".join(str(note or "").split())[:500]
+    if not note: raise ValueError("say what the decision rests on")
+    d = {"license_note": note, "license_set_by": str(by), "license_set_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), **({"suno_plan": str(plan)} if plan else {})}
+    return _tx(lambda c: c.execute("UPDATE tracks SET license_status = ?, origin_detail = origin_detail || ?, updated_at = now() WHERE slug = ? RETURNING id", (status, db_json(d), slug)).fetchone()) is not None
+
+
+def tracks():
+    """Every track with its origin and licence, for the owner's audit table."""
+    rows = _tx(lambda c: c.execute("SELECT slug, title, status, origin, origin_detail, license_status FROM tracks ORDER BY slug").fetchall())
+    return [{**r, "plan": r["origin_detail"].get("suno_plan", ""), "model": r["origin_detail"].get("suno_model", ""), "decided_by": r["origin_detail"].get("license_set_by", ""), "note": r["origin_detail"].get("license_note", "")} for r in rows]
 
 
 def offerable(track_slug):
@@ -212,3 +232,15 @@ def delete_album(slug):
         if r: _unindex(c, "album", str(r["id"]))
         return bool(r)
     return _tx(go)
+
+
+if __name__ == "__main__":
+    # python3 catalog_store.py license <confirmed|unconfirmed|not_allowed> "<why>" [--plan paid] [slug ...]   (no slug = every track): the owner's decision, from a shell
+    import sys
+    a = sys.argv[1:]
+    if len(a) < 3 or a[0] != "license": sys.exit(__doc__.split("Rules")[0] + "\nusage: catalog_store.py license <status> \"<why>\" [--plan paid] [slug ...]")
+    status, why, rest = a[1], a[2], a[3:]
+    plan = None
+    if "--plan" in rest: i = rest.index("--plan"); plan = rest[i + 1]; rest = rest[:i] + rest[i + 2:]
+    for sl in rest or [t["slug"] for t in tracks()]:
+        print(sl, "ok" if set_license(sl, status, "owner (shell)", why, plan) else "no such track")

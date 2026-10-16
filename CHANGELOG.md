@@ -6,6 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-16
+
+### Added
+- The owner decides, per track, whether it may be offered behind a plan: `POST /api/catalog/license` (owner only, audited) sets confirmed, unconfirmed or not allowed with a note, and `GET /api/tracks` lists every track with its origin, Suno model, plan tier and licence. The same decision can be made from a shell: `python3 catalog_store.py license confirmed "why" --plan paid`.
+- A new song records the Suno plan tier at import when `suno.plan` is set in `navaan.config.json`.
+
+### Fixed
+- The Postgres container gets 256 MB of shared memory instead of Docker's 64 MB default, so a large index build can no longer crash it. The database container restarts once at this deploy; the data is on its volume.
+- The catalog sync no longer logs an error for the `_template` folder at every start.
+
 ## [0.8.0] - 2026-10-16
 
 ### Added
@@ -82,7 +92,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/NjAIAgents/navaan/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/NjAIAgents/navaan/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/NjAIAgents/navaan/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/NjAIAgents/navaan/compare/v0.5.0...v0.6.0

@@ -73,6 +73,20 @@ class Catalog(Base):
         self.assertTrue(self.K.offerable("song-001")); self.K.sync_item("song-001"); self.assertTrue(self.K.offerable("song-001"))   # the owner's decision survives a sync
         c.execute("UPDATE tracks SET license_status = 'not_allowed' WHERE slug = 'song-001'"); c.commit(); self.assertFalse(self.K.offerable("song-001"))
 
+    def test_the_owners_licence_decision_is_recorded_and_survives_a_sync(self):
+        self.song("song-001", "One", extra={"suno_plan": "pro"}); self.K.sync_item("song-001")
+        self.assertEqual(self.K.tracks()[0]["plan"], "pro")
+        self.assertTrue(self.K.set_license("song-001", "confirmed", "owner", "  paid plan, all songs ", plan="paid"))
+        t = self.K.tracks()[0]; self.assertEqual((t["license_status"], t["plan"], t["decided_by"], t["note"], t["model"]), ("confirmed", "paid", "owner", "paid plan, all songs", "v6"))
+        self.K.sync_item("song-001"); t = self.K.tracks()[0]; self.assertEqual((t["license_status"], t["decided_by"], t["model"]), ("confirmed", "owner", "v6"))   # the sync keeps the decision
+        self.assertTrue(self.K.offerable("song-001")); self.assertFalse(self.K.set_license("ghost", "confirmed", "owner", "x"))
+        self.assertRaises(ValueError, self.K.set_license, "song-001", "yes", "owner", "x"); self.assertRaises(ValueError, self.K.set_license, "song-001", "confirmed", "owner", " ")
+        self.assertTrue(self.K.offerable("song-001"))   # a refused call changes nothing
+
+    def test_folders_that_are_not_items_are_skipped(self):
+        os.makedirs(os.path.join(self.C.songs_root(), "_template")); json.dump({"type": "music"}, open(os.path.join(self.C.songs_root(), "_template", "meta.json"), "w"))
+        self.song("song-001", "One"); self.assertEqual(self.K.sync_all(), ["song-001"])
+
 
 class Search(Base):
     def test_either_script_finds_the_title_and_typos_are_tolerated(self):
