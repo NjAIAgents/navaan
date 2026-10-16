@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useMe } from "../lib/me";
 import { Icon } from "./Icon";
 import { THEMES, type Choice } from "../theme/themes";
 import { postJSON } from "../lib/api";
@@ -9,6 +10,7 @@ type Props = { choice: Choice; onChoice: (c: Choice) => void; onClose: () => voi
 
 // Opened from the avatar. A popover on a desktop, a bottom sheet on a phone. Appearance is here; the full personalisation page comes with NAV-17.
 export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) {
+  const { studio } = useMe();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>("button, a")?.focus();
@@ -35,9 +37,10 @@ export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) 
         </button>
       </div>
       <hr />
+      <Link to="/account" onClick={onClose}><Icon name="user" /> Account</Link>
       <Link to="/plans" onClick={onClose}><Icon name="star" /> Plan</Link>
-      <a href="/legacy#/settings"><Icon name="settings" /> Settings</a>
-      <a href="/legacy"><Icon name="external" /> Classic view</a>
+      {studio && <a href="/legacy#/settings"><Icon name="settings" /> Settings</a>}
+      {studio && <a href="/legacy"><Icon name="external" /> Classic view</a>}
       <hr />
       <button onClick={signOut}><Icon name="out" /> Sign out</button>
       {version && <p className="mu" style={{ margin: "8px 12px 0", fontSize: 12 }}>NAVAAN {version}</p>}

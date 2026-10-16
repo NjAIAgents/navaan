@@ -21,7 +21,7 @@ describe("search", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Search songs, albums, lyrics" }), { target: { value: "tere hone se" } });
     fireEvent.submit(screen.getByRole("searchbox", { name: "Search songs, albums, lyrics" }).closest("form")!);
     const link = await screen.findByRole("link", { name: /तेरे होने से/ });
-    expect(link).toHaveAttribute("href", "/studio/songs/song-003"); expect(link).toHaveTextContent("tere hone se"); expect(link).toHaveTextContent("Song");
+    expect(link).toHaveAttribute("href", "/song/song-003"); expect(link).toHaveTextContent("tere hone se"); expect(link).toHaveTextContent("Song");
     expect(f.mock.calls.some(([u]) => u === "/api/search?q=tere%20hone%20se")).toBe(true);
   });
   it("says so when nothing is found, and does not search for a single letter", async () => {

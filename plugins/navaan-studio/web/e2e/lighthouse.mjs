@@ -8,13 +8,13 @@ import lighthouse from "lighthouse";
 
 const PORT = process.env.E2E_PORT ?? "8798", ROOT = process.env.E2E_ROOT ?? join(tmpdir(), "navaan-lh"), BASE = `http://127.0.0.1:${PORT}`;
 const RUNS = Number(process.env.LH_RUNS ?? 3), MIN = Number(process.env.LH_MIN ?? 90);
-const URLS = ["/app/", "/app/studio/songs", "/app/studio/songs/song-001", "/app/studio/schedule"];
+const URLS = ["/app/", "/app/studio/songs", "/app/studio/songs/song-001", "/app/studio/schedule", "/app/song/song-010", "/app/library"];
 const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 
 const seed = spawnSync("python3", ["seed.py", ROOT], { stdio: "inherit" });
 if (seed.status) process.exit(seed.status);
 const server = spawn("python3", ["../../scripts/navaan.py", "serve", "--port", PORT], { stdio: "ignore",
-  env: { ...process.env, NAVAAN_ROOT: ROOT, NAVAAN_AUTH: "off", NAVAAN_SCHEDULER: "off", NAVAAN_DB_SCHEMA_PER_PATH: "1", NAVAAN_LOG_DIR: join(ROOT, "logs"), NAVAAN_CACHE_DIR: join(ROOT, "cache") } });
+  env: { ...process.env, NAVAAN_ROOT: ROOT, NAVAAN_AUTH: "off", NAVAAN_SCHEDULER: "off", NAVAAN_DB_SCHEMA_PER_PATH: "1", NAVAAN_LOG_DIR: join(ROOT, "logs"), NAVAAN_CACHE_DIR: join(ROOT, "cache"), NAVAAN_OBJSTORE_DIR: join(ROOT, "bucket") } });
 let chrome; let failed = false;
 try {
   for (let i = 0; i < 90; i++) { try { if ((await fetch(`${BASE}/auth/state`)).ok) break; } catch { /* not up yet */ } await new Promise((r) => setTimeout(r, 1000)); }

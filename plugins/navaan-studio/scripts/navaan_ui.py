@@ -10,7 +10,7 @@ import auth
 import jobs, worker
 import catalog_store, search as SEARCH
 import media, objstore, share_page
-import library_store, entitlements, uuid
+import library_store, entitlements, uuid, pgconn
 import navaan_log as L
 LOG = L.get("web")
 
@@ -85,7 +85,9 @@ EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "in
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
 LOCAL_USER = str(uuid.uuid5(uuid.NAMESPACE_URL, "navaan-local-dev-user"))   # the one person when the login is off
-LISTENER_ROUTES = (("/api/playlists", "library.view", "playlists.write"), ("/api/library", "library.view", "playlists.write"), ("/api/plans", "library.view", None), ("/api/account", "account.manage", "account.manage"))   # prefix, permission to read, to change
+LOCAL_LISTENER = str(uuid.uuid5(uuid.NAMESPACE_URL, "navaan-local-dev-listener"))   # the same, signed in as a listener
+LISTENER_ROUTES = (("/api/playlists", "library.view", "playlists.write"), ("/api/library", "library.view", "playlists.write"), ("/api/plans", "library.view", None), ("/api/account", "account.manage", "account.manage"),
+                   ("/api/catalog", "library.view", None), ("/api/share", "library.view", "playlists.write"))   # prefix, permission to read, to change
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
 
@@ -223,6 +225,7 @@ class H(BaseHTTPRequestHandler):
                     try: self._send(500, {"error": f"internal error (ref {self._rid})", "request_id": self._rid})
                     except Exception: L.exc(LOG, "request_failed_reply")
             ms = int((time.time() - t0) * 1000)
+            pgconn.release_thread()   # this request's thread ends here: give its database connections back now
             routine = self.command == "GET" and (self._status in (200, 206, 304) and ms < 1000 or self._status in (401, 403, 404))  # the page polls; routine polls stay at debug
             L.event(LOG, "debug" if routine else "info", "http_request", status=self._status, ms=ms, bytes=self._bytes)
     def do_GET(self): self._handle(self._do_GET)
@@ -248,15 +251,30 @@ class H(BaseHTTPRequestHandler):
     def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
     def _acct(self, sess):
         """{user_id, roles} of the signed-in person. With the login off (development) there is one local person."""
-        return {"user_id": sess.get("user_id") or LOCAL_USER, "roles": sess.get("roles", [])}
+        return {"user_id": sess.get("user_id") or (LOCAL_USER if "owner" in sess.get("roles", []) else LOCAL_LISTENER), "roles": sess.get("roles", [])}
     def _listener_get(self, p, sess):
         """Routes a listener may use (they need library.view or account.manage, not the studio). Everything is scoped to the signed-in person."""
         u = self._acct(sess); uid = u["user_id"]
+        studio = auth.can(sess, "studio.access")   # the studio sees every published track; a listener only those with a confirmed licence
+        if p == "/api/catalog/tracks":
+            q = parse_qs(urlparse(self.path).query); one = lambda k: (q.get(k) or [None])[0] or None
+            return self._send(200, catalog_store.browse(studio, one("album"), one("language"), one("genre")))
+        if p == "/api/catalog/filters": return self._send(200, catalog_store.filters(studio))
+        m = re.match(r"^/api/catalog/track/([A-Za-z0-9][A-Za-z0-9_-]{0,40})$", p)
+        if m:
+            v = catalog_store.track_view(m.group(1), studio)
+            if not v: return self._send(404, {"error": "no such song"})
+            try: v["timed_lines"] = media.timed_lyrics(v["slug"]) if v["timed"] else None
+            except Exception: L.exc(LOG, "timed_lyrics_failed", item=v["slug"]); v["timed_lines"] = None   # the page still shows the plain lyrics
+            return self._send(200, v)
+        if p == "/api/share": return self._send(200, catalog_store.shares(None if auth.can(sess, "studio.settings") else sess.get("user") or "owner"))
         if p == "/api/playlists": return self._send(200, library_store.playlists(uid))
         m = re.match(r"^/api/playlists/([0-9a-f-]{36})$", p)
         if m:
-            try: return self._send(200, library_store.get_playlist(uid, m.group(1)))
-            except LookupError: return self._send(404, {"error": "no such playlist"})
+            try: return self._send(200, {**library_store.get_playlist(uid, m.group(1)), "mine": True})
+            except LookupError: pass   # expected: not yours; an unlisted or public playlist opens by its link below, a private one is "not found" like any other that is not there
+            other = library_store.shared_playlist(m.group(1))
+            return self._send(200, {**other, "mine": False}) if other else self._send(404, {"error": "no such playlist"})
         if p == "/api/library": return self._send(200, library_store.library(uid))
         if p == "/api/plans":
             return self._send(200, {"plans": entitlements.plans(), "mine": {"plan": entitlements.plan_for(uid), "entitlements": entitlements.entitlements(uid), "unlimited": "owner" in u["roles"],
@@ -280,6 +298,15 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/playlists/remove": library_store.remove_track(uid, pid, str(body.get("slug") or "")); return self._send(200, {"ok": True})
             if p == "/api/playlists/move": library_store.move_track(uid, pid, str(body.get("slug") or ""), body.get("after")); return self._send(200, {"ok": True})
             if p == "/api/library/save": library_store.save(uid, str(body.get("kind") or ""), str(body.get("slug") or ""), bool(body.get("on", True))); return self._send(200, {"ok": True})
+            if p in ("/api/share", "/api/share/revoke"):   # a link to a published, licence-confirmed song: the page and preview are public, the owner can stop any link
+                who = sess.get("user") or "owner"
+                if p.endswith("/revoke"): return self._send(200, {"revoked": catalog_store.revoke_share(str(body.get("token") or ""), who, auth.can(sess, "studio.settings"))})
+                sl = str(body.get("slug") or "")
+                if not auth.can(sess, "studio.access") and not catalog_store.track_view(sl, False): return self._send(404, {"error": "no such published track"})   # to a listener an unconfirmed song does not exist, so its state is not given away
+                tok = catalog_store.create_share(sl, who, int(body.get("start_ms") or 0))
+                try: media.ensure_preview(sl)   # cut now, so the first visitor does not wait for it
+                except Exception: L.exc(LOG, "preview_failed", item=sl); catalog_store.revoke_share(tok, who, True); return self._send(502, {"error": "could not make the preview from the audio in the bucket"})
+                return self._send(200, {"token": tok, "url": f"{self._base()}/s/{tok}"})
             if p == "/api/library/follow": library_store.follow(uid, bool(body.get("on", True))); return self._send(200, {"ok": True})
             if p == "/api/account/delete":
                 if "owner" in u["roles"]: return self._send(403, {"error": "the owner account cannot be deleted here"})
@@ -293,6 +320,17 @@ class H(BaseHTTPRequestHandler):
         except LookupError as e: return self._send(404, {"error": str(e)})
         except ValueError as e: return self._send(400, {"error": str(e)})
         return self._send(404, {"error": "not found"})
+    def _dev_bucket(self, key):
+        from urllib.parse import unquote
+        path = objstore.local_path(unquote(key))
+        if not path or not os.path.isfile(path): return self._send(404, {"error": "not found"})
+        data = open(path, "rb").read(); ct = mimetypes.guess_type(path)[0] or "application/octet-stream"; rng = self.headers.get("Range"); hdr = {"Accept-Ranges": "bytes", "Cache-Control": "no-store"}
+        m = re.match(r"bytes=(\d*)-(\d*)$", rng or "")
+        if m and (m.group(1) or m.group(2)):   # one byte range, as an audio element asks for when seeking
+            a = int(m.group(1)) if m.group(1) else max(0, len(data) - int(m.group(2))); b = min(int(m.group(2)) if m.group(1) and m.group(2) else len(data) - 1, len(data) - 1)
+            if a > b: return self._send(416, b"", ct, {**hdr, "Content-Range": f"bytes */{len(data)}"})
+            return self._send(206, data[a:b + 1], ct, {**hdr, "Content-Range": f"bytes {a}-{b}/{len(data)}"})
+        return self._send(200, data, ct, hdr)
     def _base(self):
         h = PUBLIC_HOST() or (self.headers.get("Host") or "")
         return f"{'https' if (self._https() or PUBLIC_HOST()) else 'http'}://{h}"
@@ -324,6 +362,7 @@ class H(BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         if p in ("/privacy", "/terms"):  # public on purpose: Google asks for these links on the OAuth consent screen
             return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
+        if p.startswith("/dev-bucket/") and objstore.local_dir(): return self._dev_bucket(p[len("/dev-bucket/"):])   # the local stand-in for the bucket (development, browser checks)
         if p.startswith(("/s/", "/img/")): return self._public(p)   # shared links and cover pictures: no sign in, published and confirmed tracks only
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
@@ -342,6 +381,17 @@ class H(BaseHTTPRequestHandler):
             try: limit = int((q.get("limit") or ["20"])[0])
             except ValueError: return self._send(400, {"error": "limit is a number"})
             return self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, limit)})
+        csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
+        # the app itself (NAV-8) is for every signed-in person, a listener included; what it may call is decided route by route
+        if p == "/app": return self._send(308, b"", "text/plain", {"Location": "/app/"})
+        if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
+            rel = p[5:]
+            f = web_file(rel) if rel and "." in os.path.basename(rel) else None
+            if f: body, enc = gz(f[0], f[1], self.headers.get("Accept-Encoding")); return self._send(200, body, f[1], {"Cache-Control": f[2], **enc})
+            if rel and "." in os.path.basename(rel): return self._send(404, {"error": "not found"})
+            idx = web_file("index.html")
+            if not idx: return self._send(503, "The new app is not built. In plugins/navaan-studio/web run: npm ci && npm run build", "text/plain")
+            return self._send(200, idx[0].replace(b"__TOKEN__", csrf.encode()), "text/html", {"Cache-Control": "no-store"})
         for pre, rd, _wr in LISTENER_ROUTES:
             if p == pre or p.startswith(pre + "/"):
                 if not auth.can(sess, rd): return self._send(403, {"error": "this account cannot use that"})
@@ -349,7 +399,7 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/play":   # a short-lived link to the audio in the bucket: the audio never passes through this server (FR-016)
             if not auth.can(sess, "library.view"): return self._send(403, {"error": "this account cannot play"})
             sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
-            key = catalog_store.play_key(sl) if SLUG.match(sl) else None
+            key = catalog_store.play_key(sl, confirmed_only=not auth.can(sess, "studio.access")) if SLUG.match(sl) else None
             if not key: return self._send(404, {"error": "no such track to play"})
             who = self._acct(sess)
             d = entitlements.can(who, "audio.play")
@@ -364,15 +414,6 @@ class H(BaseHTTPRequestHandler):
             if p in ("/", "/legacy"):   # the classic view, kept until the new app has every screen
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", csrf)
                 return self._send(200, page, "text/html")
-            if p == "/app": return self._send(308, b"", "text/plain", {"Location": "/app/"})
-            if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
-                rel = p[5:]
-                f = web_file(rel) if rel and "." in os.path.basename(rel) else None
-                if f: body, enc = gz(f[0], f[1], self.headers.get("Accept-Encoding")); return self._send(200, body, f[1], {"Cache-Control": f[2], **enc})
-                if rel and "." in os.path.basename(rel): return self._send(404, {"error": "not found"})
-                idx = web_file("index.html")
-                if not idx: return self._send(503, "The new app is not built. In plugins/navaan-studio/web run: npm ci && npm run build", "text/plain")
-                return self._send(200, idx[0].replace(b"__TOKEN__", csrf.encode()), "text/html", {"Cache-Control": "no-store"})
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
             if p == "/api/alerts":
                 try: return self._send(200, {"alerts": settings_api.alerts()})
@@ -436,7 +477,6 @@ class H(BaseHTTPRequestHandler):
                     out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
                 return self._send(200, sorted(out, key=lambda e: e["at"]))
             if p == "/api/albums": return self._send(200, catalog_store.albums())
-            if p == "/api/share": return self._send(200, catalog_store.shares(None if auth.can(sess, "studio.settings") else sess.get("user") or "owner"))
             if p == "/api/tracks": return self._send(200, catalog_store.tracks())   # the audit table: origin, plan tier, licence status per track
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
@@ -598,17 +638,6 @@ class H(BaseHTTPRequestHandler):
                 if not ok: return self._send(404, {"error": "no such track"})
                 auth._audit("track_license", user=sess.get("user"), ip=self._ip(), slug=body.get("slug"), status=body.get("status"), plan=body.get("plan"))
                 return self._send(200, {"ok": True})
-            if p in ("/api/share", "/api/share/revoke"):   # links to a published, licence-confirmed track; the page and preview are public, the owner can stop a link any time
-                who = sess.get("user") or "owner"
-                try:
-                    if p.endswith("/revoke"): return self._send(200, {"revoked": catalog_store.revoke_share(str(body.get("token") or ""), who, auth.can(sess, "studio.settings"))})
-                    sl = str(body.get("slug") or ""); st = int(body.get("start_ms") or 0)
-                    tok = catalog_store.create_share(sl, who, st)
-                    try: media.ensure_preview(sl)   # cut now, so the first visitor does not wait for it
-                    except Exception: L.exc(LOG, "preview_failed", item=sl); catalog_store.revoke_share(tok, who, True); return self._send(502, {"error": "could not make the preview from the audio in the bucket"})
-                    return self._send(200, {"token": tok, "url": f"{self._base()}/s/{tok}"})
-                except ValueError as e: return self._send(400, {"error": str(e)})
-                except LookupError as e: return self._send(404, {"error": str(e)})
             if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
                 try:
                     if p.endswith("/save"): return self._send(200, {"slug": catalog_store.save_album(str(body.get("slug") or ""), body.get("title"), body.get("kind") or "album", body.get("status") or "draft", body.get("release_date"), body.get("description") or "")})

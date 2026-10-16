@@ -1,10 +1,17 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getJSON } from "./api";
 import { errText } from "./songs";
 
-type Player = { slug: string | null; title: string; playing: boolean; error: string; toggle: (slug: string, title: string) => Promise<void> };
-const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", toggle: async () => undefined });
+type Player = {
+  slug: string | null; title: string; playing: boolean; error: string; expanded: boolean;
+  toggle: (slug: string, title: string) => Promise<void>; seek: (seconds: number) => void; setExpanded: (on: boolean) => void;
+};
+const noop = async () => undefined;
+const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", expanded: false, toggle: noop, seek: () => undefined, setExpanded: () => undefined });
+const PosCtx = createContext<{ position: number; duration: number }>({ position: 0, duration: 0 });
 export const usePlayer = () => useContext(Ctx);
+/** The playing position, apart from the rest so that only what shows time re-renders four times a second. */
+export const usePosition = () => useContext(PosCtx);
 
 // One audio element for the whole app, so a song keeps playing while you move between screens. The link comes from /api/play and goes straight to the bucket;
 // it lasts 5 minutes, so if the browser reports an error mid-song one fresh link is fetched and playback resumes where it was.
@@ -13,6 +20,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [cur, setCur] = useState<{ slug: string | null; title: string }>({ slug: null, title: "" });
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [pos, setPos] = useState({ position: 0, duration: 0 });
   const retried = useRef(false);
   const start = useCallback(async (slug: string, at = 0) => {
     const a = audio.current!;
@@ -24,20 +33,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const a = audio.current; if (!a) return;
     setError("");
     if (cur.slug === slug) { if (a.paused) await a.play().catch((e) => setError(errText(e))); else a.pause(); return; }
-    setCur({ slug, title }); retried.current = false;
+    setCur({ slug, title }); setPos({ position: 0, duration: 0 }); retried.current = false;
     try { await start(slug); } catch (e) { setCur({ slug: null, title: "" }); setError(errText(e)); }
   }, [cur.slug, start]);
+  const seek = useCallback((seconds: number) => { const a = audio.current; if (a && Number.isFinite(seconds)) { a.currentTime = Math.max(0, seconds); setPos((p) => ({ ...p, position: a.currentTime })); } }, []);
   const onError = () => {
     const a = audio.current; if (!a || !cur.slug || !a.src) return;
     if (retried.current) { setError("This song could not be played."); setPlaying(false); return; }
     retried.current = true; const at = a.currentTime;
     start(cur.slug, at).catch((e) => { setError(errText(e)); setPlaying(false); });
   };
-  const value = useMemo(() => ({ ...cur, playing, error, toggle }), [cur, playing, error, toggle]);
+  useEffect(() => { if (!cur.slug) setExpanded(false); }, [cur.slug]);
+  const value = useMemo(() => ({ ...cur, playing, error, expanded, toggle, seek, setExpanded }), [cur, playing, error, expanded, toggle, seek]);
+  const tick = () => { const a = audio.current; if (a) setPos({ position: a.currentTime || 0, duration: Number.isFinite(a.duration) ? a.duration : 0 }); };
   return (
     <Ctx.Provider value={value}>
-      {children}
-      <audio ref={audio} preload="none" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} onError={onError} />
+      <PosCtx.Provider value={pos}>{children}</PosCtx.Provider>
+      <audio ref={audio} preload="none" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} onError={onError} onTimeUpdate={tick} onLoadedMetadata={tick} />
     </Ctx.Provider>
   );
 }

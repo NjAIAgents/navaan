@@ -20,7 +20,8 @@ import translit
 LOG = L.get("catalog")
 
 _LOCAL = threading.local()
-ASSET_ROLES = {"final.mp3": ("audio", "audio/mpeg"), "cover_1x1.png": ("cover", "image/png"), "final_16x9.mp4": ("video", "video/mp4")}
+import pgconn; pgconn.register(_LOCAL)
+ASSET_ROLES = {"final.mp3": ("audio", "audio/mpeg"), "cover_1x1.png": ("cover", "image/png"), "final_16x9.mp4": ("video", "video/mp4"), "caption_timing.json": ("lyrics_timed", "application/json")}
 ARTIST = "navaan"
 EXCERPT = 240
 
@@ -82,8 +83,12 @@ def sync_item(slug):
     title = _read(D, "title.txt") or slug
     others = [t for t in (_read(D, os.path.basename(p)) for p in sorted(glob.glob(os.path.join(D, "title_*.txt")))) if t]
     lyrics = _read(D, "lyrics.txt"); roman = _read(D, "lyrics_roman.txt")
-    try: tags = [str(t).lstrip("#") for t in json.loads(_read(D, "tags.json") or "[]")][:20]
-    except ValueError: tags = []   # expected: tags.json holds something else, e.g. an object; no tags then
+    # tags.json is either a list of hashtags or, as the studio writes it, the song's ID3-style metadata (genre, language, composer...): only genre and language are used from the object
+    try: raw = json.loads(_read(D, "tags.json") or "[]")
+    except ValueError: raw = []   # expected: unreadable tags.json means no tags
+    info = raw if isinstance(raw, dict) else {}
+    language = (str(info.get("language") or "").strip() or None); genre = (str(info.get("genre") or "").strip()[:120] or None)
+    tags = [str(t).lstrip("#") for t in raw][:20] if isinstance(raw, list) else ([genre] if genre else [])
     pub = m.get("published", {}); cloud = m.get("cloud", {})
     published = m.get("state") == "published" or bool(pub.get("youtube_items") and all(i.get("privacy") == "public" for i in pub["youtube_items"]))
     origin = "suno" if (m.get("suno_url") or m.get("suno_model")) else "unknown"
@@ -91,12 +96,16 @@ def sync_item(slug):
 
     def go(c):
         aid = _artist(c)
-        t = c.execute("INSERT INTO tracks (artist_id, slug, studio_slug, title, lyrics_text, status, published_at, origin, origin_detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                      "ON CONFLICT (slug) DO UPDATE SET title = excluded.title, lyrics_text = excluded.lyrics_text, status = excluded.status, "
+        t = c.execute("INSERT INTO tracks (artist_id, slug, studio_slug, title, lyrics_text, status, published_at, origin, origin_detail, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                      "ON CONFLICT (slug) DO UPDATE SET title = excluded.title, lyrics_text = excluded.lyrics_text, status = excluded.status, language = COALESCE(excluded.language, tracks.language), "
                       "published_at = COALESCE(tracks.published_at, excluded.published_at), origin = excluded.origin, origin_detail = tracks.origin_detail || excluded.origin_detail, updated_at = now() "
                       "RETURNING id", (aid, slug, slug, title, lyrics, "published" if published else "draft",
-                                       (_ts(cloud.get("uploaded_at")) or datetime.datetime.now(datetime.timezone.utc)) if published else None, origin, db_json(detail))).fetchone()
+                                       (_ts(cloud.get("uploaded_at")) or datetime.datetime.now(datetime.timezone.utc)) if published else None, origin, db_json(detail), language)).fetchone()
         tid = str(t["id"])
+        if genre:
+            g = c.execute("INSERT INTO genres (name) VALUES (?) ON CONFLICT (name) DO UPDATE SET name = excluded.name RETURNING id", (genre,)).fetchone()
+            c.execute("DELETE FROM track_genres WHERE track_id = ?::uuid AND genre_id <> ?::uuid", (tid, str(g["id"])))
+            c.execute("INSERT INTO track_genres (track_id, genre_id) VALUES (?::uuid, ?::uuid) ON CONFLICT DO NOTHING", (tid, str(g["id"])))
         if cloud.get("verified"):   # only what is really in the bucket
             for name, o in (cloud.get("objects") or {}).items():
                 role = ASSET_ROLES.get(name)
@@ -175,8 +184,11 @@ def _album_rows(c, where="", params=()):
     rows = c.execute(f"SELECT id, slug, title, kind, status, release_date, description FROM albums {where} ORDER BY release_date DESC NULLS LAST, title", params).fetchall()
     for r in rows:
         r["id"] = str(r["id"]); r["release_date"] = r["release_date"].isoformat() if r["release_date"] else None
-        r["tracks"] = [{"slug": x["slug"], "title": x["title"], "position": x["position"]} for x in c.execute(
-            "SELECT t.slug, t.title, at.position FROM album_tracks at JOIN tracks t ON t.id = at.track_id WHERE at.album_id = ?::uuid ORDER BY at.position", (r["id"],)).fetchall()]
+        r["tracks"] = [{"slug": x["slug"], "title": x["title"], "position": x["position"], "status": x["status"], "licence": x["licence"], "art": {"colour": x["colour"]} if x["has_cover"] else None} for x in c.execute(
+            "SELECT t.slug, t.title, t.status, t.license_status AS licence, at.position, "
+            "EXISTS (SELECT 1 FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover') AS has_cover, "
+            "(SELECT a.dominant_colour FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS colour "
+            "FROM album_tracks at JOIN tracks t ON t.id = at.track_id WHERE at.album_id = ?::uuid ORDER BY at.position", (r["id"],)).fetchall()]
     return rows
 
 
@@ -202,6 +214,11 @@ def save_album(slug, title, kind="album", status="draft", release_date=None, des
             while c.execute("SELECT 1 FROM albums WHERE slug = ?", (s,)).fetchone(): s = f"{base}-{n}"; n += 1
             r = c.execute("INSERT INTO albums (artist_id, slug, title, kind, status, release_date, description) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, slug", (_artist(c), s, title, kind, status, rd, description or "")).fetchone()
             out = r["slug"]
+        if status == "published":   # a published album follows the song rules: nothing unpublished in it (the cover is its first song's cover)
+            bad = c.execute("SELECT t.slug FROM album_tracks at JOIN tracks t ON t.id = at.track_id WHERE at.album_id = ?::uuid AND t.status <> 'published'", (str(r["id"]),)).fetchall()
+            n = c.execute("SELECT count(*) AS n FROM album_tracks WHERE album_id = ?::uuid", (str(r["id"]),)).fetchone()["n"]
+            if bad: raise ValueError("every song in a published album must be published; not yet: " + ", ".join(b["slug"] for b in bad))
+            if not n: raise ValueError("a published album needs at least one song")
         _reindex_album(c, str(r["id"])); return out
     return _tx(go)
 
@@ -297,11 +314,57 @@ def artist_id():
     return _tx(lambda c: str(_artist(c)))
 
 
-def play_key(slug):
-    """The bucket key of the full audio of a track a listener may play: published, and not marked not_allowed. This is the one seam the plans (NAV-7) fill with can()."""
+def play_key(slug, confirmed_only=False):
+    """The bucket key of the full audio of a track a person may play: published, and not marked not_allowed. A listener (confirmed_only) gets only licence-confirmed tracks; the owner hears everything
+    published. The plan's say (entitlements.can) is asked by the caller."""
     r = _tx(lambda c: c.execute("SELECT license_status FROM tracks WHERE slug = ? AND status = 'published'", (slug,)).fetchone())
-    a = audio_asset(slug) if r and r["license_status"] != "not_allowed" else None
+    ok = r and r["license_status"] != "not_allowed" and (not confirmed_only or r["license_status"] == "confirmed")
+    a = audio_asset(slug) if ok else None
     return a["storage_key"] if a else None
+
+
+def _visible(all_licences):
+    """SQL for what a person may see: published tracks, and for a listener only those with a confirmed licence (FR-017)."""
+    return "t.status = 'published'" + ("" if all_licences else " AND t.license_status = 'confirmed'")
+
+
+def browse(all_licences=False, album=None, language=None, genre=None, limit=200):
+    """Published tracks for Browse and the Library, newest first, with album, language, genre and whether a cover exists. Filters narrow it; a listener never sees an unconfirmed track."""
+    q = ("SELECT t.slug, t.title, t.language, t.license_status AS licence, t.published_at, "
+         "COALESCE((SELECT g.name FROM track_genres tg JOIN genres g ON g.id = tg.genre_id WHERE tg.track_id = t.id LIMIT 1), '') AS genre, "
+         "COALESCE((SELECT json_agg(json_build_object('slug', a.slug, 'title', a.title) ORDER BY a.title) FROM album_tracks at JOIN albums a ON a.id = at.album_id WHERE at.track_id = t.id AND a.status = 'published'), '[]'::json) AS albums, "
+         "EXISTS (SELECT 1 FROM assets x WHERE x.owner_id = t.id AND x.owner_kind = 'track' AND x.role = 'cover') AS has_cover, "
+         "(SELECT x.dominant_colour FROM assets x WHERE x.owner_id = t.id AND x.owner_kind = 'track' AND x.role = 'cover' LIMIT 1) AS colour "
+         f"FROM tracks t WHERE {_visible(all_licences)} "
+         "AND (?::text IS NULL OR t.language = ?::text) "
+         "AND (?::text IS NULL OR EXISTS (SELECT 1 FROM track_genres tg JOIN genres g ON g.id = tg.genre_id WHERE tg.track_id = t.id AND g.name = ?::text)) "
+         "AND (?::text IS NULL OR EXISTS (SELECT 1 FROM album_tracks at JOIN albums a ON a.id = at.album_id WHERE at.track_id = t.id AND a.slug = ?::text)) "
+         "ORDER BY t.published_at DESC NULLS LAST, t.title LIMIT ?")
+    rows = _tx(lambda c: c.execute(q, (language, language, genre, genre, album, album, max(1, min(int(limit), 500)))).fetchall())
+    return [{"slug": r["slug"], "title": r["title"], "language": r["language"] or "", "genre": r["genre"], "albums": r["albums"], "licence": r["licence"],
+             "art": {"colour": r["colour"]} if r["has_cover"] else None} for r in rows]
+
+
+def filters(all_licences=False):
+    """The values the Library can filter by: albums, languages and genres that at least one visible track has."""
+    def go(c):
+        v = _visible(all_licences)
+        albums = c.execute(f"SELECT DISTINCT a.slug, a.title FROM albums a JOIN album_tracks at ON at.album_id = a.id JOIN tracks t ON t.id = at.track_id WHERE a.status = 'published' AND {v} ORDER BY a.title").fetchall()
+        langs = c.execute(f"SELECT DISTINCT t.language FROM tracks t WHERE {v} AND t.language IS NOT NULL ORDER BY 1").fetchall()
+        genres = c.execute(f"SELECT DISTINCT g.name FROM genres g JOIN track_genres tg ON tg.genre_id = g.id JOIN tracks t ON t.id = tg.track_id WHERE {v} ORDER BY 1").fetchall()
+        return {"albums": [dict(a) for a in albums], "languages": [r["language"] for r in langs], "genres": [r["name"] for r in genres]}
+    return _tx(go)
+
+
+def track_view(slug, all_licences=False):
+    """One track for its page: title, language, genre, albums, the plain lyrics, whether timed lyrics exist, and its cover. None when it is not visible to this person."""
+    hit = [t for t in browse(all_licences, limit=500) if t["slug"] == slug]
+    if not hit: return None
+    lyrics = _tx(lambda c: c.execute("SELECT lyrics_text FROM tracks WHERE slug = ?", (slug,)).fetchone()["lyrics_text"])
+    return {**hit[0], "lyrics": lyrics, "timed": timed_asset(slug) is not None}
+
+
+def timed_asset(slug): return _asset(slug, "lyrics_timed")
 
 
 # ---- share links (FR-025) ---------------------------------------------------------------------------------------------------------
