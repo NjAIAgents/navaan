@@ -123,3 +123,14 @@ describe("choosing the visuals (NAV-23)", () => {
     const r = await axe.run(container, { rules: { "color-contrast": { enabled: false } } }); expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
   });
 });
+
+describe("redo and restart a step", () => {
+  it("asks first, then redoes only that step, or restarts from it", async () => {
+    const steps = [{ id: "video", label: "Build the video", kind: "x", done: true, redo: true, restart: true, spends: false, status: "done", needs_gate: null, scheduled_for: null }];
+    const f = route({ "/api/redo": () => ({ started: true }), "/api/restart": () => ({ started: true }), "/api/song/": () => detail({ steps }) });
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Redo Build the video" })); expect(posts(f, "/api/redo")).toHaveLength(0); expect(screen.getByRole("group", { name: /Confirm redo/ })).toHaveTextContent("_prev");
+    fireEvent.click(screen.getByRole("button", { name: "Yes, redo it" })); await waitFor(() => expect(posts(f, "/api/redo")).toEqual([{ slug: "song-001", step: "video" }]));
+    fireEvent.click(await screen.findByRole("button", { name: "Restart from Build the video" })); fireEvent.click(screen.getByRole("button", { name: "Yes, restart" })); await waitFor(() => expect(posts(f, "/api/restart")).toEqual([{ slug: "song-001", step: "video" }]));
+  });
+});

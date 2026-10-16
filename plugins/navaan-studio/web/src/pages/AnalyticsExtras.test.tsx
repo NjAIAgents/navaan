@@ -18,6 +18,7 @@ function stub(over: Record<string, unknown> = {}) {
   const f = vi.fn((u: string, _init?: RequestInit) => {
     if (u.startsWith("/api/me")) return Promise.resolve(json(OWNER));
     if (u.startsWith("/api/analytics/auto")) return Promise.resolve(json(AUTO));
+    if (u.startsWith("/api/analytics/implement")) return Promise.resolve(json(over["/api/analytics/implement"] ?? { kind: "rule" }));
     if (u.startsWith("/api/analytics/collect") || u.startsWith("/api/analytics/analyze") || u.startsWith("/api/analytics/ask") || u.startsWith("/api/analytics/link")) return Promise.resolve(json(over[u] ?? { started: true, ok: true, results: [] }));
     if (u.startsWith("/api/analytics?")) return Promise.resolve(json(over.overview ?? OV));
     if (u.startsWith("/api/songs")) return Promise.resolve(json([{ slug: "song-001", title: "Tere" }, { slug: "song-004", title: "Rang" }]));
@@ -48,6 +49,12 @@ describe("Analytics extras (NAV-28)", () => {
   it("links an unmatched post to a song so it counts for that song", async () => {
     const f = stub(); at(); await screen.findAllByRole("option", { name: /song-004/ }); fireEvent.change(await screen.findByLabelText("Link m1 to a song"), { target: { value: "song-004" } }); fireEvent.click(screen.getByRole("button", { name: "Link m1" }));
     await waitFor(() => expect(body(f, "/api/analytics/link")).toEqual({ media_id: "m1", slug: "song-004" })); expect(screen.queryByLabelText("Link m2 to a song")).toBeNull();   // a linked post has no picker
+  });
+  it("puts a recommendation to work, and opens the schedule for a timing one", async () => {
+    const rec = (id: string, category: string) => ({ rec_id: id, title: `Rec ${id}`, why: "w", action: "a", expected_effect: "", priority: 1, category, confidence: "high", status: "open", dismissed_reason: null, account: "music", evidence: [] });
+    const f = stub({ overview: { ...OV, reco: { ready: true, open: [rec("c-aaaaaa", "hashtags"), rec("c-bbbbbb", "timing")], done: [], dismissed: [] } }, "/api/analytics/implement": { kind: "rule" } });
+    at("/studio/analytics?tab=recommendations"); fireEvent.click((await screen.findAllByRole("button", { name: /Put it to work/ }))[0]);
+    await waitFor(() => expect(body(f, "/api/analytics/implement")).toEqual({ id: "c-aaaaaa" }));
   });
   it("saves the auto refresh settings", async () => {
     const f = stub(); at(); fireEvent.click(await screen.findByRole("switch", { name: /Collect and analyse on a schedule/ })); fireEvent.change(screen.getByLabelText("Every"), { target: { value: "3" } }); fireEvent.click(screen.getByRole("button", { name: "Save" }));

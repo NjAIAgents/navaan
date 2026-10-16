@@ -22,7 +22,7 @@ export default function Schedule() {
   const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() });
   const [all, setAll] = useState<ScheduleEntry[] | null>(null);
   const [err, setErr] = useState("");
-  const [q, setQ] = useSearchParams(); const [open, setOpen] = useState(q.has("slug")); const [type, setType] = useState(q.get("type") ?? "music");
+  const [q, setQ] = useSearchParams(); const [open, setOpen] = useState(q.has("slug") || q.has("open")); const [type, setType] = useState(q.get("type") ?? "music");
   const load = () => getJSON<ScheduleEntry[]>("/api/schedule").then(setAll).catch((e) => setErr(errText(e)));
   useEffect(() => { void load(); }, []);
   const weeks = useMemo(() => monthGrid(ym.y, ym.m), [ym]);

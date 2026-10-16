@@ -385,6 +385,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, limit)})
         csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         # the app itself (NAV-8) is for every signed-in person, a listener included; what it may call is decided route by route
+        if p == "/": return self._send(302, b"", "text/plain", {"Location": "/app/"})   # the new app is the front door (NAV-29); the classic view stays at /legacy for one release
         if p == "/app": return self._send(308, b"", "text/plain", {"Location": "/app/"})
         if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
             rel = p[5:]
@@ -413,7 +414,7 @@ class H(BaseHTTPRequestHandler):
         if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})   # constitution V: no studio route for a listener
         csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         try:
-            if p in ("/", "/legacy"):   # the classic view, kept until the new app has every screen
+            if p == "/legacy":   # the classic view, kept for one release as the way back (NAV-29)
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", csrf)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))

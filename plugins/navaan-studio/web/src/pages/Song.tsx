@@ -121,9 +121,27 @@ function Approvals({ d, act, busy }: { d: SongDetail; act: Act; busy: boolean })
   );
 }
 
-function StepRow({ s, failed }: { s: Step; failed: boolean }) {
+function StepRow({ s, failed, act, busy }: { s: Step; failed: boolean; act: Act; busy: boolean }) {
+  const [ask, setAsk] = useState<"redo" | "restart" | null>(null);
   const chip = failed ? <span className="chip bad">Failed</span> : s.status === "done" ? <span className="chip ok"><Icon name="check" />Done</span> : s.status === "waiting for approval" ? <span className="chip wn">Needs approval</span> : <span className="chip">{s.status === "ready" ? "Ready" : "Later"}</span>;
-  return <li className="stp"><span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}</li>;
+  const go = async () => { if (await act(ask === "redo" ? "/api/redo" : "/api/restart", { step: s.id })) setAsk(null); };
+  return (
+    <li className="stp">
+      <span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}
+      {s.done && (s.redo || s.restart) && !ask && (
+        <span className="row">
+          {s.redo && <button className="btn g" disabled={busy} onClick={() => setAsk("redo")} aria-label={`Redo ${stepLabel(s.id)}`}>Redo</button>}
+          {s.restart && <button className="btn g" disabled={busy} onClick={() => setAsk("restart")} aria-label={`Restart from ${stepLabel(s.id)}`}>Restart from here</button>}
+        </span>
+      )}
+      {ask && (
+        <span className="stack" role="group" aria-label={`Confirm ${ask} of ${stepLabel(s.id)}`}>
+          <span className="mu">{ask === "redo" ? "Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). If the new run fails, the old files are put back." + (s.spends ? " It spends credits, so approve the credits gate again first." : "") : "Restart the Produce phase from this step? This step and every step after it through the video render are redone. Their files go to the _prev folder. The credits, shot list and media approvals are cleared and asked again."}</span>
+          <span className="row"><button className="btn p" disabled={busy} onClick={() => void go()}>{ask === "redo" ? "Yes, redo it" : "Yes, restart"}</button><button className="btn g" onClick={() => setAsk(null)}>Not now</button></span>
+        </span>
+      )}
+    </li>
+  );
 }
 
 const when = (h: string) => {
@@ -206,7 +224,7 @@ export default function Song() {
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <SongAnalytics slug={slug} />}
       <section className="sec" aria-labelledby="steps-h">
         <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
-        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} />)}</ol>
+        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} act={act} busy={busy} />)}</ol>
       </section>
       <Approvals d={d} act={act} busy={busy} />
       <section className="sec" aria-labelledby="hist-h">

@@ -45,6 +45,11 @@ test("a song's words can be edited, saved, and are still there after a reload (a
   await expect(page.getByText(/style\.txt edited via ui:/)).toBeVisible();   // the history says who
 });
 
+test("the front door is the new app, and the classic view is still at /legacy", async ({ page }) => {
+  await page.goto("/"); await expect(page).toHaveURL(/\/app\/$/);
+  const r = await page.request.get("/legacy"); expect(r.status()).toBe(200); expect(await r.text()).toContain("NAVAAN");
+});
+
 test("approvals lists what is waiting, grouped by gate", async ({ page }) => {
   await page.goto("/app/studio/approvals");
   await expect(page.getByRole("heading", { name: "Quote", level: 2 })).toBeVisible();

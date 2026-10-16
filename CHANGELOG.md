@@ -6,7 +6,13 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-16
+
+### Changed
+- The new app is the front door: opening the site goes to `/app/` for everyone who is signed in (a listener lands in the listener app). The classic view stays at `/legacy` for one release as the way back; it is removed after that.
+
 ### Added
+- Redo a finished step, or restart the Produce phase from it, on the song page (each asks first and says where the old files go), and "Put it to work" on a recommendation: a timing one opens the schedule, the rest becomes a standing rule for new items.
 - The song page in the new app edits a song's words and settings (title, lyrics, style, Instagram caption, quote, tags, brief) and its shot list (start, end, picture, camera move, label), and attaches or removes an inspiration's narration. The made audio and videos play on the page, with a link to each file; audio archived to the bucket plays after being fetched back. An unsaved edit is flagged, kept for the tab, and the browser warns before you leave; every save is recorded in the history with who made it.
 - The visuals gate is chosen in the new app: the look (video from pictures, one cover picture, or Google Flow clips), your own pictures (add, remove), the prompts to paste into Gemini or ChatGPT (write, copy), the two-picture OpenAI test, 9:16 versions, and camera and look notes. Nothing that spends credits runs without its approval, as before.
 - Settings in the new app (Settings in the account menu): each Instagram and YouTube connection with whether it works and what is wrong, refreshing or saving a token (a token is never shown again), YouTube sign in, the Claude token, which approvals approve themselves (the risky ones say what they do before they can be switched off), the picture, narration and music choices with their keys and this month's spend, and where cloud storage points.
@@ -178,7 +184,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/NjAIAgents/navaan/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/NjAIAgents/navaan/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/NjAIAgents/navaan/compare/v0.14.0...v0.15.0
