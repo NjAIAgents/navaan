@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 const THEMES = ["midnight-cinema", "ivory-gold"];
-const PAGES = [["Home", "/app/"], ["Songs", "/app/studio/songs"], ["Song", "/app/studio/songs/song-001"], ["Inspiration", "/app/studio/inspiration"], ["Approvals", "/app/studio/approvals"],
+const PAGES = [["Home", "/app/"], ["Studio", "/app/studio"], ["Songs", "/app/studio/songs"], ["Song", "/app/studio/songs/song-001"], ["Inspiration", "/app/studio/inspiration"], ["Approvals", "/app/studio/approvals"],
   ["Schedule", "/app/studio/schedule"], ["Analytics", "/app/studio/analytics"], ["Settings", "/app/studio/settings"], ["Security", "/app/account/security"], ["Cloud", "/app/studio/cloud"], ["Recommendations", "/app/studio/analytics?tab=recommendations"], ["Interactions", "/app/studio/analytics?tab=interactions"], ["Search", "/app/search?q=tere"], ["Library", "/app/library"], ["Plans", "/app/plans"], ["Albums", "/app/albums"], ["Account", "/app/account"]];
 
 async function ready(page: Page) {

@@ -18,7 +18,9 @@ function Songs() {
   useEffect(() => { getJSON<Filters>("/api/catalog/filters").then(setF).catch((e) => setErr(errText(e))); }, []);
   useEffect(() => {
     const q = new URLSearchParams(Object.entries(sel).filter(([, v]) => v)).toString();
-    setRows(null); getJSON<TrackRow[]>(`/api/catalog/tracks${q ? "?" + q : ""}`).then(setRows).catch((e) => setErr(errText(e)));
+    let live = true;   // a slower answer for an earlier choice must not replace the answer for the latest one
+    setRows(null); getJSON<TrackRow[]>(`/api/catalog/tracks${q ? "?" + q : ""}`).then((r) => { if (live) setRows(r); }).catch((e) => { if (live) setErr(errText(e)); });
+    return () => { live = false; };
   }, [sel]);
   const pick = (k: keyof typeof sel, label: string, opts: { value: string; label: string }[]) => (
     <><label className="sr" htmlFor={`f-${k}`}>{label}</label>

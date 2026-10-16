@@ -28,9 +28,11 @@ describe("the shell for the studio side", () => {
     for (const label of ["Songs", "Inspiration", "Approvals", "Schedule", "Analytics"]) expect(await within(side).findByRole("link", { name: label })).toBeInTheDocument();
     expect(within(side).getByRole("link", { name: /Podcasts/ })).toHaveTextContent("Soon");
   });
-  it("a route without a screen yet links to the classic view", async () => {
+  it("the Studio page links to each area and does not send you to the classic view", async () => {
     stub(OWNER); at("/studio");
-    expect(await screen.findByRole("link", { name: /Open in the classic view/ })).toHaveAttribute("href", "/legacy");
+    expect(await screen.findByRole("link", { name: /Settings/ })).toHaveAttribute("href", "/studio/settings");
+    for (const n of ["Songs", "Approvals", "Schedule", "Analytics", "Cloud"]) expect(screen.getAllByRole("link", { name: new RegExp(n) }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/classic view has everything/)).toBeNull(); expect(screen.queryByText(/This screen is coming/)).toBeNull();
   });
   it("lists what needs you, what is in production and what is done", async () => {
     const rows = [

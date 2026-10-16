@@ -1,4 +1,5 @@
 import { Alerts } from "./Alerts";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Icon, type IconName } from "./Icon";
@@ -7,7 +8,10 @@ import { useMobile } from "./useMobile";
 import { useTheme } from "../theme/useTheme";
 import { getJSON } from "../lib/api";
 import { MeProvider, useMe } from "../lib/me";
-import { PlayerProvider, usePlayer } from "../lib/player";
+import { PlayerProvider, usePlayer, usePosition } from "../lib/player";
+import { mmss } from "../lib/lyrics";
+import { Cover } from "./Cover";
+import { Transport } from "./Transport";
 import { PlayMode } from "./PlayMode";
 import { Equaliser } from "./Equaliser";
 
@@ -36,15 +40,18 @@ export function titleFor(path: string): string {
 }
 
 function NowPlaying() {
-  const p = usePlayer();
+  const p = usePlayer(); const { position, duration } = usePosition();
   if (!p.slug && !p.error) return null;
   return (
     <div className="np card" role="region" aria-label="Now playing">
       {p.slug ? <>
-        {p.playing ? <Equaliser /> : <span className="eq off" aria-hidden="true"><i /><i /><i /><i /></span>}
-        <span className="tx"><b>{p.title || p.slug}</b></span>
-        <button className="btn sm" onClick={() => void p.toggle(p.slug!, p.title)}>{p.playing ? "Pause" : "Play"}<span className="sr"> {p.title}</span></button>
-        <button className="btn g sq" onClick={() => p.setExpanded(true)} aria-label="Open play mode"><Icon name="expand" /></button>
+        <button className="np-open" onClick={() => p.setExpanded(true)} aria-label="Open play mode">
+          <Cover slug={p.slug} title={p.title} size={44} />
+          <span className="tx"><b>{p.title || p.slug}</b>{p.playing ? <Equaliser /> : <span className="eq off" aria-hidden="true"><i /><i /><i /><i /></span>}</span>
+        </button>
+        <Transport />
+        <label className="sr" htmlFor="np-seek">Seek</label>
+        <input id="np-seek" className="np-seek" type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1} value={Math.min(Math.floor(position), Math.max(1, Math.floor(duration)))} aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} onChange={(e) => p.seek(Number(e.target.value))} />
       </> : <span role="alert" className="tx">{p.error}</span>}
     </div>
   );
@@ -108,7 +115,7 @@ function ShellFrame() {
           <Link className="btn g sq" to="/search" aria-label="Search"><Icon name="search" /></Link>
           <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" data-i={who.slice(0, 1).toUpperCase()} aria-hidden="true" /></button>
         </div>
-        <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></main>
+        <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<ErrorBoundary><Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></ErrorBoundary></main>
         <NowPlaying />
         <PlayMode />
       </div>

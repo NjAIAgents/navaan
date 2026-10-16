@@ -6,6 +6,30 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-10-16
+
+### Fixed
+- Analytics no longer fails to draw on a database with nothing collected yet: it shows "Nothing collected yet" and the Collect now button.
+- Library > Songs: choosing a language and then a genre quickly could show the answer for the first choice (a slower reply replaced the newer one). Only the latest choice's answer is shown now.
+
+## [0.18.0] - 2026-10-16
+
+### Added
+- A proper player. Back and Next on the song page, the bar and the full-screen play mode; a finished song starts the next one (the list it was started from, else the whole catalogue); a seek bar and the time on the bar; lock screen and headset controls where the browser has them.
+- Share opens a sheet with where to send it: WhatsApp, X, Facebook, Threads, Telegram, LinkedIn, Reddit, email, the phone's own share sheet, and copy. It makes the 30 second preview link as it opens, and you can stop sharing from the same sheet.
+- Cloud: Play audio, watch video and view pictures inside the app; lyrics, style, caption and the other words open in the song's editor; Download is called Download, for any file.
+
+### Fixed
+- The Play button is a circle (it was an oval: two rules disagreed about its width).
+- Lyrics follow the song. A song whose timing was measured by the pipeline (`caption_cues.json`, as on song-006) now has its lines marked as it plays; a song with no timing at all follows approximately, spread over its length, and says so.
+- Cloud rows no longer run into each other on a phone.
+
+## [0.17.1] - 2026-10-16
+
+### Fixed
+- A song whose history was written as objects (song-001, from before the move to the database) no longer shows a black screen: its history reads normally. If a screen ever fails to draw, it now shows what happened with a Reload button instead of going black, and reports the error.
+- Studio (`/app/studio`) is a real front page with a tile for each area and what is waiting, instead of a "coming soon" note that sent you to the classic view.
+
 ## [0.17.0] - 2026-10-16
 
 ### Changed
@@ -184,7 +208,10 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.18.1...HEAD
+[0.18.1]: https://github.com/NjAIAgents/navaan/compare/v0.18.0...v0.18.1
+[0.18.0]: https://github.com/NjAIAgents/navaan/compare/v0.17.1...v0.18.0
+[0.17.1]: https://github.com/NjAIAgents/navaan/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/NjAIAgents/navaan/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/NjAIAgents/navaan/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...v0.15.1

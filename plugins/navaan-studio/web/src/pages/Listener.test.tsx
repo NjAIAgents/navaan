@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router-dom";
@@ -55,6 +56,30 @@ describe("a song for a listener", () => {
     fireEvent.click(within(dlg).getByRole("button", { name: "Pause" })); await waitFor(() => expect(within(dlg).getByRole("button", { name: "Play" })).toBeInTheDocument());
     fireEvent.keyDown(document, { key: "Escape" }); await waitFor(() => expect(screen.queryByRole("dialog", { name: "Play mode" })).toBeNull()); expect(document.body.classList.contains("lock")).toBe(false);
   });
+  it("moves between songs with Back and Next, and starts the next one when a song ends", async () => {
+    const rows = ["song-001", "song-002", "song-003"].map((slug, i) => ({ slug, title: `Song ${i + 1}`, language: "Hindi", genre: "", albums: [], licence: "confirmed", art: null }));
+    const f = route(LISTENER, { ...pageRoutes, "/api/catalog/tracks": () => rows }); at("/song/song-001");
+    fireEvent.click(await screen.findByRole("button", { name: "Play" })); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-001")).toBe(true));
+    const bar = await screen.findByRole("region", { name: "Now playing" }); const btn = (n: string) => within(bar).getByRole("button", { name: n });
+    await waitFor(() => expect(btn("Next")).toBeEnabled()); expect(btn("Back")).toBeInTheDocument();   // the catalogue fills the queue after the first play
+    fireEvent.click(btn("Next")); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-002")).toBe(true)); expect(within(bar).getByText("Song 2")).toBeInTheDocument();
+    now = 10; fireEvent.click(btn("Back")); expect(now).toBe(0);   // well into a song, Back restarts it
+    fireEvent.click(btn("Back")); await waitFor(() => expect(f.mock.calls.filter(([u]) => u === "/api/play?slug=song-001").length).toBe(2));   // at the start it goes to the one before
+    fireEvent.click(btn("Next")); await waitFor(() => expect(within(bar).getByText("Song 2")).toBeInTheDocument());
+    fireEvent.ended(document.querySelector("audio")!); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-003")).toBe(true)); expect(btn("Next")).toBeDisabled();   // the last song has nothing after it
+  });
+  it("the Play button is a circle, not an oval", async () => {
+    route(LISTENER, pageRoutes); at("/song/song-001"); const play = await screen.findByRole("button", { name: "Play" });
+    expect(play.className).toMatch(/\bsq\b/); expect(play.className).toMatch(/\bround\b/);   // base.css: .btn.sq.round is 56 by 56 with a 50% radius, which beats .btn.sq's 44px width
+    expect(readFileSync("src/styles/base.css", "utf8")).toMatch(/\.btn\.sq\.round \{[^}]*width: 56px; height: 56px/);
+  });
+  it("follows the lyrics approximately when nobody measured the timing", async () => {
+    route(LISTENER, { ...pageRoutes, "/api/catalog/track/song-001": () => track({ timed: false, timed_lines: null, lyrics: "[Verse 1]\nline one\nline two\nline three\nline four" }) }); at("/song/song-001");
+    fireEvent.click(await screen.findByRole("button", { name: "Play" })); const audio = document.querySelector("audio")!;
+    now = 1; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("Lines follow the song approximately.")).toBeInTheDocument());   // the song is 200 s long in this test
+    expect(screen.queryByText("[Verse 1]")).toBeNull(); now = 190; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line four")).toHaveAttribute("aria-current", "true"));
+    now = 60; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line two")).toHaveAttribute("aria-current", "true"));
+  });
   it("shows plain lyrics when there is no timing, and says so when a song is not available", async () => {
     route(LISTENER, { ...pageRoutes, "/api/catalog/track/song-001": () => track({ timed: false, timed_lines: null }) }); at("/song/song-001");
     expect(await screen.findByLabelText("Lyrics", { selector: "p" })).toHaveTextContent("line one"); expect(document.querySelector("[aria-current]")).toBeNull();
@@ -64,7 +89,32 @@ describe("a song for a listener", () => {
   it("can be saved, added to a playlist and shared by a listener", async () => {
     const f = route(LISTENER, { ...pageRoutes, "/api/library/save": () => ({ ok: true }), "/api/playlists": () => [{ id: "p1", name: "Evening", description: "", visibility: "private", tracks: 0, updated_at: "" }], "/api/share": () => ({ token: "tok", url: "https://navaan.example/s/tok" }) }); at("/song/song-001");
     fireEvent.click(await screen.findByRole("button", { name: "Save song" })); await screen.findByRole("button", { name: "Saved" }); expect(posts(f, "/api/library/save")).toEqual([{ kind: "track", slug: "song-001", on: true }]);
-    fireEvent.click(await screen.findByRole("button", { name: "Create a share link" })); expect(await screen.findByLabelText(/hears a 30 second preview/)).toHaveValue("https://navaan.example/s/tok");
+    fireEvent.click(await screen.findByRole("button", { name: "Share" })); expect(await screen.findByLabelText(/hears a 30 second preview/)).toHaveValue("https://navaan.example/s/tok");
+    const on = screen.getByRole("list", { name: "Share on" });   // the platforms, each a link that opens that service's own share page
+    for (const [name, host] of [["WhatsApp", "wa.me"], ["X", "twitter.com"], ["Facebook", "facebook.com"], ["Threads", "threads.net"], ["Telegram", "t.me"], ["LinkedIn", "linkedin.com"]]) expect(within(on).getByRole("link", { name: new RegExp(`^${name}`) }).getAttribute("href")).toContain(host);
+    expect(within(on).getByRole("link", { name: /^WhatsApp/ }).getAttribute("href")).toContain(encodeURIComponent("https://navaan.example/s/tok")); expect(within(on).getByRole("button", { name: "Copy link" })).toBeInTheDocument();
+  });
+});
+
+describe("Library filters", () => {
+  it("shows the answer for the latest choice even when an earlier one answers later", async () => {
+    const row = (slug: string, title: string, genre: string) => ({ slug, title, language: "Hindi", genre, albums: [], licence: "confirmed", art: null });
+    let releaseSlow: (r: Response) => void = () => undefined;
+    const f = vi.fn((u: string) => {
+      if (u.startsWith("/api/me")) return Promise.resolve(json(OWNER));
+      if (u.startsWith("/api/catalog/filters")) return Promise.resolve(json({ albums: [], languages: ["Hindi"], genres: ["Indie pop"] }));
+      if (u === "/api/catalog/tracks?language=Hindi") return new Promise<Response>((res) => { releaseSlow = res; });   // the first choice answers last
+      if (u === "/api/catalog/tracks?language=Hindi&genre=Indie+pop") return Promise.resolve(json([row("song-002", "Pata Hi Na Chala", "Indie pop")]));
+      if (u.startsWith("/api/library")) return Promise.resolve(json({ tracks: [], albums: [], following: false }));
+      if (u.startsWith("/api/catalog/tracks")) return Promise.resolve(json([row("song-001", "Tere Hone Se", "Romantic"), row("song-002", "Pata Hi Na Chala", "Indie pop")]));
+      return Promise.resolve(json([]));
+    });
+    vi.stubGlobal("fetch", f); at("/library"); fireEvent.click(await screen.findByRole("tab", { name: "Songs" }));
+    await screen.findByRole("link", { name: /Tere Hone Se/ });
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "Hindi" } }); fireEvent.change(screen.getByLabelText("Genre"), { target: { value: "Indie pop" } });
+    expect(await screen.findByRole("link", { name: /Pata Hi Na Chala/ })).toBeInTheDocument();
+    releaseSlow(json([row("song-001", "Tere Hone Se", "Romantic"), row("song-002", "Pata Hi Na Chala", "Indie pop")]));   // now the stale answer arrives
+    await new Promise((r) => setTimeout(r, 50)); expect(screen.queryByRole("link", { name: /Tere Hone Se/ })).toBeNull(); expect(screen.getByRole("link", { name: /Pata Hi Na Chala/ })).toBeInTheDocument();
   });
 });
 

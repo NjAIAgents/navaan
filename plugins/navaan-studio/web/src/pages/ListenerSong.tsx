@@ -5,7 +5,8 @@ import { Equaliser } from "../components/Equaliser";
 import { Icon } from "../components/Icon";
 import { KeepCard } from "../components/KeepCard";
 import { Lyrics } from "../components/Lyrics";
-import { ShareCard } from "../components/ShareCard";
+import { ShareDialog } from "../components/ShareCard";
+import { Transport } from "../components/Transport";
 import { getJSON, type TrackView } from "../lib/api";
 import { usePlayer, usePosition } from "../lib/player";
 import { errText } from "../lib/songs";
@@ -15,7 +16,8 @@ export default function ListenerSong() {
   const { slug = "" } = useParams();
   const [t, setT] = useState<TrackView | null>(null);
   const [err, setErr] = useState("");
-  const pl = usePlayer(); const { position } = usePosition();
+  const [sharing, setSharing] = useState(false);
+  const pl = usePlayer(); const { position, duration } = usePosition();
   useEffect(() => { setT(null); getJSON<TrackView>(`/api/catalog/track/${slug}`).then(setT).catch((e) => setErr(errText(e))); }, [slug]);
   if (!t) return err ? <div className="card" role="alert"><h2>This song is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <p className="mu" role="status">Loading…</p>;
   const mine = pl.slug === slug, playing = mine && pl.playing;
@@ -28,15 +30,16 @@ export default function ListenerSong() {
           <p className="mu">{[t.language, t.genre].filter(Boolean).join(" · ")}</p>
           {t.albums.length > 0 && <p className="mu">{t.albums.map((a) => a.title).join(", ")}</p>}
           <div className="row">
-            <button className="btn p sq round" onClick={() => void pl.toggle(slug, t.title)} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} filled /></button>
+            {mine ? <Transport big /> : <button className="btn p sq round" onClick={() => void pl.toggle(slug, t.title)} aria-label="Play"><Icon name="play" filled /></button>}
             {mine && <button className="btn g sq" onClick={() => pl.setExpanded(true)} aria-label="Open play mode"><Icon name="expand" /></button>}
+            <button className="btn sq" onClick={() => setSharing(true)} aria-label="Share"><Icon name="share" /></button>
           </div>
           {pl.error && mine === false && <p role="alert" className="mu">{pl.error}</p>}
         </div>
       </section>
-      <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} follow={playing} /></section>
+      <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} /></section>
       <KeepCard slug={slug} />
-      <ShareCard slug={slug} />
+      {sharing && <ShareDialog slug={slug} title={t.title} onClose={() => setSharing(false)} />}
     </>
   );
 }
