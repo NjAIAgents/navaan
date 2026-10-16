@@ -7,6 +7,10 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [Unreleased]
 
 ### Changed
+- Settings is easier to read and traverse. It opens on an At a glance board: every connection with one line on how it is doing, the ones that need you first, each with a Fix button that opens the right place. Below it are four tabs: Accounts, AI services, Automation and Storage. Tokens and keys sit in rows that fold open (Change, Sign in) instead of an always-open box under every line, with plainer wording ("Competitor data" instead of "Peer data (Facebook)").
+- The studio sign in page shows the version.
+
+### Changed
 - The public site's Library is open to visitors: they can browse every song, and Create playlist (or Add to playlist) leads to Create account, which asks what they like (mood, genres, languages) and an optional email for when accounts open. Studio > Analytics > Feedback shows how many asked and what they like.
 - The public site no longer offers a Studio sign in: the owner signs in on studio.navaan.online (signed in, Studio and Settings still show on the public site).
 

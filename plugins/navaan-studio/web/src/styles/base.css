@@ -245,3 +245,7 @@ body.lock { overflow: hidden; }
 .linkish { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; min-height: 0; }
 .btn.shuf.on { background: var(--ac); color: var(--on-action); border-color: transparent; }   /* shuffle is on */
 @media (max-width: 899px) { .np .tp .shuf { display: none; } }   /* the phone's bar is narrow: shuffle is in play mode and on the song page */
+
+/* Settings: rows that fold open */
+.fold { padding: 0; } .fold-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%; min-height: var(--tap); padding: 10px 16px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--r3); }
+.fold-head:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; } .fold-act { margin-left: auto; } .fold-body { padding: 0 16px 16px; }
