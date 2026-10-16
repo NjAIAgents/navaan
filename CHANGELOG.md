@@ -6,6 +6,14 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-17
+
+### Added
+- Library and playlists open as a grid of covers by default, with a Grid / List switch (remembered per screen): the Songs tab, your playlists, saved songs and the songs inside a playlist. A playlist's tile shows the cover of its first song. In a playlist's grid you can play or remove a song; changing the order is in the List view.
+
+### Changed
+- Full screen play mode uses a wide screen: on desktop the cover, title and controls sit on the left and the lyrics are large on the right, over a soft blur of the cover's colours. Phones keep the stacked layout.
+
 ## [0.26.0] - 2026-10-17
 
 ### Changed
@@ -279,7 +287,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/NjAIAgents/navaan/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/NjAIAgents/navaan/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/NjAIAgents/navaan/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/NjAIAgents/navaan/compare/v0.24.1...v0.25.0
