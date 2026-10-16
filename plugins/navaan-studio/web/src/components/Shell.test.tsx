@@ -32,6 +32,14 @@ describe("the shell", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+  it("shows the version in the account menu when the portal reports one", async () => {
+    vi.stubGlobal("fetch", vi.fn((u: string) => Promise.resolve(new Response(u.includes("/auth/state") ? JSON.stringify({ state: "authed", version: "9.9.9" }) : "[]", { status: 200, headers: { "Content-Type": "application/json" } }))));
+    at("/albums");
+    await screen.findByRole("button", { name: /Account menu/ });
+    await new Promise((r) => setTimeout(r, 20));   // let the state request land
+    fireEvent.click(screen.getAllByRole("button", { name: /Navjyot|Account menu/ })[0]);
+    expect(await screen.findByText("NAVAAN 9.9.9")).toBeInTheDocument();
+  });
   it("lists what needs you, what is in production and what is done", async () => {
     const rows = [
       { slug: "song-003", type: "music", title: "Tere Hone Se", state: "media_ready", status: "approval", album: "", steps_done: 8, steps_total: 14, public: false, published: false, scheduled: "", next: { type: "gate", gate: "publish_youtube" } },

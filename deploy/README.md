@@ -233,3 +233,11 @@ A React + Vite + TypeScript app in `plugins/navaan-studio/web/`, served by the p
 - **Auth is the portal's.** The same session cookie and the per-process token (a `<meta name="navaan-token">` filled in when `index.html` is served) as the classic page. A signed-out visit to `/app/` shows the sign-in page.
 - **Screens not built yet** link to the classic view for that area, so nothing is lost while they move over (stories NAV-13 to NAV-19).
 - **Development.** `cd plugins/navaan-studio/web && npm install && npm run dev` proxies `/api` and `/auth` to a portal on 127.0.0.1:8765.
+
+## Releasing
+
+One version, set in `plugins/navaan-studio/.claude-plugin/plugin.json`, mirrored in `.claude-plugin/marketplace.json` and `plugins/navaan-studio/web/package.json`; `CHANGELOG.md` (Keep a Changelog, SemVer, 0.y.z until the public listener app) names the latest release. `test_version.py` fails when they drift. The signed-in portal reports it (`/auth/state`, `version`) and the account menu of the new app shows it.
+
+1. **While you work**: add entries under `## [Unreleased]` in `CHANGELOG.md` when a change is one a person using or running the studio would notice (a feature, a fix, a change, a removal, a security fix). Refactors, tests and docs-only edits are not listed. `/changelog` writes the entries from the commits.
+2. **To release**: `python3 deploy/bump-version.py X.Y.Z` (patch for fixes, minor for features while 0.y.z). It refuses an empty `[Unreleased]`, edits the four version files and turns `[Unreleased]` into `[X.Y.Z] - <date>`, then prints the commit and tag commands. It never runs git.
+3. Commit that on a branch, merge to `develop`, release `develop` to `main` as usual (the deploy is the release), then tag the release merge commit: `git tag -a vX.Y.Z -m "NAVAAN Studio X.Y.Z" <sha>` and `git push origin vX.Y.Z`. The GitHub Release body can be the changelog section (`/release-notes`).

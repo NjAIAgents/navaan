@@ -25,6 +25,14 @@ def secrets_status():
         return {"status": "waiting", "detail": "no status yet"} if os.environ.get("NAVAAN_VAULT_ADDR") else None
 
 
+def app_version():
+    """The release number, set in one place: plugin.json (tests keep marketplace.json, web/package.json and CHANGELOG.md equal to it)."""
+    try:
+        with open(os.path.join(navaan.HERE, "..", ".claude-plugin", "plugin.json"), encoding="utf-8") as f: return str(json.load(f).get("version", ""))
+    except (OSError, ValueError) as e:
+        L.ignored(LOG, "no plugin.json next to the scripts: no version to show", e); return ""
+
+
 def web_dist():
     """Where the built app (plugins/navaan-studio/web/dist) is; NAVAAN_WEB_DIST overrides it for tests."""
     return os.environ.get("NAVAAN_WEB_DIST") or os.path.join(navaan.HERE, "..", "web", "dist")
@@ -219,7 +227,7 @@ class H(BaseHTTPRequestHandler):
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
             if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
-            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
+            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["version"] = app_version(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
         if not auth.session(ck):  # not signed in: only the sign in page is served
             if p in ("/", "/legacy") or p == "/app" or p.startswith("/app/"): return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
