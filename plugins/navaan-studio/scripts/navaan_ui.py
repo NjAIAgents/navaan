@@ -311,6 +311,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/analytics/by-song": return self._send(200, analytics_api.by_song())
             if p == "/api/songs": return self._send(200, [song_row(s) for s in songs()])
             if p == "/api/albums": return self._send(200, catalog_store.albums())
+            if p == "/api/tracks": return self._send(200, catalog_store.tracks())   # the audit table: origin, plan tier, licence status per track
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
             m = re.match(r"^/media/([^/]+)/([^/]+)$", p)
@@ -455,6 +456,13 @@ class H(BaseHTTPRequestHandler):
                     navaan.edit_meta(x, lambda m: m.__setitem__("album", name) if name else m.pop("album", None))
                     catalog_store.sync_item(x)   # the label puts the song into the catalog album of that name; the catalog's album is the one listeners see
                 return self._send(200, {"ok": True, "count": len(sl)})
+            if p == "/api/catalog/license":   # the owner decides what may be offered behind a plan; an editor cannot
+                if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner decides licences"})
+                try: ok = catalog_store.set_license(str(body.get("slug") or ""), body.get("status"), sess.get("user") or "owner", body.get("note"), body.get("plan"))
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                if not ok: return self._send(404, {"error": "no such track"})
+                auth._audit("track_license", user=sess.get("user"), ip=self._ip(), slug=body.get("slug"), status=body.get("status"), plan=body.get("plan"))
+                return self._send(200, {"ok": True})
             if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
                 try:
                     if p.endswith("/save"): return self._send(200, {"slug": catalog_store.save_album(str(body.get("slug") or ""), body.get("title"), body.get("kind") or "album", body.get("status") or "draft", body.get("release_date"), body.get("description") or "")})

@@ -180,6 +180,7 @@ def fetch(slug, dest=None):
             with urllib.request.urlopen(urllib.request.Request(img, headers={"User-Agent": "Mozilla/5.0"}), timeout=30) as r, open(os.path.join(D, "cover_suno.jpeg"), "wb") as f: shutil.copyfileobj(r, f)
         except OSError as e: print(f"fetch: cover not saved ({e})")
     m["suno_model"] = c.get("major_model_version") or c.get("model_name") or ""
+    if cfg("suno.plan", ""): m["suno_plan"] = str(cfg("suno.plan"))   # the plan tier at import time (NAV-11); set "suno": {"plan": "..."} in navaan.config.json
     su = m.setdefault("suno", {}); su.update({"duration": round(float(md.get("duration") or c.get("duration")), 1) if (md.get("duration") or c.get("duration")) else su.get("duration"),
                                               "display_tags": c.get("display_tags") or "", "creator": c.get("display_name") or "", "fetched_at": now()})
     m.setdefault("history", []).append(f"{now()} suno text and cover fetched without a browser (model {m['suno_model']})")
