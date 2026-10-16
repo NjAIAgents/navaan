@@ -29,7 +29,7 @@ _GC_AT = 0.0
 PERMISSIONS = ("studio.access", "studio.approve", "studio.settings", "library.view", "playlists.write", "account.manage")   # what NAVAAN_AUTH=off grants (development only)
 TICKETS = {}    # ticket -> {"exp", "user", "tries", "challenge"}
 PENDING = {}    # setup in progress: {"exp", "user", "pw", "secret"}
-CTX = threading.local()  # per request: .ip and .https, set by state() and handle_post()
+CTX = threading.local()  # per request: .ip, .https and .host, set by state() and handle_post()
 
 
 def disabled(): return os.environ.get("NAVAAN_AUTH", "").lower() == "off"
@@ -193,10 +193,23 @@ def start_session(user):
     return t
 
 
-def cookie_header(token, clear=False):
+def shared_domain():
+    """The parent domain whose hosts share one sign in (NAVAAN_COOKIE_DOMAIN=navaan.online), when the request is for one of them. The cookie then carries Domain=, so signing in on studio.navaan.online also signs in navaan.online."""
+    d = os.environ.get("NAVAAN_COOKIE_DOMAIN", "").strip().lower().lstrip(".")
+    h = (getattr(CTX, "host", "") or "").split(":")[0].lower()
+    return d if d and (h == d or h.endswith("." + d)) else ""
+
+
+def login_cookies(token):
+    """The sign in cookie; on a shared domain also removes an older host-only cookie of the same name, which would otherwise be sent first and shadow it."""
+    return [cookie_header(token)] + ([cookie_header("", clear=True, host_only=True)] if shared_domain() else [])
+
+
+def cookie_header(token, clear=False, host_only=False):
     sec = "; Secure" if getattr(CTX, "https", False) else ""
-    if clear: return f"{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{sec}"
-    return f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_MAX}{sec}"
+    dom = "" if host_only or not shared_domain() else f"; Domain={shared_domain()}"
+    if clear: return f"{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{sec}{dom}"
+    return f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_MAX}{sec}{dom}"
 
 
 def token_from(cookie_hdr):
@@ -209,6 +222,7 @@ def token_from(cookie_hdr):
 def session(cookie_hdr):
     """The live session for this Cookie header, or None: {"user", "user_id", "csrf", "roles", "permissions"}. Touches the idle clock. A database error means no session (closed, not open)."""
     if disabled():   # development only. NAVAAN_AUTH_OFF_ROLE=listener signs the one local person in as a listener (the browser checks use it to see the listener side)
+        if os.environ.get("NAVAAN_AUTH_OFF_ROLE", "").lower() == "guest": return None   # the browser checks use this with a public host to see the site as someone who is not signed in
         if os.environ.get("NAVAAN_AUTH_OFF_ROLE", "").lower() == "listener": return {"user": "listener", "user_id": "", "csrf": "", "roles": ["listener"], "permissions": ["library.view", "playlists.write", "account.manage"]}
         return {"user": "local", "user_id": "", "csrf": "", "roles": ["owner"], "permissions": list(PERMISSIONS)}
     tok = token_from(cookie_hdr)
@@ -283,7 +297,9 @@ def rp_of(host_hdr):
     """(rp id, origin) from the Host header, or (None, None) when the host is an IP (passkeys need a name such as localhost)."""
     h = (host_hdr or "").strip(); name = h.split(":")[0]
     if re.match(r"^\d+\.\d+\.\d+\.\d+$", name): return None, None
-    return name, ("https://" if getattr(CTX, "https", False) else "http://") + h
+    d = os.environ.get("NAVAAN_COOKIE_DOMAIN", "").strip().lower().lstrip(".")
+    rp = d if d and (name.lower() == d or name.lower().endswith("." + d)) else name   # a passkey for navaan.online works on navaan.online and studio.navaan.online
+    return rp, ("https://" if getattr(CTX, "https", False) else "http://") + h
 
 
 def _client_check(cd_b64, want_type, challenge, origin):
@@ -365,7 +381,7 @@ def assert_verify(d, host, tk, body):
 
 # ---------- request handling ----------
 def state(cookie_hdr, host="", ip="", https=False):
-    CTX.ip = ip; CTX.https = https
+    CTX.ip = ip; CTX.https = https; CTX.host = host
     d = load() or {}
     rp, _ = rp_of(host)
     if disabled(): return {"state": "authed", "user": "local", "off": True}
@@ -381,7 +397,7 @@ def state(cookie_hdr, host="", ip="", https=False):
 
 def handle_post(path, body, cookie_hdr, host, ip="", https=False):
     """-> (status, json, [Set-Cookie values])"""
-    CTX.ip = ip; CTX.https = https
+    CTX.ip = ip; CTX.https = https; CTX.host = host
     _gc()
     d = load() or {}
     def err(code, msg, **kw): return code, dict({"error": msg}, **kw), []
@@ -411,7 +427,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             try: os.remove(CODE_FILE)
             except OSError as _e: L.ignored(LOG, "handle_post: OSError (optional or expected)", _e); pass
             ok_reset(); _audit("owner_setup", user)
-            return 200, {"ok": True, "recovery": codes}, [cookie_header(start_session(user))]
+            return 200, {"ok": True, "recovery": codes}, login_cookies(start_session(user))
         if not d.get("pw"): return err(403, "not set up")
         # ---- sign in ----
         if path == "/auth/login":
@@ -436,7 +452,7 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             else: fail(); return err(401, "Wrong code.")
             with LOCK: TICKETS.pop(body["ticket"], None)
             ok_reset(); _audit("login_method", d["user"], method=method)
-            return 200, {"ok": True, "recovery_left": len(d.get("recovery", []))}, [cookie_header(start_session(d["user"]))]
+            return 200, {"ok": True, "recovery_left": len(d.get("recovery", []))}, login_cookies(start_session(d["user"]))
         if path == "/auth/passkey/begin":  # sign in with a passkey alone: it proves who you are (device + Touch ID or PIN), so no password or code
             if locked(): return err(429, f"Too many tries. Wait {locked()} s.", locked=locked())
             if not d.get("passkeys"): return err(400, "no passkey is set up")
@@ -452,11 +468,11 @@ def handle_post(path, body, cookie_hdr, host, ip="", https=False):
             except Exception as e: L.event(LOG, "warning", "passkey_failed", reason=str(e)[:100]); fail(); return err(401, "Passkey failed: " + str(e)[:100])
             with LOCK: TICKETS.pop(body.get("ticket", ""), None)
             ok_reset(); _audit("login_method", d["user"], method="passkey")
-            return 200, {"ok": True}, [cookie_header(start_session(d["user"]))]
+            return 200, {"ok": True}, login_cookies(start_session(d["user"]))
         # ---- everything below needs a session ----
         if not authed: return err(401, "sign in")
         if path == "/auth/logout":
-            end_session(cookie_hdr); _audit("logout", authed.get("user")); return 200, {"ok": True}, [cookie_header("", clear=True)]
+            end_session(cookie_hdr); _audit("logout", authed.get("user")); return 200, {"ok": True}, [cookie_header("", clear=True), cookie_header("", clear=True, host_only=True)]
         if path == "/auth/passkey/register-options": return 200, reg_options(d, host, d["user"]), []
         if path == "/auth/passkey/register":
             reg_verify(d, host, body); _audit("passkey_added", authed.get("user")); return 200, {"ok": True}, []

@@ -33,8 +33,10 @@ healthy() { for _ in $(seq 40); do [ "$(docker inspect navaan --format '{{.State
 smoke() { for _ in $(seq 10); do curl -fsS -m 8 "$URL/auth/state" | grep -q '"state"' && return 0; sleep 3; done; return 1; }
 # the new hosts through nginx on this machine (--resolve: this machine's resolver may still hold an old answer for the name)
 smoke_hosts() { for h in studio.navaan.online navaan.online; do curl -fsS -m 8 --resolve "$h:443:127.0.0.1" "https://$h/auth/state" | grep -q '"state"' || return 1; done; }
+# the public site must open without a sign in: a visitor is a guest there
+smoke_public() { curl -fsS -m 8 --resolve "navaan.online:443:127.0.0.1" "https://navaan.online/api/me" | grep -q '"guest": true'; }
 docker compose -f deploy/compose.yml up -d
-if healthy && smoke && smoke_hosts; then
+if healthy && smoke && smoke_hosts && smoke_public; then
   echo "$SHA" > /opt/navaan/DEPLOYED; docker image prune -f >/dev/null
   echo "deploy: ok $SHA"; exit 0
 fi

@@ -43,3 +43,5 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 https://studio.navaan.online/auth/state | grep -q '"state"'
           curl -fsS --retry 5 --retry-delay 5 https://navaan.online/auth/state | grep -q '"state"'
           test "$(curl -s -o /dev/null -w '%{http_code}' https://www.navaan.online/)" = 301
+          curl -fsS https://navaan.online/api/me | grep -q '"guest": true'
+          curl -fsS https://navaan.online/api/catalog/tracks | grep -q '"slug"'

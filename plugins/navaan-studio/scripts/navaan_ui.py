@@ -192,6 +192,8 @@ def start_job(slug, all_steps=False, step=None, redo=False):
 
 
 CLIENT_LOG = {}  # client address -> times of recent browser error reports
+GUEST_READ = {}; GUEST_PLAY = {}   # per address: how often a visitor who is not signed in reads the catalogue and asks for songs
+GUEST = {"user": "", "user_id": "", "csrf": "", "roles": ["guest"], "permissions": [], "guest": True}   # someone not signed in on a public host
 CLIENT_LOG_LOCK = threading.Lock()
 def rate_ok(store, ip, n, per=60):
     """At most n requests per `per` seconds per address in this store."""
@@ -240,7 +242,8 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(b)))
         if "Cache-Control" not in (extra or {}): self.send_header("Cache-Control", "no-store")
         if getattr(self, "_rid", None): self.send_header("X-Request-Id", self._rid)
-        for k, v in (extra or {}).items(): self.send_header(k, v)
+        for k, v in (extra or {}).items():
+            for x in (v if isinstance(v, list) else [v]): self.send_header(k, x)   # a list repeats the header (two Set-Cookie)
         self.end_headers(); self.wfile.write(b)
         if code >= 400 and ctype.startswith("application/json") and not getattr(self, "_err_logged", False):
             err = body.get("error") if isinstance(body, dict) else None
@@ -252,9 +255,40 @@ class H(BaseHTTPRequestHandler):
         return h in ("127.0.0.1", "localhost") or h in _hosts("NAVAAN_PUBLIC_HOST")
     def _surface(self, sess):
         """On a public host nobody has studio powers, not even the owner: the same session there sees the listener app only. Cookies are per host, so signing in on one host does not sign in on the other."""
-        if not sess or (self.headers.get("Host") or "").split(":")[0].lower() not in LISTENER_HOSTS(): return sess
+        if not sess or not self._public_host(): return sess
         roles = [r for r in sess.get("roles", []) if r not in ("owner", "editor")] or ["listener"]
-        return {**sess, "roles": roles, "permissions": [x for x in sess.get("permissions", []) if not x.startswith("studio.")]}
+        return {**sess, "roles": roles, "permissions": [x for x in sess.get("permissions", []) if not x.startswith("studio.")], "_studio": auth.can(sess, "studio.access")}   # _studio: this person is the studio's, so the app can link to it
+    def _public_host(self): return (self.headers.get("Host") or "").split(":")[0].lower() in LISTENER_HOSTS()
+    def _me(self, sess):
+        """What the app learns about the person: who, what they may do, and where the other side of the site is. A guest is someone not signed in on a public host."""
+        out = {"user": sess.get("user"), "roles": sess.get("roles", []), "permissions": sess.get("permissions", [])}
+        sh = os.environ.get("NAVAAN_STUDIO_HOST", "").strip().lower(); lh = (LISTENER_HOSTS() or [""])[0]
+        if sess.get("guest"): out["guest"] = True
+        if sh and (sess.get("guest") or sess.get("_studio")): out["studio_url"] = f"https://{sh}"   # a guest gets it as the place to sign in, the studio's owner as the way to the studio
+        if lh and not self._public_host() and auth.can(sess, "studio.access"): out["public_url"] = f"https://{lh}"
+        return out
+    def _guest_get(self, p, sess):
+        """What anyone may do without signing in on a public host (the free site): browse, search, read a song's page, play it. Nothing else. True when answered."""
+        if p == "/" or p == "/app" or p.startswith("/app/") or p in ("/privacy", "/terms"): return False   # the app itself and the legal pages
+        if p == "/api/me": self._send(200, self._me(sess)); return True
+        if p.startswith("/api/catalog/"):
+            if not rate_ok(GUEST_READ, self._ip(), 240, 60): self._send(429, {"error": "too many requests, try again in a minute"}); return True
+            self._listener_get(p, sess); return True   # the catalogue handlers only: published songs with a confirmed licence, no lyrics gate (the songs are free)
+        if p == "/api/search":
+            if not rate_ok(GUEST_READ, self._ip(), 240, 60): self._send(429, {"error": "too many requests, try again in a minute"}); return True
+            q = parse_qs(urlparse(self.path).query)
+            try: limit = int((q.get("limit") or ["20"])[0])
+            except ValueError: self._send(400, {"error": "limit is a number"}); return True
+            self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, min(limit, 50))}); return True
+        if p == "/api/play":   # a link that opens the audio for five minutes; many plays from one address are slowed down
+            sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
+            if not rate_ok(GUEST_PLAY, self._ip(), 120, 600): self._send(429, {"error": "that is a lot of songs, try again in a few minutes"}); return True
+            key = catalog_store.play_key(sl, confirmed_only=True) if SLUG.match(sl) else None
+            if not key: self._send(404, {"error": "no such song to play"}); return True
+            try: self._send(200, {"url": objstore.par_url(key, 300), "expires_in": 300})
+            except Exception: L.exc(LOG, "play_link_failed", item=sl); self._send(502, {"error": "cannot make a play link right now"})
+            return True
+        self._send(403, {"error": "this is for people with an account", "guest": True}); return True
     def _ip(self):  # real client address; X-Real-IP only when a trusted proxy sits in front (NAVAAN_TRUST_PROXY=1)
         return (self.headers.get("X-Real-IP") or "").strip() if TRUST_PROXY() and self.headers.get("X-Real-IP") else self.client_address[0]
     def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
@@ -387,10 +421,12 @@ class H(BaseHTTPRequestHandler):
             if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["version"] = app_version(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
         sess = self._surface(auth.session(ck))
+        if not sess and self._public_host(): sess = GUEST   # the public site needs no sign in
         if not sess:  # not signed in: only the sign in page is served
             if p in ("/", "/legacy") or p == "/app" or p.startswith("/app/"): return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
             return self._send(401, {"error": "sign in", "login": True})
-        if p == "/api/me": return self._send(200, {"user": sess.get("user"), "roles": sess.get("roles", []), "permissions": sess.get("permissions", [])})   # any signed-in person
+        if sess.get("guest") and self._guest_get(p, sess): return
+        if p == "/api/me": return self._send(200, self._me(sess))   # any signed-in person
         if p == "/api/search":   # one search for songs and albums, in Devanagari or Roman letters; a listener may use it (library.view), the studio is not needed
             if not auth.can(sess, "library.view"): return self._send(403, {"error": "this account cannot search"})
             q = parse_qs(urlparse(self.path).query)
@@ -562,7 +598,7 @@ class H(BaseHTTPRequestHandler):
             try: b = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             except Exception: return self._send(400, {"error": "bad json"})
             code, obj, cookies = auth.handle_post(self.path.split("?")[0], b, ck, self.headers.get("Host"), ip=self._ip(), https=self._https())
-            return self._send(code, obj, extra={"Set-Cookie": cookies[0]} if cookies else None)
+            return self._send(code, obj, extra={"Set-Cookie": list(cookies)} if cookies else None)
         sess = self._surface(auth.session(ck))
         if not sess: return self._send(401, {"error": "sign in", "login": True})
         need = next((wr for pre, _rd, wr in LISTENER_ROUTES if wr and (self.path == pre or self.path.startswith(pre + "/"))), None)   # routes a listener may change things through
