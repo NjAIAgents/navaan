@@ -230,5 +230,5 @@ body.lock { overflow: hidden; }
 @media (max-width: 899px) { .has-np .page { padding-bottom: calc(190px + env(safe-area-inset-bottom)); } }
 .dbl { display: inline-flex; } .dbl .ic:nth-child(2) { margin-left: -9px; }   /* double thumbs up: two thumbs, the second overlapping the first */
 .linkish { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; min-height: 0; }
-.btn.shuf.on { background: var(--ac); color: var(--on-ac, #0b1020); border-color: transparent; }   /* shuffle is on */
+.btn.shuf.on { background: var(--ac); color: var(--on-action); border-color: transparent; }   /* shuffle is on */
 @media (max-width: 899px) { .np .tp .shuf { display: none; } }   /* the phone's bar is narrow: shuffle is in play mode and on the song page */
