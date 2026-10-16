@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-10-17
+
+### Fixed
+- A shared link (navaan.online/s/...) plays the whole song and no longer says "30 second preview" or asks for a sign in, since the site is free. It has an Open on NAVAAN button to the song's page; the share box in Studio says the same.
+
 ## [0.25.0] - 2026-10-17
 
 ### Added
@@ -269,7 +274,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.25.1...HEAD
+[0.25.1]: https://github.com/NjAIAgents/navaan/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/NjAIAgents/navaan/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/NjAIAgents/navaan/compare/v0.23.0...v0.24.0

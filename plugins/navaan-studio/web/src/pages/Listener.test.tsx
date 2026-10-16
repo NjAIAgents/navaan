@@ -89,7 +89,7 @@ describe("a song for a listener", () => {
   it("can be saved, added to a playlist and shared by a listener", async () => {
     const f = route(LISTENER, { ...pageRoutes, "/api/library/save": () => ({ ok: true }), "/api/playlists": () => [{ id: "p1", name: "Evening", description: "", visibility: "private", tracks: 0, updated_at: "" }], "/api/share": () => ({ token: "tok", url: "https://navaan.example/s/tok" }) }); at("/song/song-001");
     fireEvent.click(await screen.findByRole("button", { name: "Save song" })); await screen.findByRole("button", { name: "Saved" }); expect(posts(f, "/api/library/save")).toEqual([{ kind: "track", slug: "song-001", on: true }]);
-    fireEvent.click(await screen.findByRole("button", { name: "Share" })); expect(await screen.findByLabelText(/hears a 30 second preview/)).toHaveValue("https://navaan.example/s/tok");
+    fireEvent.click(await screen.findByRole("button", { name: "Share" })); expect(await screen.findByLabelText(/can listen, free/)).toHaveValue("https://navaan.example/s/tok");
     const on = screen.getByRole("list", { name: "Share on" });   // the platforms, each a link that opens that service's own share page
     for (const [name, host] of [["WhatsApp", "wa.me"], ["X", "twitter.com"], ["Facebook", "facebook.com"], ["Threads", "threads.net"], ["Telegram", "t.me"], ["LinkedIn", "linkedin.com"]]) expect(within(on).getByRole("link", { name: new RegExp(`^${name}`) }).getAttribute("href")).toContain(host);
     expect(within(on).getByRole("link", { name: /^WhatsApp/ }).getAttribute("href")).toContain(encodeURIComponent("https://navaan.example/s/tok")); expect(within(on).getByRole("button", { name: "Copy link" })).toBeInTheDocument();

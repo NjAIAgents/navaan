@@ -179,8 +179,9 @@ class Access(unittest.TestCase):
         K.set_license("song-001", "confirmed", "owner", "paid plan")
         code, body = post("owner-tok", "csrf-owner", "/api/share", slug="song-001", start_ms=5000); tok = json.loads(body)["token"]; self.assertEqual(code, 200); self.assertTrue(json.loads(body)["url"].endswith("/s/" + tok))
         st, h, b = self.raw("/s/" + tok)   # no cookie: anyone with the link
-        self.assertEqual(st, 200); page = b.decode(); self.assertIn('property="og:title" content="Tere &lt;Hone&gt; Se"', page); self.assertIn("/s/" + tok + "/preview.mp3", page); self.assertIn("/app/?t=5", page); self.assertNotIn("<Hone>", page); self.assertIn("noindex", page)
+        self.assertEqual(st, 200); page = b.decode(); self.assertIn('property="og:title" content="Tere &lt;Hone&gt; Se"', page); self.assertIn("/s/" + tok + "/play.mp3#t=5", page); self.assertIn("/app/song/song-001", page); self.assertNotIn("30 second", page); self.assertNotIn("Sign in", page); self.assertNotIn("<Hone>", page); self.assertIn("noindex", page)
         st, h, b = self.raw(f"/s/{tok}/preview.mp3"); self.assertEqual((st, h["Location"]), (302, "https://bucket.example/navaan/songs/song-001/derived/preview-30s.mp3"))
+        st, h, b = self.raw(f"/s/{tok}/play.mp3"); self.assertEqual((st, h["Location"]), (302, "https://bucket.example/navaan/songs/song-001/final.mp3"))   # the whole song, no cookie
         self.assertEqual(self.raw("/s/nonexistent0000")[0], 404)
         st, h, b = self.raw("/img/song-001/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"]); self.assertTrue(b[:4] == b"RIFF")
         self.assertEqual(self.raw("/img/song-001/320.webp", headers={"If-None-Match": h["ETag"]})[0], 304)

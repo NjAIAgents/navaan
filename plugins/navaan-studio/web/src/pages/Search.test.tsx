@@ -46,7 +46,7 @@ describe("share link on a published song", () => {
     const f = mock({ "/api/song/": () => detail("published"), "/api/share/revoke": () => ({ revoked: true }), "/api/share": () => ({ token: "tok123", url: "https://navaan.example/s/tok123" }) });
     at("/studio/songs/song-001");
     fireEvent.click(await screen.findByRole("button", { name: "Create a share link" }));
-    expect(await screen.findByLabelText(/Anyone with this link hears a 30 second preview/)).toHaveValue("https://navaan.example/s/tok123");
+    expect(await screen.findByLabelText(/Anyone with this link can listen/)).toHaveValue("https://navaan.example/s/tok123");
     fireEvent.click(screen.getByRole("button", { name: "Stop sharing" }));
     await screen.findByText("That link no longer works.");
     expect(JSON.parse(String(f.mock.calls.find(([u]) => u === "/api/share/revoke")![1]?.body))).toEqual({ token: "tok123" });

@@ -405,7 +405,7 @@ class H(BaseHTTPRequestHandler):
         h = (LISTENER_HOSTS() or [""])[0] or (_hosts("NAVAAN_PUBLIC_HOST") or [""])[0] or (self.headers.get("Host") or "")   # a shared link is a public link: the public host when there is one
         return f"{'https' if (self._https() or PUBLIC_HOST()) else 'http'}://{h}"
     def _public(self, p):
-        """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3]. Nothing here needs a session; everything is limited per address."""
+        """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3|/play.mp3]. Nothing here needs a session; everything is limited per address."""
         if not rate_ok(PUBLIC_LOG, self._ip(), 240): return self._send(429, {"error": "slow down"}, extra={"Retry-After": "30"})
         try:
             m = re.match(r"^/img/([A-Za-z0-9_-]{1,40})/(\d{2,4})\.(webp|avif|jpg)$", p)
@@ -417,10 +417,14 @@ class H(BaseHTTPRequestHandler):
                 hdr = {"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"}
                 if self.headers.get("If-None-Match") == etag: return self._send(304, b"", mime, hdr)
                 return self._send(200, data, mime, hdr)
-            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3)?$", p)
+            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3)?$", p)
             if m:
                 t = catalog_store.open_share(m.group(1), count=not m.group(2))
                 if not t: return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if m.group(2) == "/play.mp3":   # the whole song: the site is free, so a shared link plays it without a sign in
+                    key = catalog_store.play_key(t["slug"], confirmed_only=True)
+                    if not key: return self._send(404, {"error": "not found"})
+                    return self._send(302, b"", "text/plain", {"Location": objstore.par_url(key, 300)})
                 if m.group(2): return self._send(302, b"", "text/plain", {"Location": objstore.par_url(media.ensure_preview(t["slug"]), 300)})
                 cv = catalog_store.cover_asset(t["slug"])
                 return self._send(200, share_page.render(t, m.group(1), self._base(), (cv or {}).get("dominant_colour"), bool(cv)), "text/html")
