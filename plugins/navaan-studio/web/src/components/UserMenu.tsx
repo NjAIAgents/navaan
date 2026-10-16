@@ -10,7 +10,7 @@ type Props = { choice: Choice; onChoice: (c: Choice) => void; onClose: () => voi
 
 // Opened from the avatar. A popover on a desktop, a bottom sheet on a phone. Appearance is here; the full personalisation page comes with NAV-17.
 export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) {
-  const { studio } = useMe();
+  const { studio, guest, studioUrl, publicUrl } = useMe();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>("button, a")?.focus();
@@ -37,13 +37,20 @@ export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) 
         </button>
       </div>
       <hr />
-      <Link to="/account" onClick={onClose}><Icon name="user" /> Account</Link>
-      {studio && <Link to="/account/security" onClick={onClose}><Icon name="shield" /> Security</Link>}
-      <Link to="/plans" onClick={onClose}><Icon name="star" /> Plan</Link>
-      {studio && <Link to="/studio/settings" onClick={onClose}><Icon name="settings" /> Settings</Link>}
-      {studio && <a href="/legacy"><Icon name="external" /> Classic view</a>}
-      <hr />
-      <button onClick={signOut}><Icon name="out" /> Sign out</button>
+      {guest ? (
+        <>{studioUrl && <a href={`${studioUrl}/app/`}><Icon name="user" /> Studio sign in</a>}</>
+      ) : (
+        <>
+          <Link to="/account" onClick={onClose}><Icon name="user" /> Account</Link>
+          {studio && <Link to="/account/security" onClick={onClose}><Icon name="shield" /> Security</Link>}
+          <Link to="/plans" onClick={onClose}><Icon name="star" /> Plan</Link>
+          {studio && <Link to="/studio/settings" onClick={onClose}><Icon name="settings" /> Settings</Link>}
+          {!studio && studioUrl && <><a href={`${studioUrl}/app/studio`}><Icon name="studio" /> Studio</a><a href={`${studioUrl}/app/studio/settings`}><Icon name="settings" /> Settings</a><a href={`${studioUrl}/app/account/security`}><Icon name="shield" /> Security</a></>}
+          {studio && publicUrl && <a href={`${publicUrl}/app/`}><Icon name="external" /> Public site</a>}
+          {studio && <a href="/legacy"><Icon name="external" /> Classic view</a>}
+        </>
+      )}
+      {!guest && <><hr /><button onClick={signOut}><Icon name="out" /> Sign out</button></>}
       <p className="mu" style={{ margin: "8px 12px 0", fontSize: 12 }}>NAVAAN Studio{version ? ` ${version}` : ""} · © {new Date().getFullYear()} NAVAAN Studio. All rights reserved. · <a href="/privacy" style={{ display: "inline", minHeight: 0, padding: 0 }}>Privacy</a> · <a href="/terms" style={{ display: "inline", minHeight: 0, padding: 0 }}>Terms</a></p>
     </>
   );

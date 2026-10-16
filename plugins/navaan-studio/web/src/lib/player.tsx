@@ -6,9 +6,10 @@ export type QItem = { slug: string; title: string };
 type Player = {
   slug: string | null; title: string; playing: boolean; error: string; expanded: boolean; hasNext: boolean; hasPrev: boolean;
   toggle: (slug: string, title: string, queue?: QItem[]) => Promise<void>; next: () => void; prev: () => void; seek: (seconds: number) => void; setExpanded: (on: boolean) => void;
+  volume: number; muted: boolean; setVolume: (v: number) => void; toggleMute: () => void;
 };
 const noop = async () => undefined;
-const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", expanded: false, hasNext: false, hasPrev: false, toggle: noop, next: () => undefined, prev: () => undefined, seek: () => undefined, setExpanded: () => undefined });
+const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", expanded: false, hasNext: false, hasPrev: false, volume: 1, muted: false, setVolume: () => undefined, toggleMute: () => undefined, toggle: noop, next: () => undefined, prev: () => undefined, seek: () => undefined, setExpanded: () => undefined });
 const PosCtx = createContext<{ position: number; duration: number }>({ position: 0, duration: 0 });
 export const usePlayer = () => useContext(Ctx);
 /** The playing position, apart from the rest so that only what shows time re-renders four times a second. */
@@ -25,6 +26,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [pos, setPos] = useState({ position: 0, duration: 0 });
+  const [volume, setVol] = useState(() => { try { const v = Number(localStorage.getItem("navaan-volume")); return Number.isFinite(v) && localStorage.getItem("navaan-volume") !== null ? Math.min(1, Math.max(0, v)) : 1; } catch { return 1; } });   // expected: storage can be blocked
+  const [muted, setMuted] = useState(false);
+  const setVolume = useCallback((v: number) => { const x = Math.min(1, Math.max(0, v)); setVol(x); if (x > 0) setMuted(false); try { localStorage.setItem("navaan-volume", String(x)); } catch { /* expected: storage can be blocked */ } }, []);
+  const toggleMute = useCallback(() => setMuted((m) => !m), []);
+  useEffect(() => { const a = audio.current; if (a) { a.volume = volume; a.muted = muted || volume === 0; } }, [volume, muted]);   // a phone's own buttons set the real loudness; this is the app's share of it
   const retried = useRef(false);
   const start = useCallback(async (slug: string, at = 0) => {
     const a = audio.current!;
@@ -72,7 +78,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       ms.setActionHandler("nexttrack", hasNext ? next : null); ms.setActionHandler("previoustrack", prev);
     } catch (e) { void e; }   // expected: a browser without these controls
   }, [cur, hasNext, next, prev]);
-  const value = useMemo(() => ({ ...cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, setExpanded }), [cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek]);
+  const value = useMemo(() => ({ ...cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, setExpanded, volume, muted, setVolume, toggleMute }), [cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, volume, muted, setVolume, toggleMute]);
   const tick = () => { const a = audio.current; if (a) setPos({ position: a.currentTime || 0, duration: Number.isFinite(a.duration) ? a.duration : 0 }); };
   const ended = () => { setPlaying(false); if (hasNext) next(); };
   return (

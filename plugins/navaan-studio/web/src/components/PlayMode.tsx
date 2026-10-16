@@ -3,6 +3,7 @@ import { Cover } from "./Cover";
 import { Icon } from "./Icon";
 import { Lyrics } from "./Lyrics";
 import { Transport } from "./Transport";
+import { Volume } from "./Volume";
 import { getJSON, type TrackView } from "../lib/api";
 import { mmss } from "../lib/lyrics";
 import { usePlayer, usePosition } from "../lib/player";
@@ -34,6 +35,7 @@ export function PlayMode() {
           <div className="pm-times mu"><span>{mmss(position)}</span><span>{mmss(duration)}</span></div>
         </div>
         <Transport big />
+        <Volume />
       </div>
     </div>
   );

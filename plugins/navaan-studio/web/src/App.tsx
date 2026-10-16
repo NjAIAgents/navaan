@@ -6,6 +6,7 @@ import { useMe } from "./lib/me";
 import Placeholder from "./pages/Placeholder";
 import Songs from "./pages/Songs";
 import StudioHome from "./pages/StudioHome";
+import { MembersOnly } from "./components/GuestPitch";
 import { Loading } from "./components/Loading";
 
 // Each screen is loaded when it is opened, so the first paint carries only the shell, Home and the Songs list.
@@ -39,25 +40,25 @@ export default function App() {
         <Route path="browse" element={<Browse />} />
         <Route path="song/:slug" element={<ListenerSong />} />
         <Route path="album/:slug" element={<ListenerAlbum />} />
-        <Route path="account" element={<Account />} />
-        <Route path="account/security" element={<Security />} />
-        <Route path="studio" element={<StudioHome />} />
-        <Route path="studio/songs" element={<Songs />} />
-        <Route path="studio/songs/:slug" element={<Song />} />
-        <Route path="studio/inspiration" element={<Inspiration />} />
-        <Route path="studio/inspiration/:slug" element={<Song />} />
-        <Route path="studio/podcasts" element={<Placeholder title="Podcasts" blurb="Spoken episodes will live here, in a later release." />} />
-        <Route path="studio/approvals" element={<Approvals />} />
-        <Route path="studio/schedule" element={<Schedule />} />
-        <Route path="studio/analytics" element={<Analytics />} />
-        <Route path="studio/settings" element={<Settings />} />
-        <Route path="studio/cloud" element={<Cloud />} />
+        <Route path="account" element={<MembersOnly><Account /></MembersOnly>} />
+        <Route path="account/security" element={<MembersOnly><Security /></MembersOnly>} />
+        <Route path="studio" element={<MembersOnly studio><StudioHome /></MembersOnly>} />
+        <Route path="studio/songs" element={<MembersOnly studio><Songs /></MembersOnly>} />
+        <Route path="studio/songs/:slug" element={<MembersOnly studio><Song /></MembersOnly>} />
+        <Route path="studio/inspiration" element={<MembersOnly studio><Inspiration /></MembersOnly>} />
+        <Route path="studio/inspiration/:slug" element={<MembersOnly studio><Song /></MembersOnly>} />
+        <Route path="studio/podcasts" element={<MembersOnly studio><Placeholder title="Podcasts" blurb="Spoken episodes will live here, in a later release." /></MembersOnly>} />
+        <Route path="studio/approvals" element={<MembersOnly studio><Approvals /></MembersOnly>} />
+        <Route path="studio/schedule" element={<MembersOnly studio><Schedule /></MembersOnly>} />
+        <Route path="studio/analytics" element={<MembersOnly studio><Analytics /></MembersOnly>} />
+        <Route path="studio/settings" element={<MembersOnly studio><Settings /></MembersOnly>} />
+        <Route path="studio/cloud" element={<MembersOnly studio><Cloud /></MembersOnly>} />
         <Route path="search" element={<Search />} />
-        <Route path="library" element={<Library />} />
-        <Route path="library/playlists/:id" element={<Playlist />} />
-        <Route path="plans" element={<Plans />} />
-        <Route path="albums" element={<Albums />} />
-        <Route path="albums/:slug" element={<Album />} />
+        <Route path="library" element={<MembersOnly><Library /></MembersOnly>} />
+        <Route path="library/playlists/:id" element={<MembersOnly><Playlist /></MembersOnly>} />
+        <Route path="plans" element={<MembersOnly><Plans /></MembersOnly>} />
+        <Route path="albums" element={<MembersOnly><Albums /></MembersOnly>} />
+        <Route path="albums/:slug" element={<MembersOnly><Album /></MembersOnly>} />
         <Route path="*" element={<Placeholder title="Not found" blurb="That page does not exist." />} />
       </Route>
     </Routes>

@@ -51,6 +51,37 @@ class Access(unittest.TestCase):
             self.assertIn("studio.access", json.loads(self.call("/api/me", "owner-tok", host=studio)[1])["permissions"])
             self.assertEqual(self.call("/api/me", "owner-tok", host="evil.example")[0], 403)     # a host that is not on the list is refused outright
 
+    def test_the_public_host_needs_no_sign_in_and_gives_a_guest_the_catalogue_and_nothing_else(self):
+        env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online", "NAVAAN_STUDIO_HOST": "studio.navaan.online"}
+        with mock.patch.dict(os.environ, env):
+            pub, studio = "navaan.online", "studio.navaan.online"
+            code, body = self.call("/app/", host=pub); self.assertEqual(code, 200); self.assertIn(b"navaan-token", body)   # the app, not the sign in page
+            self.assertNotIn(b"passkey", body.lower())
+            code, body = self.call("/api/me", host=pub); me = json.loads(body); self.assertEqual((code, me.get("guest"), me["permissions"]), (200, True, [])); self.assertEqual(me["studio_url"], "https://studio.navaan.online")
+            for path in ("/api/catalog/tracks", "/api/catalog/filters", "/api/catalog/albums", "/api/search?q=tere", "/api/catalog/tracks?limit=5&offset=0"): self.assertEqual(self.call(path, host=pub)[0], 200, path)
+            self.assertEqual(self.call("/api/play?slug=song-999", host=pub)[0], 404)                  # asks for a song that is not there or not licensed
+            for path in ("/api/songs", "/api/settings", "/api/cloud", "/api/analytics", "/api/playlists", "/api/library", "/api/account", "/api/plans", "/legacy", "/api/schedule"): self.assertEqual(self.call(path, host=pub)[0], 403, path)
+            self.assertEqual(self.call("/api/client-log", None, None, post=True, host=pub)[0], 401)  # no write without a session
+            self.assertEqual(self.call("/", host=pub)[0], 200)                                         # the front door goes to the app, not to a login page
+            self.assertIn(b"passkey", self.call("/app/", host=studio)[1].lower())                      # the studio host still asks the visitor to sign in
+            self.assertEqual(self.call("/api/songs", host=studio)[0], 401)
+            code, body = self.call("/api/me", "owner-tok", host=pub); me = json.loads(body)
+            self.assertEqual((code, me["roles"], me["studio_url"]), (200, ["listener"], "https://studio.navaan.online")); self.assertNotIn("guest", me)   # the owner on the public site: the listener app, with the way to the studio
+            code, body = self.call("/api/me", "owner-tok", host=studio); me = json.loads(body); self.assertEqual(me.get("public_url"), "https://navaan.online"); self.assertIn("studio.access", me["permissions"])   # on the studio host: the studio, with a way to the public site
+
+    def test_one_sign_in_covers_every_host_under_the_domain_and_logout_clears_it(self):
+        with mock.patch.dict(os.environ, {"NAVAAN_COOKIE_DOMAIN": "navaan.online"}):
+            for host in ("navaan.online", "studio.navaan.online"):
+                auth.CTX.host = host; auth.CTX.https = True
+                c = auth.cookie_header("tok"); self.assertIn("Domain=navaan.online", c); self.assertIn("HttpOnly", c); self.assertIn("SameSite=Strict", c); self.assertIn("Secure", c)
+                self.assertEqual(len(auth.login_cookies("tok")), 2); self.assertNotIn("Domain=", auth.login_cookies("tok")[1]); self.assertIn("Max-Age=0", auth.login_cookies("tok")[1])   # and an old host-only cookie is removed
+            auth.CTX.host = "navaan.njlabs.dev"; self.assertNotIn("Domain=", auth.cookie_header("tok")); self.assertEqual(len(auth.login_cookies("tok")), 1)   # the old address keeps its own sign in
+            auth.CTX.host = "studio.navaan.online"; clears = [auth.cookie_header("", clear=True), auth.cookie_header("", clear=True, host_only=True)]
+            self.assertIn("Domain=navaan.online", clears[0]); self.assertNotIn("Domain=", clears[1])
+            auth.CTX.https = True
+            self.assertEqual(auth.rp_of("studio.navaan.online")[0], "navaan.online"); self.assertEqual(auth.rp_of("navaan.online")[0], "navaan.online"); self.assertEqual(auth.rp_of("studio.navaan.online")[1], "https://studio.navaan.online")
+            self.assertEqual(auth.rp_of("navaan.njlabs.dev")[0], "navaan.njlabs.dev")   # a passkey on the old address stays its own
+
     def test_a_shared_link_is_made_on_the_public_host(self):
         with mock.patch.dict(os.environ, {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}):
             h = U.H.__new__(U.H); h.headers = {"Host": "studio.navaan.online"}; h.client_address = ("1.1.1.1", 0)

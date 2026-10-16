@@ -91,3 +91,5 @@ bash /opt/navaan/repo/deploy/check-neighbours.sh > /tmp/neigh-after.txt; diff /t
 ```
 Rollback: write the `.bak-` file back the same way and reload. The certificate renews with the other certbot timers (same webroot).
 Note: the VM's own resolver may keep an old answer for `navaan.online` for a while; check from the VM with `curl --resolve navaan.online:443:127.0.0.1`.
+
+The public host has its own, looser throttle (`navaan_public`, 900 requests a minute per address): visitors have no session, so the strict anonymous zone would stop a normal visit. The studio hosts keep the strict zones. When you change this file on the VM: back up, overwrite in place, `nginx -t`, reload, then run the neighbour check as above.

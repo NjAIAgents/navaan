@@ -6,6 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-17
+
+### Added
+- The free public site. On `navaan.online` nobody has to sign in: Browse, search, album and song pages with lyrics that follow the song, and playing the whole song are open to everyone, for songs that are published with a confirmed licence. A visitor gets no download control, five-minute stream links, and rate limits; Save and Add to playlist say that accounts are coming soon; sharing a song shares its page address. Nothing in the studio, settings or account area is reachable from there.
+- One sign in for you on both hosts. The sign in covers `navaan.online` and `studio.navaan.online` (a cookie for the whole domain), so signing in on one signs in on the other. On the public site you see Studio, Settings and Security as links to the studio host, and the studio's menu has a link to the public site. Passkeys now belong to `navaan.online` and work on both hosts; the old address keeps its own sign in. Register your passkey again once (Account menu, Security).
+- Volume and mute on the player (the bar and play mode), remembered between visits.
+
+### Fixed
+- The Now playing bar no longer lets the page show through it, and the page leaves room beneath its last block.
+
 ## [0.21.0] - 2026-10-16
 
 ### Added
@@ -233,7 +243,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/NjAIAgents/navaan/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/NjAIAgents/navaan/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/NjAIAgents/navaan/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/NjAIAgents/navaan/compare/v0.18.1...v0.19.0

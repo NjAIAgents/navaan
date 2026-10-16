@@ -18,6 +18,8 @@ const PATHS: Record<string, string> = {
   play: "M8 5v14l11-7z",
   pause: "M7 5h4v14H7zM13 5h4v14h-4z",
   plus: "M12 5v14M5 12h14",
+  volume: "M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11",
+  mute: "M4 9v6h4l5 4V5L8 9zM17 9l4 6M21 9l-4 6",
   next: "M6 5v14l9-7zM17 5h2v14h-2z",
   prev: "M18 5v14l-9-7zM5 5h2v14H5z",
   download: "M12 3v12M7 11l5 5 5-5M5 20h14",
