@@ -6,6 +6,15 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-16
+
+### Added
+- The app has its own domain. `navaan.online` is the public app, `www.navaan.online` redirects to it, and `studio.navaan.online` is the studio; `navaan.njlabs.dev` keeps working for now. Each host has its own sign in (cookies are per host). A session on the public host sees the listener app only, even the owner's, and share links are made on the public host. Passkeys belong to a host: register the owner passkey again on `studio.navaan.online`.
+- The release now checks the new hosts after rolling out and rolls back if they do not answer.
+
+### Changed
+- The credit is NAVAAN Studio instead of NJLABS: the sign-in page, the classic page, the privacy policy and the terms, and a footer with links to the privacy policy and the terms in the app.
+
 ## [0.19.0] - 2026-10-16
 
 ### Added
@@ -214,7 +223,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/NjAIAgents/navaan/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/NjAIAgents/navaan/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/NjAIAgents/navaan/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/NjAIAgents/navaan/compare/v0.17.1...v0.18.0
