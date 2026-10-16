@@ -72,6 +72,20 @@ class Access(unittest.TestCase):
         code, body = self.call("/api/albums", "owner-tok"); self.assertEqual([(a["slug"], a["kind"]) for a in json.loads(body)], [("first-light", "ep")])
         self.assertEqual(json.loads(post("/api/albums/delete", slug="first-light")[1]), {"deleted": True}); self.assertEqual(json.loads(self.call("/api/albums", "owner-tok")[1]), [])
 
+    def test_only_the_owner_sets_a_licence_and_it_is_audited(self):
+        import catalog_store as K, navaan_common as C
+        D = os.path.join(C.songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "published"}, open(os.path.join(D, "meta.json"), "w")); K.sync_item("song-001")
+        self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
+        ed = CS.ensure_user("editor1", role="editor"); CS.create_session(auth.skey("ed-tok"), ed["id"], "csrf-ed", "3.3.3.3", None, 3600)
+        post = lambda tok, csrf, **b: self.call("/api/catalog/license", tok, csrf, post=True, body=b)
+        self.assertEqual(post("ed-tok", "csrf-ed", slug="song-001", status="confirmed", note="x")[0], 403)   # an editor may use the studio but not decide licences
+        self.assertEqual(post("lis-tok", "csrf-lis", slug="song-001", status="confirmed", note="x")[0], 403)
+        self.assertEqual(post("owner-tok", "csrf-owner", slug="song-001", status="maybe", note="x")[0], 400); self.assertEqual(post("owner-tok", "csrf-owner", slug="ghost", status="confirmed", note="x")[0], 404)
+        self.assertEqual(json.loads(self.call("/api/tracks", "owner-tok")[1])[0]["license_status"], "unconfirmed")
+        self.assertEqual(post("owner-tok", "csrf-owner", slug="song-001", status="confirmed", note="paid plan", plan="paid")[0], 200)
+        t = json.loads(self.call("/api/tracks", "owner-tok")[1])[0]; self.assertEqual((t["license_status"], t["plan"], t["decided_by"]), ("confirmed", "paid", "owner1"))
+        self.assertEqual(CS._run(lambda c: c.execute("SELECT count(*) AS n FROM audit_log WHERE action = 'track_license'").fetchone())["n"], 1)
+
     def test_a_signed_out_visitor_reaches_nothing(self):
         self.assertEqual(self.call("/api/songs")[0], 401); self.assertEqual(self.call("/api/client-log", None, "x", post=True)[0], 401)
         self.assertEqual(self.call("/api/songs", "not-a-session")[0], 401)

@@ -211,6 +211,7 @@ Songs start quickly and keep playing, with covers that appear smoothly (a soft c
 - The listener side is not opened to the public until its security review is done.
 - The server has enough memory and disk for the database next to the application (to be confirmed).
 - Rights to commercially use generated songs are checked by Nj before any song goes behind a subscription.
+- Owner decision 2026-10-16 (NAV-11): every song in NAVAAN at this date was generated on a paid Suno plan. Each existing track is recorded with `license_status = confirmed`, plan `paid` and this note; the owner stays responsible for reading Suno's terms (not legal advice). Songs added later start `unconfirmed` and the plan tier is recorded at import from `suno.plan` in `navaan.config.json`; the owner confirms them one by one.
 
 - **FR-026**: The listener site MUST be served on the domain `navaan.online` (and `www.navaan.online` redirecting to it) over valid, automatically renewed secure connections; the studio MUST be served on a separate host name so listener and studio sessions never share cookies; shared links use `navaan.online`. The studio host is `studio.navaan.online`; `navaan.online` serves all public pages (songs, albums, playlists, share links, listener sign-up).
 - **FR-027**: Email sent to listeners (verification, password reset) MUST come from the `navaan.online` domain with sender authentication in place (SPF, DKIM, DMARC) so it is delivered.
