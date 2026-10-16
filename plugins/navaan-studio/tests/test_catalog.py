@@ -63,6 +63,12 @@ class Catalog(Base):
         self.assertEqual([t["slug"] for t in self.K.public_albums(True)[0]["tracks"]], ["song-001", "song-002"])   # the studio sees both
         self.assertNotIn("hidden", [a["slug"] for a in self.K.public_albums(True)])   # a draft album is not offered
 
+    def test_browse_pages_through_the_songs_in_a_stable_order_with_no_gaps_or_repeats(self):
+        for i in range(1, 8): self.song(f"song-00{i}", f"Song {i}")
+        self.K.sync_all(); for_all = [r["slug"] for r in self.K.browse(True)]
+        pages = [[r["slug"] for r in self.K.browse(True, limit=3, offset=o)] for o in (0, 3, 6, 9)]
+        self.assertEqual([len(p) for p in pages], [3, 3, 1, 0]); self.assertEqual(sum(pages, []), for_all); self.assertEqual(len(set(for_all)), 7)
+
     def test_album_crud_and_reorder_in_one_transaction(self):
         for i, n in enumerate(("One", "Two", "Three"), 1): self.song(f"song-00{i}", n); self.K.sync_item(f"song-00{i}")
         slug = self.K.save_album("", "My Album", "ep", "draft", "2026-11-01", "d")

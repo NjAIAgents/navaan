@@ -12,6 +12,11 @@ async function post(page: Page, path: string, body: unknown) {
   return page.evaluate(async ([p, b, tok]) => (await fetch(p as string, { method: "POST", headers: { "Content-Type": "application/json", "X-Navaan-Token": tok as string }, body: JSON.stringify(b) })).status, [path, body, t]);
 }
 
+// The Library's New playlist form asks for a name, what it is for, and who can see it.
+async function newPlaylist(page: Page, name: string) {
+  await page.getByRole("button", { name: /New playlist/ }).click(); await page.getByLabel("Name", { exact: true }).fill(name); await page.getByRole("button", { name: "Create playlist" }).click();
+}
+
 test("browse shows only confirmed songs, with no studio in sight", async ({ page }) => {
   await page.goto("/app/");
   await expect(page.getByRole("heading", { name: "Browse", level: 1 })).toBeVisible();
@@ -53,8 +58,8 @@ test("a shared link opens for someone who is not signed in", async ({ page, brow
 test("the free plan stops at three playlists with a clear way on, and a person can tidy up", async ({ page }, info) => {
   await page.goto("/app/library");
   const names = [1, 2, 3, 4].map((i) => `Limit ${info.project.name} ${i}`);
-  for (const n of names.slice(0, 3)) { await page.getByLabel("New playlist name").fill(n); await page.getByRole("button", { name: "Create" }).click(); await expect(page.getByRole("link", { name: new RegExp(n) })).toBeVisible(); }
-  await page.getByLabel("New playlist name").fill(names[3]); await page.getByRole("button", { name: "Create" }).click();
+  for (const n of names.slice(0, 3)) { await newPlaylist(page, n); await expect(page.getByRole("link", { name: new RegExp(n) })).toBeVisible(); }
+  await newPlaylist(page, names[3]);
   const alert = page.getByRole("alert").filter({ hasText: /plan includes 3/ }); await expect(alert).toBeVisible();
   await alert.getByRole("link", { name: /See the plans/ }).click(); await expect(page.getByRole("heading", { name: "Plans", level: 1 })).toBeVisible(); await expect(page.getByText(/3 of 3 playlists used/)).toBeVisible();
   await page.goto("/app/library");
@@ -64,7 +69,7 @@ test("the free plan stops at three playlists with a clear way on, and a person c
 
 test("a playlist can be filled from a song page and the library songs can be filtered", async ({ page }, info) => {
   const name = `Fill ${info.project.name}`;
-  await page.goto("/app/library"); await page.getByLabel("New playlist name").fill(name); await page.getByRole("button", { name: "Create" }).click(); await expect(page.getByRole("link", { name: new RegExp(name) })).toBeVisible();
+  await page.goto("/app/library"); await newPlaylist(page, name); await expect(page.getByRole("link", { name: new RegExp(name) })).toBeVisible();
   await page.goto("/app/song/song-010"); await page.getByLabel("Playlist").selectOption({ label: name }); await page.getByRole("button", { name: "Add to playlist" }).click(); await expect(page.getByText(`Added to "${name}".`)).toBeVisible();
   await page.goto("/app/library"); await page.getByRole("link", { name: new RegExp(name) }).click(); await expect(page.getByRole("link", { name: "Tere Hone Se" })).toBeVisible();
   await page.getByRole("button", { name: "Delete playlist" }).click(); await page.getByRole("button", { name: "Yes, delete" }).click();

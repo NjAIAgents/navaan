@@ -3,9 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
+import { AddToPlaylist } from "../components/AddToPlaylist";
 import { getJSON, postJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { coverOf } from "./Albums";
+import { Loading } from "../components/Loading";
 
 // One album: the hero with its cover, title, kind and status; the details; the songs in order (up, down, remove) and a way to add more. A published album may only hold published songs: the server says so.
 export default function Album() {
@@ -28,7 +30,7 @@ export default function Album() {
   }, [slug]);
   useEffect(() => { void load(); }, [load]);
   const run = async (fn: () => Promise<unknown>, ok = "") => { setBusy(true); setNote(""); try { await fn(); await load(); setNote(ok); } catch (e) { setNote(errText(e)); } finally { setBusy(false); } };
-  if (!a) return err ? <div className="card" role="alert"><h2>Could not open this album</h2><p className="mu">{err}</p><Link className="btn" to="/albums">Back to Albums</Link></div> : <p className="mu" role="status">Loading…</p>;
+  if (!a) return err ? <div className="card" role="alert"><h2>Could not open this album</h2><p className="mu">{err}</p><Link className="btn" to="/albums">Back to Albums</Link></div> : <Loading />;
   const order = a.tracks.map((t) => t.slug);
   const reorder = (next: string[]) => run(() => postJSON("/api/albums/reorder", { album: slug, tracks: next }));
   const move = (i: number, d: number) => { const n = [...order]; [n[i], n[i + d]] = [n[i + d], n[i]]; return reorder(n); };
@@ -64,6 +66,7 @@ export default function Album() {
             <li key={t.slug} className="stp">
               {t.status === "published" && <PlayButton slug={t.slug} title={t.title} queue={playable} label={t.title} />}
               <Link className="tx" to={`/song/${t.slug}`}><b>{i + 1}. {t.title}</b>{t.status !== "published" && <span className="mu"> · {t.status}</span>}</Link>
+              {t.status === "published" && <AddToPlaylist slug={t.slug} title={t.title} />}
               <button className="btn g sq" disabled={busy || i === 0} onClick={() => void move(i, -1)} aria-label={`Move ${t.title} up`}><span style={{ transform: "rotate(-90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
               <button className="btn g sq" disabled={busy || i === a.tracks.length - 1} onClick={() => void move(i, 1)} aria-label={`Move ${t.title} down`}><span style={{ transform: "rotate(90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
               <button className="btn g" disabled={busy} onClick={() => void reorder(order.filter((x) => x !== t.slug))} aria-label={`Remove ${t.title}`}>Remove</button>

@@ -23,13 +23,15 @@ describe("Library", () => {
     at("/library");
     expect(await screen.findByRole("link", { name: /Evening/ })).toHaveAttribute("href", "/library/playlists/11111111-1111-1111-1111-111111111111");
     expect(screen.getByRole("link", { name: /Two/ })).toHaveAttribute("href", "/song/song-002");
-    fireEvent.change(screen.getByLabelText("New playlist name"), { target: { value: "Road" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    expect(await screen.findByRole("link", { name: /Road/ })).toBeInTheDocument(); expect(posts(f, "/api/playlists/create")).toEqual([{ name: "Road" }]);
+    fireEvent.click(screen.getByRole("button", { name: /New playlist/ }));   // the form asks for the name, what it is for, and who can see it
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Road" } }); fireEvent.change(screen.getByLabelText(/What is it for/), { target: { value: "Long drives" } }); fireEvent.change(screen.getByLabelText("Who can see it"), { target: { value: "unlisted" } });
+    expect(screen.getByText(/Anyone with the link can open it/)).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: "Create playlist" }));
+    expect(await screen.findByRole("link", { name: /Road/ })).toBeInTheDocument(); expect(posts(f, "/api/playlists/create")).toEqual([{ name: "Road", description: "Long drives", visibility: "unlisted" }]);
   });
   it("shows the plan's limit message with a way to the plans when the server refuses", async () => {
     mock({ "/api/playlists/create": () => json({ error: "Your Free plan includes 3 playlists. A higher plan has more.", limit: 3, plan: "free", upgrade: "/app/plans" }, 403), "/api/playlists": () => [pl()], "/api/library": () => ({ tracks: [], albums: [], following: false }) });
     at("/library"); await screen.findByRole("link", { name: /Evening/ });
-    fireEvent.change(screen.getByLabelText("New playlist name"), { target: { value: "A fourth" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: /New playlist/ })); fireEvent.change(screen.getByLabelText("Name"), { target: { value: "A fourth" } }); fireEvent.click(screen.getByRole("button", { name: "Create playlist" }));
     const a = await screen.findByRole("alert"); expect(a).toHaveTextContent("Your Free plan includes 3 playlists"); expect(within(a).getByRole("link", { name: /See the plans/ })).toHaveAttribute("href", "/plans");
   });
 });

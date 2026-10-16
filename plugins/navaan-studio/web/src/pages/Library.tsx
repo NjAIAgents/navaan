@@ -2,26 +2,26 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { Cover } from "../components/Cover";
-import { ApiError, getJSON, postJSON, type Filters, type LibraryData, type PlaylistRow, type TrackRow } from "../lib/api";
+import { getJSON, type Filters, type LibraryData, type PlaylistRow, type TrackRow } from "../lib/api";
 import { useMe } from "../lib/me";
 import { errText } from "../lib/songs";
+import { Loading } from "../components/Loading";
+import { LoadMore } from "../components/LoadMore";
+import { AddToPlaylist } from "../components/AddToPlaylist";
+import { NewPlaylist } from "../components/NewPlaylist";
+import { usePaged } from "../lib/paged";
 
-type Limit = { error: string; upgrade?: string };
 
 // The Songs tab: every song out, narrowed by album, language and genre (the server filters, so a listener never sees an unconfirmed song).
 function Songs() {
   const me = useMe();
   const [f, setF] = useState<Filters | null>(null);
   const [sel, setSel] = useState({ album: "", language: "", genre: "" });
-  const [rows, setRows] = useState<TrackRow[] | null>(null);
-  const [err, setErr] = useState("");
-  useEffect(() => { getJSON<Filters>("/api/catalog/filters").then(setF).catch((e) => setErr(errText(e))); }, []);
-  useEffect(() => {
-    const q = new URLSearchParams(Object.entries(sel).filter(([, v]) => v)).toString();
-    let live = true;   // a slower answer for an earlier choice must not replace the answer for the latest one
-    setRows(null); getJSON<TrackRow[]>(`/api/catalog/tracks${q ? "?" + q : ""}`).then((r) => { if (live) setRows(r); }).catch((e) => { if (live) setErr(errText(e)); });
-    return () => { live = false; };
-  }, [sel]);
+  const [ferr, setFerr] = useState("");
+  useEffect(() => { getJSON<Filters>("/api/catalog/filters").then(setF).catch((e) => setFerr(errText(e))); }, []);
+  const q = new URLSearchParams(Object.entries(sel).filter(([, v]) => v)).toString();
+  const { items: rows, busy, done, err: perr, more } = usePaged<TrackRow>(`/api/catalog/tracks${q ? "?" + q : ""}`, 24);   // 24 songs, then more as you scroll; a slower answer for an earlier choice is ignored
+  const err = ferr || perr;
   const pick = (k: keyof typeof sel, label: string, opts: { value: string; label: string }[]) => (
     <><label className="sr" htmlFor={`f-${k}`}>{label}</label>
       <select id={`f-${k}`} className="field sel" value={sel[k]} onChange={(e) => setSel({ ...sel, [k]: e.target.value })}><option value="">{label}: all</option>{opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></>
@@ -34,16 +34,20 @@ function Songs() {
         {pick("genre", "Genre", (f?.genres ?? []).map((x) => ({ value: x, label: x })))}
       </div>
       {err && <div className="card" role="alert"><p className="mu">{err}</p></div>}
-      {!rows && !err && <p className="mu" role="status">Loading…</p>}
+      {!rows && !err && <Loading />}
       {rows && (
         <div className="card" style={{ padding: 8 }} aria-live="polite">
           {rows.length ? rows.map((t) => (
-            <Link key={t.slug} className="q" to={`/song/${t.slug}`}>
-              <Cover slug={t.slug} title={t.title} art={t.art} />
-              <span className="tx"><b>{t.title}</b><span className="s">{[t.language, t.genre, ...t.albums.map((a) => a.title)].filter(Boolean).join(" · ")}</span></span>
-              {me.studio && t.licence !== "confirmed" && <span className="chip wn">Licence {t.licence}</span>}<Icon name="chevron" />
-            </Link>
+            <div key={t.slug} className="qwrap">
+              <Link className="q" to={`/song/${t.slug}`}>
+                <Cover slug={t.slug} title={t.title} art={t.art} />
+                <span className="tx"><b>{t.title}</b><span className="s">{[t.language, t.genre, ...t.albums.map((a) => a.title)].filter(Boolean).join(" · ")}</span></span>
+                {me.studio && t.licence !== "confirmed" && <span className="chip wn">Licence {t.licence}</span>}<Icon name="chevron" />
+              </Link>
+              <AddToPlaylist slug={t.slug} title={t.title} />
+            </div>
           )) : <p className="empty">No songs match.</p>}
+          <LoadMore done={done} busy={busy} more={more} />
         </div>
       )}
     </section>
@@ -55,19 +59,10 @@ export default function Library() {
   const [tab, setTab] = useState<"playlists" | "songs">("playlists");
   const [lists, setLists] = useState<PlaylistRow[] | null>(null);
   const [lib, setLib] = useState<LibraryData | null>(null);
-  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
   const [err, setErr] = useState("");
-  const [limit, setLimit] = useState<Limit | null>(null);
-  const [busy, setBusy] = useState(false);
   const load = useCallback(() => Promise.all([getJSON<PlaylistRow[]>("/api/playlists"), getJSON<LibraryData>("/api/library")]).then(([p, l]) => { setLists(p); setLib(l); setErr(""); }).catch((e) => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
-  const create = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!name.trim()) return;
-    setBusy(true); setLimit(null); setErr("");
-    try { await postJSON("/api/playlists/create", { name }); setName(""); await load(); }
-    catch (x) { if (x instanceof ApiError && x.status === 403) setLimit({ error: x.message, upgrade: "/plans" }); else setErr(errText(x)); }
-    finally { setBusy(false); }
-  };
   return (
     <>
       <div className="ph"><h1 className="disp">Library</h1><p>Your playlists and saved songs.</p></div>
@@ -79,13 +74,8 @@ export default function Library() {
       {tab === "songs" ? <Songs /> : <>
       <section className="sec" aria-labelledby="pl-h">
         <div className="sh"><h2 id="pl-h">Playlists</h2><span className="n">{lists?.length ?? 0}</span></div>
-        <form className="row" onSubmit={(e) => void create(e)}>
-          <label className="sr" htmlFor="new-pl">New playlist name</label>
-          <input id="new-pl" className="field" style={{ flex: 1, minWidth: 0 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="New playlist" maxLength={100} autoComplete="off" />
-          <button className="btn p" type="submit" disabled={busy || !name.trim()}>Create</button>
-        </form>
-        {limit && <div className="card" role="alert"><h2>Playlist limit reached</h2><p>{limit.error}</p><Link className="btn p" to={limit.upgrade ?? "/plans"}><Icon name="star" />See the plans</Link></div>}
-        {!lists && !err && <p className="mu" role="status">Loading…</p>}
+        {creating ? <div className="card"><NewPlaylist onCreated={() => { setCreating(false); void load(); }} /></div> : <div className="row"><button className="btn p" onClick={() => setCreating(true)}><Icon name="plus" /> New playlist</button></div>}
+        {!lists && !err && <Loading />}
         {lists && (
           <div className="card" style={{ padding: 8 }}>
             {lists.length ? lists.map((p) => (

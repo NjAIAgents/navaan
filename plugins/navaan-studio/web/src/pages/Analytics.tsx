@@ -6,6 +6,7 @@ import Interactions from "./analytics/Interactions";
 import Numbers from "./analytics/Numbers";
 import Recs from "./analytics/Recs";
 import { Actions, Auto, Hashtags, Peers } from "./analytics/Extras";
+import { Loading } from "../components/Loading";
 
 const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"]] as const;
 
@@ -37,7 +38,7 @@ export default function Analytics() {
         {err && <div className="card" role="alert"><h2>Could not load analytics</h2><p className="mu">{err}</p></div>}
         {tab === "interactions" ? <Interactions platform={platform} /> : (
           <>
-            {!d && !err && <p className="mu" role="status">Loading…</p>}
+            {!d && !err && <Loading />}
             {d?.empty && <div className="card"><p className="empty">Nothing collected yet{d.error ? ` (${d.error})` : ""}.</p></div>}
             {d?.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
             {d && !d.empty && <Actions d={d} platform={platform} account={account} reload={load} />}

@@ -5,6 +5,7 @@ import { SchedulePanel } from "../components/SchedulePanel";
 import { getJSON, type ScheduleEntry } from "../lib/api";
 import { byDay, monthGrid } from "../lib/calendar";
 import { classic, errText, itemPath } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STATE: Record<ScheduleEntry["state"], { label: string; cls: string }> = { scheduled: { label: "Scheduled", cls: "" }, done: { label: "Published", cls: "ok" }, missed: { label: "Missed", cls: "bad" }, blocked: { label: "Blocked", cls: "wn" } };
@@ -47,7 +48,7 @@ export default function Schedule() {
         <button className="btn sq" aria-label="Next month" onClick={() => step(1)}><Icon name="chevron" /></button>
       </div>
       {err && <div className="card" role="alert"><h2>Could not load the schedule</h2><p className="mu">{err}</p></div>}
-      {!all && !err && <p className="mu" role="status">Loading…</p>}
+      {!all && !err && <Loading />}
       {all && (
         <>
           <table className="cal card" aria-label={`Calendar, ${title}`}>

@@ -123,7 +123,7 @@ button { font: inherit; color: inherit; }
 .fail { border-color: var(--bad); } .fail h2 { color: var(--bad); } .fail p { margin: 4px 0 12px; } code { font-size: 13px; word-break: break-all; }
 .chip.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
 .back { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--mu); text-decoration: none; margin-bottom: 4px; } .back .ic { transform: rotate(180deg); }
-.steps, .hist { list-style: none; margin: 0; padding: 8px; } .stp { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 6px 12px; } .stp .tx { flex: 1; min-width: 0; }
+.steps, .hist { list-style: none; margin: 0; padding: 8px; } .stp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-height: var(--tap); padding: 6px 12px; } .stp .tx { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }   /* a row with several buttons wraps them under the title on a phone instead of squeezing the title to nothing */
 .hist li { padding: 8px 12px; border-top: 1px solid var(--ln); font-size: 13px; } .hist li:first-child { border-top: 0; }
 
 /* Schedule (NAV-14): month calendar on a wide screen, the list always */
@@ -162,8 +162,13 @@ input[type="checkbox"] { width: var(--tap); height: var(--tap); flex: none; acce
 .search:focus-within { outline: 2px solid var(--ac); outline-offset: 2px; }
 
 /* Motion, equaliser, now playing, glass fallback (NAV-20). Every animation stops under prefers-reduced-motion (rule above). */
-.page { animation: rtin .22s var(--ease) both; }
-@keyframes rtin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* A new screen eases in piece by piece: each block of the page rises a little and fades in as it appears, so content that arrives after the data does not pop. Opacity and transform only: no layout shift. */
+.page > * { animation: rise .26s var(--ease) both; }
+.page > :nth-child(2) { animation-delay: .03s; } .page > :nth-child(3) { animation-delay: .06s; } .page > :nth-child(4) { animation-delay: .09s; } .page > :nth-child(n+5) { animation-delay: .12s; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.skel { display: flex; flex-direction: column; gap: 16px; } .sk { display: block; border-radius: var(--r3); background: linear-gradient(90deg, var(--s2) 25%, var(--ln) 50%, var(--s2) 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+.sk-t { height: 34px; width: min(320px, 60%); } .sk-c { height: 96px; width: 100%; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .cover img { filter: blur(8px); transition: opacity .6s var(--ease), filter .6s var(--ease); } .cover img.in { filter: none; }
 .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; width: 18px; flex: none; color: var(--ac); vertical-align: middle; }
 .eq i { flex: 1; height: 100%; background: currentColor; border-radius: 1px; transform-origin: bottom; animation: eq 0.9s ease-in-out infinite alternate; }
@@ -213,3 +218,5 @@ body.lock { overflow: hidden; }
 @media (max-width: 899px) { .np .tp { gap: 2px; } .np .btn.sq.round.mid { width: 44px; height: 44px; min-height: 44px; } }
 
 .side-cr { margin: 8px 12px 4px; font-size: 11px; line-height: 1.4; text-align: left; } .side-cr a { color: inherit; }   /* the credit lives in the sidebar and the account menu: a footer under the page moved when the page filled in, which cost layout shift */
+
+.qwrap { display: flex; align-items: center; gap: 8px; } .qwrap .q { flex: 1; min-width: 0; }   /* a list row with a button beside its link: a button cannot sit inside a link */

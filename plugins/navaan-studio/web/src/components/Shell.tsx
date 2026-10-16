@@ -14,6 +14,7 @@ import { Cover } from "./Cover";
 import { Transport } from "./Transport";
 import { PlayMode } from "./PlayMode";
 import { Equaliser } from "./Equaliser";
+import { Loading } from "./Loading";
 
 type Item = { to: string; label: string; icon: IconName; end?: boolean };
 const LISTENER_HIDES = new Set(["/studio", "/albums"]);   // the studio side is not shown to a person without studio access (the server refuses it anyway)
@@ -116,7 +117,7 @@ function ShellFrame() {
           <Link className="btn g sq" to="/search" aria-label="Search"><Icon name="search" /></Link>
           <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" data-i={who.slice(0, 1).toUpperCase()} aria-hidden="true" /></button>
         </div>
-        <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<ErrorBoundary><Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></ErrorBoundary></main>
+        <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<ErrorBoundary><Suspense fallback={<Loading />}><Outlet /></Suspense></ErrorBoundary></main>
         <NowPlaying />
         <PlayMode />
       </div>

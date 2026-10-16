@@ -338,7 +338,7 @@ def _visible(all_licences):
     return "t.status = 'published'" + ("" if all_licences else " AND t.license_status = 'confirmed'")
 
 
-def browse(all_licences=False, album=None, language=None, genre=None, limit=200):
+def browse(all_licences=False, album=None, language=None, genre=None, limit=200, offset=0):
     """Published tracks for Browse and the Library, newest first, with album, language, genre and whether a cover exists. Filters narrow it; a listener never sees an unconfirmed track."""
     q = ("SELECT t.slug, t.title, t.language, t.license_status AS licence, t.published_at, "
          "COALESCE((SELECT g.name FROM track_genres tg JOIN genres g ON g.id = tg.genre_id WHERE tg.track_id = t.id LIMIT 1), '') AS genre, "
@@ -349,8 +349,8 @@ def browse(all_licences=False, album=None, language=None, genre=None, limit=200)
          "AND (?::text IS NULL OR t.language = ?::text) "
          "AND (?::text IS NULL OR EXISTS (SELECT 1 FROM track_genres tg JOIN genres g ON g.id = tg.genre_id WHERE tg.track_id = t.id AND g.name = ?::text)) "
          "AND (?::text IS NULL OR EXISTS (SELECT 1 FROM album_tracks at JOIN albums a ON a.id = at.album_id WHERE at.track_id = t.id AND a.slug = ?::text)) "
-         "ORDER BY t.published_at DESC NULLS LAST, t.title LIMIT ?")
-    rows = _tx(lambda c: c.execute(q, (language, language, genre, genre, album, album, max(1, min(int(limit), 500)))).fetchall())
+         "ORDER BY t.published_at DESC NULLS LAST, t.title, t.slug LIMIT ? OFFSET ?")
+    rows = _tx(lambda c: c.execute(q, (language, language, genre, genre, album, album, max(1, min(int(limit), 500)), max(0, int(offset)))).fetchall())
     return [{"slug": r["slug"], "title": r["title"], "language": r["language"] or "", "genre": r["genre"], "albums": r["albums"], "licence": r["licence"],
              "art": {"colour": r["colour"]} if r["has_cover"] else None} for r in rows]
 

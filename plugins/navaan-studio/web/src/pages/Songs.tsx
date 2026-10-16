@@ -8,6 +8,7 @@ import { useMe } from "../lib/me";
 import { usePlayer } from "../lib/player";
 import { getJSON, type SongRow } from "../lib/api";
 import { errText, itemPath, nextAction } from "../lib/songs";
+import { Loading } from "../components/Loading";
 
 const FILTERS = [["all", "All"], ["approval", "Needs you"], ["production", "In production"], ["done", "Done"]] as const;
 type Filter = (typeof FILTERS)[number][0];
@@ -27,7 +28,7 @@ export function ItemList({ type, title, blurb, noun }: { type: string; title: st
         {FILTERS.map(([k, label]) => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{label}{rows && k !== "all" ? <span className="mu"> {rows.filter((s) => s.status === k).length}</span> : null}</button>)}
       </div>
       {err && <div className="card" role="alert"><h2>Could not load your {noun}s</h2><p className="mu">{err}</p></div>}
-      {!rows && !err && <p className="mu" role="status">Loading…</p>}
+      {!rows && !err && <Loading />}
       {rows && (
         <div className="card" style={{ padding: 8 }}>
           {shown.length ? shown.map((s) => (
