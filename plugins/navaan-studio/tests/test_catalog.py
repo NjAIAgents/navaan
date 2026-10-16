@@ -55,6 +55,14 @@ class Catalog(Base):
         a = self.K.albums()[0]
         self.assertEqual((a["slug"], a["title"], a["status"]), ("first-light", "First Light", "published")); self.assertEqual([(t["slug"], t["position"]) for t in a["tracks"]], [("song-001", 1), ("song-002", 2)])
 
+    def test_listeners_see_published_albums_with_only_the_songs_they_may_hear(self):
+        self.song("song-001", "One", album="First Light"); self.song("song-002", "Two", album="First Light"); self.song("song-003", "Three", album="Hidden", state="drafted")
+        self.K.sync_all(); self.K.set_license("song-001", "confirmed", "owner", "test")
+        a = next(x for x in self.K.albums() if x["slug"] == "first-light"); self.K.save_album(a["slug"], a["title"], a["kind"], "published", a["release_date"], a["description"])
+        listener = self.K.public_albums(False); self.assertEqual([a["slug"] for a in listener], ["first-light"]); self.assertEqual([t["slug"] for t in listener[0]["tracks"]], ["song-001"])   # song-002 has no confirmed licence
+        self.assertEqual([t["slug"] for t in self.K.public_albums(True)[0]["tracks"]], ["song-001", "song-002"])   # the studio sees both
+        self.assertNotIn("hidden", [a["slug"] for a in self.K.public_albums(True)])   # a draft album is not offered
+
     def test_album_crud_and_reorder_in_one_transaction(self):
         for i, n in enumerate(("One", "Two", "Three"), 1): self.song(f"song-00{i}", n); self.K.sync_item(f"song-00{i}")
         slug = self.K.save_album("", "My Album", "ep", "draft", "2026-11-01", "d")

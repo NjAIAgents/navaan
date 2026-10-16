@@ -11,6 +11,7 @@ import StudioHome from "./pages/StudioHome";
 const Browse = lazy(() => import("./pages/Browse"));
 const ListenerSong = lazy(() => import("./pages/ListenerSong"));
 const Account = lazy(() => import("./pages/Account"));
+const ListenerAlbum = lazy(() => import("./pages/ListenerAlbum"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Cloud = lazy(() => import("./pages/Cloud"));
 const Security = lazy(() => import("./pages/Security"));
@@ -36,6 +37,7 @@ export default function App() {
         <Route index element={<HomeSwitch />} />
         <Route path="browse" element={<Browse />} />
         <Route path="song/:slug" element={<ListenerSong />} />
+        <Route path="album/:slug" element={<ListenerAlbum />} />
         <Route path="account" element={<Account />} />
         <Route path="account/security" element={<Security />} />
         <Route path="studio" element={<StudioHome />} />
