@@ -60,12 +60,10 @@ def _fit(d, text, path, size, max_w, min_size=48):
     return ImageFont.truetype(path, min_size)
 
 
-def _mark(im, x, y, s=54):
-    """The NAVAAN mark: the rounded gradient square of the site, drawn here."""
-    g = Image.new("RGB", (s, s)); px = g.load()
-    for i in range(s):
-        for j in range(s): t = (i + j) / (2 * s); px[i, j] = tuple(int(GOLD[k] + (EMBER[k] - GOLD[k]) * t) for k in range(3))
-    m = Image.new("L", (s, s), 0); ImageDraw.Draw(m).rounded_rectangle((0, 0, s - 1, s - 1), radius=s // 3, fill=255); im.paste(g, (x, y), m)
+def _mark(im, cx, y, h=84):
+    """The NAVAAN logo mark (scripts/brand/mark.png, gold with its own transparency), centred on cx."""
+    m = Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "brand", "mark.png")).convert("RGBA")
+    m = m.resize((round(m.width * h / m.height), h), Image.LANCZOS); im.paste(m, (cx - m.width // 2, y), m)
 
 
 def _text(im, xy, text, font, fill, anchor):
@@ -80,13 +78,13 @@ def current_style(D):
 
 
 def typeset(slug, art_path=None, style=None):
-    """Mark and NAVAAN across the top, the title in a display font over a shaded lower third, a gold rule, the site at the foot. Free, no model call."""
+    """The logo mark and NAVAAN across the top, the title in a display font over a shaded lower third, a gold rule, the site at the foot. Free, no model call."""
     D = C.song_dir(slug); art = Image.open(art_path or os.path.join(D, "poster_art.png")).convert("RGB")
     style = style if style in STYLES else current_style(D); file, px, align = STYLES[style]; path = os.path.join(FONTS, file)
     title = (_read(D, "title.txt").splitlines() or [slug])[0]; native, lat = split_title(title)
     im = cover_scale(art, W, H); shade(im, 0, 225, 0.5); pad = 84; cx = W // 2 if align == "center" else pad; anchor = "ms" if align == "center" else "ls"
     d = ImageDraw.Draw(im); f = latin(34)
-    _mark(im, W // 2 - 150, pad - 8); d.text((W // 2 - 80, pad + 19), "NAVAAN", font=f, fill=(255, 255, 255), anchor="lm")
+    _mark(im, W // 2, pad - 30, 140); d.text((W // 2, pad + 150), "N A V A A N", font=f, fill=(240, 200, 140), anchor="mm")
     y = H - 150; d.text((W // 2, H - 64), "navaan.online", font=latin(28), fill=(235, 225, 205), anchor="mm")
     d.line((pad if align == "left" else W // 2 - 60, y, (pad + 120) if align == "left" else W // 2 + 60, y), fill=GOLD, width=4); y -= 34
     if lat:

@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-17
+
+### Changed
+- The NAVAAN logo (the N made of a sound wave) replaces the plain gradient square: in the sidebar and top bar (deep gold on the light theme), as the browser tab and phone home-screen icon, on the shared-link page, and on every poster. It is a low-resolution PNG for now; a larger or SVG original would make the poster crisper.
+
 ## [0.25.1] - 2026-10-17
 
 ### Fixed
@@ -274,7 +279,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.25.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/NjAIAgents/navaan/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/NjAIAgents/navaan/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/NjAIAgents/navaan/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...v0.24.1

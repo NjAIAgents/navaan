@@ -41,7 +41,7 @@ a.go{{display:inline-flex;align-items:center;justify-content:center;min-height:4
 a.go:focus-visible,audio:focus-visible{{outline:2px solid #F2EEE7;outline-offset:3px}}
 </style></head>
 <body><main>
-<div class="brand">NAVAAN</div>
+<div class="brand"><img src="/app/brand/mark.png" alt="" width="63" height="42" style="width:63px;height:42px;aspect-ratio:auto;border-radius:0;box-shadow:none;display:block;margin:0 auto 6px">NAVAAN</div>
 {pic}
 <h1>{E(title)}</h1>
 <p>Free to listen. No sign in.</p>
