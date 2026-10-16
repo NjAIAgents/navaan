@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Cover } from "../components/Cover";
+import { Tile } from "../components/Tile";
 import { getJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { Loading } from "../components/Loading";
@@ -12,10 +11,7 @@ function Row({ title, rows }: { title: string; rows: TrackRow[] }) {
       <div className="sh"><h2 id={id}>{title}</h2><span className="n">{rows.length}</span></div>
       <div className="grid tiles">
         {rows.map((t) => (
-          <Link key={t.slug} className="tile" to={`/song/${t.slug}`}>
-            <Cover slug={t.slug} title={t.title} size={160} art={t.art} />
-            <b>{t.title}</b><span className="s">{[t.language, t.genre].filter(Boolean).join(" · ") || "NAVAAN"}</span>
-          </Link>
+          <Tile key={t.slug} to={`/song/${t.slug}`} slug={t.slug} title={t.title} art={t.art} sub={[t.language, t.genre].filter(Boolean).join(" · ") || "NAVAAN"} play={{ slug: t.slug, title: t.title, queue: rows.map((r) => ({ slug: r.slug, title: r.title })), label: t.title }} />
         ))}
       </div>
     </section>
@@ -41,7 +37,7 @@ export default function Browse() {
         <section className="sec" aria-labelledby="row-albums">
           <div className="sh"><h2 id="row-albums">Albums</h2><span className="n">{albums.length}</span></div>
           <div className="grid tiles">{albums.map((al) => { const c = al.tracks.find((t) => t.art) ?? al.tracks[0]; return (
-            <Link key={al.slug} className="tile" to={`/album/${al.slug}`}><Cover slug={c.slug} title={al.title} size={160} art={c.art} /><b>{al.title}</b><span className="s">{al.kind} · {al.tracks.length} song{al.tracks.length === 1 ? "" : "s"}</span></Link>
+            <Tile key={al.slug} to={`/album/${al.slug}`} slug={c.slug} title={al.title} art={c.art} sub={`${al.kind} · ${al.tracks.length} song${al.tracks.length === 1 ? "" : "s"}`} play={{ queue: al.tracks.map((t) => ({ slug: t.slug, title: t.title })), label: al.title }} />
           ); })}</div>
         </section>
       )}

@@ -5,12 +5,30 @@ import { errText } from "../lib/songs";
 
 type Do = (act: string, body: Record<string, unknown>) => Promise<boolean>;
 type Save = (act: string, body: Record<string, unknown>) => Promise<{ ok: boolean; message: string }>;
+type Kind = "ok" | "wn" | "bad";
+type Status = { kind: Kind; text: string };
+type Tab = "accounts" | "ai" | "automation" | "storage";
+const TABS: [Tab, string][] = [["accounts", "Accounts"], ["ai", "AI services"], ["automation", "Automation"], ["storage", "Storage"]];
 
-function Login({ s, label }: { s: LoginState; label: string }) {
-  if (!s.present) return <span className="chip">{label}: not set</span>;
-  if (s.ok === false) return <span className="chip bad">{label}: {s.error || "not working"}</span>;
+// One line that says how a login is doing.
+function loginStatus(s: LoginState, none = "Not set up"): Status {
+  if (!s.present) return { kind: "wn", text: none };
+  if (s.ok === false) return { kind: "bad", text: s.error || "Not working" };
   const d = s.days_left;
-  return <span className="chip ok">{label}: working{d != null ? `, ${d < 0 ? "expired" : `${d} days left`}` : s.expires === "never" ? ", no expiry" : ""}</span>;
+  if (d != null && d <= 7) return { kind: "wn", text: d < 0 ? "Expired" : `Works, expires in ${d} day${d === 1 ? "" : "s"}` };
+  return { kind: "ok", text: d != null ? `Working, ${d} days left` : s.expires === "never" ? "Working, no expiry" : "Working" };
+}
+
+// A row that folds open: the name, how it is doing in one line, and what you can do. Closed rows keep the page short.
+function Row({ id, name, status, action = "Change", open, onToggle, children }: { id: string; name: string; status: Status; action?: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="card fold" id={`row-${id}`}>
+      <button className="fold-head" aria-expanded={open} aria-controls={`body-${id}`} onClick={onToggle}>
+        <b>{name}</b><span className={`chip ${status.kind === "ok" ? "ok" : status.kind}`}>{status.text}</span><span className="fold-act mu">{open ? "Close" : action}</span>
+      </button>
+      {open && <div className="fold-body stack" id={`body-${id}`}>{children}</div>}
+    </div>
+  );
 }
 
 type Saved = { ok: boolean; message: string };
@@ -38,7 +56,7 @@ function YouTube({ a, which, act, busy }: { a: SettingsAccount; which: "publish"
   };
   return (
     <div className="stack">
-      <Login s={st} label={name} />{st.channel && <span className="mu"> channel {st.channel}</span>}
+      {st.channel && <p className="mu">Channel {st.channel}</p>}
       <div className="row"><button className="btn" disabled={busy} onClick={() => void start()}>{st.present && st.ok ? `Sign in again to ${name}` : `Sign in to ${name}`}</button></div>
       {opened && <p className="mu" role="status">{opened}</p>}
       {opened && (
@@ -50,22 +68,6 @@ function YouTube({ a, which, act, busy }: { a: SettingsAccount; which: "publish"
       )}
       {err && <p role="alert" className="mu">{err}</p>}
     </div>
-  );
-}
-
-function Account({ a, act, save, busy }: { a: SettingsAccount; act: Do; save: Save; busy: boolean }) {
-  return (
-    <section className="card stack" aria-labelledby={`ac-${a.type}`}>
-      <h3 id={`ac-${a.type}`}>{a.type.charAt(0).toUpperCase() + a.type.slice(1)} {a.handle && <span className="mu">@{a.handle.replace(/^@/, "")}</span>}</h3>
-      <div className="row" style={{ flexWrap: "wrap" }}><Login s={a.ig} label="Instagram" /><Login s={a.market} label="Peer data (Facebook)" /></div>
-      <div className="row">
-        <button className="btn" disabled={busy || !a.ig.present} onClick={() => void act("ig_refresh", { type: a.type, kind: "login" })}>Refresh Instagram token</button>
-      </div>
-      <TokenForm id={`ig-${a.type}`} label="New Instagram token" busy={busy} onSave={(token) => save("ig_save", { type: a.type, kind: "login", token })} />
-      <TokenForm id={`mk-${a.type}`} label="New Facebook token for peer data (optional)" busy={busy} onSave={(token) => save("ig_save", { type: a.type, kind: "market", token })} />
-      <YouTube a={a} which="publish" act={act} busy={busy} />
-      <YouTube a={a} which="analytics" act={act} busy={busy} />
-    </section>
   );
 }
 
@@ -96,39 +98,12 @@ function Gates({ d, act, busy }: { d: SettingsData; act: Do; busy: boolean }) {
   );
 }
 
-function Media({ d, act, save, busy }: { d: SettingsData; act: Do; save: Save; busy: boolean }) {
-  const m = d.media; const [edit, setEdit] = useState<Record<string, string>>({});
-  const names: [string, string][] = [["image_provider", "Pictures made by"], ["picture_director", "Picture plan written by"], ["image_model", "Picture model"], ["image_quality", "Picture quality"], ["image_size_landscape", "Landscape size"], ["image_size", "Vertical size"], ["narration_source", "Narration from"], ["voice", "Voice"], ["music", "Music"], ["motion", "Motion"]];
-  return (
-    <section className="sec" aria-labelledby="md-h2">
-      <div className="sh"><h2 id="md-h2">Pictures, narration and music</h2></div>
-      <div className="card stack">
-        {names.filter(([k]) => m.choices[k]).map(([k, l]) => (
-          <div key={k} className="stack">
-            <label htmlFor={`m-${k}`}>{l}</label>
-            <select id={`m-${k}`} className="field" value={edit[k] ?? String(m.settings[k] ?? "")} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })}>
-              {m.choices[k].map((c) => <option key={c} value={c}>{k === "voice" ? m.voices[c] ?? c : c}</option>)}
-            </select>
-          </div>
-        ))}
-        <p className="mu">This month: OpenAI ${Number(m.usage.openai_usd ?? 0).toFixed(2)}, ElevenLabs {Math.round(Number(m.usage.eleven_seconds ?? 0))} s.</p>
-        <button className="btn p" disabled={busy || !Object.keys(edit).length} onClick={() => void act("media_save", { settings: edit }).then((ok) => ok && setEdit({}))}>Save these choices</button>
-        {(["openai", "elevenlabs"] as const).map((p) => (
-          <div key={p} className="stack">
-            <span className={`chip ${m.keys[p] ? "ok" : ""}`}>{p === "openai" ? "OpenAI" : "ElevenLabs"} key: {m.keys[p] ? "saved" : "not set"}</span>
-            <TokenForm id={`key-${p}`} label={`${p === "openai" ? "OpenAI" : "ElevenLabs"} key`} busy={busy} onSave={(token) => save("media_key", { provider: p, token })} />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 function AddAccount({ act, busy }: { act: Do; busy: boolean }) {
   const [t, setT] = useState(""); const [h, setH] = useState(""); const [c, setC] = useState("");
   return (
     <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (await act("account", { type: t.trim(), handle: h.trim(), channel: c.trim() })) { setT(""); setH(""); setC(""); } }}>
-      <h3>Add a content type with its own accounts</h3>
+      <h3>Add a content type</h3><p className="mu">A content type has its own Instagram and YouTube accounts, for example Inspiration.</p>
       <label htmlFor="na-t">Short name (for example inspiration)</label><input id="na-t" className="field" value={t} onChange={(e) => setT(e.target.value)} />
       <label htmlFor="na-h">Instagram handle</label><input id="na-h" className="field" value={h} onChange={(e) => setH(e.target.value)} />
       <label htmlFor="na-c">YouTube channel</label><input id="na-c" className="field" value={c} onChange={(e) => setC(e.target.value)} />
@@ -137,10 +112,130 @@ function AddAccount({ act, busy }: { act: Do; busy: boolean }) {
   );
 }
 
+
+
+// What each service needs a person to do, worst first. A Fix button opens the right tab and folds the right row open.
+type Item = { id: string; tab: Tab; name: string; status: Status };
+function overview(d: SettingsData): Item[] {
+  const items: Item[] = [];
+  for (const a of d.accounts) {
+    const t = a.type.charAt(0).toUpperCase() + a.type.slice(1);
+    items.push({ id: `ig-${a.type}`, tab: "accounts", name: `${t}: Instagram`, status: loginStatus(a.ig) });
+    items.push({ id: `yt-${a.type}`, tab: "accounts", name: `${t}: YouTube publishing`, status: loginStatus(a.yt) });
+  }
+  items.push({ id: "claude", tab: "ai", name: "Claude", status: d.claude.state === "ok" ? { kind: "ok", text: `Working (${d.claude.credential || "signed in"})` } : d.claude.state === "missing" ? { kind: "wn", text: "No token" } : { kind: "bad", text: `Problem: ${d.claude.state}` } });
+  for (const p of ["openai", "elevenlabs"] as const) items.push({ id: p, tab: "ai", name: p === "openai" ? "OpenAI" : "ElevenLabs", status: d.media.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
+  items.push({ id: "cloud", tab: "storage", name: "Cloud storage", status: d.cloud.provider === "none" ? { kind: "wn", text: "Not set up" } : { kind: "ok", text: d.cloud.bucket || d.cloud.provider } });
+  const rank = { bad: 0, wn: 1, ok: 2 };
+  return items.map((x, i) => ({ x, i })).sort((a, b) => rank[a.x.status.kind] - rank[b.x.status.kind] || a.i - b.i).map(({ x }) => x);
+}
+
+function Board({ items, go }: { items: Item[]; go: (i: Item) => void }) {
+  const bad = items.filter((i) => i.status.kind !== "ok").length;
+  return (
+    <section className="sec" aria-labelledby="ov-h">
+      <div className="sh"><h2 id="ov-h">At a glance</h2><span className="n">{bad ? `${bad} need${bad === 1 ? "s" : ""} you` : "All good"}</span></div>
+      <ul className="card hist">
+        {items.map((i) => (
+          <li key={i.id} className="stp">
+            <span className="tx"><b>{i.name}</b></span><span className={`chip ${i.status.kind === "ok" ? "ok" : i.status.kind}`}>{i.status.text}</span>
+            {i.status.kind !== "ok" && <button className="btn" onClick={() => go(i)} aria-label={`Fix ${i.name}`}>Fix</button>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; act: Do; save: Save; busy: boolean; open: string; toggle: (id: string) => void }) {
+  return (
+    <div className="stack">
+      {d.accounts.map((a) => {
+        const t = a.type.charAt(0).toUpperCase() + a.type.slice(1); const on = (id: string) => open === id; const tg = (id: string) => () => toggle(id);
+        return (
+          <section key={a.type} className="stack" aria-label={t}>
+            <h3>{t} {a.handle && <span className="mu">@{a.handle.replace(/^@/, "")}</span>}</h3>
+            <Row id={`ig-${a.type}`} name="Instagram" status={loginStatus(a.ig)} open={on(`ig-${a.type}`)} onToggle={tg(`ig-${a.type}`)}>
+              <div className="row"><button className="btn" disabled={busy || !a.ig.present} onClick={() => void act("ig_refresh", { type: a.type, kind: "login" })}>Refresh the token</button></div>
+              <TokenForm id={`ig-tok-${a.type}`} label="New Instagram token" busy={busy} onSave={(token) => save("ig_save", { type: a.type, kind: "login", token })} />
+            </Row>
+            <Row id={`mk-${a.type}`} name="Competitor data (optional)" status={loginStatus(a.market, "Not set")} open={on(`mk-${a.type}`)} onToggle={tg(`mk-${a.type}`)}>
+              <p className="mu">A Facebook token that lets the analytics compare you with other accounts. You can leave it empty.</p>
+              <TokenForm id={`mk-tok-${a.type}`} label="New Facebook token for competitor data" busy={busy} onSave={(token) => save("ig_save", { type: a.type, kind: "market", token })} />
+            </Row>
+            <Row id={`yt-${a.type}`} name="YouTube publishing" status={loginStatus(a.yt)} action={a.yt.present ? "Change" : "Sign in"} open={on(`yt-${a.type}`)} onToggle={tg(`yt-${a.type}`)}><YouTube a={a} which="publish" act={act} busy={busy} /></Row>
+            <Row id={`ya-${a.type}`} name="YouTube analytics" status={loginStatus(a.yt_analytics)} action={a.yt_analytics.present ? "Change" : "Sign in"} open={on(`ya-${a.type}`)} onToggle={tg(`ya-${a.type}`)}><YouTube a={a} which="analytics" act={act} busy={busy} /></Row>
+          </section>
+        );
+      })}
+      <section className="stack" aria-label="Advanced">
+        <h3>Advanced</h3>
+        <Row id="yt-app" name="YouTube app file" status={d.secret_present ? { kind: "ok", text: "Saved" } : { kind: "wn", text: "Not set" }} open={open === "yt-app"} onToggle={() => toggle("yt-app")}>
+          <label htmlFor="yt-secret">The JSON file from Google Cloud (OAuth client)</label>
+          <input id="yt-secret" className="field" type="file" accept=".json,application/json" disabled={busy} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await act("yt_secret", { content: await f.text() }); }} />
+        </Row>
+        <Row id="add-type" name="Add a content type" status={{ kind: "ok", text: `${d.accounts.length} now` }} action="Add" open={open === "add-type"} onToggle={() => toggle("add-type")}><AddAccount act={act} busy={busy} /></Row>
+      </section>
+    </div>
+  );
+}
+
+function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Save; act: Do; busy: boolean; open: string; toggle: (id: string) => void }) {
+  const m = d.media; const [edit, setEdit] = useState<Record<string, string>>({});
+  const groups: [string, [string, string][]][] = [
+    ["Pictures", [["image_provider", "Made by"], ["picture_director", "Plan written by"], ["image_model", "Model"], ["image_quality", "Quality"], ["image_size_landscape", "Landscape size"], ["image_size", "Vertical size"]]],
+    ["Narration, music and motion", [["narration_source", "Narration from"], ["voice", "Voice"], ["music", "Music"], ["motion", "Motion"]]],
+  ];
+  const claude = overview(d).find((i) => i.id === "claude")!.status;
+  return (
+    <div className="stack">
+      <section className="stack" aria-label="Keys">
+        <h3>Keys</h3>
+        <Row id="claude" name="Claude" status={claude} open={open === "claude"} onToggle={() => toggle("claude")}>
+          <TokenForm id="claude-token" label="Claude token (run claude setup-token where Claude Code is signed in)" busy={busy} onSave={(token) => save("claude_save", { token })} />
+        </Row>
+        {(["openai", "elevenlabs"] as const).map((p) => (
+          <Row key={p} id={p} name={p === "openai" ? "OpenAI" : "ElevenLabs"} status={m.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" }} open={open === p} onToggle={() => toggle(p)}>
+            <p className="mu">{p === "openai" ? "Makes the pictures and posters." : "Makes the narration. The key needs Text to Speech."}</p>
+            <TokenForm id={`key-${p}`} label={`${p === "openai" ? "OpenAI" : "ElevenLabs"} key`} busy={busy} onSave={(token) => save("media_key", { provider: p, token })} />
+          </Row>
+        ))}
+        <p className="mu">This month: OpenAI ${Number(m.usage.openai_usd ?? 0).toFixed(2)}, ElevenLabs {Math.round(Number(m.usage.eleven_seconds ?? 0))} seconds.</p>
+      </section>
+      {groups.map(([title, names]) => (
+        <section key={title} className="card stack" aria-label={title}>
+          <h3>{title}</h3>
+          {names.filter(([k]) => m.choices[k]).map(([k, l]) => (
+            <div key={k} className="stack">
+              <label htmlFor={`m-${k}`}>{l}</label>
+              <select id={`m-${k}`} className="field" value={edit[k] ?? String(m.settings[k] ?? "")} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })}>
+                {m.choices[k].map((c) => <option key={c} value={c}>{k === "voice" ? m.voices[c] ?? c : c}</option>)}
+              </select>
+            </div>
+          ))}
+        </section>
+      ))}
+      <div className="row"><button className="btn p" disabled={busy || !Object.keys(edit).length} onClick={() => void act("media_save", { settings: edit }).then((ok) => ok && setEdit({}))}>Save these choices</button></div>
+    </div>
+  );
+}
+
+function StorageTab({ d }: { d: SettingsData }) {
+  return (
+    <section className="card stack" aria-label="Cloud storage">
+      <h3>Cloud storage</h3>
+      <p>{d.cloud.provider === "none" ? "No cloud storage is set up." : <>Provider <b>{d.cloud.provider}</b>, bucket <b>{d.cloud.bucket || "not set"}</b>{d.cloud.region && <>, region <b>{d.cloud.region}</b></>}.</>}</p>
+      <p className="mu">Where songs are archived is set in the project config. The Cloud page shows what is in the bucket and whether each copy is verified.</p>
+    </section>
+  );
+}
+
 export default function Settings() {
   const [d, setD] = useState<SettingsData | null>(null); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [ok, setOk] = useState("");
+  const [tab, setTab] = useState<Tab>("accounts"); const [open, setOpen] = useState("");
   const load = useCallback((fresh = false) => getJSON<SettingsData>(`/api/settings${fresh ? "?refresh=1" : ""}`).then((x) => { setD(x); setErr(""); }).catch((e) => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (open) document.getElementById(`row-${open}`)?.scrollIntoView?.({ block: "nearest" }); }, [open, tab]);
   const act: Do = async (path, body) => {
     setBusy(true); setOk("");
     try { await postJSON(`/api/settings/${path}`, body); setErr(""); setOk("Saved."); await load(path.startsWith("ig_") || path.startsWith("yt_") || path === "claude_save"); return true; }
@@ -152,37 +247,23 @@ export default function Settings() {
     catch (e) { return { ok: false, message: errText(e) }; } finally { setBusy(false); }
   };
   if (!d) return err ? <div className="card" role="alert"><h2>Could not load Settings</h2><p className="mu">{err}</p></div> : <p className="mu" role="status">Checking the logins…</p>;
+  const toggle = (id: string) => setOpen(open === id ? "" : id);
   return (
     <>
-      <div className="ph"><h1 className="disp">Settings</h1><p>Connections, approvals that approve themselves, and the services that make pictures and narration.</p></div>
+      <div className="ph"><h1 className="disp">Settings</h1><p>What is connected, what needs you, and how the studio makes pictures and narration.</p></div>
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
       {ok && <p className="mu" role="status">{ok}</p>}
-      <section className="sec" aria-labelledby="cn-h">
-        <div className="sh"><h2 id="cn-h">Connections</h2><button className="btn g" disabled={busy} onClick={() => void load(true)}>Check again</button></div>
-        <p className="mu">Checked {new Date(d.checked_at).toLocaleString()}. A token is never shown here after you save it.</p>
-        {d.accounts.map((a) => <Account key={a.type} a={a} act={act} save={save} busy={busy} />)}
-        <section className="card stack" aria-labelledby="cl-h">
-          <h3 id="cl-h">Claude</h3>
-          <span className={`chip ${d.claude.state === "ok" ? "ok" : "bad"}`}>{d.claude.state === "ok" ? `Working (${d.claude.credential || "signed in"})` : d.claude.state === "missing" ? "No token" : `Problem: ${d.claude.state}`}</span>
-          <TokenForm id="claude-token" label="Claude token (run claude setup-token where Claude Code is signed in)" busy={busy} onSave={(token) => save("claude_save", { token })} />
-        </section>
-      </section>
-      <section className="card stack" aria-labelledby="ex-h">
-        <h2 id="ex-h">YouTube app and extra accounts</h2>
-        <span className={`chip ${d.secret_present ? "ok" : "bad"}`}>YouTube app file: {d.secret_present ? "saved" : "not set"}</span>
-        <label htmlFor="yt-secret">YouTube client secret file (the JSON from Google Cloud)</label>
-        <input id="yt-secret" className="field" type="file" accept=".json,application/json" disabled={busy} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await act("yt_secret", { content: await f.text() }); }} />
-        <AddAccount act={act} busy={busy} />
-      </section>
-      <Gates d={d} act={act} busy={busy} />
-      <Media d={d} act={act} save={save} busy={busy} />
-      <section className="sec" aria-labelledby="cs-h">
-        <div className="sh"><h2 id="cs-h">Cloud storage</h2></div>
-        <div className="card stack">
-          <p>{d.cloud.provider === "none" ? "No cloud storage is set up." : <>Provider <b>{d.cloud.provider}</b>, bucket <b>{d.cloud.bucket || "not set"}</b>{d.cloud.region && <>, region <b>{d.cloud.region}</b></>}.</>}</p>
-          <p className="mu">Where songs are archived is set in the project config. The Cloud page shows what is in the bucket and whether each copy is verified.</p>
-        </div>
-      </section>
+      <Board items={overview(d)} go={(i) => { setTab(i.tab); setOpen(i.id); }} />
+      <p className="mu">Checked {new Date(d.checked_at).toLocaleString()}. A token is never shown here after you save it. <button className="btn g" disabled={busy} onClick={() => void load(true)}>Check again</button></p>
+      <div className="seg" role="tablist" aria-label="Settings sections" style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
+        {TABS.map(([k, label]) => <button key={k} role="tab" id={`st-${k}`} aria-selected={tab === k} aria-controls="st-panel" tabIndex={tab === k ? 0 : -1} onClick={() => { setTab(k); setOpen(""); }}>{label}</button>)}
+      </div>
+      <div id="st-panel" role="tabpanel" aria-labelledby={`st-${tab}`} className="stack">
+        {tab === "accounts" && <AccountsTab d={d} act={act} save={save} busy={busy} open={open} toggle={toggle} />}
+        {tab === "ai" && <AiTab d={d} act={act} save={save} busy={busy} open={open} toggle={toggle} />}
+        {tab === "automation" && <Gates d={d} act={act} busy={busy} />}
+        {tab === "storage" && <StorageTab d={d} />}
+      </div>
     </>
   );
 }

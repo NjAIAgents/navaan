@@ -29,6 +29,16 @@ def set_options(D, opts):
     open(p, "w", encoding="utf-8").write(text)
 
 
+def get_option(D, key, default=""):
+    """Read a `- key: value` line of brief.md (the counterpart of set_options)."""
+    p = os.path.join(D, "brief.md")
+    if os.path.exists(p):
+        for ln in open(p, encoding="utf-8"):
+            m = re.match(rf"^\s*[-*]?\s*{re.escape(key)}\s*:\s*(.+?)\s*$", ln, re.I)
+            if m and m.group(1).strip(): return m.group(1).strip()
+    return default
+
+
 def check_srt(text):
     """The cues of an srt, or ValueError. Needs at least one timed line."""
     import inspire_prep
@@ -94,7 +104,7 @@ def save(D, audio_name, audio, srt_text, text=""):
 
 def remove(D):
     for old in glob.glob(os.path.join(D, "voiceover.*")) + glob.glob(os.path.join(D, "narration.mp3")): os.remove(old)
-    set_options(D, {"voiceover": "none", "music": "auto"})
+    set_options(D, {"voiceover": "none", "music": "auto", "narrate": "none"})
 
 
 def main(a):

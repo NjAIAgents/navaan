@@ -42,7 +42,7 @@ function Songs() {
       {rows && (
         <div className={view === "grid" ? undefined : "card"} style={view === "grid" ? undefined : { padding: 8 }} aria-live="polite">
           {view === "grid" ? (rows.length ? <div className="grid tiles">{rows.map((t) => (
-            <Tile key={t.slug} to={`/song/${t.slug}`} slug={t.slug} title={t.title} art={t.art} sub={[t.language, t.genre].filter(Boolean).join(" · ") || undefined} action={<AddToPlaylist slug={t.slug} title={t.title} />} />
+            <Tile key={t.slug} to={`/song/${t.slug}`} slug={t.slug} title={t.title} art={t.art} sub={[t.language, t.genre].filter(Boolean).join(" · ") || undefined} action={<AddToPlaylist slug={t.slug} title={t.title} />} play={{ slug: t.slug, title: t.title, queue: rows.map((r) => ({ slug: r.slug, title: r.title })), label: t.title }} />
           ))}</div> : <p className="empty card">No songs match.</p>)
           : rows.length ? rows.map((t) => (
             <div key={t.slug} className="qwrap">
@@ -108,7 +108,7 @@ export default function Library() {
       </section>
       <section className="sec" aria-labelledby="sv-h">
         <div className="sh"><h2 id="sv-h">Saved songs</h2><span className="n">{lib?.tracks.length ?? 0}</span></div>
-        {view === "grid" && lib?.tracks.length ? <div className="grid tiles">{lib.tracks.map((t) => <Tile key={t.slug} to={`/song/${t.slug}`} slug={t.slug} title={t.title} art={t.art} />)}</div> : (
+        {view === "grid" && lib?.tracks.length ? <div className="grid tiles">{lib.tracks.map((t) => <Tile key={t.slug} to={`/song/${t.slug}`} slug={t.slug} title={t.title} art={t.art} play={{ slug: t.slug, title: t.title, queue: lib.tracks.map((r) => ({ slug: r.slug, title: r.title })), label: t.title }} />)}</div> : (
           <div className="card" style={{ padding: 8 }}>
             {lib?.tracks.length ? lib.tracks.map((t) => <Link key={t.slug} className="q" to={`/song/${t.slug}`}><Cover slug={t.slug} title={t.title} art={t.art} /><span className="tx"><b>{t.title}</b></span><Icon name="chevron" /></Link>) : <p className="empty">Nothing saved yet. Save a song from its page.</p>}
           </div>

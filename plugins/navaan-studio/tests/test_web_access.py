@@ -102,6 +102,10 @@ class Access(unittest.TestCase):
             self.assertEqual(self.raw("/app/moods/missing.webp")[0], 404)
             self.assertEqual(self.raw("/app/moods/../index.html")[0], 404)   # nothing else of the app leaks without a sign in
             st, h, b = self.raw("/app/index.html"); self.assertNotIn(b"TOPSECRETAPP", b)   # the app itself still asks for a sign in
+    def test_the_sign_in_page_can_show_the_version_without_a_session(self):
+        code, body = self.call("/auth/state"); d = json.loads(body)
+        self.assertEqual(code, 200); self.assertTrue(d.get("version"))   # public: the sign in page prints it
+        self.assertNotIn("scheduler", d)   # the rest stays behind the sign in
 
     def test_a_visitor_can_ask_for_an_account_with_what_they_like_and_only_the_studio_reads_the_count(self):
         env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
