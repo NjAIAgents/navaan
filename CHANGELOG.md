@@ -13,6 +13,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - A new song records the Suno plan tier at import when `suno.plan` is set in `navaan.config.json`.
 
 ### Fixed
+- The Postgres container gets 256 MB of shared memory instead of Docker's 64 MB default, so a large index build can no longer crash it. The database container restarts once at this deploy; the data is on its volume.
 - The catalog sync no longer logs an error for the `_template` folder at every start.
 
 ## [0.8.0] - 2026-10-16
