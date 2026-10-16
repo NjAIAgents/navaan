@@ -23,11 +23,11 @@ class Access(unittest.TestCase):
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), U.H); self.port = self.srv.server_address[1]
         threading.Thread(target=self.srv.serve_forever, daemon=True).start(); self.addCleanup(self.srv.server_close); self.addCleanup(self.srv.shutdown)
 
-    def call(self, path, tok=None, csrf=None, post=False):
+    def call(self, path, tok=None, csrf=None, post=False, body=None):
         h = {"Host": f"127.0.0.1:{self.port}"}
         if tok: h["Cookie"] = f"{auth.COOKIE}={tok}"
         data = None
-        if post: h["Content-Type"] = "application/json"; data = b"{}"
+        if post: h["Content-Type"] = "application/json"; data = json.dumps(body or {}).encode()
         if csrf: h["X-Navaan-Token"] = csrf
         try:
             with urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", data=data, headers=h), timeout=10) as r: return r.status, r.read()
@@ -56,6 +56,21 @@ class Access(unittest.TestCase):
         for path in ("/api/songs", "/api/settings", "/api/cloud", "/app/", "/legacy", "/", "/api/analytics"): self.assertEqual(self.call(path, "lis-tok")[0], 403, path)
         self.assertEqual(self.call("/api/client-log", "lis-tok", "csrf-lis", post=True)[0], 403)
         self.assertEqual(self.call("/api/run", "lis-tok", "csrf-lis", post=True)[0], 403)
+
+    def test_search_needs_library_view_and_the_album_editor_needs_the_studio(self):
+        code, body = self.call("/api/search?q=tere+hone", "owner-tok"); self.assertEqual((code, json.loads(body)), (200, {"hits": []}))
+        self.assertEqual(self.call("/api/search?q=tere+hone", "lis-tok")[0], 200)   # a listener has library.view
+        self.assertEqual(self.call("/api/search?q=x&limit=abc", "owner-tok")[0], 400); self.assertEqual(self.call("/api/search?q=x")[0], 401)
+        for path in ("/api/albums",): self.assertEqual(self.call(path, "lis-tok")[0], 403)
+        self.assertEqual(self.call("/api/albums/save", "lis-tok", "csrf-lis", post=True, body={"title": "x"})[0], 403)
+
+    def test_the_owner_creates_orders_and_deletes_an_album_over_http(self):
+        post = lambda path, **b: self.call(path, "owner-tok", "csrf-owner", post=True, body=b)
+        code, body = post("/api/albums/save", title="First Light", kind="ep"); self.assertEqual((code, json.loads(body)), (200, {"slug": "first-light"}))
+        self.assertEqual(post("/api/albums/save", title=" ")[0], 400); self.assertEqual(post("/api/albums/save", slug="ghost", title="x")[0], 404)
+        self.assertEqual(post("/api/albums/reorder", album="first-light", tracks=["nope"])[0], 400)
+        code, body = self.call("/api/albums", "owner-tok"); self.assertEqual([(a["slug"], a["kind"]) for a in json.loads(body)], [("first-light", "ep")])
+        self.assertEqual(json.loads(post("/api/albums/delete", slug="first-light")[1]), {"deleted": True}); self.assertEqual(json.loads(self.call("/api/albums", "owner-tok")[1]), [])
 
     def test_a_signed_out_visitor_reaches_nothing(self):
         self.assertEqual(self.call("/api/songs")[0], 401); self.assertEqual(self.call("/api/client-log", None, "x", post=True)[0], 401)
