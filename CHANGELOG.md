@@ -6,6 +6,15 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-16
+
+### Added
+- Studio > Songs in the new app (`/app/studio/songs`): the list of songs with state, next action and filters, and a song page with the step list, the approval gate with the text you are approving, Approve and Request changes, a failed step with its log reference and a Retry, and the history with who and when. Music songs on Home open there; inspiration and the other screens still open in the classic view.
+- Request changes: send a song back with a note instead of approving. It drops any approval of that gate and keeps the note in the history; it never counts as an approval and does not start a run by itself.
+
+### Changed
+- Approvals and requested changes made in the new app record who made them in the history (for example `via ui:owner`).
+
 ## [0.6.0] - 2026-10-16
 
 ### Added
@@ -66,7 +75,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/NjAIAgents/navaan/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/NjAIAgents/navaan/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/NjAIAgents/navaan/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/NjAIAgents/navaan/compare/v0.3.0...v0.4.0

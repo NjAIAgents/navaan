@@ -54,7 +54,7 @@ describe("the shell", () => {
     at("/");
     expect(await screen.findByText("Tere Hone Se")).toBeInTheDocument();
     expect(screen.getByText(/Waiting for you: publish youtube/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Tere Hone Se/ })).toHaveAttribute("href", "/legacy#/song/song-003");
+    expect(screen.getByRole("link", { name: /Tere Hone Se/ })).toHaveAttribute("href", "/studio/songs/song-003");
     expect(screen.getByText("Nothing is being made right now.")).toBeInTheDocument();
   });
 });

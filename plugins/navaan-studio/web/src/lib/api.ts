@@ -24,3 +24,16 @@ export type SongRow = {
   album: string; steps_done: number; steps_total: number; public: boolean; published: boolean; scheduled: string;
   next: { type: string; step?: string; gate?: string; label?: string };
 };
+
+export type Step = {
+  id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean;
+  status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null;
+};
+export type SongDetail = {
+  slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
+  meta: { state?: string; album?: string; history?: string[] };
+  approvals: Record<string, { at: string; via: string }>;
+  job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
+  failure: { step: string; error: string; ref: string } | null;
+  question: { text?: string } | null; needs_you: string;
+};

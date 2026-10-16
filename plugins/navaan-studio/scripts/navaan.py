@@ -863,6 +863,17 @@ def set_gate(slug, gate, on, via):
     edit_meta(slug, put)
 
 
+def request_changes(slug, gate, note, via):
+    """Send an item back instead of approving it (FR-023): drops any approval of the gate, keeps the note in the history, never counts as an approval."""
+    if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
+    note = " ".join(str(note or "").split())[:500]
+    if not note: sys.exit("say what should change")
+    def put(m):
+        m.setdefault("approvals", {}).pop(gate, None)
+        log_hist(m, f"changes requested at {gate} via {via}: {note}")
+    edit_meta(slug, put)
+
+
 def status(slug=None):
     for sl in ([slug] if slug else sorted(os.path.basename(p) for p in glob.glob(f"{songs_root()}/*") if os.path.isdir(p) and not os.path.basename(p).startswith("_"))):
         rows, nxt = plan(sl); m = meta(sl)

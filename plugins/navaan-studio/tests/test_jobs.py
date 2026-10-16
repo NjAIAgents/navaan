@@ -33,6 +33,11 @@ class Queue(Base):
         j = J.claim("w1"); J.finish(j["id"], "w1", 0)
         self.assertTrue(J.enqueue(j["slug"], "pipeline"), "free again once the job has finished")
 
+    def test_view_reports_a_failed_run_with_the_id_every_log_line_carries(self):
+        J.enqueue("song-001", "pipeline"); j = J.claim("w1"); J.finish(j["id"], "w1", 1, "step suno failed")
+        v = J.view("song-001")
+        self.assertEqual((v["status"], v["rc"], v["error"], v["id"]), ("failed", 1, "step suno failed", str(j["id"])))
+
     def test_bad_kind_and_slug_are_refused(self):
         self.assertRaises(ValueError, J.enqueue, "song-001", "rm -rf")
         self.assertRaises(ValueError, J.enqueue, "../x", "pipeline")
