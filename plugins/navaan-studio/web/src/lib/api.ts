@@ -33,7 +33,7 @@ export type Step = {
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
-  meta: { type?: string; state?: string; album?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown } };
+  meta: { type?: string; state?: string; album?: string; mood?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown } };
   files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
@@ -88,7 +88,7 @@ export type PlansData = {
 
 // Listener catalog (NAV-18)
 export type TrackRow = { slug: string; title: string; language: string; genre: string; albums: { slug: string; title: string }[]; licence: string; art: { colour: string | null } | null };
-export type TrackView = TrackRow & { lyrics: string; timed: boolean; timed_lines: [number, string][] | null };
+export type TrackView = TrackRow & { mood?: string | null; lyrics: string; timed: boolean; timed_lines: [number, string][] | null };
 export type Filters = { albums: { slug: string; title: string }[]; languages: string[]; genres: string[] };
 export type AlbumTrack = { slug: string; title: string; position: number; status: string; licence: string; art: { colour: string | null } | null };
 export type AlbumRow = { id: string; slug: string; title: string; kind: "album" | "ep" | "single"; status: "draft" | "scheduled" | "published"; release_date: string | null; description: string; tracks: AlbumTrack[] };

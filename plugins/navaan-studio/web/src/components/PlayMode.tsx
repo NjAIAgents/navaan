@@ -23,9 +23,8 @@ export function PlayMode() {
   }, [open, p]);
   if (!open || !p.slug) return null;
   return (
-    <div className="pm" role="dialog" aria-modal="true" aria-label="Play mode">
+    <div className="pm" role="dialog" aria-modal="true" aria-label="Play mode" data-mood={t?.mood ?? "night"}>
       <button ref={close} className="btn g sq pm-x" onClick={() => p.setExpanded(false)} aria-label="Close play mode"><Icon name="close" /></button>
-      {t?.art && <div className="pm-bg" aria-hidden="true" style={{ backgroundImage: `url(/img/${p.slug}/640.jpg)` }} />}
       <div className="pm-body">
         <div className="pm-top">
           <Cover slug={p.slug} title={p.title} size={240} art={t?.art} />

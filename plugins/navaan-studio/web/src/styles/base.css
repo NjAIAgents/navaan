@@ -203,7 +203,12 @@ body.lock { overflow: hidden; }
 .pm { position: fixed; inset: 0; z-index: 40; background: var(--field), var(--bg); background: var(--bg); display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 16px; }
 .pm-x { align-self: flex-end; } .pm-body { width: min(560px, 100%); display: flex; flex-direction: column; align-items: center; gap: 16px; padding-bottom: 32px; } .pm-body h2 { margin: 0; font-size: 28px; text-align: center; }
 .pm-lyrics { width: 100%; height: 220px; overflow-y: auto; } .pm-lyrics .lyrics { max-height: none; text-align: center; align-items: center; } .pm-lyrics .lyrics li { transform-origin: center; }
-.pm { isolation: isolate; } .pm-bg { position: fixed; inset: -40px; z-index: -1; background: center / cover no-repeat; filter: blur(60px) saturate(1.2); opacity: .35; }   /* the cover, blurred, as the room's colour */
+.pm { isolation: isolate; background: linear-gradient(color-mix(in srgb, var(--bg) 50%, transparent), color-mix(in srgb, var(--bg) 88%, transparent)), var(--mood-tall, none) center / cover no-repeat, var(--bg); }   /* the song's mood picture, dimmed so the lyrics read */
+@media (min-aspect-ratio: 1 / 1) { .pm { background: linear-gradient(color-mix(in srgb, var(--bg) 50%, transparent), color-mix(in srgb, var(--bg) 88%, transparent)), var(--mood-wide, none) center / cover no-repeat, var(--bg); } }
+.pm[data-mood="dawn"] { --mood-wide: url(/app/moods/dawn-wide.webp); --mood-tall: url(/app/moods/dawn-tall.webp); } .pm[data-mood="dusk"] { --mood-wide: url(/app/moods/dusk-wide.webp); --mood-tall: url(/app/moods/dusk-tall.webp); }
+.pm[data-mood="night"] { --mood-wide: url(/app/moods/night-wide.webp); --mood-tall: url(/app/moods/night-tall.webp); } .pm[data-mood="quiet"] { --mood-wide: url(/app/moods/quiet-wide.webp); --mood-tall: url(/app/moods/quiet-tall.webp); }
+[data-theme="ivory-gold"] .pm { background: linear-gradient(color-mix(in srgb, var(--bg) 55%, transparent), color-mix(in srgb, var(--bg) 90%, transparent)), url(/app/moods/light-tall.webp) center / cover no-repeat, var(--bg); }
+@media (min-aspect-ratio: 1 / 1) { [data-theme="ivory-gold"] .pm { background: linear-gradient(color-mix(in srgb, var(--bg) 55%, transparent), color-mix(in srgb, var(--bg) 90%, transparent)), url(/app/moods/light-wide.webp) center / cover no-repeat, var(--bg); } }
 .pm-top, .pm-ctl { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; }
 @media (min-width: 900px) {   /* a wide screen: the song on the left, the lyrics large on the right */
   .pm { justify-content: center; padding: 24px 56px; }
