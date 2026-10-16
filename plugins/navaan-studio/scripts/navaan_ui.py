@@ -15,7 +15,9 @@ import navaan_log as L
 LOG = L.get("web")
 
 TOKEN = secrets.token_urlsafe(24)
-PUBLIC_HOST = lambda: os.environ.get("NAVAAN_PUBLIC_HOST", "").strip().lower()  # extra allowed Host, e.g. navaan.njlabs.dev
+def _hosts(var): return [h.strip().lower() for h in os.environ.get(var, "").split(",") if h.strip()]
+PUBLIC_HOST = lambda: ",".join(_hosts("NAVAAN_PUBLIC_HOST"))  # extra allowed Hosts (a comma list), e.g. navaan.njlabs.dev,studio.navaan.online,navaan.online
+LISTENER_HOSTS = lambda: _hosts("NAVAAN_LISTENER_HOSTS")   # the hosts that are the public face (navaan.online): whoever signs in there is treated as a listener, the studio is on the other hosts
 TRUST_PROXY = lambda: os.environ.get("NAVAAN_TRUST_PROXY", "0") == "1"  # only behind nginx on a private network
 def secrets_status():
     """Vault sync state written by deploy/vault_sync.py: {"status": ok|waiting|sealed, "detail"}; None when this portal does not use Vault (the Mac)."""
@@ -247,7 +249,12 @@ class H(BaseHTTPRequestHandler):
             if code >= 500: self._err_logged = True
     def _host_ok(self):
         h = (self.headers.get("Host") or "").split(":")[0]
-        return h in ("127.0.0.1", "localhost") or (bool(PUBLIC_HOST()) and h == PUBLIC_HOST())
+        return h in ("127.0.0.1", "localhost") or h in _hosts("NAVAAN_PUBLIC_HOST")
+    def _surface(self, sess):
+        """On a public host nobody has studio powers, not even the owner: the same session there sees the listener app only. Cookies are per host, so signing in on one host does not sign in on the other."""
+        if not sess or (self.headers.get("Host") or "").split(":")[0].lower() not in LISTENER_HOSTS(): return sess
+        roles = [r for r in sess.get("roles", []) if r not in ("owner", "editor")] or ["listener"]
+        return {**sess, "roles": roles, "permissions": [x for x in sess.get("permissions", []) if not x.startswith("studio.")]}
     def _ip(self):  # real client address; X-Real-IP only when a trusted proxy sits in front (NAVAAN_TRUST_PROXY=1)
         return (self.headers.get("X-Real-IP") or "").strip() if TRUST_PROXY() and self.headers.get("X-Real-IP") else self.client_address[0]
     def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
@@ -339,7 +346,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(206, data[a:b + 1], ct, {**hdr, "Content-Range": f"bytes {a}-{b}/{len(data)}"})
         return self._send(200, data, ct, hdr)
     def _base(self):
-        h = PUBLIC_HOST() or (self.headers.get("Host") or "")
+        h = (LISTENER_HOSTS() or [""])[0] or (_hosts("NAVAAN_PUBLIC_HOST") or [""])[0] or (self.headers.get("Host") or "")   # a shared link is a public link: the public host when there is one
         return f"{'https' if (self._https() or PUBLIC_HOST()) else 'http'}://{h}"
     def _public(self, p):
         """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3]. Nothing here needs a session; everything is limited per address."""
@@ -377,7 +384,7 @@ class H(BaseHTTPRequestHandler):
             if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
             if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["version"] = app_version(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
-        sess = auth.session(ck)
+        sess = self._surface(auth.session(ck))
         if not sess:  # not signed in: only the sign in page is served
             if p in ("/", "/legacy") or p == "/app" or p.startswith("/app/"): return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
             return self._send(401, {"error": "sign in", "login": True})
@@ -554,7 +561,7 @@ class H(BaseHTTPRequestHandler):
             except Exception: return self._send(400, {"error": "bad json"})
             code, obj, cookies = auth.handle_post(self.path.split("?")[0], b, ck, self.headers.get("Host"), ip=self._ip(), https=self._https())
             return self._send(code, obj, extra={"Set-Cookie": cookies[0]} if cookies else None)
-        sess = auth.session(ck)
+        sess = self._surface(auth.session(ck))
         if not sess: return self._send(401, {"error": "sign in", "login": True})
         need = next((wr for pre, _rd, wr in LISTENER_ROUTES if wr and (self.path == pre or self.path.startswith(pre + "/"))), None)   # routes a listener may change things through
         if not need and not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})

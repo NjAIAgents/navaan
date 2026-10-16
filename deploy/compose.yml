@@ -12,7 +12,8 @@ services:
     container_name: navaan
     restart: unless-stopped
     environment:
-      NAVAAN_PUBLIC_HOST: navaan.njlabs.dev
+      NAVAAN_PUBLIC_HOST: navaan.njlabs.dev,studio.navaan.online,navaan.online,www.navaan.online   # every Host the portal answers to
+      NAVAAN_LISTENER_HOSTS: navaan.online,www.navaan.online   # the public face: a session there sees the listener app only (the studio is on the other hosts)
       NAVAAN_LOG_DIR: /home/navaan/.local/share/navaan/logs   # app.jsonl (14 days) and runs/<job>.jsonl on the persistent state folder; see "Logs" in deploy/README.md
       OCI_CLI_AUTH: instance_principal     # the Cloud storage tab runs `oci` with the VM's own identity (no key file on the server)
       NAVAAN_PG_HOST: navaan-postgres

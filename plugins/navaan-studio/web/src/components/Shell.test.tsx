@@ -28,6 +28,12 @@ describe("the shell for the studio side", () => {
     for (const label of ["Songs", "Inspiration", "Approvals", "Schedule", "Analytics"]) expect(await within(side).findByRole("link", { name: label })).toBeInTheDocument();
     expect(within(side).getByRole("link", { name: /Podcasts/ })).toHaveTextContent("Soon");
   });
+  it("credits NAVAAN Studio in the sidebar, with links to the privacy policy and the terms", async () => {
+    stub(OWNER); at("/studio"); const side = await screen.findByRole("complementary", { name: "Sidebar" }); const f = within(side).getByText(/All rights reserved/);
+    expect(f).toHaveTextContent(/NAVAAN Studio . © \d{4} NAVAAN Studio/); expect(f.textContent).not.toMatch(/NJ ?LABS/i);
+    expect(within(f).getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy"); expect(within(f).getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
+    expect(document.querySelector("main footer, .main > footer")).toBeNull();   // no footer under the page: it moved as the page filled in
+  });
   it("the Studio page links to each area and does not send you to the classic view", async () => {
     stub(OWNER); at("/studio");
     expect(await screen.findByRole("link", { name: /Settings/ })).toHaveAttribute("href", "/studio/settings");
@@ -74,7 +80,7 @@ describe("the account menu", () => {
     vi.stubGlobal("fetch", f); at("/albums");
     await screen.findAllByRole("button", { name: /Account menu/ }); await new Promise((r) => setTimeout(r, 20));
     fireEvent.click(screen.getAllByRole("button", { name: /Account menu/ })[0]);
-    expect(await screen.findByText("NAVAAN 9.9.9")).toBeInTheDocument();
+    const menu = await screen.findByRole("dialog", { name: "Account menu" }); expect(menu).toHaveTextContent(/NAVAAN Studio 9\.9\.9 . © \d{4} NAVAAN Studio/); expect(within(menu).getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
   });
   it("shows who is signed in from /api/me", async () => {
     stub(OWNER); at("/albums");

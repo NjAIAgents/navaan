@@ -23,8 +23,8 @@ class Access(unittest.TestCase):
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), U.H); self.port = self.srv.server_address[1]
         threading.Thread(target=self.srv.serve_forever, daemon=True).start(); self.addCleanup(self.srv.server_close); self.addCleanup(self.srv.shutdown)
 
-    def call(self, path, tok=None, csrf=None, post=False, body=None):
-        h = {"Host": f"127.0.0.1:{self.port}"}
+    def call(self, path, tok=None, csrf=None, post=False, body=None, host=None):
+        h = {"Host": host or f"127.0.0.1:{self.port}"}
         if tok: h["Cookie"] = f"{auth.COOKIE}={tok}"
         data = None
         if post: h["Content-Type"] = "application/json"; data = json.dumps(body or {}).encode()
@@ -38,6 +38,23 @@ class Access(unittest.TestCase):
         code, body = self.call("/app/", "owner-tok"); self.assertEqual(code, 200); self.assertIn(b"csrf-owner", body)
         code, body = self.call("/app/", "owner-tok-2"); self.assertIn(b"csrf-owner-2", body); self.assertNotIn(b'"csrf-owner"', body)
         code, body = self.call("/legacy", "owner-tok"); self.assertEqual(code, 200)
+
+    def test_the_public_host_is_the_listener_app_only_and_the_studio_host_is_the_studio(self):
+        with mock.patch.dict(os.environ, {"NAVAAN_PUBLIC_HOST": "navaan.njlabs.dev,studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}):
+            studio, public = "studio.navaan.online", "navaan.online"
+            self.assertEqual(self.call("/api/songs", "owner-tok", host=studio)[0], 200)          # the owner on the studio host: everything
+            self.assertEqual(self.call("/api/songs", "owner-tok", host=public)[0], 403)          # the same session on the public host: no studio
+            for path in ("/api/settings", "/api/cloud", "/api/analytics", "/legacy"): self.assertEqual(self.call(path, "owner-tok", host=public)[0], 403, path)
+            code, body = self.call("/api/me", "owner-tok", host=public); me = json.loads(body)
+            self.assertEqual((code, me["roles"]), (200, ["listener"])); self.assertNotIn("studio.access", me["permissions"]); self.assertIn("library.view", me["permissions"])   # the app shows the listener side
+            self.assertEqual(self.call("/api/client-log", "owner-tok", "csrf-owner", post=True, host=public)[0], 403)   # and no studio write either
+            self.assertIn("studio.access", json.loads(self.call("/api/me", "owner-tok", host=studio)[1])["permissions"])
+            self.assertEqual(self.call("/api/me", "owner-tok", host="evil.example")[0], 403)     # a host that is not on the list is refused outright
+
+    def test_a_shared_link_is_made_on_the_public_host(self):
+        with mock.patch.dict(os.environ, {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}):
+            h = U.H.__new__(U.H); h.headers = {"Host": "studio.navaan.online"}; h.client_address = ("1.1.1.1", 0)
+            self.assertEqual(h._base(), "https://navaan.online")
 
     def test_me_tells_who_and_what_the_session_may_do(self):
         code, body = self.call("/api/me", "owner-tok"); me = json.loads(body)

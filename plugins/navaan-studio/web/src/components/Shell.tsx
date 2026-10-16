@@ -99,6 +99,7 @@ function ShellFrame() {
           </button>
           {open && !mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile={false} version={version} />}
         </div>
+        <p className="cr mu side-cr">NAVAAN Studio · © {new Date().getFullYear()} NAVAAN Studio. All rights reserved. · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
       </aside>
       <div className="main">
         <header className="top">
