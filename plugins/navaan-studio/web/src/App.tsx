@@ -6,6 +6,9 @@ import Placeholder from "./pages/Placeholder";
 import Songs from "./pages/Songs";
 
 // Each screen is loaded when it is opened, so the first paint carries only the shell, Home and the Songs list.
+const Library = lazy(() => import("./pages/Library"));
+const Playlist = lazy(() => import("./pages/Playlist"));
+const Plans = lazy(() => import("./pages/Plans"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Approvals = lazy(() => import("./pages/Approvals"));
 const Inspiration = lazy(() => import("./pages/Inspiration"));
@@ -28,7 +31,9 @@ export default function App() {
         <Route path="studio/schedule" element={<Schedule />} />
         <Route path="studio/analytics" element={<Analytics />} />
         <Route path="search" element={<Search />} />
-        <Route path="library" element={<Placeholder title="Library" story="NAV-16" blurb="Everything you have made." hash="" />} />
+        <Route path="library" element={<Library />} />
+        <Route path="library/playlists/:id" element={<Playlist />} />
+        <Route path="plans" element={<Plans />} />
         <Route path="albums" element={<Placeholder title="Albums" story="NAV-16" blurb="Releases with order, cover and date." hash="" />} />
         <Route path="*" element={<Placeholder title="Not found" story="nothing" blurb="That page does not exist." />} />
       </Route>

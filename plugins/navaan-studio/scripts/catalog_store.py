@@ -275,6 +275,28 @@ def cover_art():
     return {r["slug"]: r["dominant_colour"] for r in rows}
 
 
+def track_ids(slugs):
+    """{slug: id} for the published tracks among these slugs."""
+    return {r["slug"]: r["id"] for r in _tx(lambda c: c.execute("SELECT slug, id::text AS id FROM tracks WHERE status = 'published' AND slug = ANY(?)", (list(slugs),)).fetchall())}
+
+
+def tracks_by_ids(ids):
+    """{id: {"slug", "title"}} for these track ids."""
+    return {r["id"]: {"slug": r["slug"], "title": r["title"]} for r in _tx(lambda c: c.execute("SELECT id::text AS id, slug, title FROM tracks WHERE id = ANY(?::uuid[])", (list(ids),)).fetchall())}
+
+
+def album_ids(slugs):
+    return {r["slug"]: r["id"] for r in _tx(lambda c: c.execute("SELECT slug, id::text AS id FROM albums WHERE status = 'published' AND slug = ANY(?)", (list(slugs),)).fetchall())}
+
+
+def albums_by_ids(ids):
+    return {r["id"]: {"slug": r["slug"], "title": r["title"]} for r in _tx(lambda c: c.execute("SELECT id::text AS id, slug, title FROM albums WHERE id = ANY(?::uuid[])", (list(ids),)).fetchall())}
+
+
+def artist_id():
+    return _tx(lambda c: str(_artist(c)))
+
+
 def play_key(slug):
     """The bucket key of the full audio of a track a listener may play: published, and not marked not_allowed. This is the one seam the plans (NAV-7) fill with can()."""
     r = _tx(lambda c: c.execute("SELECT license_status FROM tracks WHERE slug = ? AND status = 'published'", (slug,)).fetchone())

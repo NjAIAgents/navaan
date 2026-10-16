@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const THEMES = ["midnight-cinema", "ivory-gold"];
 const PAGES = [["Home", "/app/"], ["Songs", "/app/studio/songs"], ["Song", "/app/studio/songs/song-001"], ["Inspiration", "/app/studio/inspiration"], ["Approvals", "/app/studio/approvals"],
-  ["Schedule", "/app/studio/schedule"], ["Analytics", "/app/studio/analytics"], ["Recommendations", "/app/studio/analytics?tab=recommendations"], ["Interactions", "/app/studio/analytics?tab=interactions"], ["Search", "/app/search?q=tere"]];
+  ["Schedule", "/app/studio/schedule"], ["Analytics", "/app/studio/analytics"], ["Recommendations", "/app/studio/analytics?tab=recommendations"], ["Interactions", "/app/studio/analytics?tab=interactions"], ["Search", "/app/search?q=tere"], ["Library", "/app/library"], ["Plans", "/app/plans"]];
 
 async function ready(page: Page) {
   await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 15_000 });
@@ -32,6 +32,22 @@ test("the schedule shows missed and blocked publishes", async ({ page }, info) =
   await expect(page.getByText("Missed", { exact: true }).first()).toBeVisible(); await expect(page.getByText("Blocked", { exact: true }).first()).toBeVisible();
   const cal = page.getByRole("table");
   if (info.project.name === "mobile") await expect(cal).toBeHidden(); else await expect(cal).toBeVisible();   // the calendar collapses to the list on a phone
+});
+
+test("a playlist can be made, opened and deleted from the library", async ({ page }, info) => {
+  const name = `E2E ${info.project.name}`;
+  await page.goto("/app/library");
+  await page.getByLabel("New playlist name").fill(name); await page.getByRole("button", { name: "Create" }).click();
+  await page.getByRole("link", { name: new RegExp(name) }).click();
+  await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible(); await expect(page.getByText(/This playlist is empty/)).toBeVisible();
+  await page.getByRole("button", { name: "Delete playlist" }).click(); await page.getByRole("button", { name: "Yes, delete" }).click();
+  await expect(page.getByRole("heading", { name: "Library", level: 1 }).first()).toBeVisible(); await expect(page.getByRole("link", { name: new RegExp(name) })).toHaveCount(0);
+});
+
+test("plans compare Free and Premium and say Premium cannot be bought yet", async ({ page }) => {
+  await page.goto("/app/plans");
+  await expect(page.getByRole("columnheader", { name: /Free/ })).toBeVisible(); await expect(page.getByRole("columnheader", { name: /Premium/ })).toBeVisible();
+  await expect(page.getByText(/Premium cannot be bought yet/)).toBeVisible();
 });
 
 test("search finds nothing in an empty catalog and says so", async ({ page }) => {
