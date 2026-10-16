@@ -256,6 +256,15 @@ def signed_url(provider, bucket, region, key, hours=1):
     """A link that opens one object for a short time, made with the user's own CLI login. oci: pre-authenticated request, s3: presign."""
     import datetime
     if provider == "oci":
+        try: import objstore   # the SDK path: no process per link, and the same cache the play endpoint uses
+        except ImportError: objstore = None   # expected: no oci SDK in this environment, the command line below does it
+        same = False
+        if objstore:
+            try: same = bucket == objstore.bucket()
+            except RuntimeError: same = False   # expected: no oci bucket in the profile; the command line below reports it
+        if same and key:
+            try: return objstore.par_url(key, int(hours * 3600))
+            except Exception as e: L.exc(LOG, "oci_sdk_link_failed", key=key); raise RuntimeError(f"cannot make a link: {str(e)[:200]}") from e
         ns, err = _oci_ns()
         if not ns: raise RuntimeError(f"oci is not configured: {err[:200]}")
         exp = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -49,6 +49,28 @@ function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Ac
   );
 }
 
+// A link anyone can open to hear a 30 second preview. Only a published song with a confirmed licence can have one; the server says so if not.
+function ShareCard({ slug }: { slug: string }) {
+  const [link, setLink] = useState<{ token: string; url: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const make = async () => { setBusy(true); setMsg(""); try { setLink(await postJSON<{ token: string; url: string }>("/api/share", { slug })); } catch (e) { setMsg(errText(e)); } finally { setBusy(false); } };
+  const stop = async () => { if (!link) return; setBusy(true); try { await postJSON("/api/share/revoke", { token: link.token }); setLink(null); setMsg("That link no longer works."); } catch (e) { setMsg(errText(e)); } finally { setBusy(false); } };
+  return (
+    <section className="card stack" aria-labelledby="share-h">
+      <h2 id="share-h">Share</h2>
+      {link ? (
+        <>
+          <label htmlFor="share-url" className="mu">Anyone with this link hears a 30 second preview.</label>
+          <input id="share-url" className="field" readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} />
+          <div className="row"><button className="btn p" onClick={() => void navigator.clipboard?.writeText(link.url)}>Copy link</button><a className="btn" href={link.url} target="_blank" rel="noreferrer">Open <Icon name="external" /></a><button className="btn g" disabled={busy} onClick={() => void stop()}>Stop sharing</button></div>
+        </>
+      ) : <div className="row"><button className="btn" disabled={busy} onClick={() => void make()}>Create a share link</button></div>}
+      {msg && <p role="status" className="mu">{msg}</p>}
+    </section>
+  );
+}
+
 function StepRow({ s, failed }: { s: Step; failed: boolean }) {
   const chip = failed ? <span className="chip bad">Failed</span> : s.status === "done" ? <span className="chip ok"><Icon name="check" />Done</span> : s.status === "waiting for approval" ? <span className="chip wn">Needs approval</span> : <span className="chip">{s.status === "ready" ? "Ready" : "Later"}</span>;
   return <li className="stp"><span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}</li>;
@@ -114,6 +136,7 @@ export default function Song() {
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
         </section>
       ) : null}
+      {d.meta.type !== "inspiration" && d.meta.state === "published" && <ShareCard slug={slug} />}
       <section className="sec" aria-labelledby="steps-h">
         <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
         <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} />)}</ol>

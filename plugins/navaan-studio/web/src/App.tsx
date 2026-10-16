@@ -6,6 +6,7 @@ import Analytics from "./pages/Analytics";
 import Approvals from "./pages/Approvals";
 import Inspiration from "./pages/Inspiration";
 import Schedule from "./pages/Schedule";
+import Search from "./pages/Search";
 import Song from "./pages/Song";
 import Songs from "./pages/Songs";
 
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="studio/approvals" element={<Approvals />} />
         <Route path="studio/schedule" element={<Schedule />} />
         <Route path="studio/analytics" element={<Analytics />} />
+        <Route path="search" element={<Search />} />
         <Route path="library" element={<Placeholder title="Library" story="NAV-16" blurb="Everything you have made." hash="" />} />
         <Route path="albums" element={<Placeholder title="Albums" story="NAV-16" blurb="Releases with order, cover and date." hash="" />} />
         <Route path="*" element={<Placeholder title="Not found" story="nothing" blurb="That page does not exist." />} />

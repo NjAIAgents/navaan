@@ -9,6 +9,7 @@ import visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, bestti
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
+import media, objstore, share_page
 import navaan_log as L
 LOG = L.get("web")
 
@@ -171,13 +172,21 @@ def start_job(slug, all_steps=False, step=None, redo=False):
 
 CLIENT_LOG = {}  # client address -> times of recent browser error reports
 CLIENT_LOG_LOCK = threading.Lock()
-def client_log_ok(ip, n=30, per=60):
-    """At most n browser reports per minute per address, so a broken page cannot flood the log."""
+def rate_ok(store, ip, n, per=60):
+    """At most n requests per `per` seconds per address in this store."""
     t = time.time()
     with CLIENT_LOG_LOCK:
-        q = [x for x in CLIENT_LOG.get(ip, []) if t - x < per]
-        if len(q) >= n: CLIENT_LOG[ip] = q; return False
-        q.append(t); CLIENT_LOG[ip] = q; return True
+        q = [x for x in store.get(ip, []) if t - x < per]
+        if len(q) >= n: store[ip] = q; return False
+        q.append(t); store[ip] = q; return True
+
+
+def client_log_ok(ip, n=30, per=60):
+    """At most n browser reports per minute per address, so a broken page cannot flood the log."""
+    return rate_ok(CLIENT_LOG, ip, n, per)
+
+
+PUBLIC_LOG = {}  # client address -> times of recent requests to the public pages (/s and /img)
 
 
 class H(BaseHTTPRequestHandler):
@@ -222,11 +231,38 @@ class H(BaseHTTPRequestHandler):
     def _ip(self):  # real client address; X-Real-IP only when a trusted proxy sits in front (NAVAAN_TRUST_PROXY=1)
         return (self.headers.get("X-Real-IP") or "").strip() if TRUST_PROXY() and self.headers.get("X-Real-IP") else self.client_address[0]
     def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
+    def _base(self):
+        h = PUBLIC_HOST() or (self.headers.get("Host") or "")
+        return f"{'https' if (self._https() or PUBLIC_HOST()) else 'http'}://{h}"
+    def _public(self, p):
+        """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3]. Nothing here needs a session; everything is limited per address."""
+        if not rate_ok(PUBLIC_LOG, self._ip(), 240): return self._send(429, {"error": "slow down"}, extra={"Retry-After": "30"})
+        try:
+            m = re.match(r"^/img/([A-Za-z0-9_-]{1,40})/(\d{2,4})\.(webp|avif|jpg)$", p)
+            if m:
+                try: r = media.variant(m.group(1), int(m.group(2)), m.group(3))
+                except ValueError: r = None   # expected: a size or format that does not exist is simply a 404
+                if not r: return self._send(404, {"error": "not found"})
+                data, etag, mime = r
+                hdr = {"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"}
+                if self.headers.get("If-None-Match") == etag: return self._send(304, b"", mime, hdr)
+                return self._send(200, data, mime, hdr)
+            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3)?$", p)
+            if m:
+                t = catalog_store.open_share(m.group(1), count=not m.group(2))
+                if not t: return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if m.group(2): return self._send(302, b"", "text/plain", {"Location": objstore.par_url(media.ensure_preview(t["slug"]), 300)})
+                cv = catalog_store.cover_asset(t["slug"])
+                return self._send(200, share_page.render(t, m.group(1), self._base(), (cv or {}).get("dominant_colour"), bool(cv)), "text/html")
+        except Exception:
+            L.exc(LOG, "public_failed", path=p[:60]); return self._send(502, {"error": "not available right now"})
+        return self._send(404, {"error": "not found"})
     def _do_GET(self):
         if not self._host_ok(): return self._send(403, {"error": "bad host"})
         p = self.path.split("?")[0]
         if p in ("/privacy", "/terms"):  # public on purpose: Google asks for these links on the OAuth consent screen
             return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
+        if p.startswith(("/s/", "/img/")): return self._public(p)   # shared links and cover pictures: no sign in, published and confirmed tracks only
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
@@ -244,6 +280,13 @@ class H(BaseHTTPRequestHandler):
             try: limit = int((q.get("limit") or ["20"])[0])
             except ValueError: return self._send(400, {"error": "limit is a number"})
             return self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, limit)})
+        if p == "/api/play":   # a short-lived link to the audio in the bucket: the audio never passes through this server (FR-016)
+            if not auth.can(sess, "library.view"): return self._send(403, {"error": "this account cannot play"})
+            sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
+            key = catalog_store.play_key(sl) if SLUG.match(sl) else None
+            if not key: return self._send(404, {"error": "no such track to play"})
+            try: return self._send(200, {"url": objstore.par_url(key, 300), "expires_in": 300})
+            except Exception: L.exc(LOG, "play_link_failed", item=sl); return self._send(502, {"error": "cannot make a play link right now"})
         if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})   # constitution V: no studio route for a listener
         csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         try:
@@ -317,6 +360,7 @@ class H(BaseHTTPRequestHandler):
                     out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
                 return self._send(200, sorted(out, key=lambda e: e["at"]))
             if p == "/api/albums": return self._send(200, catalog_store.albums())
+            if p == "/api/share": return self._send(200, catalog_store.shares(None if auth.can(sess, "studio.settings") else sess.get("user") or "owner"))
             if p == "/api/tracks": return self._send(200, catalog_store.tracks())   # the audit table: origin, plan tier, licence status per track
             m = re.match(r"^/api/song/([^/]+)$", p)
             if m and SLUG.match(m.group(1)): return self._send(200, detail(m.group(1)))
@@ -469,6 +513,17 @@ class H(BaseHTTPRequestHandler):
                 if not ok: return self._send(404, {"error": "no such track"})
                 auth._audit("track_license", user=sess.get("user"), ip=self._ip(), slug=body.get("slug"), status=body.get("status"), plan=body.get("plan"))
                 return self._send(200, {"ok": True})
+            if p in ("/api/share", "/api/share/revoke"):   # links to a published, licence-confirmed track; the page and preview are public, the owner can stop a link any time
+                who = sess.get("user") or "owner"
+                try:
+                    if p.endswith("/revoke"): return self._send(200, {"revoked": catalog_store.revoke_share(str(body.get("token") or ""), who, auth.can(sess, "studio.settings"))})
+                    sl = str(body.get("slug") or ""); st = int(body.get("start_ms") or 0)
+                    tok = catalog_store.create_share(sl, who, st)
+                    try: media.ensure_preview(sl)   # cut now, so the first visitor does not wait for it
+                    except Exception: L.exc(LOG, "preview_failed", item=sl); catalog_store.revoke_share(tok, who, True); return self._send(502, {"error": "could not make the preview from the audio in the bucket"})
+                    return self._send(200, {"token": tok, "url": f"{self._base()}/s/{tok}"})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except LookupError as e: return self._send(404, {"error": str(e)})
             if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
                 try:
                     if p.endswith("/save"): return self._send(200, {"slug": catalog_store.save_album(str(body.get("slug") or ""), body.get("title"), body.get("kind") or "album", body.get("status") or "draft", body.get("release_date"), body.get("description") or "")})

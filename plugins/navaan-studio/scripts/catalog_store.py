@@ -12,7 +12,7 @@ Rules
   license_status is never changed by a sync: new tracks start 'unconfirmed' and only the owner confirms (NAV-11, FR-017); offerable() is the one question "may this be put behind a plan?"
   the item's album label becomes an album with the song in it (FR-008); after that the catalog's album is canonical (order, cover, date, kind), the label is only an input
 """
-import os, re, glob, json, tempfile, threading, datetime
+import os, re, glob, json, secrets, tempfile, threading, datetime
 import navaan_log as L
 import navaan_common as C
 import analytics_db as db
@@ -244,3 +244,69 @@ if __name__ == "__main__":
     if "--plan" in rest: i = rest.index("--plan"); plan = rest[i + 1]; rest = rest[:i] + rest[i + 2:]
     for sl in rest or [t["slug"] for t in tracks()]:
         print(sl, "ok" if set_license(sl, status, "owner (shell)", why, plan) else "no such track")
+
+
+# ---- files a listener may reach: only for published tracks (NAV-6 stage 2) ---------------------------------------------------------
+
+def _asset(slug, role):
+    return _tx(lambda c: c.execute(
+        "SELECT a.id::text AS id, a.owner_id::text AS owner_id, a.storage_key, a.bytes, a.dominant_colour, t.slug FROM assets a JOIN tracks t ON t.id = a.owner_id "
+        "WHERE a.owner_kind = 'track' AND t.slug = ? AND t.status = 'published' AND a.role = ? ORDER BY a.created_at LIMIT 1", (slug, role)).fetchone())
+
+
+def cover_asset(slug): return _asset(slug, "cover")
+def audio_asset(slug): return _asset(slug, "audio")
+def preview_asset(slug): return _asset(slug, "audio_preview")
+
+
+def set_cover_facts(asset_id, width, height, colour):
+    _tx(lambda c: c.execute("UPDATE assets SET width = ?, height = ?, dominant_colour = ? WHERE id = ?::uuid", (width, height, colour, asset_id)))
+
+
+def add_preview_asset(audio_asset_id, track_id, key, size):
+    _tx(lambda c: c.execute("INSERT INTO assets (owner_kind, owner_id, role, storage_key, mime, bytes, derived_from) VALUES ('track', ?::uuid, 'audio_preview', ?, 'audio/mpeg', ?, ?::uuid) "
+                            "ON CONFLICT (owner_kind, owner_id, role, storage_key) DO NOTHING", (track_id, key, size, audio_asset_id)))
+
+
+def play_key(slug):
+    """The bucket key of the full audio of a track a listener may play: published, and not marked not_allowed. This is the one seam the plans (NAV-7) fill with can()."""
+    r = _tx(lambda c: c.execute("SELECT license_status FROM tracks WHERE slug = ? AND status = 'published'", (slug,)).fetchone())
+    a = audio_asset(slug) if r and r["license_status"] != "not_allowed" else None
+    return a["storage_key"] if a else None
+
+
+# ---- share links (FR-025) ---------------------------------------------------------------------------------------------------------
+
+def create_share(slug, by, start_ms=0):
+    """A new link to a published track with a confirmed licence. Returns the token."""
+    if int(start_ms) < 0: raise ValueError("start must be zero or more milliseconds")
+    def go(c):
+        t = c.execute("SELECT id::text AS id, status, license_status FROM tracks WHERE slug = ?", (slug,)).fetchone()
+        if not t or t["status"] != "published": raise LookupError("no such published track")
+        if t["license_status"] != "confirmed": raise ValueError("this track's licence is not confirmed, so it cannot be shared yet")
+        tok = secrets.token_urlsafe(16)
+        c.execute("INSERT INTO share_links (token, subject_kind, subject_id, created_by, start_ms) VALUES (?, 'track', ?::uuid, ?, ?)", (tok, t["id"], str(by), int(start_ms)))
+        return tok
+    return _tx(go)
+
+
+def revoke_share(token, by, owner=False):
+    """Stop a link working. A person may revoke their own links; the owner any. True when a live link was revoked."""
+    return _tx(lambda c: c.execute("UPDATE share_links SET revoked_at = now() WHERE token = ? AND revoked_at IS NULL AND (created_by = ? OR ?) RETURNING token", (token, str(by), bool(owner))).fetchone()) is not None
+
+
+def shares(by=None):
+    rows = _tx(lambda c: c.execute("SELECT s.token, t.slug, t.title, s.start_ms, s.created_at, s.revoked_at, s.opens, s.created_by FROM share_links s JOIN tracks t ON t.id = s.subject_id "
+                                   "WHERE (?::text IS NULL OR s.created_by = ?::text) ORDER BY s.created_at DESC", (by, by)).fetchall())
+    return [{**r, "created_at": r["created_at"].isoformat(), "revoked_at": r["revoked_at"].isoformat() if r["revoked_at"] else None} for r in rows]
+
+
+def open_share(token, count=False):
+    """The track behind a live link, or None (unknown, revoked, expired, or the track no longer qualifies). count=True records an open."""
+    def go(c):
+        r = c.execute("SELECT s.start_ms, t.slug, t.title, t.license_status, t.status FROM share_links s JOIN tracks t ON t.id = s.subject_id "
+                      "WHERE s.token = ? AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at > now())", (token,)).fetchone()
+        if not r or r["status"] != "published" or r["license_status"] != "confirmed": return None
+        if count: c.execute("UPDATE share_links SET opens = opens + 1 WHERE token = ?", (token,))
+        return {"slug": r["slug"], "title": r["title"], "start_ms": r["start_ms"]}
+    return _tx(go)
