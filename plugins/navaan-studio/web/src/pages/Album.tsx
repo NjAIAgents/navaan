@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
+import { ShuffleButton } from "../components/ShuffleButton";
 import { AddToPlaylist } from "../components/AddToPlaylist";
 import { getJSON, postJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
@@ -44,7 +45,7 @@ export default function Album() {
         <div className="hero-tx">
           <Link className="back" to="/albums"><Icon name="chevron" />Albums</Link>
           <h1 id="al-h" className="disp">{a.title}</h1>
-          {playable.length > 0 && <div className="row"><PlayButton queue={playable} label={a.title} size="big" /></div>}
+          {playable.length > 0 && <div className="row"><PlayButton queue={playable} label={a.title} size="big" /><ShuffleButton queue={playable} label={a.title} /></div>}
           <div className="row chips"><span className="chip">{a.kind}</span><span className={"chip " + (a.status === "published" ? "ok" : "")}>{a.status}</span>{a.release_date && <span className="chip">{a.release_date}</span>}<span className="chip">{a.tracks.length} song{a.tracks.length === 1 ? "" : "s"}</span></div>
         </div>
       </section>
