@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-16
+
+### Changed
+- The classic dashboard loads small cover pictures instead of the full-size ones: the first load pulled about 11 MB of PNG covers; list cards, small covers and the hero now ask for a 160, 480 or 960 pixel JPEG (made once with ffmpeg and kept), while a song's own page and downloads still use the full file. If a thumbnail cannot be made, the original is served and the reason is logged.
+
 ## [0.15.0] - 2026-10-16
 
 ### Added
@@ -155,7 +160,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/NjAIAgents/navaan/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/NjAIAgents/navaan/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/NjAIAgents/navaan/compare/v0.12.1...v0.13.0
