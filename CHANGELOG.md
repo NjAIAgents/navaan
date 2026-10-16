@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-16
+
+### Added
+- Studio > Analytics in the new app, in three tabs. Analytics: the headline numbers, a line per metric, and your posts or videos (a table on a desktop, stacked cards on a phone), for Instagram or YouTube, one account or all, the last 7, 30 or 90 days. Recommendations: each with its evidence, the action and the expected effect, Done or Dismiss, and the Done and Dismissed lists with Reopen. Interactions: unreplied comments where you edit a reply or ask Claude for a draft, then Approve and send; nothing is posted until you press it and confirm for that one comment. It reads the same data as the classic Analytics page, so the numbers match; the view is in the address, so it can be linked.
+
 ## [0.10.0] - 2026-10-16
 
 ### Added
@@ -98,7 +103,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/NjAIAgents/navaan/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/NjAIAgents/navaan/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/NjAIAgents/navaan/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/NjAIAgents/navaan/compare/v0.7.0...v0.8.0
