@@ -189,6 +189,9 @@ input[type="checkbox"] { width: var(--tap); height: var(--tap); flex: none; acce
 .tile { display: flex; flex-direction: column; gap: 6px; text-decoration: none; padding: 10px; border-radius: var(--r3); min-height: var(--tap); transition: background .16s; } .tile:hover { background: var(--s2); }
 .tile .cover { width: 100% !important; aspect-ratio: 1 / 1; } .tile b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tile .s { color: var(--mu); font-size: 13px; }
 .tw { position: relative; } .tw .act { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; }   /* the corner action of a tile */
+.tw .pbtn { position: absolute; left: 10px; right: 10px; top: 10px; aspect-ratio: 1 / 1; pointer-events: none; display: flex; align-items: flex-end; justify-content: flex-end; padding: 10px; }   /* a square over the cover, the button in its corner */
+.tw .pbtn .btn { pointer-events: auto; box-shadow: var(--shadow); transition: opacity .16s, transform .16s; }
+@media (hover: hover) { .tw .pbtn .btn { opacity: 0; transform: translateY(6px); } .tw:hover .pbtn .btn, .tw:focus-within .pbtn .btn, .tw:has(.pbtn [aria-label^="Pause"]) .pbtn .btn { opacity: 1; transform: none; } }   /* on a mouse it appears on hover; on a touch screen it is always there */
 .hero { display: flex; gap: 28px; align-items: flex-end; padding: 8px 0 4px; border-radius: var(--r4); flex-wrap: wrap; }
 .hero .cover { flex: none; max-width: 100%; box-shadow: var(--shadow); }
 .hero-tx { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; } .hero-tx h1 { margin: 0; font-size: 40px; line-height: 1.1; font-weight: 600; } .hero-tx p { margin: 0; }
