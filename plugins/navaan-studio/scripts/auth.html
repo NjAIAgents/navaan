@@ -29,7 +29,7 @@ button:disabled{opacity:.5;cursor:wait}.err{color:var(--bad);font-size:13px;min-
 @keyframes eq{to{transform:scaleY(var(--h))}}
 .studio{display:inline-flex;align-items:flex-end;margin-left:8px;vertical-align:baseline;font:italic 700 32px/1 "Snell Roundhand","Brush Script MT","Segoe Script","Apple Chancery","Lucida Handwriting",cursive}
 .studio .tx{background:linear-gradient(90deg,#FF4D7E,#8B5CF6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;padding-right:4px}
-h1.brand::after{content:"by NJLABS";display:block;margin-top:3px;font-size:11px;font-weight:600;letter-spacing:.22em;color:var(--mut);background:linear-gradient(90deg,var(--acc),var(--vio));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+h1.brand::after{content:"STUDIO";display:block;margin-top:3px;font-size:11px;font-weight:600;letter-spacing:.22em;color:var(--mut);background:linear-gradient(90deg,var(--acc),var(--vio));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .cr{position:fixed;left:0;right:0;bottom:10px;z-index:2;text-align:center;font-size:12px;color:#B9B9CC;text-shadow:0 1px 6px #0B0B10,0 0 2px #0B0B10;pointer-events:none}
 .box{position:relative;z-index:1;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 @media (prefers-reduced-motion:reduce){.orb,.f,.f svg,.eq i{animation:none}.f{bottom:auto;top:var(--y);opacity:var(--o)}.eq i{transform:scaleY(var(--h))}}
@@ -43,7 +43,7 @@ h1.brand::after{content:"by NJLABS";display:block;margin-top:3px;font-size:11px;
 <symbol id="heart" viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.8-8 11-8 11z"/></symbol>
 </defs></svg>
 <div class="box" id="box"><p class="sub">Loading...</p></div>
-<footer class="cr">NAVAAN Studio, built by NJLABS &nbsp;&middot;&nbsp; &copy; <span id="cry"></span> NJLABS. All rights reserved.</footer>
+<footer class="cr">NAVAAN Studio &nbsp;&middot;&nbsp; &copy; <span id="cry"></span> NAVAAN Studio. All rights reserved.</footer>
 <script>
 const $=id=>document.getElementById(id);const box=$("box");let TK="";
 const post=(p,b)=>fetch(p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})}).then(async r=>({s:r.status,j:await r.json().catch(()=>({error:"bad reply"}))}));

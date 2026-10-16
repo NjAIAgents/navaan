@@ -35,9 +35,11 @@ class Pages(unittest.TestCase):
         for needle in ("Google API Services User Data Policy", "Limited Use", "YouTube", "revoke"): self.assertIn(needle, pv)
         self.assertIn("/privacy", tm); self.assertNotIn("@gmail.com", pv + tm)  # no personal email on a public page
 
-    def test_branding_present(self):
-        for n in ("auth.html", "ui.html"):
-            self.assertIn("NJLABS", self.read(n))
+    def test_the_credit_is_navaan_studio_not_njlabs(self):
+        for n in ("auth.html", "ui.html", "privacy.html", "terms.html"):
+            page = self.read(n); self.assertNotRegex(page.upper(), "NJ ?LABS", n)
+        for n in ("auth.html", "ui.html"): self.assertIn("&copy; <span id=\"cry\"></span> NAVAAN Studio. All rights reserved.", self.read(n))
+        for n in ("privacy.html", "terms.html"): self.assertIn("NAVAAN Studio. All rights reserved.", self.read(n))
 
 
 if __name__ == "__main__":

@@ -211,3 +211,6 @@ body.lock { overflow: hidden; }
 .cl-view { flex: 0 0 100%; width: 100%; max-height: 360px; border-radius: var(--r2); }
 .np-open { display: flex; align-items: center; gap: 12px; flex: 1 1 120px; min-width: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; } .np-open .tx { display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 899px) { .np .tp { gap: 2px; } .np .btn.sq.round.mid { width: 44px; height: 44px; min-height: 44px; } }
+
+.cr { text-align: center; font-size: 12px; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); } .cr a { color: inherit; }
+@media (max-width: 899px) { .cr { padding-bottom: calc(150px + env(safe-area-inset-bottom)); } }   /* clear of the tab bar and the Now playing bar */
