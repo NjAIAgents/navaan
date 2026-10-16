@@ -35,6 +35,8 @@ jobs:
           npm ci
           npm test
           npm run build
+      - name: ffmpeg (the share preview is cut with it; without it those tests are skipped and the browser checks cannot seed audio)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - name: Python packages the tests may use
         run: pip install cryptography pillow numpy opencv-python-headless "psycopg[binary]"
       - name: Unit tests (against the Postgres service above)
