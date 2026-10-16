@@ -171,8 +171,8 @@ input[type="checkbox"] { width: var(--tap); height: var(--tap); flex: none; acce
 .eq i:nth-child(3) { transform: scaleY(.4); animation-duration: .7s; animation-delay: -.5s; } .eq i:nth-child(4) { transform: scaleY(.7); animation-duration: 1s; animation-delay: -.2s; }
 .eq.off i { animation: none; opacity: .5; }
 @keyframes eq { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
-.np { position: fixed; z-index: 15; left: 256px; right: 24px; bottom: 16px; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: var(--r3); box-shadow: var(--shadow), var(--hi); }
-.np .tx { flex: 1; min-width: 0; } .np b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np { position: fixed; z-index: 15; left: 256px; right: 24px; bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 8px 4px 12px; border-radius: var(--r3); box-shadow: var(--shadow), var(--hi); }
+.np .tx { flex: 1; min-width: 0; } .np-seek { flex: 0 0 100%; width: 100%; min-height: 20px; accent-color: var(--ac); margin: 0; } .np b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 899px) { .np { left: 12px; right: 12px; bottom: calc(92px + env(safe-area-inset-bottom)); } }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .card, .side, .top, .search, .seg, .tabbar, .sheet, .menu { background: var(--sheet); }
@@ -186,7 +186,9 @@ input[type="checkbox"] { width: var(--tap); height: var(--tap); flex: none; acce
 .hero .cover { flex: none; max-width: 100%; box-shadow: var(--shadow); }
 .hero-tx { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; } .hero-tx h1 { margin: 0; font-size: 40px; line-height: 1.1; font-weight: 600; } .hero-tx p { margin: 0; }
 .chips { gap: 8px; }
-.round { border-radius: 50%; width: 56px; height: 56px; min-height: 56px; } .round .ic { width: 26px; height: 26px; }
+.btn.sq.round { border-radius: 50%; width: 56px; height: 56px; min-height: 56px; padding: 0; } .round .ic { width: 26px; height: 26px; }   /* beats .btn.sq (44px wide) or the button is an oval */
+.btn.sq.round.mid { width: 48px; height: 48px; min-height: 48px; }
+.tp { display: flex; align-items: center; gap: 8px; flex: none; }
 .lyrics { list-style: none; margin: 8px 0 0; padding: 0; max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; font-size: 20px; line-height: 1.4; }
 .lyrics li { color: var(--mu); transition: color .25s var(--ease), transform .25s var(--ease); transform-origin: left; } .lyrics li.now { color: var(--tx); font-weight: 600; transform: scale(1.03); } .lyrics li.past { color: var(--dim); }
 .lyrics.plain { white-space: pre-line; max-height: none; font-size: 18px; color: var(--tx); }
@@ -196,3 +198,16 @@ body.lock { overflow: hidden; }
 .pm-lyrics { width: 100%; height: 220px; overflow-y: auto; } .pm-lyrics .lyrics { max-height: none; text-align: center; align-items: center; } .pm-lyrics .lyrics li { transform-origin: center; }
 .pm-bar { width: 100%; } .pm-bar input[type="range"] { width: 100%; min-height: var(--tap); accent-color: var(--ac); } .pm-times { display: flex; justify-content: space-between; font-size: 13px; }
 @media (max-width: 899px) { .hero-tx h1 { font-size: 30px; } .hero { gap: 16px; } }
+
+/* a dialog that is a card: centred on a wide screen, a sheet from the bottom on a phone */
+.dlg { position: fixed; z-index: 30; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow-y: auto; box-shadow: var(--shadow), var(--hi); background: var(--sheet); }
+@media (max-width: 899px) { .dlg { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; border-radius: 28px 28px 0 0; padding-bottom: calc(24px + env(safe-area-inset-bottom)); } }
+.targets { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; } .targets .btn { width: 100%; }
+/* Cloud: a song's row never lets its parts run into each other */
+.cl summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; cursor: pointer; list-style-position: inside; }
+.cl-sum { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; overflow-wrap: anywhere; } .cl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-files { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; } .cl-file { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 0; border-top: 1px solid var(--ln); }
+.cl-name { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; } .cl-name b { font-weight: 600; } .cl-act { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-view { flex: 0 0 100%; width: 100%; max-height: 360px; border-radius: var(--r2); }
+.np-open { display: flex; align-items: center; gap: 12px; flex: 1 1 120px; min-width: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; } .np-open .tx { display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 899px) { .np .tp { gap: 2px; } .np .btn.sq.round.mid { width: 44px; height: 44px; min-height: 44px; } }

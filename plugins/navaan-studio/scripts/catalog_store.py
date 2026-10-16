@@ -21,7 +21,7 @@ LOG = L.get("catalog")
 
 _LOCAL = threading.local()
 import pgconn; pgconn.register(_LOCAL)
-ASSET_ROLES = {"final.mp3": ("audio", "audio/mpeg"), "cover_1x1.png": ("cover", "image/png"), "final_16x9.mp4": ("video", "video/mp4"), "caption_timing.json": ("lyrics_timed", "application/json")}
+ASSET_ROLES = {"final.mp3": ("audio", "audio/mpeg"), "cover_1x1.png": ("cover", "image/png"), "final_16x9.mp4": ("video", "video/mp4"), "caption_timing.json": ("lyrics_timed", "application/json"), "caption_cues.json": ("lyrics_timed", "application/json")}
 ARTIST = "navaan"
 EXCERPT = 240
 
@@ -268,7 +268,7 @@ if __name__ == "__main__":
 def _asset(slug, role):
     return _tx(lambda c: c.execute(
         "SELECT a.id::text AS id, a.owner_id::text AS owner_id, a.storage_key, a.bytes, a.dominant_colour, t.slug FROM assets a JOIN tracks t ON t.id = a.owner_id "
-        "WHERE a.owner_kind = 'track' AND t.slug = ? AND t.status = 'published' AND a.role = ? ORDER BY a.created_at LIMIT 1", (slug, role)).fetchone())
+        "WHERE a.owner_kind = 'track' AND t.slug = ? AND t.status = 'published' AND a.role = ? ORDER BY (strpos(a.storage_key, 'caption_timing') > 0) DESC, a.created_at LIMIT 1", (slug, role)).fetchone())   # caption_timing.json before caption_cues.json
 
 
 def cover_asset(slug): return _asset(slug, "cover")

@@ -112,6 +112,14 @@ class Catalog(Base):
         m = json.load(open(os.path.join(self.C.song_dir("song-001"), "meta.json"))); m["cloud"]["objects"]["caption_timing.json"] = {"size": 99}; json.dump(m, open(os.path.join(self.C.song_dir("song-001"), "meta.json"), "w")); self.K.sync_item("song-001")
         self.assertEqual([r["storage_key"] for r in self.K._conn().execute("SELECT storage_key FROM assets WHERE role = 'lyrics_timed'").fetchall()], ["navaan/songs/song-001/caption_timing.json"])
 
+    def test_the_pipelines_caption_cues_are_timed_lyrics_too_and_the_timing_file_wins_when_both_exist(self):
+        self.song("song-001", "One", extra=None)
+        D = self.C.song_dir("song-001"); m = json.load(open(os.path.join(D, "meta.json")))
+        m["cloud"]["objects"]["caption_cues.json"] = {"size": 50}; json.dump(m, open(os.path.join(D, "meta.json"), "w")); self.K.sync_item("song-001")   # a song with only the cues (song-006 on prod)
+        self.assertEqual(self.K.timed_asset("song-001")["storage_key"], "navaan/songs/song-001/caption_cues.json")
+        m["cloud"]["objects"]["caption_timing.json"] = {"size": 99}; json.dump(m, open(os.path.join(D, "meta.json"), "w")); self.K.sync_item("song-001")
+        self.assertEqual(self.K.timed_asset("song-001")["storage_key"], "navaan/songs/song-001/caption_timing.json")
+
     def test_folders_that_are_not_items_are_skipped(self):
         os.makedirs(os.path.join(self.C.songs_root(), "_template")); json.dump({"type": "music"}, open(os.path.join(self.C.songs_root(), "_template", "meta.json"), "w"))
         self.song("song-001", "One"); self.assertEqual(self.K.sync_all(), ["song-001"])

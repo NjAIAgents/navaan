@@ -36,8 +36,9 @@ test("a song plays, its lyrics follow it, and play mode opens and closes", async
 
 test("a shared link opens for someone who is not signed in", async ({ page, browser }) => {
   await page.goto("/app/song/song-011");
-  await page.getByRole("button", { name: "Create a share link" }).click();
+  await page.getByRole("button", { name: "Share", exact: true }).click();   // the Share button opens the sheet and makes the link
   const url = await page.getByLabel(/hears a 30 second preview/).inputValue(); expect(url).toContain("/s/");
+  for (const n of ["WhatsApp", "X", "Facebook", "Threads", "Telegram"]) await expect(page.getByRole("link", { name: new RegExp(`^${n}`) })).toBeVisible();   // where to send it
   const anon = await browser.newContext(); const ap = await anon.newPage();
   const res = await ap.goto(url.replace(/^https?:\/\/[^/]+/, L)); expect(res!.status()).toBe(200);
   await expect(ap.getByRole("heading", { name: "Pata Hi Na Chala", level: 1 })).toBeVisible();
