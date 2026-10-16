@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Equaliser } from "../components/Equaliser";
 import { Icon } from "../components/Icon";
+import { NewItem } from "../components/NewItem";
+import { useMe } from "../lib/me";
 import { usePlayer } from "../lib/player";
 import { getJSON, type SongRow } from "../lib/api";
 import { errText, itemPath, nextAction } from "../lib/songs";
@@ -14,12 +16,13 @@ export function ItemList({ type, title, blurb, noun }: { type: string; title: st
   const [rows, setRows] = useState<SongRow[] | null>(null);
   const [err, setErr] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const pl = usePlayer();
+  const pl = usePlayer(); const me = useMe();
   useEffect(() => { getJSON<SongRow[]>("/api/songs").then((r) => setRows(r.filter((s) => s.type === type))).catch((e) => setErr(errText(e))); }, []);
   const shown = rows?.filter((s) => filter === "all" || s.status === filter) ?? [];
   return (
     <>
       <div className="ph"><h1 className="disp">{title}</h1><p>{blurb}</p></div>
+      {me.studio && (type === "music" || type === "inspiration") && <NewItem type={type} />}
       <div className="seg" role="group" aria-label={`Filter ${noun}s`} style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
         {FILTERS.map(([k, label]) => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{label}{rows && k !== "all" ? <span className="mu"> {rows.filter((s) => s.status === k).length}</span> : null}</button>)}
       </div>

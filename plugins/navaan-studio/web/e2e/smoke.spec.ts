@@ -19,6 +19,18 @@ test("a song goes from the list to an approved gate", async ({ page }, info) => 
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Lyrics", level: 2 })).toHaveCount(0);
   await expect(page.getByText(`gate lyrics approved via ui:`)).toBeVisible();   // the history says who
+  await page.getByRole("button", { name: "Revoke approval of Lyrics" }).click(); await page.getByRole("button", { name: "Yes, revoke" }).click();   // take it back: the gate opens again
+  await expect(page.getByRole("heading", { name: "Lyrics", level: 2 })).toBeVisible(); await expect(page.getByText(/gate lyrics revoked via ui:/)).toBeVisible();
+});
+
+test("a song and an inspiration can be started from the lists and open at their first step", async ({ page }, info) => {
+  await page.goto("/app/studio/songs"); await page.getByRole("button", { name: "New song" }).click();
+  await page.getByLabel("Idea (optional)").fill(`A song made in the ${info.project.name} check`); await page.getByRole("button", { name: "Create" }).click();
+  await expect(page).toHaveURL(/\/app\/studio\/songs\/song-\d+/); await expect(page.getByRole("heading", { name: "Steps", level: 2 })).toBeVisible();
+  await page.goto("/app/studio/inspiration"); await page.getByRole("button", { name: "New inspiration" }).click();
+  await page.getByRole("button", { name: "Create" }).click(); await expect(page.getByText("Write the quote or the idea first.")).toBeVisible();   // an inspiration needs words
+  await page.getByLabel("Quote or idea").fill("Maybe you are not behind, maybe you are on your own road"); await page.getByRole("button", { name: "Create" }).click();
+  await expect(page).toHaveURL(/\/app\/studio\/inspiration\/insp-\d+/); await expect(page.getByRole("heading", { name: "Steps", level: 2 })).toBeVisible();
 });
 
 test("approvals lists what is waiting, grouped by gate", async ({ page }) => {
