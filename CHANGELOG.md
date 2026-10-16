@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-10-16
+
+### Fixed
+- A song whose history was written as objects (song-001, from before the move to the database) no longer shows a black screen: its history reads normally. If a screen ever fails to draw, it now shows what happened with a Reload button instead of going black, and reports the error.
+- Studio (`/app/studio`) is a real front page with a tile for each area and what is waiting, instead of a "coming soon" note that sent you to the classic view.
+
 ## [0.17.0] - 2026-10-16
 
 ### Changed
@@ -184,7 +190,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.17.1...HEAD
+[0.17.1]: https://github.com/NjAIAgents/navaan/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/NjAIAgents/navaan/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/NjAIAgents/navaan/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/NjAIAgents/navaan/compare/v0.15.0...v0.15.1

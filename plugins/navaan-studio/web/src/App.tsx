@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import { useMe } from "./lib/me";
 import Placeholder from "./pages/Placeholder";
 import Songs from "./pages/Songs";
+import StudioHome from "./pages/StudioHome";
 
 // Each screen is loaded when it is opened, so the first paint carries only the shell, Home and the Songs list.
 const Browse = lazy(() => import("./pages/Browse"));
@@ -37,12 +38,12 @@ export default function App() {
         <Route path="song/:slug" element={<ListenerSong />} />
         <Route path="account" element={<Account />} />
         <Route path="account/security" element={<Security />} />
-        <Route path="studio" element={<Placeholder title="Studio" story="the Studio stories (NAV-13, NAV-14, NAV-15)" blurb="Songs, inspiration, approvals, schedule and analytics." hash="" />} />
+        <Route path="studio" element={<StudioHome />} />
         <Route path="studio/songs" element={<Songs />} />
         <Route path="studio/songs/:slug" element={<Song />} />
         <Route path="studio/inspiration" element={<Inspiration />} />
         <Route path="studio/inspiration/:slug" element={<Song />} />
-        <Route path="studio/podcasts" element={<Placeholder title="Podcasts" story="a later release" blurb="Spoken episodes will live here." />} />
+        <Route path="studio/podcasts" element={<Placeholder title="Podcasts" blurb="Spoken episodes will live here, in a later release." />} />
         <Route path="studio/approvals" element={<Approvals />} />
         <Route path="studio/schedule" element={<Schedule />} />
         <Route path="studio/analytics" element={<Analytics />} />
@@ -54,7 +55,7 @@ export default function App() {
         <Route path="plans" element={<Plans />} />
         <Route path="albums" element={<Albums />} />
         <Route path="albums/:slug" element={<Album />} />
-        <Route path="*" element={<Placeholder title="Not found" story="nothing" blurb="That page does not exist." />} />
+        <Route path="*" element={<Placeholder title="Not found" blurb="That page does not exist." />} />
       </Route>
     </Routes>
   );

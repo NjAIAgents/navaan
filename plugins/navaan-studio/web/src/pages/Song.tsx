@@ -144,7 +144,13 @@ function StepRow({ s, failed, act, busy }: { s: Step; failed: boolean; act: Act;
   );
 }
 
-const when = (h: string) => {
+// A history line is "<time> <text>", or, in songs from before the move, an object with at, event and note.
+const when = (h: NonNullable<SongDetail["meta"]["history"]>[number]) => {
+  if (typeof h !== "string") {
+    const ms = Date.parse(String(h?.at ?? ""));
+    const text = [String(h?.event ?? "").replace(/_/g, " "), h?.note ? String(h.note) : ""].filter(Boolean).join(": ");
+    return { at: Number.isNaN(ms) ? "" : new Date(ms).toLocaleString(), text: text || "event" };
+  }
   const [t, ...rest] = h.split(" "); const ms = Date.parse(t);
   return Number.isNaN(ms) ? { at: "", text: h } : { at: new Date(ms).toLocaleString(), text: rest.join(" ") };
 };
