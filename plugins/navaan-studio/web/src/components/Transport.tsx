@@ -7,6 +7,7 @@ export function Transport({ big = false }: { big?: boolean }) {
   if (!p.slug) return null;
   return (
     <div className="tp" role="group" aria-label="Player controls">
+      <button className={"btn g sq shuf" + (p.shuffle ? " on" : "")} onClick={() => p.setShuffle(!p.shuffle)} aria-label="Shuffle" aria-pressed={p.shuffle}><Icon name="shuffle" /></button>
       <button className="btn g sq" onClick={p.prev} aria-label="Back"><Icon name="prev" filled /></button>
       <button className={"btn p sq round" + (big ? "" : " mid")} onClick={() => void p.toggle(p.slug!, p.title)} aria-label={p.playing ? "Pause" : "Play"}><Icon name={p.playing ? "pause" : "play"} filled /></button>
       <button className="btn g sq" onClick={p.next} aria-label="Next" disabled={!p.hasNext}><Icon name="next" filled /></button>

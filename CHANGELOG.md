@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-17
+
+### Added
+- Shuffle on the player. A shuffle button sits with Back, Play and Next on the bar (on a phone it is in play mode and on the song page), and albums and playlists have a Shuffle button that turns it on and starts a random song of the list. Every song plays once, in a random order, before any repeats (and the first of the next round is never the song that just played); Back returns to the song before; the choice is remembered.
+
 ## [0.23.0] - 2026-10-17
 
 ### Added
@@ -254,7 +259,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/NjAIAgents/navaan/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/NjAIAgents/navaan/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/NjAIAgents/navaan/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/NjAIAgents/navaan/compare/v0.20.0...v0.21.0

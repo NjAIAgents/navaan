@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
+import { ShuffleButton } from "../components/ShuffleButton";
 import { AddToPlaylist } from "../components/AddToPlaylist";
 import { getJSON, type AlbumRow } from "../lib/api";
 import { usePlayer } from "../lib/player";
@@ -25,7 +26,7 @@ export default function ListenerAlbum() {
           <h1 id="la-h" className="disp">{a.title}</h1>
           <div className="row chips"><span className="chip">{a.kind}</span>{a.release_date && <span className="chip">{a.release_date}</span>}<span className="chip">{a.tracks.length} song{a.tracks.length === 1 ? "" : "s"}</span></div>
           {a.description && <p className="mu">{a.description}</p>}
-          <div className="row"><PlayButton queue={queue} label={a.title} size="big" /></div>
+          <div className="row"><PlayButton queue={queue} label={a.title} size="big" /><ShuffleButton queue={queue} label={a.title} /></div>
         </div>
       </section>
       <section className="sec" aria-labelledby="lt-h">
