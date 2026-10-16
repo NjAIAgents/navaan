@@ -1,15 +1,17 @@
 import { useEffect, useRef } from "react";
-import { activeIndex, type TimedLine } from "../lib/lyrics";
+import { activeIndex, estimateLines, type TimedLine } from "../lib/lyrics";
 
 // Lyrics: plain text, or line by line with the current line marked when timing exists. The page follows the current line only while the song plays, and scrolls smoothly unless motion is reduced.
-export function Lyrics({ plain, timed, position, follow }: { plain: string; timed: TimedLine[] | null; position: number; follow: boolean }) {
-  const cur = timed ? activeIndex(timed, position) : -1;
+export function Lyrics({ plain, timed, position, follow, duration = 0 }: { plain: string; timed: TimedLine[] | null; position: number; follow: boolean; duration?: number }) {
+  const guess = !timed && follow !== undefined && duration > 0 ? estimateLines(plain, duration) : null;   // measured timing is best; without it the lines follow the song roughly
+  const lines = timed ?? guess;
+  const cur = lines ? activeIndex(lines, position) : -1;
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => {
     if (!follow || !ref.current || cur < 0) return;
     const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     ref.current.scrollIntoView?.({ block: "center", behavior: calm ? "auto" : "smooth" });
   }, [cur, follow]);
-  if (timed) return <ol className="lyrics" aria-label="Lyrics">{timed.map(([, line], i) => <li key={i} ref={i === cur ? ref : undefined} className={i === cur ? "now" : i < cur ? "past" : ""} aria-current={i === cur ? "true" : undefined}>{line}</li>)}</ol>;
+  if (lines) return <><ol className="lyrics" aria-label="Lyrics">{lines.map(([, line], i) => <li key={i} ref={i === cur ? ref : undefined} className={i === cur ? "now" : i < cur ? "past" : ""} aria-current={i === cur ? "true" : undefined}>{line}</li>)}</ol>{guess && <p className="mu" style={{ fontSize: 13 }}>Lines follow the song approximately.</p>}</>;
   return plain.trim() ? <p className="lyrics plain" aria-label="Lyrics">{plain}</p> : <p className="mu">No lyrics for this song.</p>;
 }

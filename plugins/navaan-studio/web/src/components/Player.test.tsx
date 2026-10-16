@@ -55,7 +55,7 @@ describe("playing a song", () => {
   });
 });
 
-const within_ = (el: HTMLElement, name: string) => Array.from(el.querySelectorAll("button")).find((b) => b.textContent?.startsWith(name))!;
+const within_ = (el: HTMLElement, name: string) => Array.from(el.querySelectorAll("button")).find((b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").startsWith(name))!;
 
 describe("quality rules in the stylesheet", () => {
   const css = readFileSync(`${process.cwd()}/src/styles/base.css`, "utf8");
