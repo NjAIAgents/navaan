@@ -99,6 +99,7 @@ function ShellFrame() {
           </button>
           {open && !mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile={false} version={version} />}
         </div>
+        <p className="cr mu side-cr">NAVAAN Studio · © {new Date().getFullYear()} NAVAAN Studio. All rights reserved. · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
       </aside>
       <div className="main">
         <header className="top">
@@ -116,7 +117,6 @@ function ShellFrame() {
           <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" data-i={who.slice(0, 1).toUpperCase()} aria-hidden="true" /></button>
         </div>
         <main id="main" key={pathname} className="page" tabIndex={-1}>{studio && <Alerts />}<ErrorBoundary><Suspense fallback={<p className="mu" role="status">Loading…</p>}><Outlet /></Suspense></ErrorBoundary></main>
-        <footer className="cr mu">NAVAAN Studio · © {new Date().getFullYear()} NAVAAN Studio. All rights reserved. · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></footer>
         <NowPlaying />
         <PlayMode />
       </div>

@@ -44,7 +44,7 @@ export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) 
       {studio && <a href="/legacy"><Icon name="external" /> Classic view</a>}
       <hr />
       <button onClick={signOut}><Icon name="out" /> Sign out</button>
-      {version && <p className="mu" style={{ margin: "8px 12px 0", fontSize: 12 }}>NAVAAN {version}</p>}
+      <p className="mu" style={{ margin: "8px 12px 0", fontSize: 12 }}>NAVAAN Studio{version ? ` ${version}` : ""} · © {new Date().getFullYear()} NAVAAN Studio. All rights reserved. · <a href="/privacy" style={{ display: "inline", minHeight: 0, padding: 0 }}>Privacy</a> · <a href="/terms" style={{ display: "inline", minHeight: 0, padding: 0 }}>Terms</a></p>
     </>
   );
   return mobile ? (
