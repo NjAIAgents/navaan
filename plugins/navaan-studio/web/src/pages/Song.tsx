@@ -79,13 +79,14 @@ export default function Song() {
   if (!d) return err ? <div className="card" role="alert"><h2>Could not load this song</h2><p className="mu">{err}</p><Link className="btn" to="/studio/songs">Back to Songs</Link></div> : <p className="mu" role="status">Loading…</p>;
 
   const title = d.text["title.txt"]?.trim() || slug;
+  const insp = d.meta.type === "inspiration"; const list = insp ? "/studio/inspiration" : "/studio/songs";
   const gate = d.next.type === "gate" ? d.next.gate : undefined;
   const busy = pending || running;
   const history = [...(d.meta.history ?? [])].reverse().slice(0, 30);
   return (
     <>
       <div className="ph">
-        <Link className="back" to="/studio/songs"><Icon name="chevron" />Songs</Link>
+        <Link className="back" to={list}><Icon name="chevron" />{insp ? "Inspiration" : "Songs"}</Link>
         <h1 className="disp">{title}</h1>
         <p>{slug} · {d.meta.state ?? "new"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })}</p>
       </div>

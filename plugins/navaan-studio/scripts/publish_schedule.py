@@ -137,6 +137,22 @@ def status_text(m):
     return "; ".join(parts)
 
 
+def entries(slug, m, title=""):
+    """One row per publish step of a scheduled item, for the calendar and the list: {slug, title, type, platform, at, state, reason}.
+    state is done, missed, blocked (reason says why) or scheduled."""
+    import navaan as N
+    s = get(m)
+    if not s: return []
+    out = []
+    for sid, key, plat, done in (("go_public", "youtube_at", "YouTube", N.public_done(m)), ("publish_instagram", "instagram_at", "Instagram", N.ig_done(m))):
+        at = s.get(key)
+        if not at: continue
+        blocked = (s.get("blocked") or {}).get(sid) or ""
+        state = "done" if (s.get("done") or done) else "missed" if (s.get("missed") or {}).get(sid) else "blocked" if blocked else "scheduled"
+        out.append({"slug": slug, "title": title, "type": C.item_type(m), "platform": plat, "at": at, "state": state, "reason": blocked if state == "blocked" else ""})
+    return out
+
+
 def _due(N, slug, m, n):
     """Steps of this item that are due now: [(step_id, reason_if_blocked_or_None)]."""
     s = get(m); out = []
