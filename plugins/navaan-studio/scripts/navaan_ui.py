@@ -447,7 +447,8 @@ class H(BaseHTTPRequestHandler):
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
             if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
-            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["version"] = app_version(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
+            st["version"] = app_version()   # the version is shown on the sign in page too: it is public (the repository is), and it tells you what is deployed
+            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
         sess = self._surface(auth.session(ck))
         if not sess and self._public_host(): sess = GUEST   # the public site needs no sign in

@@ -85,6 +85,11 @@ class Access(unittest.TestCase):
             for i in range(6): last = post("/api/site/feedback", {"message": f"spam {i}"})[0]
             self.assertEqual(last, 429)   # five messages an hour from one address
 
+    def test_the_sign_in_page_can_show_the_version_without_a_session(self):
+        code, body = self.call("/auth/state"); d = json.loads(body)
+        self.assertEqual(code, 200); self.assertTrue(d.get("version"))   # public: the sign in page prints it
+        self.assertNotIn("scheduler", d)   # the rest stays behind the sign in
+
     def test_a_visitor_can_ask_for_an_account_with_what_they_like_and_only_the_studio_reads_the_count(self):
         env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
         with mock.patch.dict(os.environ, env):
