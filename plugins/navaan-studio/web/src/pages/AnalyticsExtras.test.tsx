@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -68,6 +68,17 @@ describe("Analytics extras (NAV-28)", () => {
   it("shows an empty state with the Collect button, not an error screen, when nothing is collected yet (a fresh database)", async () => {
     stub({ overview: { empty: true, reason: "no_database", db: "x", collect: { running: false } } });
     at(); expect(await screen.findByText(/Nothing collected yet/)).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Collect now" })).toBeInTheDocument(); expect(screen.queryByText("This screen hit a problem")).toBeNull();
+  });
+  it("the Feedback tab shows reactions per song and the messages, with a reply link and mark as read", async () => {
+    const rx = [{ slug: "song-001", title: "Tere Hone Se", up: 4, down: 1, love: 7 }, { slug: "song-002", title: "Pata Hi Na Chala", up: 0, down: 0, love: 0 }];
+    const fb = [{ id: "11111111-1111-1111-1111-111111111111", slug: "song-001", title: "Tere Hone Se", message: "Lovely second verse\n<b>x</b>", email: "fan@example.com", created_at: "2026-10-16T10:00:00Z", handled_at: null }, { id: "22222222-2222-2222-2222-222222222222", slug: null, title: null, message: "The site is great", email: null, created_at: "2026-10-16T09:00:00Z", handled_at: null }];
+    const f = vi.fn((u: string, _i?: RequestInit) => Promise.resolve(u.startsWith("/api/me") ? json(OWNER) : u.startsWith("/api/site/reactions") ? json(rx) : u.startsWith("/api/site/feedback/handle") ? json({ ok: true }) : u.startsWith("/api/site/feedback") ? json(fb) : u.startsWith("/api/analytics/auto") ? json(AUTO) : json([])));
+    vi.stubGlobal("fetch", f); at("/studio/analytics?tab=feedback");
+    expect(await screen.findByText(/In total: 7 love it, 4 thumbs up, 1 thumbs down/)).toBeInTheDocument(); expect(screen.getAllByRole("link", { name: "Tere Hone Se" })[0]).toHaveAttribute("href", "/studio/songs/song-001");
+    const m = await screen.findByRole("article", { name: "Message from fan@example.com" }); expect(m).toHaveTextContent("<b>x</b>"); expect(within(m).queryByRole("strong")).toBeNull();   // the message is text, never markup
+    expect(within(m).getByRole("link", { name: "fan@example.com" }).getAttribute("href")).toContain("mailto:fan@example.com?subject=About%20Tere%20Hone%20Se"); expect(screen.getByText(/no email given/)).toBeInTheDocument();
+    fireEvent.click(within(m).getByRole("button", { name: "Mark as read" })); await waitFor(() => expect(JSON.parse(String(f.mock.calls.find(([u]) => u === "/api/site/feedback/handle")![1]?.body))).toEqual({ id: "11111111-1111-1111-1111-111111111111", handled: true }));
+    expect(screen.queryByText("Auto refresh")).toBeNull();   // the collect and auto-refresh cards belong to the other tabs
   });
   it("has no serious accessibility violations", async () => {
     stub(); const { container } = at(); await screen.findByRole("heading", { name: "Auto refresh" });

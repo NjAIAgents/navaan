@@ -1,5 +1,5 @@
 // Themes are data: each has a stylesheet in src/styles/themes/ that defines the same variables. The page carries the active one in <html data-theme>.
-// "system" follows the device. The choice is a per-device convenience kept in localStorage; index.html applies it before first paint.
+// The site opens dark (Midnight Cinema) until someone chooses; "system" ("Match my device") is a choice like the others. The choice is a per-device convenience kept in localStorage; index.html applies it before first paint.
 export type ThemeId = "midnight-cinema" | "ivory-gold";
 export type Choice = ThemeId | "system";
 
@@ -9,14 +9,15 @@ export const THEMES: { id: ThemeId; name: string; scheme: "dark" | "light" }[] =
 ];
 
 export const STORAGE_KEY = "navaan.theme";
+export const DEFAULT_CHOICE: Choice = "midnight-cinema";
 const isTheme = (v: unknown): v is ThemeId => THEMES.some((t) => t.id === v);
 
 export function readChoice(storage: Pick<Storage, "getItem"> | null = safeStorage()): Choice {
   try {
     const v = storage?.getItem(STORAGE_KEY);
-    return isTheme(v) ? v : "system";
+    return isTheme(v) ? v : v === "system" ? "system" : DEFAULT_CHOICE;
   } catch {
-    return "system";   // storage can throw (private window, blocked site data): fall back to the device
+    return DEFAULT_CHOICE;   // storage can throw (private window, blocked site data): the dark default
   }
 }
 
@@ -35,10 +36,9 @@ export function applyChoice(choice: Choice, doc: Document = document, win: Windo
   return id;
 }
 
-export function saveChoice(choice: Choice, storage: Pick<Storage, "setItem" | "removeItem"> | null = safeStorage()): void {
+export function saveChoice(choice: Choice, storage: Pick<Storage, "setItem"> | null = safeStorage()): void {
   try {
-    if (choice === "system") storage?.removeItem(STORAGE_KEY);
-    else storage?.setItem(STORAGE_KEY, choice);
+    storage?.setItem(STORAGE_KEY, choice);   // "system" is kept too: it is a choice, and not choosing means dark
   } catch {
     // nothing to keep the choice in; it still applies for this visit
   }

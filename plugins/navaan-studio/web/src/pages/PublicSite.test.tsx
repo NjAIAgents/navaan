@@ -48,6 +48,31 @@ describe("the free public site (not signed in)", () => {
   });
 });
 
+describe("feedback on a song", () => {
+  const sent = (f: ReturnType<typeof stub>, path: string) => f.mock.calls.filter(([u]) => u === path).map(([, i]) => JSON.parse(String(i?.body)));
+  it("counts thumbs up, love it and thumbs down, lets the visitor change their mind or take one back, and remembers it", async () => {
+    const f = stub(GUEST); at("/song/song-001"); await screen.findByRole("button", { name: "Thumbs up" });
+    const b = (n: string | RegExp) => screen.getByRole("button", { name: n }); const pressed = (n: string | RegExp, v: string) => waitFor(() => expect(b(n)).toHaveAttribute("aria-pressed", v));
+    fireEvent.click(b("Thumbs up")); await pressed("Thumbs up", "true"); expect(sent(f, "/api/site/react")).toEqual([{ slug: "song-001", reaction: "up" }]);
+    fireEvent.click(b(/Love it/)); await pressed(/Love it/, "true"); expect(b("Thumbs up")).toHaveAttribute("aria-pressed", "false"); expect(sent(f, "/api/site/react")[1]).toEqual({ slug: "song-001", reaction: "love", previous: "up" });
+    fireEvent.click(b(/Love it/)); await pressed(/Love it/, "false"); expect(sent(f, "/api/site/react")[2]).toEqual({ slug: "song-001", reaction: null, previous: "love" });   // taken back: no new reaction
+    fireEvent.click(b("Thumbs down")); await pressed("Thumbs down", "true"); expect(localStorage.getItem("navaan-react:song-001")).toBe("down"); expect(await screen.findByText(/Tell us what to improve/)).toBeInTheDocument();   // a thumbs down invites a word
+    cleanup(); stub(GUEST); at("/song/song-001"); expect(await screen.findByRole("button", { name: "Thumbs down" })).toHaveAttribute("aria-pressed", "true");   // it came back
+  });
+  it("sends a message with an optional email, never shows the bot field, and says thank you", async () => {
+    const f = stub(GUEST); at("/song/song-001"); fireEvent.click(await screen.findByRole("button", { name: /Send feedback/ })); const dlg = await screen.findByRole("dialog");
+    expect(within(dlg).getByLabelText(/Your email/)).not.toBeRequired(); expect(within(dlg).getByRole("button", { name: "Send" })).toBeDisabled();
+    fireEvent.change(within(dlg).getByLabelText("Your message"), { target: { value: "Lovely second verse" } }); fireEvent.click(within(dlg).getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(sent(f, "/api/site/feedback")).toEqual([{ slug: "song-001", message: "Lovely second verse", website: "" }])); expect(await within(dlg).findByText(/Thank you/)).toBeInTheDocument();
+  });
+  it("sends the email when one is given, and shows the server's refusal", async () => {
+    const f = vi.fn((u: string, _i?: RequestInit) => Promise.resolve(u.startsWith("/api/me") ? json(GUEST) : u.startsWith("/api/catalog/track/") ? json(TRACK) : u === "/api/site/feedback" ? json({ error: "that email address does not look right (you can leave it empty)" }, 400) : json([])));
+    vi.stubGlobal("fetch", f); at("/song/song-001"); fireEvent.click(await screen.findByRole("button", { name: /Send feedback/ })); const dlg = await screen.findByRole("dialog");
+    fireEvent.change(within(dlg).getByLabelText("Your message"), { target: { value: "hi" } }); fireEvent.change(within(dlg).getByLabelText(/Your email/), { target: { value: "fan@example.com" } }); fireEvent.click(within(dlg).getByRole("button", { name: "Send" }));
+    expect(await within(dlg).findByRole("alert")).toHaveTextContent("does not look right"); expect(JSON.parse(String(f.mock.calls.find(([u]) => u === "/api/site/feedback")![1]?.body)).email).toBe("fan@example.com");
+  });
+});
+
 describe("one sign in for the owner on both hosts", () => {
   it("on the public site the owner sees Studio, and Settings and Security in the menu, as links to the studio host", async () => {
     stub(OWNER_PUBLIC); at("/"); await screen.findByRole("heading", { name: "Browse", level: 1 });
@@ -65,6 +90,7 @@ describe("one sign in for the owner on both hosts", () => {
 describe("the player's volume", () => {
   it("sets the loudness, mutes and unmutes, and remembers the level", async () => {
     stub(GUEST); at("/song/song-001"); fireEvent.click(await screen.findByRole("button", { name: "Play" })); const bar = await screen.findByRole("region", { name: "Now playing" }); const audio = document.querySelector("audio")!;
+    expect(bar.querySelector("img")).toHaveAttribute("src", "/img/song-001/640.jpg");   // the bar shows the song's picture, not its first letter
     const slider = within(bar).getByLabelText("Volume") as HTMLInputElement; expect(audio.volume).toBe(1);
     fireEvent.change(slider, { target: { value: "40" } }); expect(audio.volume).toBeCloseTo(0.4); expect(localStorage.getItem("navaan-volume")).toBe("0.4");
     fireEvent.click(within(bar).getByRole("button", { name: "Mute" })); expect(audio.muted).toBe(true); expect(within(bar).getByRole("button", { name: "Unmute" })).toHaveAttribute("aria-pressed", "true");

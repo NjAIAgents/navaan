@@ -113,3 +113,7 @@ export type Schedule = { youtube_at: string; instagram_at: string; blocked?: Rec
 // Cloud (NAV-27)
 export type CloudSong = { slug: string; title: string; files: { name: string; size: number; key: string }[]; bytes: number; local: boolean; cleaned: boolean; uploaded_at?: string | null; verified?: boolean | null; youtube: string[]; instagram: string };
 export type CloudData = { configured: boolean; provider?: string; bucket?: string; region?: string; error?: string; songs?: CloudSong[] };
+
+// Feedback from the public site (NAV-44)
+export type SongReactions = { slug: string; title: string; up: number; down: number; love: number };
+export type FeedbackRow = { id: string; slug: string | null; title: string | null; message: string; email: string | null; created_at: string; handled_at: string | null };

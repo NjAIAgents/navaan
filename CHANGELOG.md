@@ -6,6 +6,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-17
+
+### Added
+- Feedback on every song of the public site: thumbs up, thumbs down and "love it" (double thumbs up), counted anonymously per song (a visitor can change their mind or take it back; the choice is remembered in their own browser), and a Send feedback form with an optional email for a reply. A thumbs down invites a word about what to improve. Studio > Analytics has a new Feedback tab: reactions per song (7 days, 30 days or all time) and the messages, with a reply link, and Mark as read. Per address limits and a hidden field keep bots out; the privacy policy says what is kept.
+
+### Changed
+- The site opens dark (Midnight Cinema) until someone chooses; "Match my device" is now a choice like the others.
+
+### Fixed
+- The player shows the song's picture, not its first letter.
+
 ## [0.22.0] - 2026-10-17
 
 ### Added
@@ -243,7 +254,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/NjAIAgents/navaan/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/NjAIAgents/navaan/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/NjAIAgents/navaan/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/NjAIAgents/navaan/compare/v0.19.0...v0.20.0
