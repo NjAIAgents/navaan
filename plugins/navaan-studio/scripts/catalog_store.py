@@ -308,8 +308,10 @@ def track_ids(slugs):
 
 
 def tracks_by_ids(ids):
-    """{id: {"slug", "title"}} for these track ids."""
-    return {r["id"]: {"slug": r["slug"], "title": r["title"]} for r in _tx(lambda c: c.execute("SELECT id::text AS id, slug, title FROM tracks WHERE id = ANY(?::uuid[])", (list(ids),)).fetchall())}
+    """{id: {"slug", "title", "art"}} for these track ids; art is {"colour"} when the track has a cover, else None (what a tile needs to show it)."""
+    return {r["id"]: {"slug": r["slug"], "title": r["title"], "art": {"colour": r["colour"]} if r["has_cover"] else None} for r in _tx(lambda c: c.execute(
+        "SELECT t.id::text AS id, t.slug, t.title, EXISTS(SELECT 1 FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover') AS has_cover, "
+        "(SELECT a.dominant_colour FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS colour FROM tracks t WHERE t.id = ANY(?::uuid[])", (list(ids),)).fetchall())}
 
 
 def album_ids(slugs):

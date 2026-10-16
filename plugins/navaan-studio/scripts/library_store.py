@@ -33,7 +33,9 @@ def _owned(c, uid, pid, lock=False):
 
 def playlists(uid):
     return _tx(lambda c: [{**r, "id": str(r["id"]), "updated_at": r["updated_at"].isoformat()} for r in c.execute(
-        "SELECT p.id, p.name, p.description, p.visibility, p.updated_at, (SELECT count(*) FROM playlist_tracks t WHERE t.playlist_id = p.id) AS tracks FROM playlists p WHERE p.user_id = ?::uuid ORDER BY p.updated_at DESC", (uid,)).fetchall()])
+        "SELECT p.id, p.name, p.description, p.visibility, p.updated_at, (SELECT count(*) FROM playlist_tracks t WHERE t.playlist_id = p.id) AS tracks, "
+        "(SELECT t.slug FROM playlist_tracks pt JOIN catalog.tracks t ON t.id = pt.track_id JOIN catalog.assets a ON a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' WHERE pt.playlist_id = p.id ORDER BY pt.position LIMIT 1) AS cover, "
+        "(SELECT a.dominant_colour FROM playlist_tracks pt JOIN catalog.assets a ON a.owner_id = pt.track_id AND a.owner_kind = 'track' AND a.role = 'cover' WHERE pt.playlist_id = p.id ORDER BY pt.position LIMIT 1) AS colour FROM playlists p WHERE p.user_id = ?::uuid ORDER BY p.updated_at DESC", (uid,)).fetchall()])
 
 
 def create_playlist(user, name, description="", visibility="private"):
@@ -58,7 +60,7 @@ def get_playlist(uid, pid):
     p, rows = _tx(go)
     info = K.tracks_by_ids([r["track_id"] for r in rows]) if rows else {}
     return {"id": str(p["id"]), "name": p["name"], "description": p["description"], "visibility": p["visibility"],
-            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"]} for r in rows if r["track_id"] in info]}
+            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"], "art": info[r["track_id"]]["art"]} for r in rows if r["track_id"] in info]}
 
 
 def shared_playlist(pid):
@@ -72,7 +74,7 @@ def shared_playlist(pid):
     if not p: return None
     info = K.tracks_by_ids([r["track_id"] for r in rows]) if rows else {}
     return {"id": str(p["id"]), "name": p["name"], "description": p["description"], "visibility": p["visibility"],
-            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"]} for r in rows if r["track_id"] in info]}
+            "tracks": [{"slug": info[r["track_id"]]["slug"], "title": info[r["track_id"]]["title"], "position": r["position"], "art": info[r["track_id"]]["art"]} for r in rows if r["track_id"] in info]}
 
 
 def update_playlist(uid, pid, name=None, description=None, visibility=None):

@@ -7,6 +7,9 @@ import { AddSongs } from "../components/AddSongs";
 import { getJSON, postJSON, type PlaylistDetail } from "../lib/api";
 import { errText } from "../lib/songs";
 import { Loading } from "../components/Loading";
+import { Tile } from "../components/Tile";
+import { Cover } from "../components/Cover";
+import { useView, ViewToggle } from "../lib/view";
 
 const VIS = ["private", "unlisted", "public"] as const;
 
@@ -19,7 +22,7 @@ export default function Playlist() {
   const [desc, setDesc] = useState(""); const [adding, setAdding] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState(false); const [view, setView] = useView("playlist");
   const load = useCallback(() => getJSON<PlaylistDetail>(`/api/playlists/${id}`).then((x) => { setP(x); setName(x.name); setDesc(x.description ?? ""); setErr(""); }).catch((e) => setErr(errText(e))), [id]);
   useEffect(() => { void load(); }, [load]);
   const act = async (path: string, body: Record<string, unknown>) => { setBusy(true); try { await postJSON(path, { id, ...body }); setErr(""); await load(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
@@ -46,10 +49,20 @@ export default function Playlist() {
         <button className="btn" type="submit" disabled={busy || desc === (p.description ?? "")}>Save</button>
       </form>}
       {!mine && p.description && <p className="mu">{p.description}</p>}
+      {t.length > 0 && <div className="row"><span className="sp" /><ViewToggle view={view} onChange={setView} /></div>}
+      {view === "grid" && t.length > 0 ? (
+        <>
+          <div className="grid tiles">{t.map((s) => (
+            <Tile key={s.slug} to={`/song/${s.slug}`} slug={s.slug} title={s.title} art={s.art} action={<><PlayButton slug={s.slug} title={s.title} queue={queue} label={s.title} />{mine && <button className="btn g" disabled={busy} onClick={() => void act("/api/playlists/remove", { slug: s.slug })} aria-label={`Remove ${s.title}`}>Remove</button>}</>} />
+          ))}</div>
+          {mine && <p className="mu">To change the order, switch to List.</p>}
+        </>
+      ) : (
       <div className="card" style={{ padding: 8 }}>
         {t.length ? <ol className="steps">{t.map((s, i) => (
           <li key={s.slug} className="stp">
             <PlayButton slug={s.slug} title={s.title} queue={queue} label={s.title} />
+            <Cover slug={s.slug} title={s.title} art={s.art} size={44} />
             <Link className="tx" to={`/song/${s.slug}`}><b>{s.title}</b></Link>
             {mine && <><button className="btn g sq" disabled={busy || i === 0} onClick={() => void up(i)} aria-label={`Move ${s.title} up`}><span style={{ transform: "rotate(-90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
             <button className="btn g sq" disabled={busy || i === t.length - 1} onClick={() => void down(i)} aria-label={`Move ${s.title} down`}><span style={{ transform: "rotate(90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
@@ -57,6 +70,7 @@ export default function Playlist() {
           </li>
         ))}</ol> : <p className="empty">This playlist is empty. Use Add songs below.</p>}
       </div>
+      )}
       {mine && (adding ? <><AddSongs have={new Set(t.map((x) => x.slug))} onAdd={async (slug) => { await postJSON("/api/playlists/add", { id, slug }); await load(); }} /><div className="row"><button className="btn g" onClick={() => setAdding(false)}>Done adding</button></div></> : <div className="row"><button className="btn p" onClick={() => setAdding(true)}><Icon name="plus" /> Add songs</button></div>)}
       {!mine ? null : confirm ? (
         <div className="card stack" role="group" aria-label="Confirm delete"><p>Delete "{p.name}"? Its songs stay in the catalogue.</p><div className="row"><button className="btn p" disabled={busy} onClick={() => void postJSON("/api/playlists/delete", { id }).then(() => go("/library")).catch((e) => setErr(errText(e)))}>Yes, delete</button><button className="btn g" onClick={() => setConfirm(false)}>Keep it</button></div></div>

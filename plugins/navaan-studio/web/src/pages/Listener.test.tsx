@@ -27,7 +27,7 @@ beforeEach(() => {
   HTMLMediaElement.prototype.play = vi.fn(function (this: HTMLMediaElement) { paused = false; this.dispatchEvent(new Event("play")); return Promise.resolve(); });
   HTMLMediaElement.prototype.pause = vi.fn(function (this: HTMLMediaElement) { paused = true; this.dispatchEvent(new Event("pause")); });
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); document.body.classList.remove("lock"); });
+afterEach(() => { try { localStorage.clear(); } catch { /* storage blocked */ } cleanup(); vi.unstubAllGlobals(); document.body.classList.remove("lock"); });
 
 const track = (o: object = {}) => ({ slug: "song-001", title: "Tere Hone Se", language: "Hindi", genre: "Romantic", albums: [{ slug: "first-light", title: "First Light" }], licence: "confirmed", art: { colour: "#336699" }, lyrics: "line one\nline two\nline three", timed: true, timed_lines: [[2, "line one"], [8, "line two"], [14, "line three"]], ...o });
 
@@ -198,6 +198,8 @@ describe("Library songs", () => {
   it("filters by album, language and genre through the server and links to the song", async () => {
     const f = route(OWNER, { "/api/catalog/filters": () => ({ albums: [{ slug: "first-light", title: "First Light" }], languages: ["English", "Hindi"], genres: ["Indie"] }), "/api/catalog/tracks": () => [{ slug: "song-001", title: "Tere Hone Se", language: "Hindi", genre: "Indie", albums: [{ slug: "first-light", title: "First Light" }], licence: "unconfirmed", art: null }], "/api/playlists": () => [], "/api/library": () => ({ tracks: [], albums: [], following: false }) });
     at("/library"); fireEvent.click(await screen.findByRole("tab", { name: "Songs" }));
+    expect(await screen.findByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");   // grid is the default
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
     const link = await screen.findByRole("link", { name: /Tere Hone Se/ }); expect(link).toHaveAttribute("href", "/song/song-001"); expect(link).toHaveTextContent("First Light"); expect(link).toHaveTextContent("Licence unconfirmed");   // the owner sees the licence
     fireEvent.change(screen.getByLabelText("Language"), { target: { value: "Hindi" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/catalog/tracks?language=Hindi&limit=24&offset=0")).toBe(true));
     fireEvent.change(screen.getByLabelText("Genre"), { target: { value: "Indie" } }); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/catalog/tracks?language=Hindi&genre=Indie&limit=24&offset=0")).toBe(true));
