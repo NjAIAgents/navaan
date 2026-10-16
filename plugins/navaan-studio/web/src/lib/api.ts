@@ -55,3 +55,5 @@ export type Overview = {
   collect: { running: boolean };
 };
 export type Reply = { comment_id: string; username: string; text: string; posted_at: string; post_id: string; post: string; account: string; link: string; reply: { draft: string | null; status: string; error: string | null } | null };
+
+export type Hit = { kind: "track" | "album" | "playlist" | "short"; id: string; slug: string | null; title: string; title_roman: string; score: number };

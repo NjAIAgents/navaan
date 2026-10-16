@@ -6,6 +6,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-16
+
+### Added
+- Share links. On a published song with a confirmed licence, Studio > Songs now has a Share section: Create a share link gives a link anyone can open without an account (`/s/<token>`). It shows a branded card with the cover and a 30 second preview, and chats show a preview card with the song's title and cover. You can stop a link at any time and it stops working at once; opens are counted. The preview is cut once from the audio in the bucket and stored next to it.
+- Cover pictures in three sizes (320, 640, 1280) as AVIF, WebP or JPEG (`/img/<song>/<size>.<format>`), made from the original in the bucket on first request, cached, and served with a one year cache lifetime and an ETag, so they still work after the studio's local copy is archived. The first request also records the cover's size and dominant colour.
+- Play links: `GET /api/play?slug=` returns a link that expires after 5 minutes and goes straight to the bucket, so audio never passes through this server; it refuses a track that is not published or is marked not allowed.
+- Search in the new app: the search box in the top bar (and a Search icon on a phone) finds songs and albums in Devanagari or Roman letters.
+
+### Changed
+- Links to files in the bucket are made with the OCI SDK instead of a command line process per link, and one link is reused for its lifetime.
+
 ## [0.11.0] - 2026-10-16
 
 ### Added
@@ -103,7 +114,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/NjAIAgents/navaan/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/NjAIAgents/navaan/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/NjAIAgents/navaan/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/NjAIAgents/navaan/compare/v0.8.0...v0.9.0
