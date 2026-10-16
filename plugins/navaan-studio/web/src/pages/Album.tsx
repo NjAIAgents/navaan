@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Icon } from "../components/Icon";
+import { PlayButton } from "../components/PlayButton";
 import { getJSON, postJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { coverOf } from "./Albums";
@@ -33,6 +34,7 @@ export default function Album() {
   const move = (i: number, d: number) => { const n = [...order]; [n[i], n[i + d]] = [n[i + d], n[i]]; return reorder(n); };
   const free = all.filter((t) => !order.includes(t.slug));
   const c = coverOf(a);
+  const playable = a.tracks.filter((t) => t.status === "published").map((t) => ({ slug: t.slug, title: t.title }));
   return (
     <>
       <section className="hero" style={c?.art?.colour ? { background: `linear-gradient(180deg, ${c.art.colour}66, transparent 75%)` } : undefined} aria-labelledby="al-h">
@@ -40,6 +42,7 @@ export default function Album() {
         <div className="hero-tx">
           <Link className="back" to="/albums"><Icon name="chevron" />Albums</Link>
           <h1 id="al-h" className="disp">{a.title}</h1>
+          {playable.length > 0 && <div className="row"><PlayButton queue={playable} label={a.title} size="big" /></div>}
           <div className="row chips"><span className="chip">{a.kind}</span><span className={"chip " + (a.status === "published" ? "ok" : "")}>{a.status}</span>{a.release_date && <span className="chip">{a.release_date}</span>}<span className="chip">{a.tracks.length} song{a.tracks.length === 1 ? "" : "s"}</span></div>
         </div>
       </section>
@@ -59,6 +62,7 @@ export default function Album() {
         <div className="card" style={{ padding: 8 }}>
           {a.tracks.length ? <ol className="steps">{a.tracks.map((t, i) => (
             <li key={t.slug} className="stp">
+              {t.status === "published" && <PlayButton slug={t.slug} title={t.title} queue={playable} label={t.title} />}
               <Link className="tx" to={`/song/${t.slug}`}><b>{i + 1}. {t.title}</b>{t.status !== "published" && <span className="mu"> · {t.status}</span>}</Link>
               <button className="btn g sq" disabled={busy || i === 0} onClick={() => void move(i, -1)} aria-label={`Move ${t.title} up`}><span style={{ transform: "rotate(-90deg)", display: "flex" }}><Icon name="chevron" /></span></button>
               <button className="btn g sq" disabled={busy || i === a.tracks.length - 1} onClick={() => void move(i, 1)} aria-label={`Move ${t.title} down`}><span style={{ transform: "rotate(90deg)", display: "flex" }}><Icon name="chevron" /></span></button>

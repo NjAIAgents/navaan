@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
-import { getJSON, type TrackRow } from "../lib/api";
+import { getJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 
 function Row({ title, rows }: { title: string; rows: TrackRow[] }) {
@@ -26,6 +26,8 @@ export default function Browse() {
   const [rows, setRows] = useState<TrackRow[] | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => { getJSON<TrackRow[]>("/api/catalog/tracks").then(setRows).catch((e) => setErr(errText(e))); }, []);
+  const [albums, setAlbums] = useState<AlbumRow[]>([]);
+  useEffect(() => { getJSON<AlbumRow[]>("/api/catalog/albums").then((r) => setAlbums(Array.isArray(r) ? r : [])).catch(() => setAlbums([])); }, []);   // expected: no albums is not an error
   const langs = rows ? [...new Set(rows.map((r) => r.language).filter(Boolean))].sort() : [];
   return (
     <>
@@ -34,6 +36,14 @@ export default function Browse() {
       {!rows && !err && <p className="mu" role="status">Loading…</p>}
       {rows && !rows.length && <div className="card"><p className="empty">No songs are out yet.</p></div>}
       {rows && rows.length > 0 && <Row title="Newest" rows={rows.slice(0, 8)} />}
+      {albums.length > 0 && (
+        <section className="sec" aria-labelledby="row-albums">
+          <div className="sh"><h2 id="row-albums">Albums</h2><span className="n">{albums.length}</span></div>
+          <div className="grid tiles">{albums.map((al) => { const c = al.tracks.find((t) => t.art) ?? al.tracks[0]; return (
+            <Link key={al.slug} className="tile" to={`/album/${al.slug}`}><Cover slug={c.slug} title={al.title} size={160} art={c.art} /><b>{al.title}</b><span className="s">{al.kind} · {al.tracks.length} song{al.tracks.length === 1 ? "" : "s"}</span></Link>
+          ); })}</div>
+        </section>
+      )}
       {rows && langs.map((l) => <Row key={l} title={l} rows={rows.filter((r) => r.language === l)} />)}
     </>
   );
