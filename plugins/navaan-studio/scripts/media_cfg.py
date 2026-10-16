@@ -131,17 +131,29 @@ def key_state():
 
 
 def _live_test(provider, key):
-    """One cheap read call. Returns (ok, why). Never echoes the key."""
+    """One cheap read call. Returns (ok, why, note). Never echoes the key. A provider that says the key is genuine but lacks the permission this test needs (ElevenLabs: missing_permissions)
+    counts as a good key, with a note: the key is recognised, and what it is for is only found out when it is used."""
     url, hdr = KEYS[provider][3], KEYS[provider][4](key)
+    name = {"elevenlabs": "ElevenLabs", "openai": "OpenAI"}.get(provider, provider.capitalize())
     try:
         urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=20).read(1)
-        return True, ""
+        return True, "", ""
     except urllib.error.HTTPError as e:
         L.ignored(LOG, "_live_test: HTTPError (optional or expected)", e)
-        return False, "%s refused the key (HTTP %s)." % (provider.capitalize(), e.code)
+        status, msg = "", ""
+        try:
+            d = json.loads(e.read().decode("utf-8", "replace")); d = d.get("detail", d) if isinstance(d, dict) else {}
+            if isinstance(d, dict): status, msg = str(d.get("status") or ""), str(d.get("message") or "")
+        except Exception as _e: L.ignored(LOG, "_live_test: unreadable error body", _e)   # expected: not every refusal has a JSON body
+        if status == "missing_permissions":
+            return True, "", "%s recognised the key but it has no permission to read the account, so it could not be checked further. It is saved; narration works if the key has Text to Speech." % name
+        why = "%s refused the key (HTTP %s)" % (name, e.code)
+        if status == "invalid_api_key" or e.code == 401 and not msg: why += ": it is not a valid key. Copy it again from API Keys (it is shown only once) with no spaces."
+        elif msg: why += ": " + msg.replace(key, "<key>")[:160]
+        return False, why + ("." if not why.endswith(".") else ""), ""
     except Exception as e:
         L.soft(LOG, "live_test_error")
-        return False, "Could not reach %s: %s" % (provider.capitalize(), str(e).replace(key, "<key>")[:120])
+        return False, "Could not reach %s: %s" % (name, str(e).replace(key, "<key>")[:120]), ""
 
 
 def key_save(provider, key):
@@ -154,11 +166,11 @@ def key_save(provider, key):
         k = k.split("=", 1)[1].strip().strip("\"'")
     if not re.fullmatch(pat, k):
         raise ValueError("That does not look like an %s key. No spaces or line breaks." % provider.capitalize())
-    ok, why = _live_test(provider, k)
+    ok, why, note = _live_test(provider, k)
     if not ok:
         raise ValueError(why)
     _atomic_write(os.path.join(conf_dir(), file), "%s=%s\n" % (var, k))
-    return {"ok": True, "provider": provider}
+    return {"ok": True, "provider": provider, "note": note}
 
 
 def _month():

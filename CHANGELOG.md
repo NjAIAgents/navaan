@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-10-17
+
+### Fixed
+- Saving an ElevenLabs key now tells you what happened, right under the box, instead of at the top of the page where it was easy to miss. A key that ElevenLabs recognises but that cannot read the account (no "User: read" permission) is now saved with a note rather than refused; a wrong or mis-pasted key says so in plain words.
+
 ## [0.24.0] - 2026-10-17
 
 ### Added
@@ -259,7 +264,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.24.1...HEAD
+[0.24.1]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/NjAIAgents/navaan/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/NjAIAgents/navaan/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/NjAIAgents/navaan/compare/v0.21.0...v0.22.0
