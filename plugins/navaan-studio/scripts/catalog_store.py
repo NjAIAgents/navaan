@@ -460,6 +460,35 @@ def add_feedback(slug, message, email=None):
     return _tx(go)
 
 
+def _picks(v, what):
+    """A short list of short words from a form: at most 12 of up to 40 characters, trimmed and without repeats."""
+    if v is None: return []
+    if not isinstance(v, list): raise ValueError(f"{what} must be a list")
+    out = []
+    for x in v:
+        x = " ".join(str(x).split())[:40]
+        if x and x not in out: out.append(x)
+    return out[:12]
+
+
+def add_interest(moods, genres, languages, email=None):
+    """A visitor asked for an account: keep what they like and, if they gave one, an email (checked for shape only). Returns the id."""
+    moods, genres, languages = _picks(moods, "moods"), _picks(genres, "genres"), _picks(languages, "languages")
+    email = (email or "").strip() or None
+    if email and not EMAIL_OK.match(email): raise ValueError("that email address does not look right (you can leave it empty)")
+    if not (moods or genres or languages or email): raise ValueError("pick something you like or leave an email")
+    return _tx(lambda c: str(c.execute("INSERT INTO account_interest (moods, genres, languages, email) VALUES (?, ?, ?, ?) RETURNING id", (moods, genres, languages, email)).fetchone()["id"]))
+
+
+def interest_summary():
+    """How many asked for an account, how many left an email, and what they like most."""
+    def go(c):
+        tot = c.execute("SELECT count(*) AS n, count(email) AS e FROM account_interest").fetchone()
+        top = lambda col: {r["k"]: r["n"] for r in c.execute(f"SELECT k, count(*) AS n FROM account_interest, unnest({col}) AS k GROUP BY k ORDER BY n DESC, k LIMIT 10").fetchall()}
+        return {"total": tot["n"], "with_email": tot["e"], "moods": top("moods"), "genres": top("genres"), "languages": top("languages")}
+    return _tx(go)
+
+
 def feedback_list(limit=100, offset=0, unhandled_only=False):
     q = ("SELECT f.id::text AS id, t.slug, t.title, f.message, f.email, f.created_at, f.handled_at FROM site_feedback f LEFT JOIN tracks t ON t.id = f.track_id "
          "WHERE (NOT ?::boolean OR f.handled_at IS NULL) ORDER BY f.created_at DESC LIMIT ? OFFSET ?")

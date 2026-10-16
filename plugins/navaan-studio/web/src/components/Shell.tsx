@@ -77,7 +77,7 @@ function ShellFrame() {
   useEffect(() => { document.title = title === "Home" ? "NAVAAN" : `${title} · NAVAAN`; close(); }, [title, close]);
   const inStudio = pathname.startsWith("/studio");
   const toStudio = !studio && !guest && !!studioUrl;   // the owner on the public site: Studio is on the other host, one click away, already signed in
-  const nav2 = NAV.filter((n) => guest ? n.to === "/" : studio || !LISTENER_HIDES.has(n.to) || (n.to === "/studio" && toStudio));
+  const nav2 = NAV.filter((n) => guest ? n.to === "/" || n.to === "/library" : studio || !LISTENER_HIDES.has(n.to) || (n.to === "/studio" && toStudio));
   const ext = (n: Item) => (n.to === "/studio" && toStudio ? `${studioUrl}/app/studio` : "");
 
   return (

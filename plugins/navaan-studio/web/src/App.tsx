@@ -17,6 +17,7 @@ const ListenerAlbum = lazy(() => import("./pages/ListenerAlbum"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Cloud = lazy(() => import("./pages/Cloud"));
 const Security = lazy(() => import("./pages/Security"));
+const Join = lazy(() => import("./pages/Join"));
 const Albums = lazy(() => import("./pages/Albums"));
 const Album = lazy(() => import("./pages/Album"));
 const Library = lazy(() => import("./pages/Library"));
@@ -54,7 +55,8 @@ export default function App() {
         <Route path="studio/settings" element={<MembersOnly studio><Settings /></MembersOnly>} />
         <Route path="studio/cloud" element={<MembersOnly studio><Cloud /></MembersOnly>} />
         <Route path="search" element={<Search />} />
-        <Route path="library" element={<MembersOnly><Library /></MembersOnly>} />
+        <Route path="library" element={<Library />} />
+        <Route path="join" element={<Join />} />
         <Route path="library/playlists/:id" element={<MembersOnly><Playlist /></MembersOnly>} />
         <Route path="plans" element={<MembersOnly><Plans /></MembersOnly>} />
         <Route path="albums" element={<MembersOnly><Albums /></MembersOnly>} />

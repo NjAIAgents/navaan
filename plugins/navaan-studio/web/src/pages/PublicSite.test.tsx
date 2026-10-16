@@ -24,12 +24,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("the free public site (not signed in)", () => {
-  it("opens on Browse with only Home in the navigation, and the menu offers the studio sign in, not Account or Sign out", async () => {
+  it("opens on Browse with Home and Library in the navigation, and the menu offers Create account, not Studio, Account or Sign out", async () => {
     stub(GUEST); at("/"); expect(await screen.findByRole("heading", { name: "Browse", level: 1 })).toBeInTheDocument();
-    const nav = screen.getAllByRole("navigation", { name: "Main" })[0]; expect(within(nav).getAllByRole("link").map((a) => a.textContent?.trim())).toEqual(["Home"]);
+    const nav = screen.getAllByRole("navigation", { name: "Main" })[0]; expect(within(nav).getAllByRole("link").map((a) => a.textContent?.trim())).toEqual(["Home", "Library"]);
     fireEvent.click(screen.getAllByRole("button", { name: /Account menu, Visitor/ })[0]); const menu = await screen.findByRole("dialog", { name: "Account menu" });
-    expect(within(menu).getByRole("link", { name: /Studio sign in/ })).toHaveAttribute("href", "https://studio.navaan.online/app/");
-    expect(within(menu).queryByRole("link", { name: /Account|Plan|Security/ })).toBeNull(); expect(within(menu).queryByRole("button", { name: "Sign out" })).toBeNull(); expect(within(menu).getByText("Appearance")).toBeInTheDocument();   // the theme choice is for everyone
+    expect(within(menu).getByRole("link", { name: /Create account/ })).toHaveAttribute("href", "/join"); expect(within(menu).queryByRole("link", { name: /Studio/ })).toBeNull();   // no studio sign in on the public site
+    expect(within(menu).queryByRole("link", { name: /Plan|Security/ })).toBeNull(); expect(within(menu).queryByRole("button", { name: "Sign out" })).toBeNull(); expect(within(menu).getByText("Appearance")).toBeInTheDocument();   // the theme choice is for everyone
   });
   it("plays a song with its lyrics and shows what an account will give: Save and Add to playlist say so", async () => {
     const f = stub(GUEST); at("/song/song-001"); fireEvent.click(await screen.findByRole("button", { name: "Play" })); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-001")).toBe(true));
@@ -42,9 +42,17 @@ describe("the free public site (not signed in)", () => {
     expect(await screen.findByLabelText(/Anyone with this link can listen/)).toHaveValue(`${location.origin}/app/song/song-001`);
     expect(f.mock.calls.some(([u]) => u === "/api/share")).toBe(false); expect(screen.queryByRole("button", { name: "Stop sharing" })).toBeNull();
   });
-  it("member-only screens invite instead of failing, and the studio ones point to the studio sign in", async () => {
-    stub(GUEST); at("/library"); expect(await screen.findByText(/Accounts are coming soon/)).toBeInTheDocument(); cleanup();
-    stub(GUEST); at("/studio/settings"); expect(await screen.findByText("The studio is for the owner")).toBeInTheDocument(); expect(screen.getByRole("link", { name: "Studio sign in" })).toHaveAttribute("href", "https://studio.navaan.online/app/");
+  it("the Library is open to visitors: songs to browse, and Create playlist leads to Create account; the studio screens say they are not here, with no sign in", async () => {
+    const f = stub(GUEST); at("/library"); expect(await screen.findByText("Create your first playlist")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create playlist/ })).toHaveAttribute("href", "/join"); expect(f.mock.calls.some(([u]) => String(u).startsWith("/api/playlists"))).toBe(false); cleanup();
+    stub(GUEST); at("/studio/settings"); expect(await screen.findByText("This page is not available here")).toBeInTheDocument(); expect(screen.queryByRole("link", { name: /sign in/i })).toBeNull();
+  });
+  it("Create account asks what they like and keeps it, saying accounts open soon", async () => {
+    const f = vi.fn((u: string, init?: RequestInit) => Promise.resolve(u.startsWith("/api/me") ? json(GUEST) : u.startsWith("/api/catalog/filters") ? json({ albums: [], languages: ["Hindi"], genres: ["Indie"] }) : json(init ? { ok: true } : [])));
+    vi.stubGlobal("fetch", f); at("/join");
+    fireEvent.click(await screen.findByRole("button", { name: "Calm" })); fireEvent.click(await screen.findByRole("button", { name: "Indie" })); fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "a@b.co" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create my account" })); expect(await screen.findByText(/Accounts open soon/)).toBeInTheDocument();
+    const call = f.mock.calls.find(([u]) => u === "/api/site/interest") as unknown as [string, RequestInit]; expect(JSON.parse(String(call[1].body))).toMatchObject({ moods: ["Calm"], genres: ["Indie"], languages: [], email: "a@b.co", website: "" });
   });
 });
 

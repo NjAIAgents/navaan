@@ -4,6 +4,7 @@ import { Icon } from "../components/Icon";
 import { Cover } from "../components/Cover";
 import { getJSON, type Filters, type LibraryData, type PlaylistRow, type TrackRow } from "../lib/api";
 import { useMe } from "../lib/me";
+import { PITCH } from "../components/GuestPitch";
 import { errText } from "../lib/songs";
 import { Loading } from "../components/Loading";
 import { LoadMore } from "../components/LoadMore";
@@ -62,22 +63,32 @@ function Songs() {
 
 // A person's playlists and saved songs. The playlist limit comes from the plan (the server decides); when it is reached the message says what the limit is and where to see the plans.
 export default function Library() {
+  const { guest } = useMe();
   const [tab, setTab] = useState<"playlists" | "songs">("playlists");
   const [lists, setLists] = useState<PlaylistRow[] | null>(null);
   const [lib, setLib] = useState<LibraryData | null>(null);
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState(""); const [view, setView] = useView("library");
   const load = useCallback(() => Promise.all([getJSON<PlaylistRow[]>("/api/playlists"), getJSON<LibraryData>("/api/library")]).then(([p, l]) => { setLists(p); setLib(l); setErr(""); }).catch((e) => setErr(errText(e))), []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!guest) void load(); }, [load, guest]);   // a visitor has no playlists to load
   return (
     <>
-      <div className="ph"><h1 className="disp">Library</h1><p>Your playlists and saved songs.</p></div>
+      <div className="ph"><h1 className="disp">Library</h1><p>{guest ? "Every NAVAAN song, free to play." : "Your playlists and saved songs."}</p></div>
       <div className="seg" role="tablist" aria-label="Library sections" style={{ alignSelf: "flex-start" }}>
         {([["playlists", "Playlists"], ["songs", "Songs"]] as const).map(([k, label]) => <button key={k} role="tab" id={`lib-${k}`} aria-selected={tab === k} aria-controls="lib-panel" tabIndex={tab === k ? 0 : -1} onClick={() => setTab(k)}>{label}</button>)}
       </div>
       {err && <div className="card" role="alert"><h2>Something went wrong</h2><p className="mu">{err}</p></div>}
       <div id="lib-panel" role="tabpanel" aria-labelledby={`lib-${tab}`} className="stack" style={{ gap: 28 }}>
-      {tab === "songs" ? <Songs /> : <>
+      {tab === "songs" ? <Songs /> : guest ? (
+        <section className="sec" aria-labelledby="pl-h">
+          <div className="sh"><h2 id="pl-h">Playlists</h2></div>
+          <div className="card stack" style={{ maxWidth: 560 }}>
+            <h3>Create your first playlist</h3>
+            <p>It's easy, we'll help you. {PITCH}</p>
+            <div className="row"><Link className="btn p" to="/join"><Icon name="plus" /> Create playlist</Link></div>
+          </div>
+        </section>
+      ) : <>
       <section className="sec" aria-labelledby="pl-h">
         <div className="sh"><h2 id="pl-h">Playlists</h2><span className="n">{lists?.length ?? 0}</span></div>
         {creating ? <div className="card"><NewPlaylist onCreated={() => { setCreating(false); void load(); }} /></div> : <div className="row"><button className="btn p" onClick={() => setCreating(true)}><Icon name="plus" /> New playlist</button><span className="sp" /><ViewToggle view={view} onChange={setView} /></div>}

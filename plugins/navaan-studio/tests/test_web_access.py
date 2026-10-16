@@ -85,6 +85,19 @@ class Access(unittest.TestCase):
             for i in range(6): last = post("/api/site/feedback", {"message": f"spam {i}"})[0]
             self.assertEqual(last, 429)   # five messages an hour from one address
 
+    def test_a_visitor_can_ask_for_an_account_with_what_they_like_and_only_the_studio_reads_the_count(self):
+        env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
+        with mock.patch.dict(os.environ, env):
+            pub, studio = "navaan.online", "studio.navaan.online"; post = lambda body, host=pub: self.call("/api/site/interest", None, None, post=True, body=body, host=host)
+            self.assertEqual(post({})[0], 400); self.assertEqual(post({"moods": ["Calm"], "email": "nope"})[0], 400)   # something to say, and an email that looks like one
+            self.assertEqual(post({"moods": ["Calm", "Calm", "Hopeful"], "genres": ["Indie"], "languages": ["Hindi"], "email": "a@b.co"})[0], 200)
+            self.assertEqual(post({"moods": ["Calm"], "website": "http://spam"})[0], 200)   # a bot is thanked and ignored
+            self.assertEqual(self.call("/api/site/interest", host=pub)[0], 403)   # a visitor reads nothing
+            code, body = self.call("/api/site/interest", "owner-tok", host=studio); d = json.loads(body)
+            self.assertEqual((code, d["total"], d["with_email"], d["moods"]), (200, 1, 1, {"Calm": 1, "Hopeful": 1}))   # the repeated word counted once, the bot not at all
+            for i in range(6): last = post({"moods": ["Calm"]})[0]
+            self.assertEqual(last, 429)
+
     def test_one_sign_in_covers_every_host_under_the_domain_and_logout_clears_it(self):
         with mock.patch.dict(os.environ, {"NAVAAN_COOKIE_DOMAIN": "navaan.online"}):
             for host in ("navaan.online", "studio.navaan.online"):
