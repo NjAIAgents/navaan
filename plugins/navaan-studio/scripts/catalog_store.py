@@ -412,3 +412,58 @@ def open_share(token, count=False):
         if count: c.execute("UPDATE share_links SET opens = opens + 1 WHERE token = ?", (token,))
         return {"slug": r["slug"], "title": r["title"], "start_ms": r["start_ms"]}
     return _tx(go)
+
+
+# ---- feedback from the public site (NAV-44) ---------------------------------------------------------------------------------------
+REACTIONS = ("up", "down", "love")   # thumbs up, thumbs down, double thumbs up
+EMAIL_OK = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$")
+
+
+def react(slug, reaction, previous=None):
+    """Count a visitor's reaction to a song (one more for `reaction`, one fewer for the one they had before; `reaction` None takes the old one back). Only songs a visitor may hear. Counts only: nobody is recorded.
+    Returns False when there is no such song."""
+    if reaction is None and previous is None: raise ValueError("nothing to count")
+    if reaction is not None and reaction not in REACTIONS: raise ValueError("reaction is up, down or love")
+    if previous is not None and previous not in REACTIONS: raise ValueError("previous is up, down or love")
+    def go(c):
+        t = c.execute(f"SELECT t.id FROM tracks t WHERE t.slug = ? AND {_visible(False)}", (slug,)).fetchone()
+        if not t: return False
+        if previous == reaction: return True   # nothing changed
+        if reaction: c.execute("INSERT INTO song_reactions (track_id, day, reaction, n) VALUES (?::uuid, current_date, ?, 1) ON CONFLICT (track_id, day, reaction) DO UPDATE SET n = song_reactions.n + 1", (str(t["id"]), reaction))
+        if previous:   # take the old one back from the latest day that has one
+            c.execute("UPDATE song_reactions SET n = n - 1 WHERE (track_id, day, reaction) = (SELECT track_id, day, reaction FROM song_reactions WHERE track_id = ?::uuid AND reaction = ? AND n > 0 ORDER BY day DESC LIMIT 1)", (str(t["id"]), previous))
+        return True
+    return _tx(go)
+
+
+def reactions(days=None):
+    """Per song: how many up, down and love (all time, or over the last `days`), most loved first."""
+    q = ("SELECT t.slug, t.title, COALESCE(SUM(r.n) FILTER (WHERE r.reaction = 'up'), 0)::int AS up, COALESCE(SUM(r.n) FILTER (WHERE r.reaction = 'down'), 0)::int AS down, "
+         "COALESCE(SUM(r.n) FILTER (WHERE r.reaction = 'love'), 0)::int AS love FROM tracks t LEFT JOIN song_reactions r ON r.track_id = t.id AND (?::int IS NULL OR r.day > current_date - ?::int) "
+         "WHERE t.status = 'published' GROUP BY t.slug, t.title ORDER BY love DESC, up DESC, down ASC, t.title")
+    d = int(days) if days else None
+    return [dict(r) for r in _tx(lambda c: c.execute(q, (d, d)).fetchall())]
+
+
+def add_feedback(slug, message, email=None):
+    """Keep a message from a visitor. The email is optional and checked only for shape. Returns the id."""
+    message = (message or "").strip()
+    if not message: raise ValueError("write a message first")
+    if len(message) > 2000: raise ValueError("the message can be 2000 characters at most")
+    email = (email or "").strip() or None
+    if email and not EMAIL_OK.match(email): raise ValueError("that email address does not look right (you can leave it empty)")
+    def go(c):
+        t = c.execute(f"SELECT t.id FROM tracks t WHERE t.slug = ? AND {_visible(False)}", (slug,)).fetchone() if slug else None
+        return str(c.execute("INSERT INTO site_feedback (track_id, message, email) VALUES (?::uuid, ?, ?) RETURNING id", (str(t["id"]) if t else None, message, email)).fetchone()["id"])
+    return _tx(go)
+
+
+def feedback_list(limit=100, offset=0, unhandled_only=False):
+    q = ("SELECT f.id::text AS id, t.slug, t.title, f.message, f.email, f.created_at, f.handled_at FROM site_feedback f LEFT JOIN tracks t ON t.id = f.track_id "
+         "WHERE (NOT ?::boolean OR f.handled_at IS NULL) ORDER BY f.created_at DESC LIMIT ? OFFSET ?")
+    rows = _tx(lambda c: c.execute(q, (bool(unhandled_only), max(1, min(int(limit), 500)), max(0, int(offset)))).fetchall())
+    return [{**dict(r), "created_at": r["created_at"].isoformat(), "handled_at": r["handled_at"].isoformat() if r["handled_at"] else None} for r in rows]
+
+
+def feedback_handled(fid, handled=True):
+    return bool(_tx(lambda c: c.execute("UPDATE site_feedback SET handled_at = CASE WHEN ?::boolean THEN now() ELSE NULL END WHERE id = ?::uuid RETURNING id", (bool(handled), fid)).fetchone()))

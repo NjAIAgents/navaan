@@ -9,10 +9,10 @@
   <script>
     // Set the theme before first paint so there is no flash. Mirrors src/theme/themes.ts (a test keeps the ids in step).
     (function () {
-      var id = "midnight-cinema", c = "system";
-      try { c = localStorage.getItem("navaan.theme") || "system"; } catch (e) { /* private window: system */ }
-      if (c === "midnight-cinema" || c === "ivory-gold") id = c;
-      else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) id = "ivory-gold";
+      var id = "midnight-cinema", c = "midnight-cinema";
+      try { c = localStorage.getItem("navaan.theme") || "midnight-cinema"; } catch (e) { /* private window: dark */ }
+      if (c === "ivory-gold") id = c;
+      else if (c === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) id = "ivory-gold";
       document.documentElement.setAttribute("data-theme", id);
     })();
   </script>

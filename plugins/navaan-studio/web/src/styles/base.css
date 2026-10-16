@@ -228,3 +228,5 @@ body.lock { overflow: hidden; }
 .np.card { background: var(--sheet); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: var(--shadow), 0 -8px 24px color-mix(in srgb, var(--bg) 70%, transparent); }
 .has-np .page { padding-bottom: 130px; }
 @media (max-width: 899px) { .has-np .page { padding-bottom: calc(190px + env(safe-area-inset-bottom)); } }
+.dbl { display: inline-flex; } .dbl .ic:nth-child(2) { margin-left: -9px; }   /* double thumbs up: two thumbs, the second overlapping the first */
+.linkish { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; min-height: 0; }

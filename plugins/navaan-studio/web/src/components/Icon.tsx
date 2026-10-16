@@ -18,6 +18,8 @@ const PATHS: Record<string, string> = {
   play: "M8 5v14l11-7z",
   pause: "M7 5h4v14H7zM13 5h4v14h-4z",
   plus: "M12 5v14M5 12h14",
+  thumb: "M7 10v12M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z",
+  mail: "M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM3 7l9 6 9-6",
   volume: "M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11",
   mute: "M4 9v6h4l5 4V5L8 9zM17 9l4 6M21 9l-4 6",
   next: "M6 5v14l9-7zM17 5h2v14h-2z",

@@ -69,6 +69,22 @@ class Access(unittest.TestCase):
             self.assertEqual((code, me["roles"], me["studio_url"]), (200, ["listener"], "https://studio.navaan.online")); self.assertNotIn("guest", me)   # the owner on the public site: the listener app, with the way to the studio
             code, body = self.call("/api/me", "owner-tok", host=studio); me = json.loads(body); self.assertEqual(me.get("public_url"), "https://navaan.online"); self.assertIn("studio.access", me["permissions"])   # on the studio host: the studio, with a way to the public site
 
+    def test_visitors_can_send_reactions_and_messages_from_the_public_site_only_and_only_the_studio_reads_them(self):
+        env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
+        with mock.patch.dict(os.environ, env):
+            pub, studio = "navaan.online", "studio.navaan.online"; post = lambda path, body, host=pub, tok=None: self.call(path, tok, None, post=True, body=body, host=host)
+            self.assertEqual(post("/api/site/react", {"slug": "song-999", "reaction": "up"})[0], 404)       # no such song
+            self.assertEqual(post("/api/site/react", {"slug": "song-999", "reaction": "meh"})[0], 400)
+            self.assertEqual(post("/api/site/feedback", {"message": ""})[0], 400); self.assertEqual(post("/api/site/feedback", {"message": "hi", "email": "nope"})[0], 400)
+            self.assertEqual(post("/api/site/feedback", {"message": "Nice site"})[0], 200); self.assertEqual(post("/api/site/feedback", {"message": "bot", "website": "http://spam"})[0], 200)   # the bot is thanked and ignored
+            self.assertEqual(post("/api/site/react", {"slug": "x", "reaction": "up"}, host=studio)[0], 401)  # not a studio thing
+            self.assertEqual(self.call("/api/site/feedback", host=pub)[0], 403); self.assertEqual(self.call("/api/site/reactions", host=pub)[0], 403)   # a visitor reads nothing
+            code, body = self.call("/api/site/feedback", "owner-tok", host=studio); rows = json.loads(body); self.assertEqual(code, 200); self.assertEqual([r["message"] for r in rows], ["Nice site"])   # the bot's message was not kept
+            self.assertEqual(self.call("/api/site/reactions", "owner-tok", host=studio)[0], 200)
+            self.assertEqual(post("/api/site/feedback/handle", {"id": "not-a-uuid"}, host=studio, tok="owner-tok")[0], 403)   # needs the session's own token
+            for i in range(6): last = post("/api/site/feedback", {"message": f"spam {i}"})[0]
+            self.assertEqual(last, 429)   # five messages an hour from one address
+
     def test_one_sign_in_covers_every_host_under_the_domain_and_logout_clears_it(self):
         with mock.patch.dict(os.environ, {"NAVAAN_COOKIE_DOMAIN": "navaan.online"}):
             for host in ("navaan.online", "studio.navaan.online"):
