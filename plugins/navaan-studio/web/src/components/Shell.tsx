@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Icon, type IconName } from "./Icon";
 import { UserMenu } from "./UserMenu";
 import { useMobile } from "./useMobile";
@@ -30,6 +30,7 @@ export function titleFor(path: string): string {
 
 export function Shell() {
   const { pathname } = useLocation();
+  const nav = useNavigate();
   const mobile = useMobile();
   const { choice, setChoice } = useTheme();
   const [open, setOpen] = useState(false);
@@ -70,7 +71,9 @@ export function Shell() {
       </aside>
       <div className="main">
         <header className="top">
-          <button className="search" disabled aria-label="Search (coming with the catalog)"><Icon name="search" /> Search songs, albums, lyrics</button>
+          <form className="search" role="search" onSubmit={(e) => { e.preventDefault(); const q = new FormData(e.currentTarget).get("q"); if (typeof q === "string" && q.trim()) nav(`/search?q=${encodeURIComponent(q.trim())}`); }}>
+            <Icon name="search" /><input name="q" type="search" aria-label="Search songs, albums, lyrics" placeholder="Search songs, albums, lyrics" autoComplete="off" />
+          </form>
           <span className="sp" />
           <a className="btn sm g" href="/legacy"><Icon name="external" /> Classic view</a>
         </header>
@@ -78,6 +81,7 @@ export function Shell() {
           <span className="mark" aria-hidden="true" />
           <h1 className="disp">{title}</h1>
           <span className="sp" />
+          <Link className="btn g sq" to="/search" aria-label="Search"><Icon name="search" /></Link>
           <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" aria-hidden="true">{who.slice(0, 1).toUpperCase()}</span></button>
         </div>
         <main id="main" className="page" tabIndex={-1}><Outlet /></main>

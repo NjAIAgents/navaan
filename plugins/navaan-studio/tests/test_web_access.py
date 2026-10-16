@@ -89,6 +89,40 @@ class Access(unittest.TestCase):
     def test_the_schedule_list_is_for_the_studio(self):
         self.assertEqual(json.loads(self.call("/api/schedule", "owner-tok")[1]), []); self.assertEqual(self.call("/api/schedule", "lis-tok")[0], 403); self.assertEqual(self.call("/api/schedule")[0], 401)
 
+    def raw(self, path, tok=None, headers=None):
+        import http.client
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10); h = {"Host": f"127.0.0.1:{self.port}", **(headers or {})}
+        if tok: h["Cookie"] = f"{auth.COOKIE}={tok}"
+        c.request("GET", path, headers=h); r = c.getresponse(); b = r.read(); c.close(); return r.status, dict(r.getheaders()), b
+
+    def test_shared_links_covers_and_play_links(self):
+        import catalog_store as K, media, objstore
+        from test_media import png
+        D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("Tere <Hone> Se")
+        cover = png(); pre = "navaan/songs/song-001/"
+        json.dump({"type": "music", "state": "published", "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": pre, "objects": {"cover_1x1.png": {"size": len(cover)}, "final.mp3": {"size": 10}}}}, open(os.path.join(D, "meta.json"), "w"))
+        K.sync_item("song-001"); self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
+        for p in (mock.patch.object(objstore, "get", lambda k: cover), mock.patch.object(objstore, "par_url", lambda k, s=300: "https://bucket.example/" + k), mock.patch.object(media, "ensure_preview", lambda sl: pre + "derived/preview-30s.mp3"),
+                  mock.patch.dict(os.environ, {"NAVAAN_CACHE_DIR": os.path.join(self.tmp.name, "cache")})):
+            p.start(); self.addCleanup(p.stop)
+        post = lambda tok, csrf, path, **b: self.call(path, tok, csrf, post=True, body=b)
+        self.assertEqual(post("lis-tok", "csrf-lis", "/api/share", slug="song-001")[0], 403)                      # a listener cannot make links yet
+        code, body = post("owner-tok", "csrf-owner", "/api/share", slug="song-001"); self.assertEqual((code, json.loads(body)["error"][:20]), (400, "this track\'s licence"))   # not confirmed
+        K.set_license("song-001", "confirmed", "owner", "paid plan")
+        code, body = post("owner-tok", "csrf-owner", "/api/share", slug="song-001", start_ms=5000); tok = json.loads(body)["token"]; self.assertEqual(code, 200); self.assertTrue(json.loads(body)["url"].endswith("/s/" + tok))
+        st, h, b = self.raw("/s/" + tok)   # no cookie: anyone with the link
+        self.assertEqual(st, 200); page = b.decode(); self.assertIn('property="og:title" content="Tere &lt;Hone&gt; Se"', page); self.assertIn("/s/" + tok + "/preview.mp3", page); self.assertIn("/app/?t=5", page); self.assertNotIn("<Hone>", page); self.assertIn("noindex", page)
+        st, h, b = self.raw(f"/s/{tok}/preview.mp3"); self.assertEqual((st, h["Location"]), (302, "https://bucket.example/navaan/songs/song-001/derived/preview-30s.mp3"))
+        self.assertEqual(self.raw("/s/nonexistent0000")[0], 404)
+        st, h, b = self.raw("/img/song-001/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"]); self.assertTrue(b[:4] == b"RIFF")
+        self.assertEqual(self.raw("/img/song-001/320.webp", headers={"If-None-Match": h["ETag"]})[0], 304)
+        self.assertEqual(self.raw("/img/song-001/999.webp")[0], 404); self.assertEqual(self.raw("/img/ghost/320.webp")[0], 404)
+        code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [1])   # the page was opened once; the preview does not count
+        st, h, b = self.raw("/api/play?slug=song-001", "lis-tok"); self.assertEqual((st, json.loads(b)["url"]), (200, "https://bucket.example/navaan/songs/song-001/final.mp3"))
+        self.assertEqual(self.raw("/api/play?slug=ghost", "lis-tok")[0], 404); self.assertEqual(self.raw("/api/play?slug=song-001")[0], 401)
+        self.assertEqual(json.loads(post("owner-tok", "csrf-owner", "/api/share/revoke", token=tok)[1]), {"revoked": True})
+        self.assertEqual(self.raw("/s/" + tok)[0], 404); self.assertEqual(self.raw(f"/s/{tok}/preview.mp3")[0], 404)   # revoked: both stop
+
     def test_a_signed_out_visitor_reaches_nothing(self):
         self.assertEqual(self.call("/api/songs")[0], 401); self.assertEqual(self.call("/api/client-log", None, "x", post=True)[0], 401)
         self.assertEqual(self.call("/api/songs", "not-a-session")[0], 401)
