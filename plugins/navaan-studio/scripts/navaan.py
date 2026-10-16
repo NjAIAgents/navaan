@@ -950,6 +950,7 @@ def main(argv):
         import worker; return worker.main(a)
     if c == "serve":
         import studio_store; studio_store.auto()   # first start after the move: every songs/*/meta.json into Postgres, verified, or stop (the release then rolls back)
+        import catalog_store; catalog_store.auto()   # the catalog follows the studio; it can always be rebuilt, so a failure is logged, never fatal
         import analytics_to_postgres; analytics_to_postgres.auto()   # first start after the move to Postgres: bring the SQLite history across, verified, or stop (the release then rolls back)
         import navaan_ui; return navaan_ui.serve(int(a[a.index("--port") + 1]) if "--port" in a else 8765)
     print(__doc__); return 2
