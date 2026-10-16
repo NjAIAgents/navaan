@@ -124,6 +124,53 @@ class Access(unittest.TestCase):
         self.assertEqual(json.loads(post("owner-tok", "csrf-owner", "/api/share/revoke", token=tok)[1]), {"revoked": True})
         self.assertEqual(self.raw("/s/" + tok)[0], 404); self.assertEqual(self.raw(f"/s/{tok}/preview.mp3")[0], 404)   # revoked: both stop
 
+    def test_playlists_plans_and_account_over_http(self):
+        import catalog_store as K, entitlements as E, library_store as L, navaan_common as C
+        for i in (1, 2):
+            D = os.path.join(C.songs_root(), f"song-00{i}"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write(f"Song {i}")
+            json.dump({"type": "music", "state": "published"}, open(os.path.join(D, "meta.json"), "w")); K.sync_item(f"song-00{i}")
+        for m in (K, E, L): self.addCleanup(lambda m=m: hasattr(getattr(m, "_tx", None), "close") and m._tx.close())
+        self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
+        post = lambda tok, csrf, path, **b: self.call(path, tok, csrf, post=True, body=b)
+        lis = lambda path, **b: post("lis-tok", "csrf-lis", path, **b); own = lambda path, **b: post("owner-tok", "csrf-owner", path, **b)
+        ids = []
+        for i in range(3):
+            code, body = lis("/api/playlists/create", name=f"List {i}"); self.assertEqual(code, 200); ids.append(json.loads(body)["id"])
+        code, body = lis("/api/playlists/create", name="A fourth"); r = json.loads(body)
+        self.assertEqual((code, r["limit"], r["plan"], r["upgrade"]), (403, 3, "free", "/app/plans")); self.assertIn("3", r["error"])   # a clear message with what to do
+        self.assertEqual(lis("/api/billing/entitlement", plan="free", feature="playlists.max", limit=9)[0], 403)   # only the owner changes plans
+        self.assertEqual(own("/api/billing/entitlement", plan="free", feature="playlists.max", enabled=True, limit=4)[0], 200)
+        self.assertEqual(lis("/api/playlists/create", name="A fourth")[0], 200)                                 # SC-008: a data change, nothing redeployed
+        self.assertEqual(own("/api/billing/entitlement", plan="ghost", feature="x", limit=1)[0], 404); self.assertEqual(own("/api/billing/entitlement", plan="free", feature="x", limit=-1)[0], 400)
+        # another person's playlist is not found; a listener cannot reach the studio
+        self.assertEqual(self.call("/api/playlists/" + ids[0], "owner-tok")[0], 404); self.assertEqual(own("/api/playlists/delete", id=ids[0])[0], 404)
+        self.assertEqual(self.call("/api/playlists/" + ids[0], "lis-tok")[0], 200); self.assertEqual(lis("/api/analytics/rec", id="x")[0], 403)
+        self.assertEqual(lis("/api/playlists/add", id=ids[0], slug="song-001")[0], 200); self.assertEqual(lis("/api/playlists/add", id=ids[0], slug="song-002", after="song-001")[0], 200)
+        self.assertEqual(lis("/api/playlists/move", id=ids[0], slug="song-002", after="")[0], 200)
+        self.assertEqual([t["slug"] for t in json.loads(self.call("/api/playlists/" + ids[0], "lis-tok")[1])["tracks"]], ["song-002", "song-001"])
+        self.assertEqual(lis("/api/playlists/add", id=ids[0], slug="song-001")[0], 400); self.assertEqual(lis("/api/library/save", kind="track", slug="song-002")[0], 200)
+        self.assertEqual([t["slug"] for t in json.loads(self.call("/api/library", "lis-tok")[1])["tracks"]], ["song-002"]); self.assertEqual(json.loads(self.call("/api/library", "owner-tok")[1])["tracks"], [])
+        # plans page data and what this person has used
+        r = json.loads(self.call("/api/plans", "lis-tok")[1]); self.assertEqual((r["mine"]["plan"]["key"], r["mine"]["usage"]["playlists"], r["mine"]["unlimited"]), ("free", 4, False)); self.assertEqual([p["key"] for p in r["plans"]], ["free", "premium"])
+        self.assertTrue(json.loads(self.call("/api/plans", "owner-tok")[1])["mine"]["unlimited"])
+        # playing needs the plan's audio.play; a play is recorded
+        with mock.patch("objstore.par_url", lambda k, s=300: "https://bucket.example/" + k):
+            json.dump({"type": "music", "state": "published", "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": "n/s1/", "objects": {"final.mp3": {"size": 5}}}}, open(os.path.join(C.songs_root(), "song-001", "meta.json"), "w")); K.sync_item("song-001")
+            self.assertEqual(self.raw("/api/play?slug=song-001", "lis-tok")[0], 200)
+            self.assertEqual(L._conn().execute("SELECT count(*) AS n FROM play_events").fetchone()["n"], 1)
+            own("/api/billing/entitlement", plan="free", feature="audio.play", enabled=False)
+            st, h, b = self.raw("/api/play?slug=song-001", "lis-tok"); self.assertEqual(st, 403); self.assertIn("plan", json.loads(b)["error"])
+            self.assertEqual(self.raw("/api/play?slug=song-001", "owner-tok")[0], 200)                       # the owner is never limited
+        # export, then delete: the owner cannot, a listener can and then has nothing
+        st, h, b = self.raw("/api/account/export", "lis-tok"); self.assertEqual(st, 200); self.assertIn("attachment", h["Content-Disposition"]); x = json.loads(b); self.assertEqual(x["account"]["username"], "listener1"); self.assertEqual(len(x["library"]["playlists"]), 4)
+        self.assertEqual(own("/api/account/delete", confirm="delete my account")[0], 403)
+        self.assertEqual(lis("/api/account/delete", confirm="yes")[0], 400); self.assertEqual(lis("/api/account/delete", confirm="delete my account")[0], 200)
+        self.assertEqual(self.call("/api/me", "lis-tok")[0], 401)                                           # the person and their sessions are gone
+        self.assertEqual(L._conn().execute("SELECT count(*) AS n FROM playlists").fetchone()["n"], 0)       # all four of theirs went
+        left = L._conn().execute("SELECT user_id::text AS u FROM play_events").fetchall(); self.assertEqual(len(left), 1)   # their play went; the owner's own play is untouched
+        self.assertEqual(left[0]["u"], CS.ensure_user("owner1")["id"])
+        self.assertEqual(self.call("/api/me", "owner-tok")[0], 200)                                         # the owner's session is untouched
+
     def test_a_signed_out_visitor_reaches_nothing(self):
         self.assertEqual(self.call("/api/songs")[0], 401); self.assertEqual(self.call("/api/client-log", None, "x", post=True)[0], 401)
         self.assertEqual(self.call("/api/songs", "not-a-session")[0], 401)

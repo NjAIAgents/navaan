@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import { Icon } from "./Icon";
 import { THEMES, type Choice } from "../theme/themes";
 import { postJSON } from "../lib/api";
@@ -34,6 +35,7 @@ export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) 
         </button>
       </div>
       <hr />
+      <Link to="/plans" onClick={onClose}><Icon name="star" /> Plan</Link>
       <a href="/legacy#/settings"><Icon name="settings" /> Settings</a>
       <a href="/legacy"><Icon name="external" /> Classic view</a>
       <hr />

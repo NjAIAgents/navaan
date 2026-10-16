@@ -10,6 +10,7 @@ import auth
 import jobs, worker
 import catalog_store, search as SEARCH
 import media, objstore, share_page
+import library_store, entitlements, uuid
 import navaan_log as L
 LOG = L.get("web")
 
@@ -83,6 +84,8 @@ VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose 
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
+LOCAL_USER = str(uuid.uuid5(uuid.NAMESPACE_URL, "navaan-local-dev-user"))   # the one person when the login is off
+LISTENER_ROUTES = (("/api/playlists", "library.view", "playlists.write"), ("/api/library", "library.view", "playlists.write"), ("/api/plans", "library.view", None), ("/api/account", "account.manage", "account.manage"))   # prefix, permission to read, to change
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
 
@@ -243,6 +246,53 @@ class H(BaseHTTPRequestHandler):
     def _ip(self):  # real client address; X-Real-IP only when a trusted proxy sits in front (NAVAAN_TRUST_PROXY=1)
         return (self.headers.get("X-Real-IP") or "").strip() if TRUST_PROXY() and self.headers.get("X-Real-IP") else self.client_address[0]
     def _https(self): return TRUST_PROXY() and (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
+    def _acct(self, sess):
+        """{user_id, roles} of the signed-in person. With the login off (development) there is one local person."""
+        return {"user_id": sess.get("user_id") or LOCAL_USER, "roles": sess.get("roles", [])}
+    def _listener_get(self, p, sess):
+        """Routes a listener may use (they need library.view or account.manage, not the studio). Everything is scoped to the signed-in person."""
+        u = self._acct(sess); uid = u["user_id"]
+        if p == "/api/playlists": return self._send(200, library_store.playlists(uid))
+        m = re.match(r"^/api/playlists/([0-9a-f-]{36})$", p)
+        if m:
+            try: return self._send(200, library_store.get_playlist(uid, m.group(1)))
+            except LookupError: return self._send(404, {"error": "no such playlist"})
+        if p == "/api/library": return self._send(200, library_store.library(uid))
+        if p == "/api/plans":
+            return self._send(200, {"plans": entitlements.plans(), "mine": {"plan": entitlements.plan_for(uid), "entitlements": entitlements.entitlements(uid), "unlimited": "owner" in u["roles"],
+                                                                         "usage": {"playlists": len(library_store.playlists(uid))}}})
+        if p == "/api/account/export":
+            if not auth.can(sess, "account.manage"): return self._send(403, {"error": "this account cannot export"})
+            import core_store
+            data = {"account": core_store.user_summary(uid), "library": library_store.export(uid), "plan": entitlements.export(uid)}
+            return self._send(200, json.dumps(data, ensure_ascii=False, indent=2), "application/json", {"Content-Disposition": 'attachment; filename="navaan-account-export.json"'})
+        return self._send(404, {"error": "not found"})
+    def _listener_post(self, p, body, sess):
+        u = self._acct(sess); uid = u["user_id"]
+        try:
+            if p == "/api/playlists/create":
+                try: return self._send(200, {"id": library_store.create_playlist(u, body.get("name"), body.get("description") or "", body.get("visibility") or "private")})
+                except library_store.LimitError as e: d = e.decision; return self._send(403, {"error": str(e), "limit": d.limit, "plan": d.plan, "upgrade": "/app/plans"})
+            pid = str(body.get("id") or "")
+            if p == "/api/playlists/update": library_store.update_playlist(uid, pid, body.get("name"), body.get("description"), body.get("visibility")); return self._send(200, {"ok": True})
+            if p == "/api/playlists/delete": library_store.delete_playlist(uid, pid); return self._send(200, {"ok": True})
+            if p == "/api/playlists/add": library_store.add_track(uid, pid, str(body.get("slug") or ""), body.get("after")); return self._send(200, {"ok": True})
+            if p == "/api/playlists/remove": library_store.remove_track(uid, pid, str(body.get("slug") or "")); return self._send(200, {"ok": True})
+            if p == "/api/playlists/move": library_store.move_track(uid, pid, str(body.get("slug") or ""), body.get("after")); return self._send(200, {"ok": True})
+            if p == "/api/library/save": library_store.save(uid, str(body.get("kind") or ""), str(body.get("slug") or ""), bool(body.get("on", True))); return self._send(200, {"ok": True})
+            if p == "/api/library/follow": library_store.follow(uid, bool(body.get("on", True))); return self._send(200, {"ok": True})
+            if p == "/api/account/delete":
+                if "owner" in u["roles"]: return self._send(403, {"error": "the owner account cannot be deleted here"})
+                if body.get("confirm") != "delete my account": return self._send(400, {"error": 'type "delete my account" to confirm'})
+                import core_store
+                who = core_store.user_summary(uid)
+                if who:
+                    for s in catalog_store.shares(who["username"]): catalog_store.revoke_share(s["token"], who["username"])   # their links stop working
+                library_store.erase(uid); entitlements.erase(uid); core_store.delete_user(uid)   # the sessions go with the person
+                return self._send(200, {"ok": True, "deleted": True})
+        except LookupError as e: return self._send(404, {"error": str(e)})
+        except ValueError as e: return self._send(400, {"error": str(e)})
+        return self._send(404, {"error": "not found"})
     def _base(self):
         h = PUBLIC_HOST() or (self.headers.get("Host") or "")
         return f"{'https' if (self._https() or PUBLIC_HOST()) else 'http'}://{h}"
@@ -292,11 +342,20 @@ class H(BaseHTTPRequestHandler):
             try: limit = int((q.get("limit") or ["20"])[0])
             except ValueError: return self._send(400, {"error": "limit is a number"})
             return self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, limit)})
+        for pre, rd, _wr in LISTENER_ROUTES:
+            if p == pre or p.startswith(pre + "/"):
+                if not auth.can(sess, rd): return self._send(403, {"error": "this account cannot use that"})
+                return self._listener_get(p, sess)
         if p == "/api/play":   # a short-lived link to the audio in the bucket: the audio never passes through this server (FR-016)
             if not auth.can(sess, "library.view"): return self._send(403, {"error": "this account cannot play"})
             sl = (parse_qs(urlparse(self.path).query).get("slug") or [""])[0]
             key = catalog_store.play_key(sl) if SLUG.match(sl) else None
             if not key: return self._send(404, {"error": "no such track to play"})
+            who = self._acct(sess)
+            d = entitlements.can(who, "audio.play")
+            if not d: return self._send(403, {"error": d.message(), "plan": d.plan, "upgrade": "/app/plans"})
+            try: library_store.record_play(who["user_id"], sl, "direct")
+            except Exception: L.exc(LOG, "play_record_failed", item=sl)   # a play that cannot be counted must still play
             try: return self._send(200, {"url": objstore.par_url(key, 300), "expires_in": 300})
             except Exception: L.exc(LOG, "play_link_failed", item=sl); return self._send(502, {"error": "cannot make a play link right now"})
         if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})   # constitution V: no studio route for a listener
@@ -434,12 +493,21 @@ class H(BaseHTTPRequestHandler):
             return self._send(code, obj, extra={"Set-Cookie": cookies[0]} if cookies else None)
         sess = auth.session(ck)
         if not sess: return self._send(401, {"error": "sign in", "login": True})
-        if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})
+        need = next((wr for pre, _rd, wr in LISTENER_ROUTES if wr and (self.path == pre or self.path.startswith(pre + "/"))), None)   # routes a listener may change things through
+        if not need and not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})
+        if need and not auth.can(sess, need): return self._send(403, {"error": "this account cannot do that"})
         if not hmac.compare_digest((self.headers.get("X-Navaan-Token") or "").encode(), (sess.get("csrf") or TOKEN).encode()): return self._send(403, {"error": "forbidden"})   # this session's token
         try: body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path
+        if need: return self._listener_post(p, body, sess)
         try:
+            if p == "/api/billing/entitlement":   # the owner changes what a plan includes: a data change, no screen or release (SC-008)
+                if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner changes plans"})
+                try:
+                    if not entitlements.set_entitlement(str(body.get("plan") or ""), str(body.get("feature") or ""), bool(body.get("enabled", True)), body.get("limit")): return self._send(404, {"error": "no such plan"})
+                except (ValueError, TypeError) as e: return self._send(400, {"error": str(e)})
+                return self._send(200, {"ok": True})
             if p == "/api/client-log": return self._client_log(body)
             if p == "/api/analytics/link":
                 try: analytics_api.link_post(str(body.get("media_id") or ""), str(body.get("slug") or "")); return self._send(200, {"ok": True})

@@ -21,7 +21,7 @@ describe("the shell", () => {
     expect(within(side).getByRole("link", { name: /Podcasts/ })).toHaveTextContent("Soon");
   });
   it("a route without a screen yet links to the classic view", () => {
-    at("/library");
+    at("/albums");
     expect(screen.getByRole("link", { name: /Open in the classic view/ })).toHaveAttribute("href", "/legacy");
   });
   it("opens the account menu with the themes and closes on Escape", () => {

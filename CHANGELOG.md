@@ -6,6 +6,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-16
+
+### Added
+- Plans and playlists. Every person is on the Free plan (3 playlists) until they are moved; what a plan includes is data, so you can raise a limit with one change and it applies at once with no release (`POST /api/billing/entitlement`, owner only). Premium is shown but cannot be bought yet. The new Plans page compares them and shows how much of yours you have used; the owner is never limited.
+- Library in the new app: create playlists, open one, rename it, change who can see it, put songs in order (move up and down) and remove them; save songs from a song's page or add them to a playlist. Two edits to one playlist at the same time are both kept, in a sensible order. A playlist, a saved song or a play belongs to one person; another person gets "not found".
+- Listening needs the plan's `audio.play` (everyone has it for now) and each play is recorded per person and song, in monthly partitions so old detail can be removed by dropping a month.
+- Account export and delete: `GET /api/account/export` downloads everything held about a person, and `POST /api/account/delete` (typing "delete my account") removes their library, plan, sessions and links; the owner account cannot be deleted this way.
+
+### Not yet
+Point-in-time recovery, error tracking and the uptime check, and the security review of the public surface, are still to do before anyone can sign up.
+
 ## [0.13.0] - 2026-10-16
 
 ### Added
@@ -129,7 +140,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/NjAIAgents/navaan/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/NjAIAgents/navaan/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/NjAIAgents/navaan/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/NjAIAgents/navaan/compare/v0.11.0...v0.12.0
