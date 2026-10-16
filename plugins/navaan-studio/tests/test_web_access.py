@@ -86,6 +86,9 @@ class Access(unittest.TestCase):
         t = json.loads(self.call("/api/tracks", "owner-tok")[1])[0]; self.assertEqual((t["license_status"], t["plan"], t["decided_by"]), ("confirmed", "paid", "owner1"))
         self.assertEqual(CS._run(lambda c: c.execute("SELECT count(*) AS n FROM audit_log WHERE action = 'track_license'").fetchone())["n"], 1)
 
+    def test_the_schedule_list_is_for_the_studio(self):
+        self.assertEqual(json.loads(self.call("/api/schedule", "owner-tok")[1]), []); self.assertEqual(self.call("/api/schedule", "lis-tok")[0], 403); self.assertEqual(self.call("/api/schedule")[0], 401)
+
     def test_a_signed_out_visitor_reaches_nothing(self):
         self.assertEqual(self.call("/api/songs")[0], 401); self.assertEqual(self.call("/api/client-log", None, "x", post=True)[0], 401)
         self.assertEqual(self.call("/api/songs", "not-a-session")[0], 401)

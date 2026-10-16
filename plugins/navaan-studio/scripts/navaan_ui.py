@@ -310,6 +310,12 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, analytics_api.song_view(sl))
             if p == "/api/analytics/by-song": return self._send(200, analytics_api.by_song())
             if p == "/api/songs": return self._send(200, [song_row(s) for s in songs()])
+            if p == "/api/schedule":   # every scheduled publish, for the Schedule screen
+                out = []
+                for sl in songs():
+                    tp = os.path.join(C.song_dir(sl), "title.txt")
+                    out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
+                return self._send(200, sorted(out, key=lambda e: e["at"]))
             if p == "/api/albums": return self._send(200, catalog_store.albums())
             if p == "/api/tracks": return self._send(200, catalog_store.tracks())   # the audit table: origin, plan tier, licence status per track
             m = re.match(r"^/api/song/([^/]+)$", p)
