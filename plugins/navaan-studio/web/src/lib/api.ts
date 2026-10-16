@@ -44,6 +44,7 @@ export type SongDetail = {
   prompt_pack?: { aspect?: string; style_line: string; prompts: { n: number; section: string; prompt: string }[] } | null;
   try?: { running?: boolean; error?: string; files?: string[]; v?: number }; vertical?: { running?: boolean; error?: string; done?: number[] };
   visuals_problems?: string[];
+  poster?: { style: string; styles: string[]; prompt: string; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
 };
 
 export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };

@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
-import visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
+import poster as POST, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
@@ -82,6 +82,7 @@ def scheduler_state():
 
 
 TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
+POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
@@ -180,6 +181,7 @@ def detail(slug):
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
+            "poster": {**POST.state(slug), **POSTER.get(slug, {})},
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -805,6 +807,29 @@ class H(BaseHTTPRequestHandler):
                     navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                     return self._send(200, {"ok": True, **r})
                 except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/poster/generate":
+                if POSTER.get(slug, {}).get("running"): return self._send(409, {"error": "A poster is already being made."})
+                if body.get("picture"):   # your own picture as the art: free
+                    try: POST.use_picture(slug, base64.b64decode(str(body["picture"]), validate=True)); return self._send(200, {"ok": True})
+                    except ValueError as e: return self._send(400, {"error": str(e)})
+                if body.get("only_text"):   # redraw title and artist over the art already made: free
+                    try:
+                        if body.get("style") in POST.STYLES:
+                            with open(os.path.join(C.song_dir(slug), "poster_style.txt"), "w") as f: f.write(body["style"])
+                        POST.typeset(slug); return self._send(200, {"ok": True})
+                    except (OSError, ValueError) as e: L.ignored(LOG, "poster_typeset: no art yet (optional or expected)", e); return self._send(400, {"error": "Make the art first."})
+                prompt = str(body.get("prompt") or ""); style = body.get("style")
+                try: POST.IO.check_cap(POST.media_cfg.load()["image_quality"], None, POST.SIZE)
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                POSTER[slug] = {"running": True, "error": ""}
+                def pw():
+                    err = ""
+                    try: POST.generate(slug, prompt, style); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "poster made via ui"))
+                    except (ValueError, RuntimeError) as e: L.ignored(LOG, "pw: refused or failed (shown to the owner)", e); err = str(e)[:300]
+                    except Exception as e: L.soft(LOG, "pw_error"); err = str(e)[:300]
+                    POSTER[slug] = {"running": False, "error": err}
+                threading.Thread(target=pw, daemon=True).start()
+                return self._send(200, {"ok": True})
             if p.startswith("/api/visuals/"):
                 act = p.rsplit("/", 1)[1]; D = C.song_dir(slug)
                 try:

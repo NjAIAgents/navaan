@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-17
+
+### Added
+- Poster for each song, on the Studio song page under the media: a portrait (2:3) poster made from a prompt that is shown and editable (prefilled from the title, style and lyrics), with the NAVAAN mark, the title and the site drawn over the art by us so the native script is always right. Three lettering styles (bold serif, brush, handwritten; bundled open-licence fonts that cover Hindi and Latin), or use your own picture as the art (free). The button shows the cost (OpenAI images, under the run cap in Settings); "Redraw the title" is free. Using the poster in the player and lists comes next.
+
 ## [0.24.1] - 2026-10-17
 
 ### Fixed
@@ -264,7 +269,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.24.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/NjAIAgents/navaan/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/NjAIAgents/navaan/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/NjAIAgents/navaan/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/NjAIAgents/navaan/compare/v0.22.0...v0.23.0
