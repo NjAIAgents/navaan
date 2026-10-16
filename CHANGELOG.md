@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-16
+
+### Added
+- Albums for listeners: Browse has an Albums row, and an album page plays from the top (the queue is the album, so Next goes to its next song) with a Play button on each song. Listeners only see published albums, and only the songs they may hear.
+- Play buttons on the studio's album page and on playlists: one for the whole list and one per song, with the list as the queue.
+
 ## [0.18.1] - 2026-10-16
 
 ### Fixed
@@ -208,7 +214,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.18.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/NjAIAgents/navaan/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/NjAIAgents/navaan/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/NjAIAgents/navaan/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/NjAIAgents/navaan/compare/v0.17.0...v0.17.1

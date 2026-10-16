@@ -196,6 +196,16 @@ def albums():
     return _tx(lambda c: _album_rows(c))
 
 
+def public_albums(all_licences=False):
+    """Published albums for the people who listen: only songs they may hear (published, and with a confirmed licence unless the studio asks), and no album left empty."""
+    out = []
+    for a in albums():
+        if a["status"] != "published": continue
+        a["tracks"] = [t for t in a["tracks"] if t["status"] == "published" and (all_licences or t["licence"] == "confirmed")]
+        if a["tracks"]: out.append(a)
+    return out
+
+
 def save_album(slug, title, kind="album", status="draft", release_date=None, description=""):
     """Create (slug empty) or update an album. Returns its slug."""
     title = (title or "").strip()

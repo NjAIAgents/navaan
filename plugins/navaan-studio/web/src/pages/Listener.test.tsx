@@ -96,6 +96,29 @@ describe("a song for a listener", () => {
   });
 });
 
+describe("albums and play buttons on lists", () => {
+  const album = { id: "a1", slug: "first-light", title: "First Light", kind: "album", status: "published", release_date: "2026-10-01", description: "Songs of the dawn", tracks: [
+    { slug: "song-001", title: "Tere Hone Se", position: 1, status: "published", licence: "confirmed", art: { colour: "#336699" } }, { slug: "song-002", title: "Pata Hi Na Chala", position: 2, status: "published", licence: "confirmed", art: null }] };
+  it("Browse lists published albums and an album page plays from the top, then on to the next song", async () => {
+    const f = route(LISTENER, { "/api/catalog/albums": () => [album], "/api/catalog/album/first-light": () => album, "/api/catalog/tracks": () => [], "/api/play": () => ({ url: "https://bucket.example/a.mp3" }) });
+    at("/"); const tile = await screen.findByRole("link", { name: /First Light/ }); expect(tile).toHaveAttribute("href", "/album/first-light"); cleanup();
+    at("/album/first-light"); expect(await screen.findByRole("heading", { name: "First Light", level: 1 })).toBeInTheDocument(); expect(screen.getByText("Songs of the dawn")).toBeInTheDocument();
+    const before = f.mock.calls.filter(([u]) => u === "/api/catalog/tracks").length;
+    fireEvent.click(screen.getByRole("button", { name: "Play First Light" })); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-001")).toBe(true));
+    const bar = await screen.findByRole("region", { name: "Now playing" }); await waitFor(() => expect(within(bar).getByRole("button", { name: "Next" })).toBeEnabled());   // the queue is the album
+    fireEvent.click(within(bar).getByRole("button", { name: "Next" })); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-002")).toBe(true));
+    expect(f.mock.calls.filter(([u]) => u === "/api/catalog/tracks").length).toBe(before);   // it did not fall back to the whole catalogue
+  });
+  it("says so when an album is not available to this person", async () => {
+    route(LISTENER, { "/api/catalog/album/ghost": () => json({ error: "no such album" }, 404) }); at("/album/ghost"); expect(await screen.findByRole("alert")).toHaveTextContent("no such album");
+  });
+  it("a playlist plays from its first song", async () => {
+    const f = route(OWNER, { "/api/playlists/p1": () => ({ id: "p1", name: "Evening", description: "", visibility: "private", mine: true, tracks: [{ slug: "song-001", title: "Tere Hone Se", position: "a" }, { slug: "song-002", title: "Pata Hi Na Chala", position: "b" }] }), "/api/play": () => ({ url: "https://bucket.example/a.mp3" }) });
+    at("/library/playlists/p1"); fireEvent.click(await screen.findByRole("button", { name: "Play Evening" })); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-001")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Play Pata Hi Na Chala" })); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-002")).toBe(true));
+  });
+});
+
 describe("Library filters", () => {
   it("shows the answer for the latest choice even when an earlier one answers later", async () => {
     const row = (slug: string, title: string, genre: string) => ({ slug, title, language: "Hindi", genre, albums: [], licence: "confirmed", art: null });

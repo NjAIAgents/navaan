@@ -262,6 +262,11 @@ class H(BaseHTTPRequestHandler):
             q = parse_qs(urlparse(self.path).query); one = lambda k: (q.get(k) or [None])[0] or None
             return self._send(200, catalog_store.browse(studio, one("album"), one("language"), one("genre")))
         if p == "/api/catalog/filters": return self._send(200, catalog_store.filters(studio))
+        if p == "/api/catalog/albums": return self._send(200, catalog_store.public_albums(studio))
+        m = re.match(r"^/api/catalog/album/([A-Za-z0-9][A-Za-z0-9_-]{0,80})$", p)
+        if m:
+            a = next((x for x in catalog_store.public_albums(studio) if x["slug"] == m.group(1)), None)
+            return self._send(200, a) if a else self._send(404, {"error": "no such album"})
         m = re.match(r"^/api/catalog/track/([A-Za-z0-9][A-Za-z0-9_-]{0,40})$", p)
         if m:
             v = catalog_store.track_view(m.group(1), studio)
