@@ -72,6 +72,22 @@ class Preview(Base):
         self.assertEqual(self.K.preview_asset("song-001")["storage_key"], key)
 
 
+@unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg is not installed")
+class PreviewCover(unittest.TestCase):
+    def test_a_songs_embedded_cover_picture_and_tags_do_not_end_up_in_the_preview(self):
+        import media
+        d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)
+        open(os.path.join(d, "c.png"), "wb").write(png(1400, 1400))
+        src = os.path.join(d, "song.mp3")
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440", "-i", os.path.join(d, "c.png"), "-t", "40", "-map", "0:a", "-map", "1:v", "-c:a", "libmp3lame", "-b:a", "64k", "-c:v", "mjpeg",
+                        "-metadata", "title=Secret working title", "-id3v2_version", "3", src], check=True, timeout=60)
+        self.assertIn("video", subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", src], capture_output=True, text=True).stdout)   # the source really has a picture
+        out = media.cut_preview(open(src, "rb").read()); f = os.path.join(d, "p.mp3"); open(f, "wb").write(out)
+        streams = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", f], capture_output=True, text=True).stdout.split()
+        self.assertEqual(streams, ["audio"]); self.assertNotIn(b"Secret working title", out)
+        self.assertLess(len(out), 30 * 12000 * 1.1)   # 96 kbit/s for 30 s is about 360 KB; a carried picture made it 470 KB
+
+
 class Links(Base):
     def test_only_a_confirmed_published_track_can_be_shared_and_a_link_can_be_revoked(self):
         self.song()

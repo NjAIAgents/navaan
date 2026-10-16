@@ -66,8 +66,8 @@ def variant(slug, size, fmt):
 
 
 def cut_preview(audio, seconds=PREVIEW_S):
-    """The first `seconds` of an audio file as a 96 kbit mp3 with a short fade out."""
-    p = subprocess.run(["ffmpeg", "-v", "error", "-i", "pipe:0", "-t", str(seconds), "-af", f"afade=t=out:st={seconds - 3}:d=3", "-c:a", "libmp3lame", "-b:a", "96k", "-f", "mp3", "pipe:1"],
+    """The first `seconds` of an audio file as a 96 kbit mp3 with a short fade out. Audio only: the cover picture and tags a song's mp3 carries are left out (they doubled the size)."""
+    p = subprocess.run(["ffmpeg", "-v", "error", "-i", "pipe:0", "-map", "0:a:0", "-vn", "-map_metadata", "-1", "-t", str(seconds), "-af", f"afade=t=out:st={seconds - 3}:d=3", "-c:a", "libmp3lame", "-b:a", "96k", "-f", "mp3", "pipe:1"],
                        input=audio, capture_output=True, timeout=120)
     if p.returncode or not p.stdout: raise RuntimeError("ffmpeg could not cut the preview: " + p.stderr.decode(errors="replace")[:200])
     return p.stdout
