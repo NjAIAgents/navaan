@@ -53,7 +53,7 @@ export default function Playlist() {
       {view === "grid" && t.length > 0 ? (
         <>
           <div className="grid tiles">{t.map((s) => (
-            <Tile key={s.slug} to={`/song/${s.slug}`} slug={s.slug} title={s.title} art={s.art} action={<><PlayButton slug={s.slug} title={s.title} queue={queue} label={s.title} />{mine && <button className="btn g" disabled={busy} onClick={() => void act("/api/playlists/remove", { slug: s.slug })} aria-label={`Remove ${s.title}`}>Remove</button>}</>} />
+            <Tile key={s.slug} to={`/song/${s.slug}`} slug={s.slug} title={s.title} art={s.art} play={{ slug: s.slug, title: s.title, queue, label: s.title }} action={mine ? <button className="btn g" disabled={busy} onClick={() => void act("/api/playlists/remove", { slug: s.slug })} aria-label={`Remove ${s.title}`}>Remove</button> : undefined} />
           ))}</div>
           {mine && <p className="mu">To change the order, switch to List.</p>}
         </>

@@ -51,7 +51,9 @@ describe("a song for a listener", () => {
     now = 15; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line three")).toHaveAttribute("aria-current", "true"));
     fireEvent.click(screen.getAllByRole("button", { name: "Open play mode" })[0]);   // one in the hero, one in the Now playing bar
     const dlg = await screen.findByRole("dialog", { name: "Play mode" }); expect(document.body.classList.contains("lock")).toBe(true);
-    expect(within(dlg).getByRole("button", { name: "Pause" })).toBeInTheDocument(); expect(within(dlg).getByText("line three")).toHaveAttribute("aria-current", "true");
+    expect(within(dlg).getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(within(dlg).queryByText("line three")).toBeNull(); expect(within(dlg).getByRole("button", { name: "Lyrics" })).toHaveAttribute("aria-pressed", "false");   // lyrics are folded away by default
+    fireEvent.click(within(dlg).getByRole("button", { name: "Lyrics" })); expect(localStorage.getItem("navaan.lyrics")).toBe("1"); expect(within(dlg).getByText("line three")).toHaveAttribute("aria-current", "true");
     fireEvent.change(within(dlg).getByLabelText("Seek"), { target: { value: "50" } }); expect(now).toBe(50);
     fireEvent.click(within(dlg).getByRole("button", { name: "Pause" })); await waitFor(() => expect(within(dlg).getByRole("button", { name: "Play" })).toBeInTheDocument());
     fireEvent.keyDown(document, { key: "Escape" }); await waitFor(() => expect(screen.queryByRole("dialog", { name: "Play mode" })).toBeNull()); expect(document.body.classList.contains("lock")).toBe(false);

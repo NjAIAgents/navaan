@@ -9,7 +9,7 @@ import settings_api
 class Base(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp()
-        self.env = mock.patch.dict(os.environ, {"NAVAAN_CONF_DIR": self.d}, clear=False)
+        self.env = mock.patch.dict(os.environ, {"NAVAAN_CONF_DIR": self.d, "NAVAAN_CACHE_DIR": tempfile.mkdtemp()}, clear=False)   # the audio cache is not in the config folder, so each test gets its own
         self.env.start()
         for k in ("OPENAI_API_KEY", "ELEVENLABS_API_KEY"):
             os.environ.pop(k, None)
