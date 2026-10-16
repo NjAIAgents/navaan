@@ -175,7 +175,7 @@ def detail(slug):
     failure = {"step": rn.get("failed") or "", "error": jv.get("error", ""), "ref": jv.get("id", "")} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6)) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
-            "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
+            "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
@@ -385,6 +385,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"hits": SEARCH.search((q.get("q") or [""])[0], q.get("kind") or None, limit)})
         csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         # the app itself (NAV-8) is for every signed-in person, a listener included; what it may call is decided route by route
+        if p == "/": return self._send(302, b"", "text/plain", {"Location": "/app/"})   # the new app is the front door (NAV-29); the classic view stays at /legacy for one release
         if p == "/app": return self._send(308, b"", "text/plain", {"Location": "/app/"})
         if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
             rel = p[5:]
@@ -413,7 +414,7 @@ class H(BaseHTTPRequestHandler):
         if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})   # constitution V: no studio route for a listener
         csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         try:
-            if p in ("/", "/legacy"):   # the classic view, kept until the new app has every screen
+            if p == "/legacy":   # the classic view, kept for one release as the way back (NAV-29)
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", csrf)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
@@ -785,12 +786,15 @@ class H(BaseHTTPRequestHandler):
                 for k, s in enumerate(out): s["id"] = k + 1
                 json.dump({"duration": dur or out[-1]["end"], "shots": out, "notes": str(body.get("notes", ""))[:600]}, open(os.path.join(D, "shots.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
                 open(os.path.join(D, "shots.json"), "a").write("\n")
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"shot list edited via ui:{sess.get('user') or 'owner'}"))
                 return self._send(200, {"ok": True})
             if p == "/api/save":
                 n = body.get("file")
                 if n not in EDITABLE: return self._send(400, {"error": "file not editable"})
                 if n.endswith(".json"): json.loads(body["content"])
-                open(os.path.join(C.song_dir(slug), n), "w", encoding="utf-8").write(body["content"]); return self._send(200, {"ok": True})
+                open(os.path.join(C.song_dir(slug), n), "w", encoding="utf-8").write(body["content"])
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"{n} edited via ui:{sess.get('user') or 'owner'}"))   # the history says who and when
+                return self._send(200, {"ok": True})
         except (SystemExit, KeyError, ValueError) as e: return self._send(400, {"error": str(e)})
         self._send(404, {"error": "not found"})
 

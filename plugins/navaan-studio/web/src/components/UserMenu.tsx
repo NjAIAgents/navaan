@@ -38,8 +38,9 @@ export function UserMenu({ choice, onChoice, onClose, mobile, version }: Props) 
       </div>
       <hr />
       <Link to="/account" onClick={onClose}><Icon name="user" /> Account</Link>
+      {studio && <Link to="/account/security" onClick={onClose}><Icon name="shield" /> Security</Link>}
       <Link to="/plans" onClick={onClose}><Icon name="star" /> Plan</Link>
-      {studio && <a href="/legacy#/settings"><Icon name="settings" /> Settings</a>}
+      {studio && <Link to="/studio/settings" onClick={onClose}><Icon name="settings" /> Settings</Link>}
       {studio && <a href="/legacy"><Icon name="external" /> Classic view</a>}
       <hr />
       <button onClick={signOut}><Icon name="out" /> Sign out</button>

@@ -140,6 +140,7 @@ button { font: inherit; color: inherit; }
 /* Analytics (NAV-15) */
 .seg [role="tab"][aria-selected="true"] { background: var(--gloss), var(--s3); color: var(--tx); box-shadow: var(--hi), var(--shadow-sm); }
 .sel { width: auto; min-height: var(--tap); padding: 0 12px; }
+input[type="checkbox"] { width: var(--tap); height: var(--tap); flex: none; accent-color: var(--ac); }   /* a switch or a tick is a 44px target */
 .kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .kpi { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; padding: 16px; } .kpi b { font-size: 26px; font-family: var(--font-display); font-weight: 600; }
 .spark { margin: 0; padding: 14px 16px; border-radius: var(--r3); border: 1px solid var(--ln); background: var(--s1); } .spark figcaption { font-weight: 600; margin-bottom: 6px; } .spark figcaption::first-letter { text-transform: uppercase; }

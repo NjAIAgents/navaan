@@ -5,6 +5,7 @@ import { errText } from "../lib/songs";
 import Interactions from "./analytics/Interactions";
 import Numbers from "./analytics/Numbers";
 import Recs from "./analytics/Recs";
+import { Actions, Auto, Hashtags, Peers } from "./analytics/Extras";
 
 const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"]] as const;
 
@@ -38,7 +39,11 @@ export default function Analytics() {
           <>
             {!d && !err && <p className="mu" role="status">Loading…</p>}
             {d?.empty && <div className="card"><p className="empty">Nothing collected yet{d.error ? ` (${d.error})` : ""}.</p></div>}
-            {d && !d.empty && (tab === "recommendations" ? <Recs d={d} reload={load} /> : <Numbers d={d} platform={platform} />)}
+            {d?.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
+            {d && !d.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
+            {d && !d.empty && (tab === "recommendations" ? <Recs d={d} reload={load} /> : <Numbers d={d} platform={platform} reload={load} />)}
+            {d && !d.empty && tab === "analytics" && platform === "instagram" && <><Peers d={d} /><Hashtags d={d} /></>}
+            {tab !== "interactions" && <Auto />}
           </>
         )}
       </div>

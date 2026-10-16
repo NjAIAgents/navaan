@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Icon } from "../components/Icon";
+import { SchedulePanel } from "../components/SchedulePanel";
 import { getJSON, type ScheduleEntry } from "../lib/api";
 import { byDay, monthGrid } from "../lib/calendar";
 import { classic, errText, itemPath } from "../lib/songs";
@@ -21,7 +22,9 @@ export default function Schedule() {
   const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() });
   const [all, setAll] = useState<ScheduleEntry[] | null>(null);
   const [err, setErr] = useState("");
-  useEffect(() => { getJSON<ScheduleEntry[]>("/api/schedule").then(setAll).catch((e) => setErr(errText(e))); }, []);
+  const [q, setQ] = useSearchParams(); const [open, setOpen] = useState(q.has("slug") || q.has("open")); const [type, setType] = useState(q.get("type") ?? "music");
+  const load = () => getJSON<ScheduleEntry[]>("/api/schedule").then(setAll).catch((e) => setErr(errText(e)));
+  useEffect(() => { void load(); }, []);
   const weeks = useMemo(() => monthGrid(ym.y, ym.m), [ym]);
   const days = useMemo(() => byDay(all ?? []), [all]);
   const shown = [...days.entries()].filter(([k]) => k.startsWith(`${ym.y}-${String(ym.m + 1).padStart(2, "0")}-`));
@@ -31,6 +34,13 @@ export default function Schedule() {
   return (
     <>
       <div className="ph"><h1 className="disp">Schedule</h1><p>What publishes when.{attention ? ` ${attention} need${attention === 1 ? "s" : ""} a look.` : ""}</p></div>
+      {open ? (
+        <>
+          <label htmlFor="sp-type">Kind of item</label>
+          <select id="sp-type" className="field" value={type} onChange={(e) => setType(e.target.value)}><option value="music">Song</option><option value="inspiration">Inspiration</option></select>
+          <SchedulePanel key={type} type={type} slug={q.get("slug") ?? ""} onDone={() => { setOpen(false); setQ({}); void load(); }} onCancel={() => { setOpen(false); setQ({}); }} />
+        </>
+      ) : <div className="row"><button className="btn p" onClick={() => setOpen(true)}>Schedule publishing</button></div>}
       <div className="row">
         <button className="btn sq" aria-label="Previous month" onClick={() => step(-1)}><span style={{ transform: "rotate(180deg)", display: "flex" }}><Icon name="chevron" /></span></button>
         <h2 className="mon" aria-live="polite">{title}</h2>
