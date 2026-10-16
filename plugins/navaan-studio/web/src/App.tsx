@@ -2,6 +2,8 @@ import { Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import Home from "./pages/Home";
 import Placeholder from "./pages/Placeholder";
+import Song from "./pages/Song";
+import Songs from "./pages/Songs";
 
 export default function App() {
   return (
@@ -9,7 +11,8 @@ export default function App() {
       <Route element={<Shell />}>
         <Route index element={<Home />} />
         <Route path="studio" element={<Placeholder title="Studio" story="the Studio stories (NAV-13, NAV-14, NAV-15)" blurb="Songs, inspiration, approvals, schedule and analytics." hash="" />} />
-        <Route path="studio/songs" element={<Placeholder title="Songs" story="NAV-13" blurb="Every song, its steps and its approvals." hash="" />} />
+        <Route path="studio/songs" element={<Songs />} />
+        <Route path="studio/songs/:slug" element={<Song />} />
         <Route path="studio/inspiration" element={<Placeholder title="Inspiration" story="NAV-14" blurb="Quotes and short videos." hash="" />} />
         <Route path="studio/podcasts" element={<Placeholder title="Podcasts" story="a later release" blurb="Spoken episodes will live here." />} />
         <Route path="studio/approvals" element={<Placeholder title="Approvals" story="NAV-14" blurb="Everything waiting for your yes, in one list." hash="" />} />

@@ -1,7 +1,7 @@
 {
   "name": "navaan-web",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "NAVAAN app: design tokens, themes and the mobile-first shell (NAV-8). Served by the portal at /app/.",
   "scripts": {
@@ -26,6 +26,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "axe-core": "^4.10.3",
     "jsdom": "^29.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
