@@ -37,6 +37,12 @@ describe("the free public site (not signed in)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add to playlist" })); expect(await screen.findByText(/Accounts are coming soon/)).toBeInTheDocument();
     expect(f.mock.calls.some(([u]) => String(u).startsWith("/api/library") || String(u).startsWith("/api/playlists"))).toBe(false);   // nothing is asked of the server that needs an account
   });
+  it("plays a song from its cover on Browse without opening the song page", async () => {
+    const f = stub(GUEST); at("/"); fireEvent.click((await screen.findAllByRole("button", { name: "Play Tere Hone Se" }))[0]);   // the song is in Newest and in its language row
+    await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-001")).toBe(true));
+    expect(screen.getByRole("heading", { name: "Browse", level: 1 })).toBeInTheDocument();   // still on Browse
+    expect((await screen.findAllByRole("button", { name: "Pause Tere Hone Se" })).length).toBeGreaterThan(0);   // the cover's button follows the song
+  });
   it("shares the song's page address without making a link on the server", async () => {
     const f = stub(GUEST); at("/song/song-001"); fireEvent.click(await screen.findByRole("button", { name: "Share" }));
     expect(await screen.findByLabelText(/Anyone with this link can listen/)).toHaveValue(`${location.origin}/app/song/song-001`);

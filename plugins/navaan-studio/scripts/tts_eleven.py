@@ -21,7 +21,8 @@ def estimate(text):
 
 
 def cache_dir():
-    return os.path.join(M.conf_dir(), "tts_cache")
+    # not the config folder: on the server that is a 16 MB memory disk that holds the tokens (a few takes would fill it)
+    return os.path.join(os.environ.get("NAVAAN_CACHE_DIR") or os.path.join(os.path.expanduser("~"), ".cache", "navaan"), "tts_cache")
 
 
 def _key(text, voice_id, model):

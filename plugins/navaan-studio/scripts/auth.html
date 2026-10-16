@@ -43,13 +43,13 @@ h1.brand::after{content:"STUDIO";display:block;margin-top:3px;font-size:11px;fon
 <symbol id="heart" viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.8-8 11-8 11z"/></symbol>
 </defs></svg>
 <div class="box" id="box"><p class="sub">Loading...</p></div>
-<footer class="cr">NAVAAN Studio &nbsp;&middot;&nbsp; &copy; <span id="cry"></span> NAVAAN Studio. All rights reserved.</footer>
+<footer class="cr">NAVAAN Studio &nbsp;&middot;&nbsp; &copy; <span id="cry"></span> NAVAAN Studio. All rights reserved. <span id="ver"></span></footer>
 <script>
 const $=id=>document.getElementById(id);const box=$("box");let TK="";
 const post=(p,b)=>fetch(p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})}).then(async r=>({s:r.status,j:await r.json().catch(()=>({error:"bad reply"}))}));
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function err(m){const e=$("err");if(e)e.textContent=m||""}
-async function start(){const r=await fetch("/auth/state").then(r=>r.json());const sc=r.secrets;if(sc&&sc.status!=="ok"){const b=document.createElement("div");b.className="small";b.style.cssText="text-align:center;padding:10px;color:#FFB020";b.textContent="Secrets waiting ("+(sc.status==="sealed"?"Vault is sealed":"Vault not reachable")+"). Publishing and Claude steps pause until it clears.";document.body.prepend(b)}if(r.state==="authed")return location.replace(location.pathname);r.state==="setup"?setup1():login(r)}
+async function start(){const r=await fetch("/auth/state").then(r=>r.json());if(r.version){const v=document.getElementById("ver");if(v)v.textContent="\u00b7 v"+r.version;}const sc=r.secrets;if(sc&&sc.status!=="ok"){const b=document.createElement("div");b.className="small";b.style.cssText="text-align:center;padding:10px;color:#FFB020";b.textContent="Secrets waiting ("+(sc.status==="sealed"?"Vault is sealed":"Vault not reachable")+"). Publishing and Claude steps pause until it clears.";document.body.prepend(b)}if(r.state==="authed")return location.replace(location.pathname);r.state==="setup"?setup1():login(r)}
 function setup1(){box.innerHTML=`<h1 class="brand">NAVAAN <span class="studio" aria-label="Studio"><span class="tx">Studio</span></span></h1><p class="sub">First run: create your login. You will use a password plus an authenticator app.</p>
 <label>Setup code <span class="small">(in the file ~/.config/navaan/auth_setup_code on this computer)</span></label><input id="c" autocomplete="off" placeholder="xxxx-xxxx-xxxx">
 <label>User name</label><input id="u" value="navjyot" autocomplete="username">

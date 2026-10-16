@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Author: Navjyot Nishant
+Created: 2026-10-17
+Last updated: 2026-10-17
+Description: the pipeline step that narrates an inspiration's quote (the quote only) with ElevenLabs and attaches it as the item's voiceover.
+
+  narrate_eleven.py <slug> [--estimate]
+
+Reads quote.json (the lines of the quote, not the author), speaks it in the voice the brief names (`- voice: frank|nj`, else the Settings choice, Frank by default),
+writes voiceover.mp3 and sets `voiceover: file` and `music: none` in brief.md. The timing of the lines is made by the next step (narration_sync.py).
+It sits behind the credits approval and the monthly ElevenLabs cap of Settings; the same text in the same voice is never generated twice (tts_eleven cache).
+"""
+import os, sys, json, glob
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import navaan_common as C
+import media_cfg as M, narration, tts_eleven as T
+
+
+def quote_text(D):
+    """The words to speak: the quote's lines, one per row (a short pause between them). Never the author."""
+    q = C.load_json(os.path.join(D, "quote.json"), default=None) or {}
+    lines = [" ".join(str(l).split()) for l in (q.get("lines") or []) if str(l).strip()] or ([" ".join(str(q.get("text") or "").split())] if str(q.get("text") or "").strip() else [])
+    if not lines: raise ValueError("there is no quote yet: write or pick the quote first")
+    return "\n".join(lines)
+
+
+def chosen_voice(D):
+    v = narration.get_option(D, "voice", "").lower()
+    return v if v in M.VOICES else M.load()["voice"]
+
+
+def info(D):
+    """What the Narration card shows: the voice, the estimate, this month's use. No spend."""
+    try: text = quote_text(D)
+    except ValueError: text = ""   # expected: no quote yet, so no estimate (the card says so)
+    s = M.load()
+    return {"on": narration.get_option(D, "narrate", "none").lower() == "eleven", "voice": chosen_voice(D), "voices": {k: v["label"] for k, v in M.VOICES.items()},
+            "estimate_s": T.estimate(text) if text else 0, "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
+
+
+def run(slug):
+    D = C.song_dir(slug); text = quote_text(D); voice = chosen_voice(D)
+    out = os.path.join(D, "voiceover.mp3")
+    for old in glob.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:
+        if os.path.exists(old): os.remove(old)   # a new voice means new timing
+    r = T.synth(text, out, voice)
+    narration.set_options(D, {"voiceover": "file", "music": "none"})
+    return r
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    if not a: sys.exit(__doc__)
+    try:
+        if "--estimate" in a: print(json.dumps(info(C.song_dir(a[0]))))
+        else:
+            r = run(a[0]); print("voiceover.mp3: %s s, voice %s%s" % (r["seconds"], r["voice"], " (from the cache, nothing spent)" if r["cached"] else ", %.0f s of the month's allowance used" % r["spent_seconds"]))
+    except (ValueError, RuntimeError) as e:
+        sys.exit("navaan: " + str(e))

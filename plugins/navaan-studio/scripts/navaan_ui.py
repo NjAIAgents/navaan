@@ -182,6 +182,7 @@ def detail(slug):
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "poster": {**POST.state(slug), **POSTER.get(slug, {})},
+            "narrate": (__import__("narrate_eleven").info(D) if C.item_type(m) == "inspiration" else None),
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -447,7 +448,8 @@ class H(BaseHTTPRequestHandler):
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
             if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
-            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["version"] = app_version(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
+            st["version"] = app_version()   # the version is shown on the sign in page too: it is public (the repository is), and it tells you what is deployed
+            if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
         sess = self._surface(auth.session(ck))
         if not sess and self._public_host(): sess = GUEST   # the public site needs no sign in
@@ -806,6 +808,15 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"started": start_job(slug, True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
             if p == "/api/stop": return self._send(200, {"stopped": jobs.request_cancel(slug)})
+            if p == "/api/narration/eleven":   # narrate the quote with ElevenLabs as a step of this item: on or off, and which voice (the spend is approved at the credits gate)
+                import narration, narrate_eleven, media_cfg
+                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
+                D = C.song_dir(slug); on = bool(body.get("on")); voice = str(body.get("voice") or "")
+                if on and voice not in media_cfg.VOICES: return self._send(400, {"error": "voice must be one of: " + ", ".join(media_cfg.VOICES)})
+                narration.set_options(D, {"narrate": "eleven", "voice": voice} if on else {"narrate": "none"})
+                note = f"narration by ElevenLabs {'on, voice ' + voice if on else 'off'} (via ui)"
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
+                return self._send(200, {"ok": True, **narrate_eleven.info(D)})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
                 import narration
                 if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
