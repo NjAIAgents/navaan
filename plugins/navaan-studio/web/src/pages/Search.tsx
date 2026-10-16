@@ -5,7 +5,7 @@ import { getJSON, type Hit } from "../lib/api";
 import { errText } from "../lib/songs";
 
 const KIND: Record<string, string> = { track: "Song", album: "Album", playlist: "Playlist", short: "Short" };
-const to = (h: Hit) => (h.kind === "track" && h.slug ? `/studio/songs/${h.slug}` : h.kind === "album" ? "/albums" : null);
+const to = (h: Hit) => (h.kind === "track" && h.slug ? `/song/${h.slug}` : h.kind === "album" ? "/albums" : null);
 
 // One search for songs and albums: type Devanagari or the same words in Roman letters.
 export default function Search() {

@@ -18,6 +18,7 @@ import analytics_db as db
 LOG = L.get("core_store")
 
 _LOCAL = threading.local()
+import pgconn; pgconn.register(_LOCAL)
 TOUCH_EVERY_S = 60
 
 

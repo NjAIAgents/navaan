@@ -208,7 +208,9 @@ def token_from(cookie_hdr):
 
 def session(cookie_hdr):
     """The live session for this Cookie header, or None: {"user", "user_id", "csrf", "roles", "permissions"}. Touches the idle clock. A database error means no session (closed, not open)."""
-    if disabled(): return {"user": "local", "user_id": "", "csrf": "", "roles": ["owner"], "permissions": list(PERMISSIONS)}
+    if disabled():   # development only. NAVAAN_AUTH_OFF_ROLE=listener signs the one local person in as a listener (the browser checks use it to see the listener side)
+        if os.environ.get("NAVAAN_AUTH_OFF_ROLE", "").lower() == "listener": return {"user": "listener", "user_id": "", "csrf": "", "roles": ["listener"], "permissions": ["library.view", "playlists.write", "account.manage"]}
+        return {"user": "local", "user_id": "", "csrf": "", "roles": ["owner"], "permissions": list(PERMISSIONS)}
     tok = token_from(cookie_hdr)
     if not tok: return None
     try:

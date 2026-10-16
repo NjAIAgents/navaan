@@ -22,7 +22,7 @@ describe("Library", () => {
     const f = mock({ "/api/playlists/create": () => { lists = [...lists, pl({ id: "22222222-2222-2222-2222-222222222222", name: "Road", tracks: 0 })]; return { id: "x" }; }, "/api/playlists": () => lists, "/api/library": () => ({ tracks: [{ slug: "song-002", title: "Two" }], albums: [], following: false }) });
     at("/library");
     expect(await screen.findByRole("link", { name: /Evening/ })).toHaveAttribute("href", "/library/playlists/11111111-1111-1111-1111-111111111111");
-    expect(screen.getByRole("link", { name: /Two/ })).toHaveAttribute("href", "/studio/songs/song-002");
+    expect(screen.getByRole("link", { name: /Two/ })).toHaveAttribute("href", "/song/song-002");
     fireEvent.change(screen.getByLabelText("New playlist name"), { target: { value: "Road" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByRole("link", { name: /Road/ })).toBeInTheDocument(); expect(posts(f, "/api/playlists/create")).toEqual([{ name: "Road" }]);
   });

@@ -85,3 +85,24 @@ def ensure_preview(slug):
     K.add_preview_asset(a["id"], a["owner_id"], key, len(data))
     L.event(LOG, "info", "preview_made", item=slug, bytes=len(data))
     return key
+
+
+def timed_lyrics(slug):
+    """[[seconds, line], ...] from the song's caption timing file in the bucket, or None. Cached by asset id and size, like the pictures."""
+    a = K.timed_asset(slug)
+    if not a: return None
+    import json
+    path = os.path.join(cache_dir(), f"{a['id']}-{a['bytes']}.timing.json")
+    try:
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as f: raw = f.read()
+        else:
+            raw = objstore.get(a["storage_key"]).decode("utf-8")
+            tmp = path + f".{os.getpid()}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f: f.write(raw)
+            os.replace(tmp, path)
+        rows = json.loads(raw)
+    except (ValueError, OSError, FileNotFoundError):   # expected: a missing or unreadable timing file means plain lyrics
+        L.exc(LOG, "timed_lyrics_unreadable", item=slug); return None
+    out = [[float(r[0]), str(r[-1])] for r in rows if isinstance(r, list) and len(r) >= 2 and isinstance(r[0], (int, float))]
+    return sorted(out) or None

@@ -2,10 +2,16 @@ import { lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import Home from "./pages/Home";
+import { useMe } from "./lib/me";
 import Placeholder from "./pages/Placeholder";
 import Songs from "./pages/Songs";
 
 // Each screen is loaded when it is opened, so the first paint carries only the shell, Home and the Songs list.
+const Browse = lazy(() => import("./pages/Browse"));
+const ListenerSong = lazy(() => import("./pages/ListenerSong"));
+const Account = lazy(() => import("./pages/Account"));
+const Albums = lazy(() => import("./pages/Albums"));
+const Album = lazy(() => import("./pages/Album"));
 const Library = lazy(() => import("./pages/Library"));
 const Playlist = lazy(() => import("./pages/Playlist"));
 const Plans = lazy(() => import("./pages/Plans"));
@@ -16,11 +22,17 @@ const Schedule = lazy(() => import("./pages/Schedule"));
 const Search = lazy(() => import("./pages/Search"));
 const Song = lazy(() => import("./pages/Song"));
 
+// Home is the studio dashboard for the studio side and Browse for a listener.
+function HomeSwitch() { const me = useMe(); return !me.ready ? <p className="mu" role="status">Loading…</p> : me.studio ? <Home /> : <Browse />; }
+
 export default function App() {
   return (
     <Routes>
       <Route element={<Shell />}>
-        <Route index element={<Home />} />
+        <Route index element={<HomeSwitch />} />
+        <Route path="browse" element={<Browse />} />
+        <Route path="song/:slug" element={<ListenerSong />} />
+        <Route path="account" element={<Account />} />
         <Route path="studio" element={<Placeholder title="Studio" story="the Studio stories (NAV-13, NAV-14, NAV-15)" blurb="Songs, inspiration, approvals, schedule and analytics." hash="" />} />
         <Route path="studio/songs" element={<Songs />} />
         <Route path="studio/songs/:slug" element={<Song />} />
@@ -34,7 +46,8 @@ export default function App() {
         <Route path="library" element={<Library />} />
         <Route path="library/playlists/:id" element={<Playlist />} />
         <Route path="plans" element={<Plans />} />
-        <Route path="albums" element={<Placeholder title="Albums" story="NAV-16" blurb="Releases with order, cover and date." hash="" />} />
+        <Route path="albums" element={<Albums />} />
+        <Route path="albums/:slug" element={<Album />} />
         <Route path="*" element={<Placeholder title="Not found" story="nothing" blurb="That page does not exist." />} />
       </Route>
     </Routes>

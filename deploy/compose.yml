@@ -108,7 +108,7 @@ services:
     environment:
       POSTGRES_USER: postgres                                  # maintenance only; the app uses navaan_app, created by deploy/postgres/init.sh
       POSTGRES_PASSWORD_FILE: /pgadmin/pg_admin_password
-    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=30", "-c", "log_min_duration_statement=500"]
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=60", "-c", "log_min_duration_statement=500"]
     mem_limit: 512m          # the VM is shared with EngageHub and Relayent; raise only after checking free memory
     shm_size: 256mb          # Docker's default /dev/shm is 64 MB; a parallel index build or sort needs more and Postgres then crashes (seen on the dev container)
     volumes:
