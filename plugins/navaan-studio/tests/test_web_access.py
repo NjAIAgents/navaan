@@ -1,0 +1,71 @@
+"""NAV-5 stage 1 over HTTP: a signed-in owner reaches the studio with a CSRF token of their own session, a listener reaches no studio route, a signed-out visitor reaches nothing (spec 002 SC-005)."""
+import json, os, sys, tempfile, threading, unittest, urllib.error, urllib.request
+from http.server import ThreadingHTTPServer
+from unittest import mock
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+import _pgenv  # noqa: F401
+import auth, core_store as CS
+import navaan_ui as U
+
+
+class Access(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        dist = os.path.join(self.tmp.name, "dist"); os.makedirs(dist)
+        with open(os.path.join(dist, "index.html"), "w") as f: f.write('<meta name="navaan-token" content="__TOKEN__">')
+        for p in (mock.patch.object(auth, "DIR", self.tmp.name), mock.patch.dict(os.environ, {"NAVAAN_AUTH": "", "NAVAAN_WEB_DIST": dist, "NAVAAN_ROOT": self.tmp.name, "NAVAAN_LOG_DIR": os.path.join(self.tmp.name, "logs")})):
+            p.start(); self.addCleanup(p.stop)
+        CS._LOCAL.conn = None; self.addCleanup(lambda: getattr(CS._LOCAL, "conn", None) and CS._LOCAL.conn.close())
+        owner = CS.ensure_user("owner1", role="owner"); lis = CS.ensure_user("listener1", role="listener")
+        CS.create_session(auth.skey("owner-tok"), owner["id"], "csrf-owner", "1.1.1.1", None, 3600)
+        CS.create_session(auth.skey("owner-tok-2"), owner["id"], "csrf-owner-2", "1.1.1.1", None, 3600)
+        CS.create_session(auth.skey("lis-tok"), lis["id"], "csrf-lis", "2.2.2.2", None, 3600)
+        self.srv = ThreadingHTTPServer(("127.0.0.1", 0), U.H); self.port = self.srv.server_address[1]
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start(); self.addCleanup(self.srv.server_close); self.addCleanup(self.srv.shutdown)
+
+    def call(self, path, tok=None, csrf=None, post=False):
+        h = {"Host": f"127.0.0.1:{self.port}"}
+        if tok: h["Cookie"] = f"{auth.COOKIE}={tok}"
+        data = None
+        if post: h["Content-Type"] = "application/json"; data = b"{}"
+        if csrf: h["X-Navaan-Token"] = csrf
+        try:
+            with urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", data=data, headers=h), timeout=10) as r: return r.status, r.read()
+        except urllib.error.HTTPError as e: return e.code, e.read()
+
+    def test_the_owner_reaches_the_studio_and_the_page_carries_that_sessions_token(self):
+        self.assertEqual(self.call("/api/songs", "owner-tok")[0], 200)
+        code, body = self.call("/app/", "owner-tok"); self.assertEqual(code, 200); self.assertIn(b"csrf-owner", body)
+        code, body = self.call("/app/", "owner-tok-2"); self.assertIn(b"csrf-owner-2", body); self.assertNotIn(b'"csrf-owner"', body)
+        code, body = self.call("/legacy", "owner-tok"); self.assertEqual(code, 200)
+
+    def test_me_tells_who_and_what_the_session_may_do(self):
+        code, body = self.call("/api/me", "owner-tok"); me = json.loads(body)
+        self.assertEqual((code, me["user"], me["roles"]), (200, "owner1", ["owner"])); self.assertIn("studio.approve", me["permissions"])
+        code, body = self.call("/api/me", "lis-tok"); me = json.loads(body)
+        self.assertEqual((code, me["roles"]), (200, ["listener"])); self.assertNotIn("studio.access", me["permissions"])
+        self.assertEqual(self.call("/api/me")[0], 401)
+
+    def test_a_post_needs_this_sessions_own_token(self):
+        self.assertEqual(self.call("/api/client-log", "owner-tok", "csrf-owner", post=True)[0], 200)
+        self.assertEqual(self.call("/api/client-log", "owner-tok", "csrf-owner-2", post=True)[0], 403)   # another session's token
+        self.assertEqual(self.call("/api/client-log", "owner-tok", U.TOKEN, post=True)[0], 403)         # the old process-wide token
+        self.assertEqual(self.call("/api/client-log", "owner-tok", None, post=True)[0], 403)
+
+    def test_a_listener_reaches_no_studio_route(self):
+        for path in ("/api/songs", "/api/settings", "/api/cloud", "/app/", "/legacy", "/", "/api/analytics"): self.assertEqual(self.call(path, "lis-tok")[0], 403, path)
+        self.assertEqual(self.call("/api/client-log", "lis-tok", "csrf-lis", post=True)[0], 403)
+        self.assertEqual(self.call("/api/run", "lis-tok", "csrf-lis", post=True)[0], 403)
+
+    def test_a_signed_out_visitor_reaches_nothing(self):
+        self.assertEqual(self.call("/api/songs")[0], 401); self.assertEqual(self.call("/api/client-log", None, "x", post=True)[0], 401)
+        self.assertEqual(self.call("/api/songs", "not-a-session")[0], 401)
+
+    def test_a_revoked_session_stops_working_at_once(self):
+        self.assertEqual(self.call("/api/songs", "owner-tok-2")[0], 200)
+        CS.revoke_session(auth.skey("owner-tok-2"))
+        self.assertEqual(self.call("/api/songs", "owner-tok-2")[0], 401)
+
+
+if __name__ == "__main__":
+    unittest.main()

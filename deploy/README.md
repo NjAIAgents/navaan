@@ -207,6 +207,19 @@ each other. The scheduler counts an attempt under that lock before it fires a st
 
 **Rollback:** the previous image reads the exported `meta.json` files, which are current. Anything it changes is taken back in by the next release through the outside-edit check.
 
+### Accounts, sessions and roles (NAV-5 stage 1)
+
+Schema `core` (migration `core/0001`): `users`, `roles` (owner, editor, listener), `role_permissions`, `user_roles`, `sessions`, `audit_log`, `login_attempts`, and `credentials`, `identities`, `user_profiles` (created for the listener stories, unused so far).
+
+- **Your login** is unchanged: password, authenticator code, passkeys and recovery codes stay in `auth.json`, delivered by Vault into tmpfs, so they are never in a database dump. A `users` row for you (role owner) is created at your first sign-in so sessions, roles and the audit trail work the same for everyone.
+- **Sessions** are rows in `core.sessions`, keyed by the SHA-256 of the cookie value, ending after 7 days or 7 idle days, or when revoked; a password change ends your other sessions. The older `sessions.json` is read once, moved to `sessions.json.imported`, and its live sessions carry over.
+- **CSRF**: every session has its own token, filled into `index.html` and the classic page when they are served; a POST needs the token of the session it comes with.
+- **Permissions**: a route asks for a permission (`studio.access`, `studio.approve`, ...), never a role name. Every studio route needs `studio.access`, which only owner and editor have; `GET /api/me` answers for any signed-in account.
+- **Lockout**: 5 failed sign-ins from one address lock that address, growing to 15 minutes; kept in `core.login_attempts`, so a restart does not reset it.
+- **Audit**: `core.audit_log` (`login`, `login_failed`, `logout`, `owner_setup`, `password_changed`, `passkey_added`, `passkey_removed`, `recovery_codes_renewed`, `user_created`); sign-in attempts older than 30 days and audit rows older than 400 days are pruned.
+- **Database down**: `/auth/state` (the health check) still answers; signing in and every studio call fail closed.
+- **Rollback**: the previous image reads `auth.json` and keeps its own sessions: you sign in again once, nothing else is lost.
+
 ### Jobs and the worker (NAV-4 stage 2)
 
 The web server no longer runs steps or the publishing schedule. A click on Run, an approval that starts the next step, an answer, Redo or Restart **queues a job** in Postgres (`studio.jobs`); the

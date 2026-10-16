@@ -34,6 +34,8 @@ export function Shell() {
   const { choice, setChoice } = useTheme();
   const [open, setOpen] = useState(false);
   const [version, setVersion] = useState<string | undefined>();
+  const [who, setWho] = useState("Account");
+  useEffect(() => { getJSON<{ user?: unknown }>("/api/me").then((m) => { if (typeof m?.user === "string" && m.user) setWho(m.user); }).catch(() => undefined); }, []);
   useEffect(() => { getJSON<{ version?: unknown }>("/auth/state").then((s) => setVersion(typeof s?.version === "string" && s.version ? s.version : undefined)).catch(() => setVersion(undefined)); }, []);
   const close = useCallback(() => setOpen(false), []);
   const title = titleFor(pathname);
@@ -60,8 +62,8 @@ export function Shell() {
           ))}
         </nav>
         <div className="me" style={{ position: "relative" }}>
-          <button className="who" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>
-            <span className="av" aria-hidden="true">N</span><span>Navjyot</span><span className="sp" /><Icon name="chevron" />
+          <button className="who" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={`Account menu, ${who}`}>
+            <span className="av" aria-hidden="true">{who.slice(0, 1).toUpperCase()}</span><span>{who}</span><span className="sp" /><Icon name="chevron" />
           </button>
           {open && !mobile && <UserMenu choice={choice} onChoice={setChoice} onClose={close} mobile={false} version={version} />}
         </div>
@@ -76,7 +78,7 @@ export function Shell() {
           <span className="mark" aria-hidden="true" />
           <h1 className="disp">{title}</h1>
           <span className="sp" />
-          <button className="btn g sq" onClick={() => setOpen(true)} aria-label="Account menu" aria-haspopup="dialog"><span className="av" aria-hidden="true">N</span></button>
+          <button className="btn g sq" onClick={() => setOpen(true)} aria-label={`Account menu, ${who}`} aria-haspopup="dialog"><span className="av" aria-hidden="true">{who.slice(0, 1).toUpperCase()}</span></button>
         </div>
         <main id="main" className="page" tabIndex={-1}><Outlet /></main>
       </div>

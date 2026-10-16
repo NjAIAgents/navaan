@@ -1,6 +1,6 @@
 """Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
-import os, re, json, glob, mimetypes, threading, secrets, subprocess, sys, html, logging
+import os, re, json, glob, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 import navaan, navaan_common as C, storage, analytics_api, settings_api
@@ -229,12 +229,16 @@ class H(BaseHTTPRequestHandler):
             if sec: st["secrets"] = sec if st.get("state") == "authed" else {"status": sec["status"]}  # detail only after sign in
             if st.get("state") == "authed": st["scheduler"] = scheduler_state(); st["worker"] = worker_state(); st["version"] = app_version(); st["headless"] = os.environ.get("NAVAAN_HEADLESS", "0") == "1"
             return self._send(200, st)
-        if not auth.session(ck):  # not signed in: only the sign in page is served
+        sess = auth.session(ck)
+        if not sess:  # not signed in: only the sign in page is served
             if p in ("/", "/legacy") or p == "/app" or p.startswith("/app/"): return self._send(200, open(os.path.join(navaan.HERE, "auth.html"), encoding="utf-8").read(), "text/html")
             return self._send(401, {"error": "sign in", "login": True})
+        if p == "/api/me": return self._send(200, {"user": sess.get("user"), "roles": sess.get("roles", []), "permissions": sess.get("permissions", [])})   # any signed-in person
+        if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})   # constitution V: no studio route for a listener
+        csrf = sess.get("csrf") or TOKEN   # one token per session; the process-wide one only when the login is off (development)
         try:
             if p in ("/", "/legacy"):   # the classic view, kept until the new app has every screen
-                page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
+                page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", csrf)
                 return self._send(200, page, "text/html")
             if p == "/app": return self._send(308, b"", "text/plain", {"Location": "/app/"})
             if p.startswith("/app/"):   # the new app (NAV-8): a built single page app, any route that is not a file gets index.html
@@ -244,7 +248,7 @@ class H(BaseHTTPRequestHandler):
                 if rel and "." in os.path.basename(rel): return self._send(404, {"error": "not found"})
                 idx = web_file("index.html")
                 if not idx: return self._send(503, "The new app is not built. In plugins/navaan-studio/web run: npm ci && npm run build", "text/plain")
-                return self._send(200, idx[0].replace(b"__TOKEN__", TOKEN.encode()), "text/html", {"Cache-Control": "no-store"})
+                return self._send(200, idx[0].replace(b"__TOKEN__", csrf.encode()), "text/html", {"Cache-Control": "no-store"})
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
             if p == "/api/alerts":
                 try: return self._send(200, {"alerts": settings_api.alerts()})
@@ -356,8 +360,10 @@ class H(BaseHTTPRequestHandler):
             except Exception: return self._send(400, {"error": "bad json"})
             code, obj, cookies = auth.handle_post(self.path.split("?")[0], b, ck, self.headers.get("Host"), ip=self._ip(), https=self._https())
             return self._send(code, obj, extra={"Set-Cookie": cookies[0]} if cookies else None)
-        if not auth.session(ck): return self._send(401, {"error": "sign in", "login": True})
-        if self.headers.get("X-Navaan-Token") != TOKEN: return self._send(403, {"error": "forbidden"})
+        sess = auth.session(ck)
+        if not sess: return self._send(401, {"error": "sign in", "login": True})
+        if not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})
+        if not hmac.compare_digest((self.headers.get("X-Navaan-Token") or "").encode(), (sess.get("csrf") or TOKEN).encode()): return self._send(403, {"error": "forbidden"})   # this session's token
         try: body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path
