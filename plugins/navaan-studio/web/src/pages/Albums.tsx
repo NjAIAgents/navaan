@@ -5,6 +5,7 @@ import { Icon } from "../components/Icon";
 import { getJSON, postJSON, type AlbumRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { Loading } from "../components/Loading";
+import { NewAlbum } from "../components/NewAlbum";
 
 export const coverOf = (a: AlbumRow) => a.tracks.find((t) => t.art);
 
@@ -13,7 +14,7 @@ export default function Albums() {
   const [rows, setRows] = useState<AlbumRow[] | null>(null);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState("album");
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState(""); const [wizard, setWizard] = useState(false);
   const load = useCallback(() => getJSON<AlbumRow[]>("/api/albums").then((r) => { setRows(r); setErr(""); }).catch((e) => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
   const create = async (e: React.FormEvent) => { e.preventDefault(); try { await postJSON("/api/albums/save", { title, kind }); setTitle(""); await load(); } catch (x) { setErr(errText(x)); } };
@@ -21,6 +22,7 @@ export default function Albums() {
     <>
       <div className="ph"><h1 className="disp">Albums</h1><p>Releases with an order, a cover and a date.</p></div>
       {err && <div className="card" role="alert"><p className="mu">{err}</p></div>}
+      {wizard ? <NewAlbum onClose={() => setWizard(false)} /> : <div className="row"><button className="btn p" onClick={() => setWizard(true)}><Icon name="plus" /> New album from songs</button></div>}
       <form className="row" onSubmit={(e) => void create(e)}>
         <label className="sr" htmlFor="al-title">New album title</label>
         <input id="al-title" className="field" style={{ flex: 1, minWidth: 0 }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New album" maxLength={120} autoComplete="off" />

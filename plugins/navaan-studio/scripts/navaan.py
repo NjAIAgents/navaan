@@ -680,6 +680,13 @@ def pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
         return rc
 
 
+def _gate_open(slug, g):
+    """True while the run should keep waiting at gate g. A gate can be settled without an approval (the visuals mode is settled by choosing), so also ask the plan: once the next thing is no longer this gate, stop waiting, or the run sits there for good."""
+    if meta(slug).get("approvals", {}).get(g): return False
+    nxt = plan(slug)[1]
+    return nxt.get("type") == "gate" and nxt.get("gate") == g
+
+
 def _pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40):
     """Run every step in order. Stops at a gate (or waits for you to approve it when wait=True), on a failed step, or when done.
     Approvals are only ever read here, never written."""
@@ -696,11 +703,11 @@ def _pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40)
             g = nxt["gate"]; STATUS[slug] = f"waiting for you: approve gate {g}"
             print(f"waiting for your approval: gate '{g}' (before or after step {nxt['step']}). Approve in the web UI or run: navaan.py approve {slug} {g}", flush=True)
             if not wait: return 3
-            while not meta(slug).get("approvals", {}).get(g):
+            while _gate_open(slug, g):
                 if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
                 if timeout and time.time() - t0 > timeout: print("timed out waiting for approval"); return 3
                 time.sleep(min(poll, 2))   # a Stop is noticed within a couple of seconds, not after a whole poll
-            print(f"gate {g} approved, continuing", flush=True); continue
+            print(f"gate {g} is no longer waiting, continuing", flush=True); continue
         STATUS[slug] = f"running {nxt['step']}"; print(f"running {nxt['step']} ...", flush=True)
         rc = run(slug, step=nxt["step"]); steps_run += 1
         if rc == 6:

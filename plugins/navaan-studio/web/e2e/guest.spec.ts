@@ -26,6 +26,15 @@ test("a visitor plays a whole song with its lyrics, shares it, and is told what 
   await page.getByRole("button", { name: "Add to playlist" }).click(); await expect(page.getByText(/Accounts are coming soon/)).toBeVisible();
 });
 
+test("a visitor makes a clip of a song, plays it, and the page for it leads back to the whole song", async ({ page, request }) => {
+  await page.goto("/app/song/song-011");
+  await page.getByLabel("Start at (seconds)").fill("1"); await page.getByRole("button", { name: "Make the clip" }).click();
+  const video = page.getByLabel(/^Clip of /); await expect(video).toBeVisible({ timeout: 60_000 });
+  const src = (await video.getAttribute("src"))!; expect(src).toMatch(/^\/c\/song-011-1-15\.mp4$/);
+  const r = await request.get(src, { headers: { Range: "bytes=0-99" } }); expect(r.status()).toBe(206); expect(r.headers()["content-type"]).toBe("video/mp4");   // Safari plays video only with ranges
+  await page.goto(src.replace(".mp4", "")); await expect(page.getByRole("link", { name: "Hear the full song" })).toHaveAttribute("href", "/app/song/song-011");
+});
+
 test("a visitor reacts to a song and sends feedback, and the owner sees both", async ({ page, request }, info) => {
   const note = `Feedback from the ${info.project.name} check ${Date.now()}`;
   await page.goto("/app/song/song-011"); await expect(page.getByRole("heading", { name: "Pata Hi Na Chala", level: 1 })).toBeVisible();

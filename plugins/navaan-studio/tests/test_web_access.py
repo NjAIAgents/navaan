@@ -93,6 +93,30 @@ class Access(unittest.TestCase):
         self.assertEqual(post("lis-tok", "csrf-lis", slug="song-001", mood="dawn")[0], 403)   # a listener has no say
         self.assertEqual(post("owner-tok", "csrf-owner", slug="song-001", mood="")[0], 200); self.assertNotIn("mood", json.load(open(os.path.join(D, "meta.json"))))   # empty clears it
 
+    def test_a_visitor_makes_a_clip_of_a_song_and_anyone_with_the_link_can_play_it_with_range_support(self):
+        import catalog_store as K, clip_share
+        D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("Tere <Hone> Se")
+        json.dump({"type": "music", "state": "published", "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": "navaan/songs/song-001/", "objects": {"final.mp3": {"size": 10}}}}, open(os.path.join(D, "meta.json"), "w"))
+        K.sync_item("song-001"); self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close()); K.set_license("song-001", "confirmed", "owner", "paid plan")
+        mp4 = os.path.join(self.tmp.name, "clip.mp4"); open(mp4, "wb").write(bytes(range(256)) * 4)   # 1024 bytes stand in for the video
+        made = []
+        def fake_make(slug, start, length): clip_share.check(slug, start, length); made.append((slug, start, length)); return mp4
+        env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
+        with mock.patch.dict(os.environ, env), mock.patch.object(clip_share, "make", fake_make):
+            post = lambda body, host="navaan.online": self.call("/api/clip", None, None, post=True, body=body, host=host)
+            code, body = post({"slug": "song-001", "start": 5, "length": 15}); d = json.loads(body)
+            self.assertEqual((code, d["token"], d["url"]), (200, "song-001-5-15", "/c/song-001-5-15.mp4")); self.assertTrue(d["page"].endswith("/c/song-001-5-15"))
+            self.assertEqual(post({"slug": "song-001", "start": 5, "length": 20})[0], 400)   # 15 or 30 only
+            self.assertEqual(post({"slug": "song-001", "start": "x"})[0], 400); self.assertEqual(post({"slug": "ghost", "start": 0, "length": 15})[0], 404)
+            st, h, b = self.raw("/c/song-001-5-15"); page = b.decode()
+            self.assertEqual(st, 200); self.assertIn('property="og:video"', page); self.assertIn("/app/song/song-001", page); self.assertIn("Hear the full song", page); self.assertNotIn("<Hone>", page)
+            st, h, b = self.raw("/c/song-001-5-15.mp4"); self.assertEqual((st, h["Content-Type"], h["Accept-Ranges"], len(b)), (200, "video/mp4", "bytes", 1024))
+            st, h, b = self.raw("/c/song-001-5-15.mp4", headers={"Range": "bytes=0-99"}); self.assertEqual((st, h["Content-Range"], len(b)), (206, "bytes 0-99/1024", 100))   # Safari asks for ranges
+            st, h, b = self.raw("/c/song-001-5-15.mp4", headers={"Range": "bytes=-24"}); self.assertEqual((st, h["Content-Range"]), (206, "bytes 1000-1023/1024"))
+            self.assertEqual(self.raw("/c/song-001-5-20")[0], 404); self.assertEqual(self.raw("/c/ghost-5-15")[0], 404)
+            for i in range(21): last = post({"slug": "song-001", "start": 5, "length": 15})[0]
+            self.assertEqual(last, 429)   # twenty clips an hour from one address
+
     def test_a_new_inspiration_is_narrated_unless_skipped_and_only_a_known_voice_counts(self):
         import narration, navaan_common as C
         post = lambda **b: self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=b)
