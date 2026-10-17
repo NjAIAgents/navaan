@@ -18,7 +18,7 @@ describe("ClipCard", () => {
   });
   it("shares the video file through the phone's share sheet when it can, else the link, and shows the server's refusal", async () => {
     const share = vi.fn(() => Promise.resolve()); Object.defineProperty(navigator, "share", { configurable: true, value: share }); Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
-    const f = vi.fn((u: string) => Promise.resolve(u === "/api/clip" ? json({ token: "t", url: "/c/t.mp4", page: "https://navaan.online/c/t" }) : new Response(new Blob(["mp4"], { type: "video/mp4" }))));
+    const f = vi.fn((u: string) => Promise.resolve(u === "/api/clip" ? json({ token: "t", url: "/c/t.mp4", page: "https://navaan.online/c/t" }) : ({ blob: () => Promise.resolve(new Blob(["mp4"], { type: "video/mp4" })) } as unknown as Response)));   // not a real Response: node 22's undici hangs on .blob() of a jsdom Blob
     vi.stubGlobal("fetch", f);
     render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
     expect(screen.queryByRole("button", { name: /Use where it is now/ })).toBeNull();   // nothing is playing, so no position to use
