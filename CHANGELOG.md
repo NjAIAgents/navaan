@@ -10,6 +10,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ### Fixed
 - "Stop the run" now says "Stopping…" and cannot be clicked twice while the worker acts on it, and a run waiting for an approval notices the stop within about 2 seconds instead of up to 15.
+- An item that is only waiting for an approval (nothing running) now says so and points to Redo, instead of leaving you looking for a Stop button that has nothing to stop.
 
 ## [0.29.6] - 2026-10-16
 

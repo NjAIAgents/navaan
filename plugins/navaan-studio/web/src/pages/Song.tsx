@@ -224,7 +224,7 @@ export default function Song() {
       ) : gate === "visuals_mode" ? (
         <VisualsCard d={d} done={load} />
       ) : gate ? (<>
-        {!d.failure && <p className="mu" role="status">Nothing is running: this is only waiting for your approval, so there is nothing to stop. To change something first, use Redo on a step in the list below.</p>}
+        {!d.failure && <p className="mu">Nothing is running: this is only waiting for your approval, so there is nothing to stop. To change something first, use Redo on a step in the list below.</p>}
         <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} />
       </>
       ) : d.next.type === "run" && !d.failure ? (
