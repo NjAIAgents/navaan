@@ -25,6 +25,10 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
   const [changing, setChanging] = useState(false);
   const [note, setNote] = useState("");
   const file = GATE_FILE[gate];
+  // What you are approving is shown here, not a tab away: the videos for "Review the videos", the song for "Listen". The size in the address stops a browser from playing an older file with the same name.
+  const names = Object.keys(d.files ?? {}); const url = (n: string) => `/media/${d.slug}/${n}?v=${d.files[n]}`;
+  const videos = gate === "media" ? names.filter((n) => n.endsWith(".mp4") && !n.startsWith("clips~")) : [];
+  const songs = gate === "listen" ? names.filter((n) => n === "final.mp3") : [];
   const spends = gate === "credits" ? d.steps.filter((x) => x.spends && !x.done && x.spends_what).map((x) => x.spends_what as string) : [];
   const shown = file ? d.text[file] : "";
   const ok = async (path: string, body: Record<string, unknown>) => { if (await act(path, { slug: d.slug, gate, ...body })) { setConfirm(false); setChanging(false); setNote(""); } };
@@ -39,6 +43,8 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       {(gate === "quote" || gate === "media") && d.meta.type === "inspiration" && d.narrate && !d.narrate.on && !Object.keys(d.files ?? {}).some((f) => f.startsWith("voiceover")) && (
         <p className="mu" role="note">There is no narration on this short, so the video has music and text only. To add a voice, use the Narration card below.</p>
       )}
+      {videos.map((n) => <figure key={n} className="stack" style={{ margin: 0 }}><video controls playsInline preload="metadata" src={url(n)} style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: 12 }} aria-label={n} /><figcaption className="mu">{n}</figcaption></figure>)}
+      {songs.map((n) => <audio key={n} controls preload="none" src={url(n)} aria-label={n} />)}
       {file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
       {changing ? (
         <form className="stack" onSubmit={(e) => { e.preventDefault(); void ok("/api/request-changes", { note }); }}>
