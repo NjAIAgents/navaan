@@ -41,7 +41,7 @@ export function PosterCard({ d, done }: { d: SongDetail; done: () => Promise<unk
         <button className="btn p" disabled={running || !p.key || prompt.trim().length < 20} onClick={() => void go({ prompt, style: look })}>{running ? "Making…" : `${p.has ? "Make a new poster" : "Make poster"} (about $${p.usd.toFixed(2)})`}</button>
         {p.has && <button className="btn g" disabled={running} onClick={() => void go({ only_text: true })}>Redraw the title (free)</button>}
         <label className="btn g" style={{ cursor: running ? "default" : "pointer" }}>Use my own picture<input type="file" accept="image/*" hidden disabled={running} onChange={(e) => { const f = e.target.files?.[0]; if (f) void fileB64(f).then((picture) => go({ picture })); e.target.value = ""; }} /></label>
-        {(text !== null || (p.default && p.prompt !== p.default)) && <button className="btn g" disabled={running} onClick={() => setText(p.default ?? null)}>Reset to the suggested prompt</button>}   {/* the suggestion is rebuilt from the song's own style: a prompt saved earlier is not lost, but one click returns to the current suggestion */}
+        {(p.default ? prompt !== p.default : text !== null) && <button className="btn g" disabled={running} onClick={() => setText(p.default ?? null)}>Reset to the suggested prompt</button>}   {/* the suggestion is rebuilt from the song's own style: a prompt saved earlier is not lost, but one click returns to the current suggestion */}
       </div>
       {(err || p.error) && <p role="alert" style={{ color: "var(--bad)" }}>{err || p.error}</p>}
     </section>
