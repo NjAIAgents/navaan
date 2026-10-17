@@ -38,7 +38,13 @@ def default_prompt(slug):
     lines = [l.strip() for l in _read(D, "lyrics.txt").splitlines() if l.strip() and not l.strip().startswith("[")][:4]
     pk = C.load_json(os.path.join(D, "prompt_pack.json"), default=None) or {}
     look = (pk.get("style_line") or "").strip()
+    import prompt_pack as PP
+    g = PP.singer(_read(D, "style.txt"))
+    who = ("A lone %s seen from behind or in silhouette, because the song is sung by a %s: do not show a %s. " % (("man",) * 2 + ("woman",)) if g == "male"
+           else "A lone %s seen from behind or in silhouette, because the song is sung by a %s: do not show a %s. " % (("woman",) * 2 + ("man",)) if g == "female"
+           else "No people in the frame: an atmospheric place only, because who sings is not stated. ")
     return ("Professional portrait music poster artwork for the song \"%s\". " % title
+            + who
             + ("Sound and mood: %s. " % style if style else "")
             + ("Feeling of these lines: \"%s\". " % " / ".join(lines) if lines else "")
             + ("Look: %s. " % look if look else "Cinematic, painterly, refined colour, timeless. ")
@@ -47,7 +53,7 @@ def default_prompt(slug):
 
 def state(slug):
     D = C.song_dir(slug); cfg = media_cfg.load(); q = cfg["image_quality"]
-    return {"prompt": _read(D, "poster_prompt.txt") or default_prompt(slug), "has": os.path.isfile(os.path.join(D, "poster_2x3.png")),
+    return {"prompt": _read(D, "poster_prompt.txt") or default_prompt(slug), "default": default_prompt(slug), "has": os.path.isfile(os.path.join(D, "poster_2x3.png")),
             "v": int(os.path.getmtime(os.path.join(D, "poster_2x3.png"))) if os.path.isfile(os.path.join(D, "poster_2x3.png")) else 0,
             "style": current_style(D), "styles": list(STYLES), "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "quality": q, "key": bool(media_cfg.get_key("openai"))}
 
