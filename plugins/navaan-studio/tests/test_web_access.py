@@ -93,12 +93,12 @@ class Access(unittest.TestCase):
         self.assertEqual(post("lis-tok", "csrf-lis", slug="song-001", mood="dawn")[0], 403)   # a listener has no say
         self.assertEqual(post("owner-tok", "csrf-owner", slug="song-001", mood="")[0], 200); self.assertNotIn("mood", json.load(open(os.path.join(D, "meta.json"))))   # empty clears it
 
-    def test_a_new_inspiration_can_start_with_the_quote_narrated_and_only_a_known_voice_counts(self):
+    def test_a_new_inspiration_is_narrated_unless_skipped_and_only_a_known_voice_counts(self):
         import narration, navaan_common as C
         post = lambda **b: self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=b)
         code, body = post(type="inspiration", idea="You are allowed to outgrow your old life.", narrate="eleven", voice="nj"); self.assertEqual(code, 200); D = C.song_dir(json.loads(body)["slug"])
         self.assertEqual((narration.get_option(D, "narrate"), narration.get_option(D, "voice")), ("eleven", "nj"))
-        code, body = post(type="inspiration", idea="Another quote that stays quiet."); D2 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D2, "narrate", "not set"), "not set")   # off unless asked
+        code, body = post(type="inspiration", idea="Another quote that stays quiet.", narrate="none"); D2 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D2, "narrate"), "none")   # skipped when asked
         code, body = post(type="inspiration", idea="A third quote.", narrate="eleven", voice="bogus"); D3 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D3, "voice"), "frank")   # an unknown voice falls back to the default
 
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):

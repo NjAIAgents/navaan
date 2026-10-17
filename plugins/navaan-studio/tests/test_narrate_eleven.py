@@ -37,7 +37,8 @@ class Narrate(Base):
         self.assertEqual((narration.get_option(self.D, "voiceover"), narration.get_option(self.D, "music")), ("file", "none"))
 
     def test_info_shows_the_estimate_and_the_month_without_spending(self):
-        narration.set_options(self.D, {"narrate": "eleven", "voice": "nj"})
+        self.assertTrue(N.info(self.D)["on"])   # on unless skipped
+        narration.set_options(self.D, {"voice": "nj"})
         i = N.info(self.D)
         self.assertEqual((i["on"], i["voice"], sorted(i["voices"])), (True, "nj", ["frank", "nj"])); self.assertGreater(i["estimate_s"], 0); self.assertEqual(i["cap_s"], M.load()["eleven_monthly_seconds"])
 
@@ -50,14 +51,26 @@ class Narrate(Base):
 
 
 class Pipeline(Base):
-    def test_the_narrate_step_exists_only_when_asked_for_and_comes_before_the_timing_step(self):
+    def steps(self):
         import navaan
-        with mock.patch.object(navaan, "song_dir", lambda slug: self.D):
-            ids = lambda: [s["id"] for s in navaan.inspiration_steps("s", self.D)]
-            self.assertNotIn("narrate", ids())
-            narration.set_options(self.D, {"narrate": "eleven"}); got = ids()
-            self.assertIn("narrate", got); self.assertLess(got.index("narrate"), got.index("narration")); self.assertLess(got.index("narration"), got.index("typeset"))
-            step = next(s for s in navaan.inspiration_steps("s", self.D) if s["id"] == "narrate"); self.assertEqual(step["before"], "credits")   # the spend is approved first
+        with mock.patch.object(navaan, "song_dir", lambda slug: self.D): return navaan.inspiration_steps("s", self.D)
+
+    def test_narration_is_a_standard_step_before_the_timing_step_and_behind_the_credits_approval(self):
+        got = [s["id"] for s in self.steps()]   # nothing was chosen: the default is narrated
+        self.assertIn("narrate", got); self.assertLess(got.index("narrate"), got.index("narration")); self.assertLess(got.index("narration"), got.index("typeset"))
+        self.assertEqual(next(s for s in self.steps() if s["id"] == "narrate")["before"], "credits")   # the spend is approved first
+
+    def test_a_short_can_skip_it_and_a_voice_that_already_exists_makes_the_step_done(self):
+        narration.set_options(self.D, {"narrate": "none"}); self.assertNotIn("narrate", [s["id"] for s in self.steps()])
+        narration.set_options(self.D, {"narrate": "eleven"}); open(os.path.join(self.D, "voiceover.mp3"), "wb").write(b"x")
+        step = next(s for s in self.steps() if s["id"] == "narrate"); self.assertTrue(step["done"](None))   # an uploaded or made voice is not made again
+        os.remove(os.path.join(self.D, "voiceover.mp3")); step = next(s for s in self.steps() if s["id"] == "narrate")
+        self.assertFalse(step["done"]({})); self.assertTrue(step["done"]({"approvals": {"media": {"at": "x"}}}))   # a short whose video is already approved is not reopened for a voice
+
+    def test_without_a_key_the_step_says_how_to_skip(self):
+        narration.set_options(self.D, {"narrate": "eleven"})
+        with mock.patch.object(T.M, "get_key", lambda p: ""), self.assertRaises(RuntimeError) as c: N.run("s")
+        self.assertIn("skip narration", str(c.exception))
 
 
 if __name__ == "__main__":

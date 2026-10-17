@@ -7,7 +7,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [Unreleased]
 
 ### Changed
-- A new inspiration can start with the quote narrated by ElevenLabs: the New inspiration dialog offers it (on by default when a key is saved, with the voice to pick, Frank first). Without a key it says so. Before this the voice was only on the Narration card, and a short made without it had music and text only with no hint that a voice was possible: the quote and video approvals now say when a short has no narration.
+- Narrating the quote with ElevenLabs is now a standard step of every inspiration, not an option you have to find: the Steps list shows "Narrate the quote (ElevenLabs)" (before the timing and typography steps) and it runs with Frank unless you pick NJ on the Narration card. The spend is approved first, and a short can still skip it (untick it in the New inspiration dialog, or press Skip narration on the Narration card) to stay music and text only. A short whose video was already approved is not reopened. Without a saved ElevenLabs key the step stops and says how to add it or skip.
 
 ## [0.29.0] - 2026-10-17
 
