@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.7] - 2026-10-16
+
+### Fixed
+- "Stop the run" now says "Stopping…" and cannot be clicked twice while the worker acts on it, and a run waiting for an approval notices the stop within about 2 seconds instead of up to 15.
+
 ## [0.29.5] - 2026-10-17
 
 ### Changed
@@ -339,7 +344,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.7...HEAD
+[0.29.7]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...v0.29.7
 [0.29.5]: https://github.com/NjAIAgents/navaan/compare/v0.29.4...v0.29.5
 [0.29.4]: https://github.com/NjAIAgents/navaan/compare/v0.29.3...v0.29.4
 [0.29.3]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...v0.29.3

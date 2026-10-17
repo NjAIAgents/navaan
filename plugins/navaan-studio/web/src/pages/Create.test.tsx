@@ -135,6 +135,7 @@ describe("an approval a running job is waiting for", () => {
     at("/studio/inspiration/insp-004");
     expect(await screen.findByText("A run is waiting")).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: "Stop the run" }));
     await waitFor(() => expect(posts(f, "/api/stop")).toEqual([{ slug: "insp-004" }]));
+    expect(await screen.findByRole("button", { name: "Stopping…" })).toBeDisabled();   // the worker takes a few seconds to act: say so, so it is not clicked again
   });
   it("still shows Running with Stop while a step really runs (no approval is next)", async () => {
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "run", step: "render" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "running render" }) });
