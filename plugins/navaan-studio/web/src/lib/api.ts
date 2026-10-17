@@ -27,7 +27,7 @@ export type SongRow = {
 };
 
 export type Step = {
-  id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean; spends_what?: string | null; gate_before?: string | null;
+  id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean; spends_what?: string | null; gate_before?: string | null; gate_after?: string | null; outputs?: string[]; made?: { name: string; size: number }[]; texts?: { name: string; text: string }[];
   status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null;
 };
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
@@ -37,6 +37,8 @@ export type SongDetail = {
   files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
+  logs?: Record<string, string>;
+  notes?: string[];
   failure: { step: string; error: string; ref: string; plain?: string } | null;
   question: Question | null; needs_you: string;
   cameras: string[]; cloud: boolean; images: string[];
@@ -46,7 +48,7 @@ export type SongDetail = {
   visuals_problems?: string[];
   music?: { file: string; name: string; added: string; seconds: number } | null;
   narrate?: { on: boolean; voice: string; voices: Record<string, string>; pace?: string; paces?: Record<string, string>; estimate_s: number; script?: string; script_custom?: boolean; used_s: number; cap_s: number; key: boolean } | null;
-  poster?: { style: string; styles: string[]; prompt: string; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
+  poster?: { style: string; styles: string[]; prompt: string; default?: string; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
 };
 
 export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };

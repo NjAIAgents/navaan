@@ -9,6 +9,24 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Changed
 - Importing a song needs BOTH the Suno link and the audio file. The link gives the title, lyrics and style, read from the public Suno page over plain HTTPS (a /s/ share link works) and checked before anything is created, so a private song or one with no lyrics is refused with a sentence; your file gives the sound. Before, either one alone was accepted, and an MP3 on its own produced a song with no lyrics, which broke the captions and let the picture plan invent a story.
 
+## [0.34.0] - 2026-10-17
+
+### Added
+- Any step in the pipeline can be opened: click it to see what it said (a prompt, a plan), what it made (pictures, audio, video), its log and its own history, and go back to what needs you. A step that has not run yet opens too and says so.
+- Pictures can be opened large: click the poster, the cover, the album cover, a shot's picture or a step's picture to see it full screen; Escape, Close or a click outside closes it.
+
+### Fixed
+- A male-voiced song got a poster of a woman, and its picture plan a woman as the main character. The directors are now told who sings (read from the song's style: male, female, or not stated) and not to invent a love interest unless the lyrics are about one. The poster's default prompt shows a lone man or woman seen from behind to match the singer, or no people at all when the singer is not stated. The poster card has "Reset to the suggested prompt", because a prompt saved earlier would otherwise hide the fix. For a song whose plan already has the wrong character, redo "Write the picture plan" (and the pictures).
+
+- A song with no lyrics saved (an imported MP3 has none) now says so up front on the Pipeline tab, and the captions and the picture plan stop at once with a plain sentence ("this song has no lyrics saved, so there is nothing to time. Add the lyrics on the Content tab") instead of crashing deep in the aligner with a divide by zero. A failure whose step printed its own reason now shows that reason, not an empty message.
+
+- The captions step now also makes an English transcript when the lyrics have Latin-script lines (English, or romanised Hindi). The aligner matches those lines against it, but it was never made, so an English song had no speech to line up against.
+
+### Changed
+- The shot list approval shows the pictures in order, each with when it is on screen, the camera move and the scene, with the raw JSON folded away under it.
+- Steps use real names ("Write the picture plan", "Create the pictures", "Plan the shots", "Plan what moves") instead of internal ones.
+- In the steps list only the step whose approval is in front of you is marked "waiting for you"; steps blocked behind it are simply later, so one amber row shows the one thing that needs you.
+
 ## [0.33.1] - 2026-10-17
 
 ### Changed
@@ -412,7 +430,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.34.0...HEAD
+[0.34.0]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...v0.34.0
 [0.33.1]: https://github.com/NjAIAgents/navaan/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/NjAIAgents/navaan/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/NjAIAgents/navaan/compare/v0.31.0...v0.32.0

@@ -7,7 +7,7 @@ Lines that are only sustained vowels (alaap) are left out of the captions.
 """
 import os, sys, json, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, tool, cfg
+from navaan_common import song_dir, tool, cfg, lyric_lines, NO_LYRICS
 import setup_captions as S
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -28,9 +28,18 @@ def clean_lyrics(src, dst):
     return dropped
 
 
+def has_latin_lines(path):
+    """True when some lyric line is in Latin script (English, or romanised Hindi). The aligner matches those against an English transcript (<tag>_asren.json); without it they have no speech to match."""
+    import re
+    with open(path, encoding="utf-8", errors="ignore") as f:
+        return any(len(re.findall("[A-Za-z]", l)) >= 3 and not re.search("[\u0900-\u097f]", l) for l in (x.strip() for x in f) if l and not l.startswith("["))
+
+
 def main(slug):
+    D = song_dir(slug)
+    if not lyric_lines(D): sys.exit("navaan: " + NO_LYRICS.replace("work from", "time"))   # before anything heavy: an imported song may have no lyrics, and timing no words crashes deep inside the aligner
     if not S.ready(): sys.exit("navaan: caption tools are not installed. Approve the captions_setup gate, or run setup_captions.py --yes.")
-    D = song_dir(slug); py = S.venv_python(); work = os.path.join(D, ".cache"); os.makedirs(work, exist_ok=True)
+    py = S.venv_python(); work = os.path.join(D, ".cache"); os.makedirs(work, exist_ok=True)
     env = dict(os.environ, NAVAAN_WORK=work, NAVAAN_VOC_MODEL=S.VOC, NAVAAN_WHISPER_DIR=S.MODELS)
     env["PATH"] = os.path.dirname(tool("ffmpeg")) + os.pathsep + env.get("PATH", "")
     mono = os.path.join(work, "mono.wav")
@@ -43,6 +52,9 @@ def main(slug):
     hj = f"{work}/{tag}_hi.json"
     if not os.path.exists(hj):
         print("transcribing windows ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "asr.py"), tag, "small", "hi", hj], env=env)
+    ej = f"{work}/{tag}_asren.json"
+    if has_latin_lines(os.path.join(D, "lyrics.txt")) and not os.path.exists(ej):
+        print("transcribing windows (English) ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "asr.py"), tag, "small", "en", ej], env=env)   # English lines are matched to this
     lyr = os.path.join(work, "lyrics_clean.txt"); n = clean_lyrics(os.path.join(D, "lyrics.txt"), lyr)
     if n: print(f"left {n} alaap line(s) out of the captions")
     print("aligning lines ...", flush=True)

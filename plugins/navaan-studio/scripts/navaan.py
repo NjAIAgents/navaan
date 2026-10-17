@@ -376,7 +376,7 @@ def plan(slug):
         notused = legacy and s["id"] in ("instagram_caption", "publish_instagram", "archive", "cleanup") and not s["done"](m) and not reel_made  # older song, finished before these steps existed
         if notused: skip = True
         d = s["done"](m) or skip
-        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "restart": s["id"] in PRODUCE_FROM, "spends": s.get("before") == "credits", "spends_what": spend_what(s) if s.get("before") == "credits" else None, "gate_before": s.get("before"), "gate_after": s.get("after")}
+        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "restart": s["id"] in PRODUCE_FROM, "outputs": list(s.get("outputs") or []), "spends": s.get("before") == "credits", "spends_what": spend_what(s) if s.get("before") == "credits" else None, "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
         if d:
             row["status"] = "waiting for approval" if (ga and not gate_ok(D, ap, ga, ig_done(m))) else "done"

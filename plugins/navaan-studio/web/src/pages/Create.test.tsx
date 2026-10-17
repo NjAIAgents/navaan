@@ -190,3 +190,38 @@ describe("what an approval asks you to review is on the approval", () => {
     const a = await screen.findByLabelText("final.mp3"); expect(a.tagName).toBe("AUDIO"); expect(a).toHaveAttribute("src", "/media/song-001/final.mp3?v=4000"); expect(screen.queryByLabelText("final_16x9.mp4")).toBeNull();   // listening needs the song, not the video
   });
 });
+
+describe("opening a step from the pipeline", () => {
+  it("shows the opened step's detail in place of what needs you, keeps it in the address, and goes back", async () => {
+    const step = (id: string, o: object = {}) => ({ id, label: id, kind: "script", done: false, redo: true, restart: false, spends: false, status: "ready", needs_gate: null, scheduled_for: null, made: [], texts: [], ...o });
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: ["2026-10-17T05:56:08Z step background_prompt done (attempt 1)"] }, next: { type: "gate", step: "render", gate: "media" },
+      steps: [step("background_prompt", { done: true, status: "done", texts: [{ name: "scenes/background.txt", text: "A quiet harbour at dusk." }] }), step("render", { done: true, status: "waiting for approval", needs_gate: "media" })] }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByRole("heading", { name: "Review the videos" })).toBeInTheDocument();   // what needs you first
+    fireEvent.click(screen.getByRole("button", { name: /done: Write the background prompt/ }));
+    expect(await screen.findByLabelText("scenes/background.txt")).toHaveTextContent("A quiet harbour at dusk."); expect(screen.queryByRole("heading", { name: "Review the videos" })).toBeNull();
+    expect(screen.getByText(/step background_prompt done \(attempt 1\)/)).toBeInTheDocument();   // its own history
+    fireEvent.click(screen.getByRole("button", { name: /Back to what needs you/ })); expect(await screen.findByRole("heading", { name: "Review the videos" })).toBeInTheDocument();
+  });
+});
+
+describe("the shot list approval", () => {
+  it("shows the pictures of the shots, with the raw list folded away, and the steps by their real names", async () => {
+    const shots = JSON.stringify({ shots: [{ id: 1, label: "Instrumental 1", start: 0, end: 17.15, image: "images/pic_01.png", camera: "push_in", scene: "A late-night cafe." }] });
+    const step = (id: string, o: object = {}) => ({ id, label: id, kind: "script", done: false, redo: true, restart: false, spends: false, status: "ready", needs_gate: null, scheduled_for: null, made: [], texts: [], ...o });
+    route(OWNER, { "/api/song/": () => detail({ next: { type: "gate", step: "shots", gate: "shots" }, text: { "title.txt": "Tere", "shots.json": shots }, steps: [step("prompts", { done: true, status: "done" }), step("pictures", { done: true, status: "done" }), step("shots", { done: true, status: "waiting for approval", needs_gate: "shots" }), step("motion_plan")] }) });
+    at("/studio/songs/song-001");
+    expect(await screen.findByAltText("Picture for Instrumental 1")).toHaveAttribute("src", "/media/song-001/images~pic_01.png");
+    expect(screen.getByText("The raw shot list").closest("details")).not.toHaveAttribute("open");
+    for (const name of [/: Write the picture plan$/, /: Create the pictures$/, /: Plan the shots$/, /: Plan what moves$/]) expect(screen.getByRole("button", { name })).toBeInTheDocument();   // not "prompts", "pictures", "shots", "motion plan"
+  });
+});
+
+describe("a song with no lyrics", () => {
+  it("says so before anything is run, with a way to the Content tab", async () => {
+    route(OWNER, { "/api/song/": () => detail({ notes: ["This song has no lyrics saved. The picture plan and the captions are written from them. Add the lyrics on the Content tab."], next: { type: "run", step: "prompts" } }) });
+    at("/studio/songs/song-001");
+    const note = await screen.findByRole("note"); expect(note).toHaveTextContent("This song has no lyrics saved");
+    fireEvent.click(screen.getByRole("button", { name: "Open Content" })); expect(screen.getByRole("tab", { name: "Content" })).toHaveAttribute("aria-selected", "true"); expect(screen.queryByRole("note")).toBeNull();   // the notice belongs to the Pipeline tab
+  });
+});
