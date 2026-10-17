@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- The artist's own singing voice (the profile's "Preferred vocals", `music.voice`: male or female) is used as the singer for the picture directors and the poster when a song's style does not say, so it does not have to be written into every style. A song whose style names the voice still wins; duet, mixed or unset assume nothing.
+
 ### Changed
 - Importing a song needs BOTH the Suno link and the audio file. The link gives the title, lyrics and style, read from the public Suno page over plain HTTPS (a /s/ share link works) and checked before anything is created, so a private song or one with no lyrics is refused with a sentence; your file gives the sound. Before, either one alone was accepted, and an MP3 on its own produced a song with no lyrics, which broke the captions and let the picture plan invent a story.
 
