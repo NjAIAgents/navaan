@@ -34,7 +34,7 @@ def info(D):
     try: text = quote_text(D)
     except ValueError: text = ""   # expected: no quote yet, so no estimate (the card says so)
     s = M.load()
-    return {"on": narration.get_option(D, "narrate", "none").lower() == "eleven", "voice": chosen_voice(D), "voices": {k: v["label"] for k, v in M.VOICES.items()},
+    return {"on": narration.get_option(D, "narrate", "eleven").lower() != "none", "voice": chosen_voice(D), "voices": {k: v["label"] for k, v in M.VOICES.items()},
             "estimate_s": T.estimate(text) if text else 0, "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
 
 
@@ -43,7 +43,10 @@ def run(slug):
     out = os.path.join(D, "voiceover.mp3")
     for old in glob.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:
         if os.path.exists(old): os.remove(old)   # a new voice means new timing
-    r = T.synth(text, out, voice)
+    try: r = T.synth(text, out, voice)
+    except RuntimeError as e:
+        if "No ElevenLabs key" in str(e): raise RuntimeError(str(e) + " Or skip narration for this short on its Narration card.") from None
+        raise
     narration.set_options(D, {"voiceover": "file", "music": "none"})
     return r
 

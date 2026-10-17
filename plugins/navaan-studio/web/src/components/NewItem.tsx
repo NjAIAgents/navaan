@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
-import { postJSON } from "../lib/api";
+import { getJSON, postJSON, type SettingsData } from "../lib/api";
 import { errText, itemPath } from "../lib/songs";
 
 type Mode = "idea" | "import";
@@ -18,12 +18,18 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const song = type === "music";
+  const [nar, setNar] = useState<{ key: boolean; voices: Record<string, string> } | null>(null); const [narrate, setNarrate] = useState(true); const [voice, setVoice] = useState("frank");
+  useEffect(() => {   // an inspiration can start with the quote narrated by ElevenLabs: on by default when a key is saved
+    if (!open || song) return;
+    getJSON<SettingsData>("/api/settings").then((d) => { if (d?.media?.keys) { setNar({ key: !!d.media.keys.elevenlabs, voices: d.media.voices ?? {} }); setVoice(String(d.media.settings?.voice || "frank")); } }).catch(() => setNar(null));   // expected: without the settings the option is simply not offered
+  }, [open, song]);
+  const useNarr = !song && narrate;   // narration is a standard step: on unless this short skips it
   const done = (slug: string) => go(itemPath(type, slug) ?? "/");
   const create = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
     if (!song && !idea.trim()) return setErr("Write the quote or the idea first.");
     setBusy(true);
-    try { const r = await postJSON<{ slug: string }>("/api/new", { type, idea: idea.trim() }); done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
+    try { const r = await postJSON<{ slug: string }>("/api/new", { type, idea: idea.trim(), ...(song ? {} : useNarr ? { narrate: "eleven", voice } : { narrate: "none" }) }); done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
   const doImport = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
@@ -50,6 +56,13 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
         <form className="stack" onSubmit={(e) => void create(e)}>
           <label htmlFor="ni-idea">{song ? "Idea (optional)" : "Quote or idea"}</label>
           <textarea id="ni-idea" className="field" rows={3} value={idea} onChange={(e) => setIdea(e.target.value)} placeholder={song ? "A line about what the song is about" : "The quote, or what the short should say"} />
+          {!song && (
+            <div className="stack" role="group" aria-label="Narration">
+              <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} /> Narrate the quote with ElevenLabs</label>
+              {narrate && nar && <><label htmlFor="ni-voice">Voice</label><select id="ni-voice" className="field sel" value={voice} onChange={(e) => setVoice(e.target.value)}>{Object.entries(nar.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></>}
+              {narrate && nar && !nar.key && <p className="mu" role="status">Paste an ElevenLabs key in Settings before this step runs. Untick the box to make this short with music and text only.</p>}
+            </div>
+          )}
           <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? "Creating…" : "Create"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>
         </form>
       ) : (

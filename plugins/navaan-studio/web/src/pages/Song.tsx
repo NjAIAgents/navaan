@@ -31,6 +31,9 @@ function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Ac
       <span className="chip wn"><span className="dot" />Waiting for you</span>
       <h2 id="gate-h">{gateTitle(gate)}</h2>
       <p>{GATE_ASK[gate] ?? "Approve to move this song forward."}</p>
+      {(gate === "quote" || gate === "media") && d.meta.type === "inspiration" && d.narrate && !d.narrate.on && !Object.keys(d.files ?? {}).some((f) => f.startsWith("voiceover")) && (
+        <p className="mu" role="note">There is no narration on this short, so the video has music and text only. To add a voice, use the Narration card below.</p>
+      )}
       {file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
       {changing ? (
         <form className="stack" onSubmit={(e) => { e.preventDefault(); void ok("/api/request-changes", { note }); }}>

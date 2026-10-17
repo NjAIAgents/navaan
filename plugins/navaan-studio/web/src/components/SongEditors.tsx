@@ -137,15 +137,15 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
       {n && (
         <div className="stack" role="group" aria-label="Narrate with ElevenLabs">
           <h3>Narrate the quote with ElevenLabs</h3>
-          <p className="mu">Speaks the quote only (not the author). It becomes a step of this short, and you approve the spend before it runs.</p>
+          <p className="mu">Speaks the quote only (not the author). It is a standard step of every inspiration, and the spend is approved before it runs. You can skip it for one short.</p>
           <label htmlFor="nr-v">Voice</label>
           <select id="nr-v" className="field" value={voice} disabled={busy} onChange={(e) => setVoice(e.target.value)}>{Object.entries(n.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <p className="mu">About {Math.round(n.estimate_s)} seconds of narration. This month {n.used_s} of {n.cap_s} seconds used.{!n.key && " Paste an ElevenLabs key in Settings first."}</p>
           <div className="row">
-            <button className="btn p" disabled={busy || !n.key || n.estimate_s <= 0} onClick={() => void eleven(true)}>{n.on ? "Save the voice" : "Narrate with ElevenLabs"}</button>
-            {n.on && <button className="btn g" disabled={busy} onClick={() => void eleven(false)}>Stop using ElevenLabs</button>}
+            <button className="btn p" disabled={busy || !n.key || n.estimate_s <= 0} onClick={() => void eleven(true)}>{n.on ? "Save the voice" : "Turn narration on"}</button>
+            {n.on && <button className="btn g" disabled={busy} onClick={() => void eleven(false)}>Skip narration for this short</button>}
           </div>
-          {n.on && <p className="mu" role="status">On: the "Narrate the quote" step will run with {n.voices[n.voice] ?? n.voice}.</p>}
+          {n.on ? <p className="mu" role="status">On: the "Narrate the quote" step runs with {n.voices[n.voice] ?? n.voice}.</p> : <p className="mu" role="status">Skipped: this short has music and text only.</p>}
           <hr />
         </div>
       )}
