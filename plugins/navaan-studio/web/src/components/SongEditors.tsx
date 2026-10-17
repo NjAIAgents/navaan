@@ -140,7 +140,8 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
       <h2 id="nr-h">Narration</h2>
       {n && (
         <div className="stack" role="group" aria-label="Narrate with ElevenLabs">
-          <h3>Narrate the quote with ElevenLabs</h3>
+          {n.from_suno && <p className="mu" role="status">The voice of this short is the Suno song's own sound. Narrating with ElevenLabs below is the backup: it replaces that voice.</p>}
+          <h3>{n.from_suno ? "Backup: narrate the quote with ElevenLabs" : "Narrate the quote with ElevenLabs"}</h3>
           <p className="mu">Speaks the quote only (not the author). It is a standard step of every inspiration, and the spend is approved before it runs. You can skip it for one short.</p>
           <label htmlFor="nr-v">Voice</label>
           <select id="nr-v" className="field" value={voice} disabled={busy} onChange={(e) => setVoice(e.target.value)}>{Object.entries(n.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>

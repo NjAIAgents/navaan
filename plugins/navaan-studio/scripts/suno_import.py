@@ -12,7 +12,7 @@ For a public song, fetch reads the text pieces and the cover over plain HTTPS. T
 user's own signed in account, and reading the pieces of a private song) is done by the suno-import skill. This script holds the parts that can be checked: link parsing, folder layout, ffmpeg conversion, meta.json.
 Importing spends no Suno credits. The orchestrator then continues with visuals, captions, video and publishing.
 """
-import os, re, sys, json, shutil, subprocess, datetime, argparse
+import os, re, sys, json, shutil, subprocess, datetime, argparse, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import songs_root, song_dir, tool, duration, load_json, cfg, item_load, item_save
 import navaan_log as L
@@ -213,10 +213,74 @@ def read_page(src):
         with urllib.request.urlopen(req, timeout=25) as r: page = r.read().decode("utf-8", "ignore")
     except (urllib.error.URLError, OSError) as e:
         raise ValueError(f"I could not open that Suno link ({getattr(e, 'reason', e)}). Check that it is a public song link.") from None
-    info = parse_page(page)
+    info = parse_page(page); info["video_url"] = parse_video_url(page)
     if not [l for l in info["lyrics"].splitlines() if l.strip() and not l.strip().startswith("[")]:
         raise ValueError("I could not find lyrics on that Suno page. Check that the song is public and has lyrics (an instrumental song cannot be imported here).")
     return info
+
+
+VIDEO_HOSTS = ("cdn1.suno.ai", "cdn2.suno.ai")
+MAX_VOICE_BYTES = 40 * 1024 * 1024
+VOICE_SECONDS = (3.0, 180.0)
+
+
+def parse_video_url(html_text):
+    """The video file the public Suno page itself lists (`video_url` in its data), or "" when it lists none or a link on any other host."""
+    m = re.search(r'video_url\\*"\s*:\s*\\*"(https://[^"\\]+)', html_text)
+    u = m.group(1) if m else ""
+    return u if urllib.parse.urlparse(u).hostname in VIDEO_HOSTS else ""
+
+
+def fetch_voice(video_url, tmp):
+    """Download the page's own video into the folder `tmp`, check it is a real, whole, playable file with sound, and return the path of its audio (the aac stream copied out, nothing re-encoded).
+    Raises ValueError with a sentence for a wrong host, a wrong type, a file that is too big, damaged, silent or the wrong length."""
+    import urllib.request, urllib.error
+    if urllib.parse.urlparse(video_url).hostname not in VIDEO_HOSTS: raise ValueError("That video link is not on Suno's own servers, so I did not fetch it.")
+    src = os.path.join(tmp, "suno.mp4")
+    try:
+        with urllib.request.urlopen(urllib.request.Request(video_url, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
+            if not str(r.headers.get("Content-Type", "")).startswith(("video/", "audio/")): raise ValueError(f"Suno sent {r.headers.get('Content-Type')} instead of a video, so I did not use it.")
+            if int(r.headers.get("Content-Length") or 0) > MAX_VOICE_BYTES: raise ValueError("The Suno video is over 40 MB, so I did not use it.")
+            with open(src, "wb") as f:
+                n = 0
+                while chunk := r.read(1 << 20):
+                    n += len(chunk)
+                    if n > MAX_VOICE_BYTES: raise ValueError("The Suno video is over 40 MB, so I did not use it.")
+                    f.write(chunk)
+    except (urllib.error.URLError, OSError) as e: raise ValueError(f"I could not download the Suno video ({getattr(e, 'reason', e)}).") from None
+    pr = subprocess.run([tool("ffprobe"), "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", src], capture_output=True, text=True)
+    try: j = json.loads(pr.stdout or "{}")
+    except ValueError: j = {}   # expected: ffprobe printed no JSON, so there are no streams and the next check refuses the file with a sentence
+    kinds = [x.get("codec_type") for x in j.get("streams", [])]
+    if pr.returncode or "audio" not in kinds: raise ValueError("The downloaded Suno file has no sound track, so I did not use it.")
+    secs = float((j.get("format") or {}).get("duration") or 0)
+    if not VOICE_SECONDS[0] <= secs <= VOICE_SECONDS[1]: raise ValueError(f"The Suno file is {secs:.0f} seconds long, which does not look like the song. I did not use it.")
+    bad = subprocess.run([tool("ffmpeg"), "-v", "error", "-i", src, "-f", "null", "-"], capture_output=True, text=True)   # a whole decode: a cut-off or damaged download fails here
+    if bad.returncode or bad.stderr.strip(): raise ValueError("The downloaded Suno file is damaged (" + (bad.stderr.strip().splitlines() or ["it does not decode"])[0][:120] + "), so I did not use it.")
+    out = os.path.join(tmp, "voice.m4a")
+    if subprocess.run([tool("ffmpeg"), "-v", "error", "-y", "-i", src, "-vn", "-map", "0:a:0", "-c:a", "copy", out], capture_output=True).returncode or not os.path.getsize(out):
+        raise ValueError("I could not take the sound out of the Suno video.")
+    sil = subprocess.run([tool("ffmpeg"), "-hide_banner", "-nostats", "-i", out, "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True).stderr
+    m = re.search(r"max_volume:\s*(-?[\d.]+) dB", sil)
+    if not m or float(m.group(1)) < -50: raise ValueError("The downloaded Suno file is silent, so I did not use it.")
+    return out
+
+
+def voice_lines(info):
+    """The sung lines of a Suno page as the words of a narration: one row per line, section labels dropped. ValueError when there are none or too many for one short."""
+    rows = [" ".join(l.split()) for l in (info.get("lyrics") or "").splitlines() if l.strip() and not l.strip().startswith("[")]
+    if not rows: raise ValueError("I could not find lyrics on that Suno page.")
+    if len(rows) > 40: raise ValueError("That song has more than 40 lyric lines, which is too long for a short.")
+    return rows
+
+
+def attach_voice(D, info, audio_path):
+    """Make the Suno song's own sound the narration of an inspiration: its lyric lines become the quote, the audio becomes voiceover.m4a, and the timing is made by the narration step as for any uploaded voice.
+    The title is Suno's. ElevenLabs stays available: running "Narrate the quote" again replaces this voice."""
+    import narration
+    narration.save(D, "voiceover.m4a", open(audio_path, "rb").read(), "", "\n".join(voice_lines(info)))
+    if (info.get("title") or "").strip(): open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write(info["title"].strip() + "\n")
+    narration.set_options(D, {"voice_from": "suno"})
 
 
 def apply_page(slug, info):

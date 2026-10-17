@@ -31,7 +31,7 @@ describe("New song and New inspiration", () => {
   it("needs a quote for an inspiration and shows the server's refusal", async () => {
     const f = route(OWNER, { "/api/new": () => json({ error: "the inspiration pipeline is planned" }, 400), "/api/songs": () => [] });
     at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create" })); expect(await screen.findByRole("alert")).toHaveTextContent("Write the quote or the idea first."); expect(posts(f, "/api/new")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Create" })); expect(await screen.findByRole("alert")).toHaveTextContent("Write the quote or the idea first, or paste a Suno link."); expect(posts(f, "/api/new")).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Maybe you are not behind" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText(/inspiration pipeline is planned \(ref req-8\)/)).toBeInTheDocument(); expect(posts(f, "/api/new")[0]).toEqual({ type: "inspiration", idea: "Maybe you are not behind", narrate: "eleven", voice: "suno1" });   // narration is a standard step: on unless unticked
   });
@@ -110,6 +110,14 @@ describe("narration offered for an inspiration", () => {
     fireEvent.click(box); expect(box).not.toBeChecked();
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Stay soft." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "Stay soft.", narrate: "none" }]));
+  });
+  it("takes the voice and words from a Suno link when one is pasted, with ElevenLabs kept as the backup", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-006" }), "/api/songs": () => [], "/api/settings": () => SET(true), "/api/song/": () => detail({ slug: "insp-006" }) });
+    at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    fireEvent.change(await screen.findByLabelText("Suno link (optional)"), { target: { value: "https://suno.com/s/hhExPklJS2a69Wv1" } });
+    expect(screen.getByLabelText("Quote or idea")).toBeDisabled(); expect(screen.getByLabelText(/Keep ElevenLabs as the backup voice/)).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "", narrate: "eleven", voice: "frank", suno_url: "https://suno.com/s/hhExPklJS2a69Wv1" }]));
   });
   it("is mentioned on the quote and the video approvals when the short has no voice", async () => {
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, narrate: { on: false, voice: "frank", voices: {}, estimate_s: 12, used_s: 0, cap_s: 1500, key: true } }) });
