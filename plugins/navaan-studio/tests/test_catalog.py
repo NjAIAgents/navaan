@@ -115,6 +115,15 @@ class Catalog(Base):
         a = self.K.albums()[0]; self.assertEqual((a["status"], [(t["slug"], t["status"], t["art"] is not None) for t in a["tracks"]]), ("published", [("song-001", "published", True)]))   # the cover comes from the song
         empty = self.K.save_album("", "Empty"); self.assertRaises(ValueError, self.K.save_album, empty, "Empty", "album", "published")
 
+    def test_a_songs_mood_goes_to_the_track_and_only_a_known_mood_counts(self):
+        self.song("song-001", "One", extra={"mood": "dusk"}); self.K.sync_item("song-001")
+        meta = os.path.join(self.C.songs_root(), "song-001", "meta.json")
+        def set_mood(v):
+            m = json.load(open(meta)); m["mood"] = v; json.dump(m, open(meta, "w")); self.K.sync_item("song-001"); return self.K.track_view("song-001", True)["mood"]
+        self.assertEqual(self.K.track_view("song-001", True)["mood"], "dusk")
+        self.assertIsNone(set_mood("disco"))   # an unknown word is not kept
+        self.assertEqual(set_mood("Night"), "night")   # case does not matter
+
     def test_only_a_confirmed_licence_can_be_offered_and_a_sync_never_confirms(self):
         self.song("song-001", "One"); self.K.sync_item("song-001"); self.assertFalse(self.K.offerable("song-001")); self.assertFalse(self.K.offerable("ghost"))
         c = self.K._conn(); c.execute("UPDATE tracks SET license_status = 'confirmed' WHERE slug = 'song-001'"); c.commit()
