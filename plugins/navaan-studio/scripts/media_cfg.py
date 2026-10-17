@@ -12,8 +12,11 @@ import os, re, json, time, datetime, urllib.request, urllib.error
 import navaan_log as L
 LOG = L.get("media_cfg")
 
-# Voices the narration can use. The ids are not secret. Frank is the default.
+# Voices the narration can use. The ids are not secret. SunoCustom1 is the default.
 VOICES = {
+    "suno1": {"label": "SunoCustom1 (deep, unhurried)", "id": "RolbsV2FrXoOuw9WMoGA"},
+    "suno2": {"label": "SunoCustom2 (deep, unhurried)", "id": "bPnfgYfv98trOeQJkL0s"},
+    "suno3": {"label": "SunoCustom3 (deep, unhurried)", "id": "neLkJ2FTGxCOW53t1Gsi"},
     "frank": {"label": "Frank (deep, wise)", "id": "V2bPluzT7MuirpucVAKH"},
     "nj": {"label": "NJ (my own voice)", "id": "r3RejoyX9duc0wFH79cE"},
 }
@@ -35,7 +38,7 @@ NUMBERS = {  # key: (default, min, max)
     "song_pictures": (16, 6, 40),                 # pictures the director plans per song (16 at high 1792x1008 on flare is about 0.77 dollars)
     "eleven_monthly_seconds": (1500, 60, 36000),  # ElevenLabs audio allowed per calendar month
 }
-DEFAULTS = {"image_provider": "flow", "picture_director": "openai", "image_model": "gpt-image-2.5-flare", "image_quality": "high", "image_size": "1152x2048", "image_size_landscape": "1792x1008", "narration_source": "upload", "voice": "frank",
+DEFAULTS = {"image_provider": "flow", "picture_director": "openai", "image_model": "gpt-image-2.5-flare", "image_quality": "high", "image_size": "1152x2048", "image_size_landscape": "1792x1008", "narration_source": "upload", "voice": "suno1",
             "eleven_model": "eleven_v4", "music": "auto", "motion": "subtle", "max_run_usd": 0.8, "song_pictures": 16, "eleven_monthly_seconds": 1500}
 KEYS = {  # provider: (file, variable, pattern, live test url, auth header builder)
     "openai": ("openai.env", "OPENAI_API_KEY", r"sk-[A-Za-z0-9_\-]{20,300}", "https://api.openai.com/v1/models", lambda k: {"Authorization": "Bearer " + k}),

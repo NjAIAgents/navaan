@@ -4,7 +4,7 @@
 synth(text, out, voice=None, model=None, force=False)   one take. The same text, voice and model is never generated twice:
                                                         the earlier file is copied (cached: true). Over the monthly cap it refuses.
 estimate(text)                                          rough seconds the take will use, before any spend.
-CLI: tts_eleven.py --text-file lines.txt --out voiceover.mp3 [--voice frank|nj] [--model eleven_v4] [--estimate] [--force]
+CLI: tts_eleven.py --text-file lines.txt --out voiceover.mp3 [--voice suno1|suno2|suno3|frank|nj] [--model eleven_v4] [--estimate] [--force]
 Voice and model default to the Settings choices (media.json). The key comes from ELEVENLABS_API_KEY or elevenlabs.env.
 """
 import os, sys, json, shutil, hashlib, argparse, subprocess, urllib.request, urllib.error

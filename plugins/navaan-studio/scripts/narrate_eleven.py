@@ -6,7 +6,7 @@ Description: the pipeline step that narrates an inspiration's quote (the quote o
 
   narrate_eleven.py <slug> [--estimate]
 
-Reads quote.json (the lines of the quote, not the author), speaks it in the voice the brief names (`- voice: frank|nj`, else the Settings choice, Frank by default),
+Reads quote.json (the lines of the quote, not the author), speaks it in the voice the brief names (`- voice: suno1|suno2|suno3|frank|nj`, else the Settings choice, SunoCustom1 by default),
 writes voiceover.mp3 and sets `voiceover: file` and `music: none` in brief.md. The timing of the lines is made by the next step (narration_sync.py).
 It sits behind the credits approval and the monthly ElevenLabs cap of Settings; the same text in the same voice is never generated twice (tts_eleven cache).
 """

@@ -18,10 +18,10 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const song = type === "music";
-  const [nar, setNar] = useState<{ key: boolean; voices: Record<string, string> } | null>(null); const [narrate, setNarrate] = useState(true); const [voice, setVoice] = useState("frank");
+  const [nar, setNar] = useState<{ key: boolean; voices: Record<string, string> } | null>(null); const [narrate, setNarrate] = useState(true); const [voice, setVoice] = useState("suno1");
   useEffect(() => {   // an inspiration can start with the quote narrated by ElevenLabs: on by default when a key is saved
     if (!open || song) return;
-    getJSON<SettingsData>("/api/settings").then((d) => { if (d?.media?.keys) { setNar({ key: !!d.media.keys.elevenlabs, voices: d.media.voices ?? {} }); setVoice(String(d.media.settings?.voice || "frank")); } }).catch(() => setNar(null));   // expected: without the settings the option is simply not offered
+    getJSON<SettingsData>("/api/settings").then((d) => { if (d?.media?.keys) { setNar({ key: !!d.media.keys.elevenlabs, voices: d.media.voices ?? {} }); setVoice(String(d.media.settings?.voice || "suno1")); } }).catch(() => setNar(null));   // expected: without the settings the option is simply not offered
   }, [open, song]);
   const useNarr = !song && narrate;   // narration is a standard step: on unless this short skips it
   const done = (slug: string) => go(itemPath(type, slug) ?? "/");
