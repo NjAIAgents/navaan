@@ -8,8 +8,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [0.30.1] - 2026-10-17
 
+### Added
+- The Narration card shows a "Spoken script" field: exactly what ElevenLabs will read, prefilled with the quote plus the tone tags and pauses of the chosen pace. Edit it, Save the script, and run again; the saved script is spoken word for word. "Back to the suggestion" clears it. (The on-screen text is unchanged: tags never appear in the video.)
+
 ### Fixed
-- Slow narration is now really slower on eleven_v4. Measured on the live service, the [slowly] tag alone changed nothing (a sentence took 5.76 s), while ellipses between phrases did (7.84 s for the same words), so Slow now puts an ellipsis at each phrase break, besides the tags and the pause between lines. Calm stays tone only.
+- Slow narration is now really slower on eleven_v4. Measured on the live service, the [slowly] tag alone changed nothing (a sentence took 5.76 s), while ellipses between phrases did (7.84 s for the same words), so Slow now puts an ellipsis at each phrase break (only where the text does not already pause, and never inside a two-word phrase), besides the tags and the pause between lines. Calm stays tone only.
 
 ## [0.30.0] - 2026-10-17
 

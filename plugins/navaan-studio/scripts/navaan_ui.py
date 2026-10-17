@@ -915,6 +915,17 @@ class H(BaseHTTPRequestHandler):
                 note = f"narration by ElevenLabs {'on, voice ' + voice + ', pace ' + (pace or narrate_eleven.chosen_pace(D)) if on else 'off'} (via ui)"
                 navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                 return self._send(200, {"ok": True, **narrate_eleven.info(D)})
+            if p == "/api/narration/script":   # the words ElevenLabs will read, edited by the owner (empty goes back to the suggestion); the voice made from the old script is stale until the video is approved
+                import narrate_eleven, glob as _g
+                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
+                D = C.song_dir(slug)
+                try: narrate_eleven.save_script(D, str(body.get("text") or ""))
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                if not (navaan.meta(slug).get("approvals") or {}).get("media"):
+                    for f in _g.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:
+                        if os.path.exists(f): os.remove(f)
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "narration script " + ("edited" if str(body.get("text") or "").strip() else "reset to the suggestion") + " (via ui)"))
+                return self._send(200, {"ok": True, **narrate_eleven.info(D)})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
                 import narration
                 if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
