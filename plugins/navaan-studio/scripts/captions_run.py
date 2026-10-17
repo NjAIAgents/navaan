@@ -7,7 +7,7 @@ Lines that are only sustained vowels (alaap) are left out of the captions.
 """
 import os, sys, json, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, tool, cfg
+from navaan_common import song_dir, tool, cfg, lyric_lines, NO_LYRICS
 import setup_captions as S
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -29,8 +29,10 @@ def clean_lyrics(src, dst):
 
 
 def main(slug):
+    D = song_dir(slug)
+    if not lyric_lines(D): sys.exit("navaan: " + NO_LYRICS.replace("work from", "time"))   # before anything heavy: an imported song may have no lyrics, and timing no words crashes deep inside the aligner
     if not S.ready(): sys.exit("navaan: caption tools are not installed. Approve the captions_setup gate, or run setup_captions.py --yes.")
-    D = song_dir(slug); py = S.venv_python(); work = os.path.join(D, ".cache"); os.makedirs(work, exist_ok=True)
+    py = S.venv_python(); work = os.path.join(D, ".cache"); os.makedirs(work, exist_ok=True)
     env = dict(os.environ, NAVAAN_WORK=work, NAVAAN_VOC_MODEL=S.VOC, NAVAAN_WHISPER_DIR=S.MODELS)
     env["PATH"] = os.path.dirname(tool("ffmpeg")) + os.pathsep + env.get("PATH", "")
     mono = os.path.join(work, "mono.wav")

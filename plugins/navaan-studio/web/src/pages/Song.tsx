@@ -240,6 +240,7 @@ export default function Song() {
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="stack">
+        {tab === "pipeline" && (d.notes ?? []).map((n) => <section key={n} className="card row" role="note"><p style={{ margin: 0, flex: "1 1 260px" }}>{n}</p><button className="btn" onClick={() => setSp({ tab: "content" }, { replace: true })}>Open Content</button></section>)}
         {tab === "pipeline" && (
           <div className="pl-grid">
             <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} />

@@ -181,9 +181,12 @@ def made_texts(D, outputs, cap=3, limit=4000):
     return out
 
 
-def plain_failure(step, error, rows):
+def plain_failure(step, error, rows, no_lyrics=False):
     """A failure in words a person can act on. The raw error stays available under it."""
     label = next((r["label"] for r in rows if r["id"] == step), "") or "A step"; e = error or ""
+    if no_lyrics and step in ("captions", "prompts", "pictures", "shots", "motion_plan", "motion_clips", "video", "reel"):
+        return "This song has no lyrics saved, so the pictures and the captions have nothing to work from. Add the lyrics on the Content tab, then retry."
+    if e.startswith("navaan: ") and len(e) < 400 and "\n" not in e: return e[8:].strip()[:1].upper() + e[8:].strip()[1:]   # our own deliberate messages are already in words
     if "No ElevenLabs key" in e: return "ElevenLabs has no key saved. Add it under Settings, or skip narration for this short on its Narration card."
     if "monthly ElevenLabs cap" in e: return "This month's ElevenLabs allowance would be passed. Raise it in Settings or wait for next month."
     if "worker stopped before the job finished" in e: return "The server restarted while this was running. Nothing is lost: run it again."
@@ -220,9 +223,12 @@ def detail(slug):
     rn.pop("started", None)
     # rc 5 and 6 are "waiting for you", not failures. The ref is the job id every log line of the run carries (job_id in app.jsonl).
     fstep = rn.get("failed") or ""
+    nolyr = C.item_type(m) == "music" and not C.lyric_lines(D)
+    ferr = jv.get("error", "") or next((l.strip() for l in reversed((logs.get(fstep) or "").splitlines()) if l.strip()), "")   # the job row has no text when a step printed its reason and exited: the last line of its log is that reason
     stale = bool(fstep) and any(r["id"] == fstep and r["done"] for r in rows)   # the step that failed has since succeeded: the pipeline moved on, so the failure is history, not news
-    failure = {"step": fstep, "error": jv.get("error", ""), "ref": jv.get("id", ""), "plain": plain_failure(fstep, jv.get("error", ""), rows)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6) and not stale) else None
+    failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
+            "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
             "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},

@@ -213,3 +213,12 @@ describe("the shot list approval", () => {
     for (const name of [/: Write the picture plan$/, /: Create the pictures$/, /: Plan the shots$/, /: Plan what moves$/]) expect(screen.getByRole("button", { name })).toBeInTheDocument();   // not "prompts", "pictures", "shots", "motion plan"
   });
 });
+
+describe("a song with no lyrics", () => {
+  it("says so before anything is run, with a way to the Content tab", async () => {
+    route(OWNER, { "/api/song/": () => detail({ notes: ["This song has no lyrics saved. The picture plan and the captions are written from them. Add the lyrics on the Content tab."], next: { type: "run", step: "prompts" } }) });
+    at("/studio/songs/song-001");
+    const note = await screen.findByRole("note"); expect(note).toHaveTextContent("This song has no lyrics saved");
+    fireEvent.click(screen.getByRole("button", { name: "Open Content" })); expect(screen.getByRole("tab", { name: "Content" })).toHaveAttribute("aria-selected", "true"); expect(screen.queryByRole("note")).toBeNull();   // the notice belongs to the Pipeline tab
+  });
+});

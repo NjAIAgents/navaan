@@ -249,6 +249,7 @@ def make(slug, count=None, runner=None):
 def main(a):
     if not a or a[0] in ("-h", "--help"): sys.exit(__doc__)
     cnt = int(a[a.index("--count") + 1]) if "--count" in a else None
+    if not C.lyric_lines(C.song_dir(a[0])): sys.exit("navaan: this song has no lyrics saved, so the picture plan would be invented. Add the lyrics (and the singer in the style, for example 'male vocals') on the Content tab, then run this step again.")
     p = make(a[0], cnt)
     print(f"{len(p['prompts'])} prompts written to prompt_pack.json. Concept: {p['concept']}")
     return 0
