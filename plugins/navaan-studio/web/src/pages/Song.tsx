@@ -4,6 +4,7 @@ import { Equaliser } from "../components/Equaliser";
 import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
+import { StepStrip } from "../components/StepStrip";
 import { MoodCard } from "../components/MoodCard";
 import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
@@ -132,7 +133,7 @@ function StepRow({ s, failed, act, busy }: { s: Step; failed: boolean; act: Act;
   const chip = failed ? <span className="chip bad">Failed</span> : s.status === "done" ? <span className="chip ok"><Icon name="check" />Done</span> : s.status === "waiting for approval" ? <span className="chip wn">Needs approval</span> : <span className="chip">{s.status === "ready" ? "Ready" : "Later"}</span>;
   const go = async () => { if (await act(ask === "redo" ? "/api/redo" : "/api/restart", { step: s.id })) setAsk(null); };
   return (
-    <li className="stp">
+    <li className="stp" id={`step-${s.id}`}>
       <span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}
       {s.done && (s.redo || s.restart) && !ask && (
         <span className="row">
@@ -194,6 +195,7 @@ export default function Song() {
         <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
         <p>{slug} · {d.meta.state ?? "new"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })}</p>
       </div>
+      <StepStrip d={d} />
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
       {d.failure && (
         <section className="card fail" role="alert" aria-labelledby="fail-h">
@@ -225,6 +227,10 @@ export default function Song() {
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
         </section>
       ) : null}
+      <section className="sec" aria-labelledby="steps-h">
+        <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
+        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} act={act} busy={busy} />)}</ol>
+      </section>
       {d.meta.type !== "inspiration" && d.meta.state === "published" && (
         <section className="card row" aria-label="Play">
           <button className="btn p" onClick={() => void pl.toggle(slug, title)}>{pl.slug === slug && pl.playing ? "Pause" : "Play"}<span className="sr"> {title}</span></button>
@@ -241,10 +247,6 @@ export default function Song() {
       <ShotsEditor key={slug} d={d} done={load} />
       {insp && <NarrationCard d={d} done={load} />}
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <SongAnalytics slug={slug} />}
-      <section className="sec" aria-labelledby="steps-h">
-        <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
-        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} act={act} busy={busy} />)}</ol>
-      </section>
       <Approvals d={d} act={act} busy={busy} />
       <section className="sec" aria-labelledby="hist-h">
         <div className="sh"><h2 id="hist-h">History</h2></div>
