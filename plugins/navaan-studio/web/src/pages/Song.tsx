@@ -223,8 +223,10 @@ export default function Song() {
         <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></section>
       ) : gate === "visuals_mode" ? (
         <VisualsCard d={d} done={load} />
-      ) : gate ? (
+      ) : gate ? (<>
+        {!d.failure && <p className="mu" role="status">Nothing is running: this is only waiting for your approval, so there is nothing to stop. To change something first, use Redo on a step in the list below.</p>}
         <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} />
+      </>
       ) : d.next.type === "run" && !d.failure ? (
         <section className="card"><h2>Next: {stepLabel(d.next.step ?? "")}</h2>
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
