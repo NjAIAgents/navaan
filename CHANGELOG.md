@@ -6,6 +6,15 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-17
+
+### Added
+- Background music for an inspiration short. The Content tab has a "Background music" card: add your own track (mp3, wav, m4a, aac, flac or ogg, up to 20 MB). ffmpeg trims it to the length of the video, fades it in and out and levels it, and the renderer keeps it quiet under the voice. The track's own name is kept in the item's history so its licence can be checked later. Free tracks, for example from pixabay.com/music under its Content License, work; checking each track's licence is up to you. A video that is already approved keeps its sound until you Redo "Plan the typography".
+
+### Changed
+- What an approval asks you to review is now on the approval itself: "Review the videos" plays the finished videos right on the card (no more switching to the Media tab), and "Listen to the song" plays the song. The address carries the file size so the browser never plays an older file of the same name.
+- A narration (a recorded or an ElevenLabs voice) no longer switches the background music off, and with a voice `music: auto` now means only your own added track, never a library pick or a generated pad under the voice.
+
 ## [0.32.0] - 2026-10-17
 
 ### Added
@@ -395,7 +404,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/NjAIAgents/navaan/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/NjAIAgents/navaan/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/NjAIAgents/navaan/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/NjAIAgents/navaan/compare/v0.30.0...v0.30.1

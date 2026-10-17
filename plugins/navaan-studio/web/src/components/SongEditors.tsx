@@ -177,6 +177,32 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
   );
 }
 
+// The owner's own track under the voice. Free tracks (for example from pixabay.com/music, under its Content License) work; the licence of each track is the owner's to check. ffmpeg fits it to the video and the renderer keeps it quiet under the voice.
+export function MusicCard({ d, done }: { d: SongDetail; done: Done }) {
+  const [file, setFile] = useState<File | null>(null); const [err, setErr] = useState(""); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false);
+  const m = d.music;
+  const send = async (path: string, body: Record<string, unknown>) => { setBusy(true); setErr(""); setNote(""); try { const r = await postJSON<{ redo?: string }>(path, { slug: d.slug, ...body }); setFile(null); if (r?.redo) setNote(`The video is approved, so it keeps its old sound. To use this, Redo "${r.redo}" in the steps.`); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const upload = async () => {
+    if (!file) return setErr("Pick the music file first.");
+    if (file.size > MAX_AUDIO_BYTES) return setErr("That file is over 20 MB.");
+    await send("/api/music/upload", { name: file.name, audio: await fileB64(file) });
+  };
+  return (
+    <section className="card stack" aria-labelledby="bm-h">
+      <h2 id="bm-h">Background music</h2>
+      <p className="mu">A quiet track under the voice. ffmpeg trims it to the length of the video, fades it in and out and levels it; the voice stays on top. Use a track you may use: free tracks from pixabay.com/music work under its Content License, and the licence of each track is yours to check.</p>
+      {m ? (
+        <div className="stack" role="status"><p>Using <b>{m.name}</b> ({Math.round(m.seconds)} s). It is trimmed to the video.</p><div className="row"><button className="btn g" disabled={busy} onClick={() => void send("/api/music/remove", {})}>Remove the music</button></div></div>
+      ) : <p className="mu" role="status">No background music: the short has the voice and the text only.</p>}
+      <label htmlFor="bm-f">{m ? "Use a different track" : "Music file (mp3, wav, m4a, aac, flac or ogg)"}</label>
+      <input id="bm-f" className="field" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg" disabled={busy} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <div className="row"><button className="btn p" disabled={busy || !file} onClick={() => void upload()}>{m ? "Replace the music" : "Add the music"}</button></div>
+      {note && <p className="mu" role="status">{note}</p>}
+      {err && <p role="alert" className="mu">{err}</p>}
+    </section>
+  );
+}
+
 // The made files, playable. A file archived to the bucket and cleaned locally is fetched back by the server when it is first played.
 export function MediaCard({ d }: { d: SongDetail }) {
   const names = Object.keys(d.files ?? {});

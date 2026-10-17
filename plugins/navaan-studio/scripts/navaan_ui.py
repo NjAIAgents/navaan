@@ -197,7 +197,7 @@ def detail(slug):
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "poster": {**POST.state(slug), **POSTER.get(slug, {})},
-            "narrate": (__import__("narrate_eleven").info(D) if C.item_type(m) == "inspiration" else None),
+            "narrate": (__import__("narrate_eleven").info(D) if C.item_type(m) == "inspiration" else None), "music": (__import__("bg_music").info(D) if C.item_type(m) == "inspiration" else None),
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -950,6 +950,16 @@ class H(BaseHTTPRequestHandler):
                     note = "narration " + ("removed" if p.endswith("remove") else f"attached via ui: {r.get('audio')}, {r.get('cues')} lines" + (", timing pending" if r.get("timing") else ""))
                     navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                     return self._send(200, {"ok": True, **r})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            if p in ("/api/music/upload", "/api/music/remove"):   # the owner's own background track for an inspiration short; the music is fitted by ffmpeg when the typography step runs
+                import bg_music, glob as _g
+                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "background music is for inspiration shorts"})
+                D = C.song_dir(slug); approved = bool((navaan.meta(slug).get("approvals") or {}).get("media"))
+                try:
+                    if p.endswith("remove"): bg_music.remove(D, drop_stale=not approved); r = {}; note = "background music removed"
+                    else: r = bg_music.save(D, body.get("name"), str(body.get("audio") or ""), drop_stale=not approved) or {}; note = f"background music added via ui: {r.get('name')}"
+                    navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
+                    return self._send(200, {"ok": True, "music": r or None, "redo": "Plan the typography" if approved else ""})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p == "/api/poster/generate":
                 if POSTER.get(slug, {}).get("running"): return self._send(409, {"error": "A poster is already being made."})

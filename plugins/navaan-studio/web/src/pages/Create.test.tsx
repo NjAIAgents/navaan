@@ -175,3 +175,15 @@ describe("the pipeline page: one thing that needs you, honest words, sections in
     fireEvent.click(screen.getByRole("tab", { name: "Activity" })); expect(screen.getByRole("tab", { name: "Activity" })).toHaveAttribute("aria-selected", "true"); expect(screen.getByRole("heading", { name: "History" })).toBeInTheDocument();
   });
 });
+
+describe("what an approval asks you to review is on the approval", () => {
+  it("shows the videos on the 'Review the videos' card, not a tab away, and the song on 'Listen'", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "media_ready", history: [] }, next: { type: "gate", step: "render", gate: "media" }, files: { "final_reel_9x16.mp4": 5916178, "clips~a.mp4": 10, "voiceover.mp3": 99 } }) });
+    at("/studio/inspiration/insp-004");
+    const v = await screen.findByLabelText("final_reel_9x16.mp4"); expect(v.tagName).toBe("VIDEO"); expect(v).toHaveAttribute("src", "/media/insp-004/final_reel_9x16.mp4?v=5916178");   // the size stops an old cached video from playing
+    expect(screen.queryByLabelText("clips~a.mp4")).toBeNull(); expect(screen.queryByLabelText("voiceover.mp3")).toBeNull();
+    cleanup(); route(OWNER, { "/api/song/": () => detail({ next: { type: "gate", step: "suno", gate: "listen" }, files: { "final.mp3": 4000, "final_16x9.mp4": 7 } }) });
+    at("/studio/songs/song-001");
+    const a = await screen.findByLabelText("final.mp3"); expect(a.tagName).toBe("AUDIO"); expect(a).toHaveAttribute("src", "/media/song-001/final.mp3?v=4000"); expect(screen.queryByLabelText("final_16x9.mp4")).toBeNull();   // listening needs the song, not the video
+  });
+});

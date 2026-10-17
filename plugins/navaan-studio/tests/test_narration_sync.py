@@ -82,7 +82,7 @@ class Upload(unittest.TestCase):
         q = json.load(open(os.path.join(D, "quote.json")))
         self.assertEqual(q["lines"], ["Some people leave.", "but the life you imagined stays."])
         b = open(os.path.join(D, "brief.md")).read()
-        self.assertIn("- voiceover: file", b); self.assertIn("- music: none", b)
+        self.assertIn("- voiceover: file", b); self.assertIn("- music: auto", b); self.assertNotIn("- music: none", b)   # a voice does not switch the background music off
 
     def test_audio_without_srt_or_text_is_rejected(self):
         with self.assertRaises(ValueError): N.save(self.folder(), "v.m4a", b"M4A", "", "  \n")
