@@ -23,7 +23,7 @@ describe("ClipCard", () => {
     render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
     expect(screen.queryByRole("button", { name: /Use where it is now/ })).toBeNull();   // nothing is playing, so no position to use
     fireEvent.click(screen.getByRole("button", { name: "Make the clip" })); fireEvent.click(await screen.findByRole("button", { name: "Share the clip" }));
-    await waitFor(() => expect(share).toHaveBeenCalled());
+    await waitFor(() => expect(share).toHaveBeenCalled(), { timeout: 5000 });   // the blob fetch and File build can cross 1 s on a slow CI runner
     const arg = (share.mock.calls[0] as unknown as [{ files: File[]; text: string }])[0]; expect(arg.files[0].type).toBe("video/mp4"); expect(arg.text).toContain("https://navaan.online/c/t");   // the way back to the song travels with it
   });
   it("tells the person why when the clip cannot be made", async () => {
