@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.8] - 2026-10-16
+
+### Fixed
+- The slow narration pace now works: ElevenLabs' newest models (v4, v3) accept the speed setting but ignore it, so a take with a pace uses a model that obeys it (multilingual v2), and a quote kept as one run of sentences gets a pause after each sentence. A take with no pace (Normal) still uses the model chosen in Settings.
+
 ## [0.29.7] - 2026-10-16
 
 ### Fixed
@@ -350,7 +355,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.7...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.8...HEAD
+[0.29.8]: https://github.com/NjAIAgents/navaan/compare/v0.29.7...v0.29.8
 [0.29.7]: https://github.com/NjAIAgents/navaan/compare/v0.29.6...v0.29.7
 [0.29.6]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...v0.29.6
 [0.29.5]: https://github.com/NjAIAgents/navaan/compare/v0.29.4...v0.29.5

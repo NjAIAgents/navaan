@@ -14,6 +14,7 @@ import navaan_log as L
 LOG = L.get("tts_eleven")
 
 CHARS_PER_SECOND = 12.0   # measured: 235 characters of English came out as 19 seconds at a slow, soft pace
+SPEED_MODELS = ("eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_turbo_v2_5")   # measured on the live service: eleven_v4 and eleven_v3 take the speed setting and ignore it, these obey it
 PACES = {"slow": 0.75, "calm": 0.85, "normal": 1.0}   # ElevenLabs speed: 0.7 slowest, 1.0 as the voice speaks, 1.2 fastest
 
 
@@ -52,6 +53,7 @@ def synth(text, out, voice=None, model=None, force=False, speed=None):
         raise ValueError("unknown ElevenLabs model " + str(model))
     vid = M.VOICES[voice]["id"]
     speed = None if speed is None else round(min(1.2, max(0.7, float(speed))), 2)
+    if speed and speed != 1.0 and model not in SPEED_MODELS: model = SPEED_MODELS[0]   # a pace that is not obeyed is no pace: this take uses a model that does
     hit = os.path.join(cache_dir(), _key(text, vid, model, speed or 1.0) + ".mp3")
     if os.path.exists(hit) and not force:
         shutil.copyfile(hit, out)

@@ -21,6 +21,10 @@ class Narrate(Base):
         os.remove(os.path.join(self.D, "quote.json"))
         with self.assertRaises(ValueError): N.quote_text(self.D)
 
+    def test_a_quote_kept_as_one_run_of_sentences_gets_a_pause_after_each_sentence(self):
+        json.dump({"text": "You are allowed. Still be grateful, truly. Why?", "author": ""}, open(os.path.join(self.D, "quote.json"), "w"))
+        self.assertEqual(N.quote_text(self.D), "You are allowed.\n\nStill be grateful, truly.\n\nWhy?")
+
     def test_voice_is_frank_by_default_and_the_brief_can_pick_nj(self):
         self.assertEqual(N.chosen_voice(self.D), "frank")
         narration.set_options(self.D, {"voice": "nj"}); self.assertEqual(N.chosen_voice(self.D), "nj")
@@ -74,6 +78,14 @@ class Speed(Base):
         self.assertLess(T.PACES["slow"], T.PACES["calm"]); self.assertLess(T.PACES["calm"], T.PACES["normal"])
         sent = self.take(T.PACES["slow"]); self.assertEqual(sent[0]["voice_settings"]["speed"], 0.75)
         self.assertNotIn("voice_settings", self.take(None)[0])   # no pace asked: the model's own
+
+    def test_a_model_that_ignores_the_speed_is_swapped_for_one_that_obeys_it_only_when_a_pace_is_asked(self):
+        real = M.load
+        with mock.patch.object(T.M, "load", lambda: {**real(), "eleven_model": "eleven_v4"}):
+            self.assertEqual(self.take(0.75)[0]["model_id"], "eleven_multilingual_v2")   # v4 and v3 take the setting and ignore it (measured live)
+            self.assertEqual(self.take(None)[0]["model_id"], "eleven_v4")   # no pace asked: the chosen model
+            self.assertEqual(self.take(1.0)[0]["model_id"], "eleven_v4")
+        with mock.patch.object(T.M, "load", lambda: {**real(), "eleven_model": "eleven_flash_v2_5"}): self.assertEqual(self.take(0.75)[0]["model_id"], "eleven_flash_v2_5")
 
     def test_a_take_at_another_speed_is_not_served_from_the_cache(self):
         self.assertNotEqual(T._key("x", "v", "m", 0.75), T._key("x", "v", "m", 1.0))
