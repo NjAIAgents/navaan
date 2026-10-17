@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-17
+
+### Added
+- A new inspiration can take its voice from a Suno song. Paste the song's Suno link when you create the inspiration: its lyric lines become the quote, its title becomes the title, and the sound is taken from the video file that the public Suno page itself lists (on Suno's own servers, nothing is decrypted and no third-party site is used). The download is checked before anything is created: it must come from Suno's servers, be a video file of a sensible size and length, decode all the way through, have a sound track, and not be silent. A link that fails any check is refused with a sentence and creates nothing. The pipeline then times the lines to that voice, makes the background picture, and renders the reel as usual; the voice already holds the song's music, so no background track is added unless you add one.
+- ElevenLabs narration stays as the backup. Without a Suno link an inspiration is narrated by ElevenLabs exactly as before. On a short whose voice came from Suno, the Narration card says so and offers ElevenLabs as the backup, and running "Narrate the quote" again replaces the Suno voice.
+
 ## [0.35.1] - 2026-10-17
 
 ### Fixed
@@ -440,7 +446,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...HEAD
+[0.36.0]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...v0.36.0
 [0.35.1]: https://github.com/NjAIAgents/navaan/compare/v0.35.0...v0.35.1
 [0.35.0]: https://github.com/NjAIAgents/navaan/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...v0.34.0

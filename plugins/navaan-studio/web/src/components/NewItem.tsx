@@ -14,6 +14,7 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const [mode, setMode] = useState<Mode>("idea");
   const [idea, setIdea] = useState("");
   const [url, setUrl] = useState("");
+  const [sunoUrl, setSunoUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -27,9 +28,9 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const done = (slug: string) => go(itemPath(type, slug) ?? "/");
   const create = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
-    if (!song && !idea.trim()) return setErr("Write the quote or the idea first.");
+    if (!song && !idea.trim() && !sunoUrl.trim()) return setErr("Write the quote or the idea first, or paste a Suno link.");
     setBusy(true);
-    try { const r = await postJSON<{ slug: string }>("/api/new", { type, idea: idea.trim(), ...(song ? {} : useNarr ? { narrate: "eleven", voice } : { narrate: "none" }) }); done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
+    try { const r = await postJSON<{ slug: string }>("/api/new", { type, idea: !song && sunoUrl.trim() ? "" : idea.trim(), ...(song ? {} : { ...(useNarr ? { narrate: "eleven", voice } : { narrate: "none" }), ...(sunoUrl.trim() ? { suno_url: sunoUrl.trim() } : {}) }) }); done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
   const doImport = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
@@ -54,13 +55,20 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
       )}
       {mode === "idea" || !song ? (
         <form className="stack" onSubmit={(e) => void create(e)}>
+          {!song && (
+            <>
+              <label htmlFor="ni-suno">Suno link (optional)</label>
+              <input id="ni-suno" className="field" type="url" value={sunoUrl} onChange={(e) => setSunoUrl(e.target.value)} placeholder="https://suno.com/s/…" autoComplete="off" />
+              <p className="mu">With a link, the words and the voice come from that Suno song, and the quote below is not needed. Without one, the quote is narrated by ElevenLabs.</p>
+            </>
+          )}
           <label htmlFor="ni-idea">{song ? "Idea (optional)" : "Quote or idea"}</label>
-          <textarea id="ni-idea" className="field" rows={3} value={idea} onChange={(e) => setIdea(e.target.value)} placeholder={song ? "A line about what the song is about" : "The quote, or what the short should say"} />
+          <textarea id="ni-idea" className="field" rows={3} value={idea} disabled={!song && !!sunoUrl.trim()} onChange={(e) => setIdea(e.target.value)} placeholder={song ? "A line about what the song is about" : "The quote, or what the short should say"} />
           {!song && (
             <div className="stack" role="group" aria-label="Narration">
-              <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} /> Narrate the quote with ElevenLabs</label>
+              <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} /> {sunoUrl.trim() ? "Keep ElevenLabs as the backup voice" : "Narrate the quote with ElevenLabs"}</label>
               {narrate && nar && <><label htmlFor="ni-voice">Voice</label><select id="ni-voice" className="field sel" value={voice} onChange={(e) => setVoice(e.target.value)}>{Object.entries(nar.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></>}
-              {narrate && nar && !nar.key && <p className="mu" role="status">Paste an ElevenLabs key in Settings before this step runs. Untick the box to make this short with music and text only.</p>}
+              {narrate && nar && !nar.key && !sunoUrl.trim() && <p className="mu" role="status">Paste an ElevenLabs key in Settings before this step runs. Untick the box to make this short with music and text only.</p>}
             </div>
           )}
           <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? "Creating…" : "Create"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>

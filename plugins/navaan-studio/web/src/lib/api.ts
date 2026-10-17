@@ -47,7 +47,7 @@ export type SongDetail = {
   try?: { running?: boolean; error?: string; files?: string[]; v?: number }; vertical?: { running?: boolean; error?: string; done?: number[] };
   visuals_problems?: string[];
   music?: { file: string; name: string; added: string; seconds: number } | null;
-  narrate?: { on: boolean; voice: string; voices: Record<string, string>; pace?: string; paces?: Record<string, string>; estimate_s: number; script?: string; script_custom?: boolean; used_s: number; cap_s: number; key: boolean } | null;
+  narrate?: { on: boolean; voice: string; voices: Record<string, string>; pace?: string; paces?: Record<string, string>; estimate_s: number; script?: string; script_custom?: boolean; from_suno?: boolean; used_s: number; cap_s: number; key: boolean } | null;
   poster?: { style: string; styles: string[]; prompt: string; default?: string; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
 };
 
