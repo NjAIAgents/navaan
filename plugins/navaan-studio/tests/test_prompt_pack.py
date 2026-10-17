@@ -1,4 +1,4 @@
-import os, sys, json, unittest
+import os, sys, json, unittest, unittest.mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 import prompt_pack as P
 
@@ -10,6 +10,13 @@ class Singer(unittest.TestCase):
         self.assertIn("The main person in the film is a man; never make the main person a woman", P.voice_note("male vocals"))
         self.assertIn("never make the main person a man", P.voice_note({"style": "female vocals"}))
         self.assertIn("do not assume it", P.voice_note("soft piano"))
+
+    def test_the_artists_own_voice_from_the_profile_is_the_fallback_when_the_style_does_not_say(self):
+        with unittest.mock.patch.object(P.C, "cfg", lambda k, d=None: "male" if k == "music.voice" else d):
+            self.assertEqual(P.who_sings("soft pop, cinematic"), "male"); self.assertIn("the singer is a man", P.voice_note("soft pop"))   # NAVAAN sings: no need to say it in every style
+            self.assertEqual(P.who_sings("female vocals, indie"), "female")   # a song that says otherwise wins
+        for v in ("duet", "mixed", "", None):
+            with unittest.mock.patch.object(P.C, "cfg", lambda k, d=None, v=v: v if k == "music.voice" else d): self.assertEqual(P.who_sings("soft pop"), "", v)   # not one singer: nothing assumed
 
     def test_the_story_directors_brief_carries_the_voice_note_and_no_longer_asks_for_a_beloved_in_every_love_song(self):
         ctx = {"title": "T", "style": "male vocals, ballad", "sections": [{"label": "Verse", "lines": ["a"], "start": 0, "end": 10}]}

@@ -28,6 +28,12 @@ class T(unittest.TestCase):
         p = P.default_prompt("s")
         self.assertIn("Pata Hi Na Chala", p); self.assertIn("warm lo-fi", p); self.assertIn("line one", p); self.assertNotIn("[Verse 1]", p); self.assertIn("No text", p)
 
+    def test_the_default_poster_prompt_uses_the_artists_voice_when_the_style_is_silent(self):
+        import unittest.mock as um
+        open(os.path.join(self.D, "style.txt"), "w").write("soft pop, cinematic")
+        with um.patch.object(P.C, "cfg", lambda k, d=None: "male" if k == "music.voice" else d): self.assertIn("lone man seen from behind or in silhouette", P.default_prompt("s"))
+        with um.patch.object(P.C, "cfg", lambda k, d=None: d): self.assertIn("No people in the frame", P.default_prompt("s"))
+
     def test_the_default_prompt_does_not_show_someone_the_singer_is_not(self):   # a male-voiced song got a poster of a woman
         def make(style): open(os.path.join(self.D, "style.txt"), "w").write(style); return P.default_prompt("s")
         m = make("male vocals, soft hindi pop"); self.assertIn("lone man seen from behind or in silhouette", m); self.assertIn("do not show a woman", m)

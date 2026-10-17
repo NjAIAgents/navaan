@@ -39,7 +39,7 @@ def default_prompt(slug):
     pk = C.load_json(os.path.join(D, "prompt_pack.json"), default=None) or {}
     look = (pk.get("style_line") or "").strip()
     import prompt_pack as PP
-    g = PP.singer(_read(D, "style.txt"))
+    g = PP.who_sings(_read(D, "style.txt"))   # the style names the singer, else the artist profile does
     who = ("A lone %s seen from behind or in silhouette, because the song is sung by a %s: do not show a %s. " % (("man",) * 2 + ("woman",)) if g == "male"
            else "A lone %s seen from behind or in silhouette, because the song is sung by a %s: do not show a %s. " % (("woman",) * 2 + ("man",)) if g == "female"
            else "No people in the frame: an atmospheric place only, because who sings is not stated. ")
