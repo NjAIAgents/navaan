@@ -101,6 +101,19 @@ class Access(unittest.TestCase):
         code, body = post(type="inspiration", idea="Another quote that stays quiet.", narrate="none"); D2 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D2, "narrate"), "none")   # skipped when asked
         code, body = post(type="inspiration", idea="A third quote.", narrate="eleven", voice="bogus"); D3 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D3, "voice"), "frank")   # an unknown voice falls back to the default
 
+    def test_changing_the_voice_or_pace_drops_a_voice_made_the_old_way_until_the_video_is_approved(self):
+        import narration, navaan, navaan_common as C
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="inspiration", idea="Stay soft, stay kind.", narrate="eleven", voice="frank")); D = C.song_dir(json.loads(body)["slug"]); slug = json.loads(body)["slug"]
+        mk = lambda: [open(os.path.join(D, f), "w").write("x") for f in ("voiceover.mp3", "voiceover.srt", "narration_sync.json")]
+        has = lambda: [os.path.exists(os.path.join(D, f)) for f in ("voiceover.mp3", "voiceover.srt", "narration_sync.json")]
+        post = lambda **b: self.call("/api/narration/eleven", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, **b))
+        mk(); self.assertEqual(post(on=True, voice="frank", pace="slow")[0], 200); self.assertEqual(has(), [True] * 3)    # frank and slow are the defaults: nothing changed, the take stays
+        mk(); self.assertEqual(post(on=True, voice="frank", pace="normal")[0], 200); self.assertEqual(has(), [False] * 3)   # a new pace: made again
+        self.assertEqual(narration.get_option(D, "pace"), "normal")
+        self.assertEqual(post(on=True, voice="frank", pace="fast")[0], 400)
+        navaan.edit_meta(slug, lambda m: m.setdefault("approvals", {}).update(media={"at": "x"}))
+        mk(); self.assertEqual(post(on=True, voice="nj", pace="calm")[0], 200); self.assertEqual(has(), [True] * 3)   # the approved video is not undone by a settings change
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")
