@@ -3,6 +3,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import prompt_pack as P
 
 
+class Singer(unittest.TestCase):
+    def test_the_singer_is_read_from_the_style_and_a_note_tells_the_directors(self):
+        for style, want in (("male vocals, soft hindi pop", "male"), ("Female vocalist, indie", "female"), ("baritone, slow ballad", "male"), ("soprano choir", "female"), ("duet, male and female vocals", ""), ("soft piano pop", ""), ("", ""), (None, "")):
+            self.assertEqual(P.singer(style), want, style)
+        self.assertIn("The main person in the film is a man; never make the main person a woman", P.voice_note("male vocals"))
+        self.assertIn("never make the main person a man", P.voice_note({"style": "female vocals"}))
+        self.assertIn("do not assume it", P.voice_note("soft piano"))
+
+    def test_the_story_directors_brief_carries_the_voice_note_and_no_longer_asks_for_a_beloved_in_every_love_song(self):
+        ctx = {"title": "T", "style": "male vocals, ballad", "sections": [{"label": "Verse", "lines": ["a"], "start": 0, "end": 10}]}
+        text = P.build_prompt(ctx, [{"section": "Verse", "part": 1, "of": 1, "lines": ["a"]}])
+        self.assertIn("the singer is a man", text); self.assertNotIn("<<voice_note>>", text)
+        self.assertIn("Do not invent a romantic partner for a song that is not about one", text); self.assertNotIn("For a love or longing song write the main person first", text)
+
+
 class T(unittest.TestCase):
     def test_count(self):
         self.assertEqual(P.default_count(60), 6)

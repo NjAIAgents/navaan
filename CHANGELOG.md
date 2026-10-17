@@ -10,6 +10,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - Any step in the pipeline can be opened: click it to see what it said (a prompt, a plan), what it made (pictures, audio, video), its log and its own history, and go back to what needs you. A step that has not run yet opens too and says so.
 - Pictures can be opened large: click the poster, the cover, the album cover, a shot's picture or a step's picture to see it full screen; Escape, Close or a click outside closes it.
 
+### Fixed
+- A male-voiced song got a poster of a woman, and its picture plan a woman as the main character. The directors are now told who sings (read from the song's style: male, female, or not stated) and not to invent a love interest unless the lyrics are about one. The poster's default prompt shows a lone man or woman seen from behind to match the singer, or no people at all when the singer is not stated. The poster card has "Reset to the suggested prompt", because a prompt saved earlier would otherwise hide the fix. For a song whose plan already has the wrong character, redo "Write the picture plan" (and the pictures).
+
 ### Changed
 - The shot list approval shows the pictures in order, each with when it is on screen, the camera move and the scene, with the raw JSON folded away under it.
 - Steps use real names ("Write the picture plan", "Create the pictures", "Plan the shots", "Plan what moves") instead of internal ones.

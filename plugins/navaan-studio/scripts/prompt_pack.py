@@ -69,6 +69,24 @@ def fill(text, **kw):
     return text
 
 
+_FEMALE = re.compile(r"\b(female|woman|women|girl|soprano|mezzo|alto|her voice)\b", re.I)
+_MALE = re.compile(r"\b(male|man|men|boy|baritone|tenor|bass|his voice)\b", re.I)
+
+
+def singer(style):
+    """The singer's gender as the song's style text states it: "male", "female", or "" when it does not say (or says both)."""
+    f, m = bool(_FEMALE.search(style or "")), bool(_MALE.search(re.sub(r"\bfemale\b", "", style or "", flags=re.I)))
+    return "female" if f and not m else "male" if m and not f else ""
+
+
+def voice_note(ctx_or_style):
+    """One sentence for the directors: who sings, so the film does not show someone else."""
+    style = ctx_or_style.get("style") if isinstance(ctx_or_style, dict) else ctx_or_style
+    g = singer(style)
+    if g: return f"Voice note: the singer is {'a man' if g == 'male' else 'a woman'}. The main person in the film is {'a man' if g == 'male' else 'a woman'}; never make the main person {'a woman' if g == 'male' else 'a man'}."
+    return "Voice note: the singer's gender is not stated, so do not assume it. Prefer silhouettes, backs, hands and places, or a person whose gender the lyrics make clear."
+
+
 def lyrics_block(ctx):
     return "\n\n".join("[%s]\n%s" % (x["label"], "\n".join(x["lines"])) for x in (ctx.get("sections") or [])) or "(no lyrics)"
 
@@ -85,7 +103,7 @@ def build_look_prompt(ctx):
 def build_prompt(ctx, slots, extra="", look=None):
     """The story director's prompt."""
     lb = ("The art director has fixed the look of the film: " + str(look.get("style_line") or "") + "\nWrite scenes that suit it.") if look else ""
-    return fill(role_text("story"), title=ctx.get("title") or "untitled", style=ctx.get("style") or "not given", look_block=lb, extra=extra,
+    return fill(role_text("story"), title=ctx.get("title") or "untitled", style=ctx.get("style") or "not given", voice_note=voice_note(ctx), look_block=lb, extra=extra,
                 lyrics=lyrics_block(ctx), n=len(slots), slots=slot_lines(slots))
 
 

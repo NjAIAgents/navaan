@@ -28,6 +28,16 @@ class T(unittest.TestCase):
         p = P.default_prompt("s")
         self.assertIn("Pata Hi Na Chala", p); self.assertIn("warm lo-fi", p); self.assertIn("line one", p); self.assertNotIn("[Verse 1]", p); self.assertIn("No text", p)
 
+    def test_the_default_prompt_does_not_show_someone_the_singer_is_not(self):   # a male-voiced song got a poster of a woman
+        def make(style): open(os.path.join(self.D, "style.txt"), "w").write(style); return P.default_prompt("s")
+        m = make("male vocals, soft hindi pop"); self.assertIn("lone man seen from behind or in silhouette", m); self.assertIn("do not show a woman", m)
+        f = make("female vocals, indie"); self.assertIn("lone woman seen from behind or in silhouette", f); self.assertIn("do not show a man", f)
+        u = make("warm lo-fi, soft piano"); self.assertIn("No people in the frame", u)   # not stated: no one is invented
+        self.assertNotIn("woman", u.lower().replace("no people", ""))
+        self.assertTrue(m.endswith(P.FINISH.strip()))   # the no-lettering finish is still there
+        self.assertEqual(P.state("s")["default"], u)   # the card can return to the current suggestion even when an older prompt was saved
+        open(os.path.join(self.D, "poster_prompt.txt"), "w").write("old saved prompt that is long enough to count"); st = P.state("s"); self.assertEqual((st["prompt"], st["default"]), ("old saved prompt that is long enough to count", u))
+
     def test_generate_sends_the_edited_prompt_charges_once_and_writes_poster_and_prompt(self):
         cost = P.generate("s", "My own prompt for a rainy window poster.")
         self.assertEqual(self.sent, [("My own prompt for a rainy window poster.", P.SIZE)]); self.assertEqual(self.spent, [cost])

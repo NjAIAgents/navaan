@@ -24,4 +24,12 @@ describe("PosterCard", () => {
     render(<PosterCard d={d({ key: false })} done={vi.fn()} />);
     expect(screen.getByRole("button", { name: /Make poster/ })).toBeDisabled(); expect(screen.getByRole("status")).toHaveTextContent("OpenAI key");
   });
+  it("lets you return to the current suggested prompt even when an older prompt was saved, and the poster opens large", () => {
+    const old = "An old saved prompt with a woman by a window, portrait poster."; const fresh = "A lone man seen from behind in silhouette, portrait poster.";
+    render(<PosterCard d={d({ prompt: old, default: fresh, has: true, v: 3 })} done={vi.fn()} />);
+    const box = screen.getByLabelText(/Prompt for the art/) as HTMLTextAreaElement; expect(box.value).toBe(old);   // what was saved is kept
+    fireEvent.click(screen.getByRole("button", { name: "Reset to the suggested prompt" })); expect(box.value).toBe(fresh);
+    expect(screen.queryByRole("button", { name: "Reset to the suggested prompt" })).toBeNull();   // already the suggestion
+    fireEvent.click(screen.getByRole("button", { name: "Enlarge: Poster" })); expect(screen.getByRole("dialog", { name: "Poster" }).querySelector("img")).toHaveAttribute("src", "/media/song-001/poster_2x3.png?v=3");   // the full poster, not the 360 px copy
+  });
 });
