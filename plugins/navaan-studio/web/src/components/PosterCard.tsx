@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ZoomImage } from "./ZoomImage";
 import { postJSON, type SongDetail } from "../lib/api";
 import { fileB64 } from "../lib/files";
 import { errText } from "../lib/songs";
@@ -22,9 +23,9 @@ export function PosterCard({ d, done }: { d: SongDetail; done: () => Promise<unk
     <section className="card stack" aria-labelledby="poster-h">
       <h2 id="poster-h">Poster</h2>
       <div className="row" style={{ alignItems: "flex-start", flexWrap: "wrap" }}>
-        {cover && <figure className="stack" style={{ margin: 0 }}><img src={`/media/${d.slug}/cover_1x1.png?w=240`} alt="Cover" width={120} height={120} style={{ borderRadius: 8, objectFit: "cover" }} /><figcaption className="mu">Cover</figcaption></figure>}
+        {cover && <figure className="stack" style={{ margin: 0 }}><ZoomImage src={`/media/${d.slug}/cover_1x1.png?w=240`} full={`/media/${d.slug}/cover_1x1.png`} alt="Cover" width={120} height={120} style={{ borderRadius: 8, objectFit: "cover" }} /><figcaption className="mu">Cover</figcaption></figure>}
         <figure className="stack" style={{ margin: 0 }}>
-          {p.has ? <img src={`/media/${d.slug}/poster_2x3.png?w=360&v=${p.v}`} alt="Poster" width={120} height={180} style={{ borderRadius: 8, objectFit: "cover" }} /> : <span className="mu">No poster yet.</span>}
+          {p.has ? <ZoomImage src={`/media/${d.slug}/poster_2x3.png?w=360&v=${p.v}`} full={`/media/${d.slug}/poster_2x3.png?v=${p.v}`} alt="Poster" width={120} height={180} style={{ borderRadius: 8, objectFit: "cover" }} /> : <span className="mu">No poster yet.</span>}
           <figcaption className="mu">Poster</figcaption>
         </figure>
       </div>

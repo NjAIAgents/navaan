@@ -27,7 +27,7 @@ export type SongRow = {
 };
 
 export type Step = {
-  id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean; spends_what?: string | null; gate_before?: string | null;
+  id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean; spends_what?: string | null; gate_before?: string | null; gate_after?: string | null; outputs?: string[]; made?: { name: string; size: number }[]; texts?: { name: string; text: string }[];
   status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null;
 };
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
@@ -37,6 +37,7 @@ export type SongDetail = {
   files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
+  logs?: Record<string, string>;
   failure: { step: string; error: string; ref: string; plain?: string } | null;
   question: Question | null; needs_you: string;
   cameras: string[]; cloud: boolean; images: string[];

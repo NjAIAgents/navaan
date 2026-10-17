@@ -151,6 +151,36 @@ def cloud_view(refresh=False):
     return out
 
 
+def made_files(D, outputs, cap=40):
+    """The files a step made, as names /media can serve (images~x, clips~x, or a plain top-level name), with sizes. Folders, hidden folders and anything deeper are left out."""
+    out, seen = [], set()
+    for pat in outputs or []:
+        for pth in sorted(glob.glob(os.path.join(D, pat))):
+            if not os.path.isfile(pth): continue
+            rel = os.path.relpath(pth, D); parts = rel.split(os.sep)
+            if any(x.startswith(".") for x in parts): continue
+            if len(parts) == 1: key = rel
+            elif len(parts) == 2 and parts[0] == "images": key = "images~" + parts[1]
+            elif len(parts) == 2 and parts[0] == "clips": key = "clips~" + parts[1]
+            else: continue
+            if key not in seen: seen.add(key); out.append({"name": key, "size": os.path.getsize(pth)})
+            if len(out) >= cap: return out
+    return out
+
+
+def made_texts(D, outputs, cap=3, limit=4000):
+    """The text a step wrote (a prompt, a plan, a quote), so a finished step shows what it said, not only that it ran. Small text files only, a few per step."""
+    out = []
+    for pat in outputs or []:
+        for pth in sorted(glob.glob(os.path.join(D, pat))):
+            rel = os.path.relpath(pth, D); parts = rel.split(os.sep)
+            if not os.path.isfile(pth) or any(x.startswith(".") for x in parts) or len(parts) > 2 or os.path.splitext(pth)[1].lower() not in (".txt", ".json", ".md") or os.path.getsize(pth) > 200_000: continue
+            t = open(pth, encoding="utf-8", errors="ignore").read().strip()
+            if t: out.append({"name": rel, "text": t[:limit] + ("…" if len(t) > limit else "")})
+            if len(out) >= cap: return out
+    return out
+
+
 def plain_failure(step, error, rows):
     """A failure in words a person can act on. The raw error stays available under it."""
     label = next((r["label"] for r in rows if r["id"] == step), "") or "A step"; e = error or ""
@@ -168,6 +198,7 @@ def detail(slug):
     try: navaan.auto_gates(slug)   # gates switched off in Settings approve themselves
     except Exception as _e: L.soft(LOG, "detail_error"); pass
     m = navaan.meta(slug); rows, nxt = navaan.plan(slug)
+    for r in rows: r["made"] = made_files(D, r.get("outputs")); r["texts"] = made_texts(D, r.get("outputs"))   # what each step produced and said, so a finished step can be opened
     fl = {}
     for f in sorted(os.listdir(D)):
         p = os.path.join(D, f)

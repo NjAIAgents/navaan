@@ -6,6 +6,15 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- Any step in the pipeline can be opened: click it to see what it said (a prompt, a plan), what it made (pictures, audio, video), its log and its own history, and go back to what needs you. A step that has not run yet opens too and says so.
+- Pictures can be opened large: click the poster, the cover, the album cover, a shot's picture or a step's picture to see it full screen; Escape, Close or a click outside closes it.
+
+### Changed
+- The shot list approval shows the pictures in order, each with when it is on screen, the camera move and the scene, with the raw JSON folded away under it.
+- Steps use real names ("Write the picture plan", "Create the pictures", "Plan the shots", "Plan what moves") instead of internal ones.
+- In the steps list only the step whose approval is in front of you is marked "waiting for you"; steps blocked behind it are simply later, so one amber row shows the one thing that needs you.
+
 ## [0.33.0] - 2026-10-17
 
 ### Added
