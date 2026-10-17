@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.1] - 2026-10-17
+
+### Fixed
+- An approval a running job is waiting for is now shown. A pipeline step that waits for you (for example "Review the videos" after an inspiration is rendered) used to show only "Running" with a Stop button, so the Approve button was missing and the only way to approve was the classic view. The page now shows the approval, with Approve and Request changes, as soon as the job is waiting for it.
+
 ## [0.29.0] - 2026-10-17
 
 ### Added
@@ -311,7 +316,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.1...HEAD
+[0.29.1]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/NjAIAgents/navaan/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/NjAIAgents/navaan/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/NjAIAgents/navaan/compare/v0.26.0...v0.27.0
