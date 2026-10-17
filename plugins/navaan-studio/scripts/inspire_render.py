@@ -26,7 +26,7 @@ def has_dev(t): return bool(re.search(r"[ऀ-ॿ]", t))
 
 def pil_font(size, dev):
     from PIL import ImageFont
-    if dev: return C.font(size)
+    if dev: return C.font(size)   # (the Latin list below is this screen's own serif choice; C.font_for is the plain one)
     e = os.environ.get("NAVAAN_FONT_LATIN")
     cands = ([(e.partition(":")[0], int(e.partition(":")[2] or 0))] if e else []) + LATIN_FONTS
     for p, i in cands:

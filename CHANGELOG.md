@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.35.1] - 2026-10-17
+
+### Fixed
+- English text in a video no longer comes out as boxes. The channel mark ("@navaan_p5l") drawn in the corner of the wide video and the reel, and the lyric captions for an English song, were drawn with the caption font, which on the server is Devanagari only: digits and underscores drew, every Latin letter was the same empty box. Text with Devanagari still uses that font; other text now uses one that has the letters. Long caption lines also wrap to two lines and shrink to fit the frame (they used to run off both edges). Videos made before this keep the boxes until their video step is redone.
+
 ## [0.35.0] - 2026-10-17
 
 ### Added
@@ -435,7 +440,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.35.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...HEAD
+[0.35.1]: https://github.com/NjAIAgents/navaan/compare/v0.35.0...v0.35.1
 [0.35.0]: https://github.com/NjAIAgents/navaan/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...v0.34.0
 [0.33.1]: https://github.com/NjAIAgents/navaan/compare/v0.33.0...v0.33.1

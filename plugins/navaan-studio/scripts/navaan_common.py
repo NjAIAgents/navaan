@@ -120,6 +120,30 @@ FONT_CANDIDATES = [
 ]
 
 
+# A font with the Latin letters, for text that has no Devanagari: the Devanagari fonts above have digits and punctuation but no a-z, so English text drawn with them
+# comes out as boxes (a watermark "@navaan_p5l" showed as boxes, an underscore and a 5). Bold first: small marks and captions need weight.
+LATIN_FONT_CANDIDATES = [
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 0), ("/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", 0), ("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 0),
+    ("/System/Library/Fonts/Helvetica.ttc", 1), ("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 0), ("/Library/Fonts/Arial.ttf", 0), ("C:/Windows/Fonts/arialbd.ttf", 0),
+]
+
+
+def has_devanagari(text):
+    return any("\u0900" <= ch <= "\u097f" for ch in str(text or ""))
+
+
+def font_for(text, size):
+    """The font for this text: a Devanagari font when the text has Devanagari (it also covers digits and punctuation), else one that has the Latin letters.
+    NAVAAN_FONT (or captions.font_path) still wins for everything, as before. Falls back to the Devanagari font when no Latin font is found."""
+    from PIL import ImageFont
+    if has_devanagari(text) or os.environ.get("NAVAAN_FONT") or cfg("captions.font_path"): return font(size)
+    for path, idx in LATIN_FONT_CANDIDATES:
+        if os.path.exists(path):
+            try: return ImageFont.truetype(path, size, index=idx)
+            except OSError: continue   # expected: a font collection without that face, so the next font is tried
+    return font(size)
+
+
 def font(size):
     from PIL import ImageFont
     e = os.environ.get("NAVAAN_FONT") or cfg("captions.font_path") or None
