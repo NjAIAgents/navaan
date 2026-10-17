@@ -81,7 +81,7 @@ describe("keeping a published song", () => {
   it("saves it and adds it to a playlist, showing the server's message when it cannot", async () => {
     let n = 0;
     const f = mock({ "/api/library/save": () => ({ ok: true }), "/api/playlists/add": () => (++n === 1 ? { ok: true } : json({ error: "this track is already in the playlist" }, 400)), "/api/playlists": () => [pl()], "/api/library": () => ({ tracks: [], albums: [], following: false }), "/api/song/": () => song });
-    at("/studio/songs/song-001");
+    at("/studio/songs/song-001?tab=publish");
     fireEvent.click(await screen.findByRole("button", { name: "Save song" })); await screen.findByRole("button", { name: "Saved" }); expect(posts(f, "/api/library/save")).toEqual([{ kind: "track", slug: "song-001", on: true }]);
     fireEvent.click(await screen.findByRole("button", { name: "Add to playlist" })); expect(await screen.findByText('Added to "Evening".')).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add to playlist" })); expect(await screen.findByText(/already in the playlist/)).toBeInTheDocument();

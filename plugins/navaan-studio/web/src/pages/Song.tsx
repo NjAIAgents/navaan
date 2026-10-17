@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Equaliser } from "../components/Equaliser";
 import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
-import { StepStrip } from "../components/StepStrip";
+import { PipelineRail } from "../components/PipelineRail";
 import { MoodCard } from "../components/MoodCard";
 import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
@@ -12,7 +12,7 @@ import { SongAnalytics } from "../components/SongAnalytics";
 import { ScheduleCard } from "../components/SchedulePanel";
 import { MediaCard, NarrationCard, ShotsEditor, TextEditors } from "../components/SongEditors";
 import { usePlayer } from "../lib/player";
-import { getJSON, postJSON, type Question, type SongDetail, type Step } from "../lib/api";
+import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { classic, errText, nextAction } from "../lib/songs";
@@ -20,18 +20,22 @@ import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
 
-function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Act; busy: boolean }) {
+function GateCard({ d, gate, act, busy, running = false, stopping = false, onStop }: { d: SongDetail; gate: string; act: Act; busy: boolean; running?: boolean; stopping?: boolean; onStop?: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const [changing, setChanging] = useState(false);
   const [note, setNote] = useState("");
   const file = GATE_FILE[gate];
+  const spends = gate === "credits" ? d.steps.filter((x) => x.spends && !x.done && x.spends_what).map((x) => x.spends_what as string) : [];
   const shown = file ? d.text[file] : "";
   const ok = async (path: string, body: Record<string, unknown>) => { if (await act(path, { slug: d.slug, gate, ...body })) { setConfirm(false); setChanging(false); setNote(""); } };
   return (
     <section className="card gate" aria-labelledby="gate-h">
       <span className="chip wn"><span className="dot" />Waiting for you</span>
       <h2 id="gate-h">{gateTitle(gate)}</h2>
-      <p>{GATE_ASK[gate] ?? "Approve to move this song forward."}</p>
+      {gate === "credits" && spends.length ? (
+        <><p>I approve spending on exactly this:</p><ul className="spend-list">{spends.map((t) => <li key={t}>{t}</li>)}</ul></>
+      ) : <p>{GATE_ASK[gate] ?? "Approve to move this song forward."}</p>}
+      <p className="mu">{running ? "A run is waiting for this approval. Stop it if you need to change something earlier." : "Nothing is running: it is paused here until you decide. To change something first, use Redo on a step in the list."}</p>
       {(gate === "quote" || gate === "media") && d.meta.type === "inspiration" && d.narrate && !d.narrate.on && !Object.keys(d.files ?? {}).some((f) => f.startsWith("voiceover")) && (
         <p className="mu" role="note">There is no narration on this short, so the video has music and text only. To add a voice, use the Narration card below.</p>
       )}
@@ -57,6 +61,7 @@ function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Ac
         <div className="row">
           <button className="btn p" disabled={busy} onClick={() => (RISKY.has(gate) ? setConfirm(true) : void ok("/api/approve", {}))}>Approve</button>
           <button className="btn" disabled={busy} onClick={() => setChanging(true)}>Request changes</button>
+          {running && onStop && <button className="btn g" disabled={busy || stopping} onClick={onStop}>{stopping ? "Stopping…" : "Stop the run"}</button>}
         </div>
       )}
     </section>
@@ -128,29 +133,6 @@ function Approvals({ d, act, busy }: { d: SongDetail; act: Act; busy: boolean })
   );
 }
 
-function StepRow({ s, failed, act, busy }: { s: Step; failed: boolean; act: Act; busy: boolean }) {
-  const [ask, setAsk] = useState<"redo" | "restart" | null>(null);
-  const chip = failed ? <span className="chip bad">Failed</span> : s.status === "done" ? <span className="chip ok"><Icon name="check" />Done</span> : s.status === "waiting for approval" ? <span className="chip wn">Needs approval</span> : <span className="chip">{s.status === "ready" ? "Ready" : "Later"}</span>;
-  const go = async () => { if (await act(ask === "redo" ? "/api/redo" : "/api/restart", { step: s.id })) setAsk(null); };
-  return (
-    <li className="stp" id={`step-${s.id}`}>
-      <span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}
-      {s.done && (s.redo || s.restart) && !ask && (
-        <span className="row">
-          {s.redo && <button className="btn g" disabled={busy} onClick={() => setAsk("redo")} aria-label={`Redo ${stepLabel(s.id)}`}>Redo</button>}
-          {s.restart && <button className="btn g" disabled={busy} onClick={() => setAsk("restart")} aria-label={`Restart from ${stepLabel(s.id)}`}>Restart from here</button>}
-        </span>
-      )}
-      {ask && (
-        <span className="stack" role="group" aria-label={`Confirm ${ask} of ${stepLabel(s.id)}`}>
-          <span className="mu">{ask === "redo" ? "Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). If the new run fails, the old files are put back." + (s.spends ? " It spends credits, so approve the credits gate again first." : "") : "Restart the Produce phase from this step? This step and every step after it through the video render are redone. Their files go to the _prev folder. The credits, shot list and media approvals are cleared and asked again."}</span>
-          <span className="row"><button className="btn p" disabled={busy} onClick={() => void go()}>{ask === "redo" ? "Yes, redo it" : "Yes, restart"}</button><button className="btn g" onClick={() => setAsk(null)}>Not now</button></span>
-        </span>
-      )}
-    </li>
-  );
-}
-
 // A history line is "<time> <text>", or, in songs from before the move, an object with at, event and note.
 const when = (h: NonNullable<SongDetail["meta"]["history"]>[number]) => {
   if (typeof h !== "string") {
@@ -164,6 +146,7 @@ const when = (h: NonNullable<SongDetail["meta"]["history"]>[number]) => {
 
 export default function Song() {
   const { slug = "" } = useParams();
+  const [sp, setSp] = useSearchParams();
   const [d, setD] = useState<SongDetail | null>(null);
   const [err, setErr] = useState("");
   const [pending, setPending] = useState(false);
@@ -191,6 +174,42 @@ export default function Song() {
   const gate = d.next.type === "gate" ? d.next.gate : undefined;
   const busy = pending || running;
   const history = [...(d.meta.history ?? [])].reverse().slice(0, 30);
+  const published = d.meta.type !== "inspiration" && d.meta.state === "published";
+  const needsYou = !!(gate || d.question || d.needs_you || d.failure);
+
+  // The one thing that needs you now: exactly one card, never an approval and a "Running" chip side by side.
+  const now = d.failure ? (
+    <section className="card fail stack" role="alert" aria-labelledby="fail-h">
+      <span className="chip bad"><span className="dot" />Failed</span>
+      <h2 id="fail-h">{stepLabel(d.failure.step) || "A step"} failed</h2>
+      <p>{d.failure.plain || d.failure.error || "It did not finish."}</p>
+      <div className="row">
+        {d.failure.step
+          ? <button className="btn p" disabled={busy} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
+          : <button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
+        <a className="btn g" href={classic(slug)}>Full log in the classic view <Icon name="external" /></a>
+      </div>
+      <details><summary>The raw error, for the log</summary>
+        {d.failure.error && <pre className="art" tabIndex={0}>{d.failure.error}</pre>}
+        <p className="mu">Log reference <code>{d.failure.ref}</code> (search it in the app log as <code>job_id</code>).</p>
+      </details>
+    </section>
+  ) : d.question ? <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />
+  : d.needs_you ? <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>
+  : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
+  : running && !gate ? (
+    <section className="card stack" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><div className="row"><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></div></section>
+  ) : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
+  : gate ? <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} running={running} stopping={stopping} onStop={() => void stop()} />
+  : d.next.type === "run" ? (
+    <section className="card stack"><h2>Next: {stepLabel(d.next.step ?? "")}</h2>
+      <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
+    </section>
+  ) : d.next.type === "done" ? <section className="card"><h2>All steps are done</h2></section> : null;
+
+  const TABS = [["pipeline", "Pipeline"], ["content", "Content"], ["media", "Media"], ["publish", "Publish"], ["activity", "Activity"]] as const;
+  type Tab = (typeof TABS)[number][0];
+  const asked = sp.get("tab"); const tab: Tab = TABS.some(([k]) => k === asked) ? (asked as Tab) : "pipeline";
   return (
     <>
       <div className="ph">
@@ -198,67 +217,53 @@ export default function Song() {
         <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
         <p>{slug} · {d.meta.state ?? "new"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })}</p>
       </div>
-      <StepStrip d={d} />
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
-      {d.failure && (
-        <section className="card fail" role="alert" aria-labelledby="fail-h">
-          <h2 id="fail-h">{stepLabel(d.failure.step) || "A step"} failed</h2>
-          {d.failure.error && <p>{d.failure.error}</p>}
-          <p className="mu">Log reference <code>{d.failure.ref}</code> (search it in the app log as <code>job_id</code>).</p>
-          <div className="row">
-            {d.failure.step
-              ? <button className="btn p" disabled={busy} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
-              : <button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
-            <a className="btn g" href={classic(slug)}>Full log in the classic view <Icon name="external" /></a>
+      <div className="tabs" role="tablist" aria-label="Sections">
+        {TABS.map(([k, l]) => (
+          <button key={k} role="tab" id={`tab-${k}`} aria-selected={tab === k} aria-controls={`panel-${k}`} onClick={() => setSp(k === "pipeline" ? {} : { tab: k }, { replace: true })}>
+            {l}{k === "pipeline" && needsYou && <span className="dot" role="img" aria-label="needs you" />}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="stack">
+        {tab === "pipeline" && (
+          <div className="pl-grid">
+            <PipelineRail d={d} act={act} busy={busy} />
+            <div className="pl-now stack">{now}</div>
           </div>
-        </section>
-      )}
-      {d.question && <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />}
-      {!d.question && d.needs_you && <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>}
-      {d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] && <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />}
-      {running && gate && (   // a run that is alive and waiting for the approval below: it can be stopped (to change something earlier, or to restart from a step)
-        <section className="card row" role="status"><span className="chip wn"><span className="dot" />A run is waiting</span><span className="tx mu">{d.status_text || "Waiting for your approval."} Stop it if you need to change something earlier.</span><button className="btn" disabled={pending || stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop the run"}</button></section>
-      )}
-      {running && !gate ? (   // a job that is alive while the next thing is an approval is WAITING for it: show the approval, not Running
-        <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></section>
-      ) : gate === "visuals_mode" ? (
-        <VisualsCard d={d} done={load} />
-      ) : gate ? (<>
-        {!d.failure && <p className="mu">Nothing is running: this is only waiting for your approval, so there is nothing to stop. To change something first, use Redo on a step in the list below.</p>}
-        <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} />
-      </>
-      ) : d.next.type === "run" && !d.failure ? (
-        <section className="card"><h2>Next: {stepLabel(d.next.step ?? "")}</h2>
-          <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
-        </section>
-      ) : null}
-      <section className="sec" aria-labelledby="steps-h">
-        <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
-        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} act={act} busy={busy} />)}</ol>
-      </section>
-      {d.meta.type !== "inspiration" && d.meta.state === "published" && (
-        <section className="card row" aria-label="Play">
-          <button className="btn p" onClick={() => void pl.toggle(slug, title)}>{pl.slug === slug && pl.playing ? "Pause" : "Play"}<span className="sr"> {title}</span></button>
-          <span className="mu">Plays straight from the bucket.</span>
-        </section>
-      )}
-      {d.meta.type !== "inspiration" && d.meta.state === "published" && <KeepCard slug={slug} />}
-      {d.meta.type !== "inspiration" && d.meta.state === "published" && <ShareCard slug={slug} />}
-      {!(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
-      <MediaCard d={d} />
-      <PosterCard d={d} done={load} />
-      {d.meta.type !== "inspiration" && <MoodCard d={d} done={load} />}
-      <TextEditors d={d} done={load} />
-      <ShotsEditor key={slug} d={d} done={load} />
-      {insp && <NarrationCard d={d} done={load} />}
-      {d.meta.type !== "inspiration" && d.meta.state === "published" && <SongAnalytics slug={slug} />}
-      <Approvals d={d} act={act} busy={busy} />
-      <section className="sec" aria-labelledby="hist-h">
-        <div className="sh"><h2 id="hist-h">History</h2></div>
-        <ul className="card hist">
-          {history.length ? history.map((h, i) => { const w = when(h); return <li key={i}><span className="mu">{w.at}</span> {w.text}</li>; }) : <li className="mu">Nothing yet.</li>}
-        </ul>
-      </section>
+        )}
+        {tab === "content" && (<>
+          <TextEditors d={d} done={load} />
+          <ShotsEditor key={slug} d={d} done={load} />
+          {insp && <NarrationCard d={d} done={load} />}
+        </>)}
+        {tab === "media" && (<>
+          <MediaCard d={d} />
+          <PosterCard d={d} done={load} />
+          {d.meta.type !== "inspiration" && <MoodCard d={d} done={load} />}
+        </>)}
+        {tab === "publish" && (<>
+          {published && (
+            <section className="card row" aria-label="Play">
+              <button className="btn p" onClick={() => void pl.toggle(slug, title)}>{pl.slug === slug && pl.playing ? "Pause" : "Play"}<span className="sr"> {title}</span></button>
+              <span className="mu">Plays straight from the bucket.</span>
+            </section>
+          )}
+          {published && <KeepCard slug={slug} />}
+          {published && <ShareCard slug={slug} />}
+          {!(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
+          {published && <SongAnalytics slug={slug} />}
+        </>)}
+        {tab === "activity" && (<>
+          <Approvals d={d} act={act} busy={busy} />
+          <section className="sec" aria-labelledby="hist-h">
+            <div className="sh"><h2 id="hist-h">History</h2></div>
+            <ul className="card hist">
+              {history.length ? history.map((h, i) => { const w = when(h); return <li key={i}><span className="mu">{w.at}</span> {w.text}</li>; }) : <li className="mu">Nothing yet.</li>}
+            </ul>
+          </section>
+        </>)}
+      </div>
     </>
   );
 }

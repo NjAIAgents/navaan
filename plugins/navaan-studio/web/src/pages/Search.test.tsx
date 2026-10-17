@@ -44,17 +44,17 @@ describe("share link on a published song", () => {
   const detail = (state: string) => ({ slug: "song-001", steps: [], next: { type: "done" }, text: { "title.txt": "Tere Hone Se" }, meta: { type: "music", state, history: [] }, approvals: {}, job: { running: false, queued: false, rc: null }, status_text: "", failure: null, question: null, needs_you: "" });
   it("creates a link and can stop it; an unpublished song has no Share section", async () => {
     const f = mock({ "/api/song/": () => detail("published"), "/api/share/revoke": () => ({ revoked: true }), "/api/share": () => ({ token: "tok123", url: "https://navaan.example/s/tok123" }) });
-    at("/studio/songs/song-001");
+    at("/studio/songs/song-001?tab=publish");
     fireEvent.click(await screen.findByRole("button", { name: "Create a share link" }));
     expect(await screen.findByLabelText(/Anyone with this link can listen/)).toHaveValue("https://navaan.example/s/tok123");
     fireEvent.click(screen.getByRole("button", { name: "Stop sharing" }));
     await screen.findByText("That link no longer works.");
     expect(JSON.parse(String(f.mock.calls.find(([u]) => u === "/api/share/revoke")![1]?.body))).toEqual({ token: "tok123" });
-    cleanup(); mock({ "/api/song/": () => detail("drafted") }); at("/studio/songs/song-001"); await screen.findByRole("heading", { level: 1, name: "Tere Hone Se" }); expect(screen.queryByRole("button", { name: "Create a share link" })).toBeNull();
+    cleanup(); mock({ "/api/song/": () => detail("drafted") }); at("/studio/songs/song-001?tab=publish"); await screen.findByRole("heading", { level: 1, name: "Tere Hone Se" }); expect(screen.queryByRole("button", { name: "Create a share link" })).toBeNull();
   });
   it("shows why a link cannot be made", async () => {
     mock({ "/api/song/": () => detail("published"), "/api/share": () => json({ error: "this track's licence is not confirmed, so it cannot be shared yet" }, 400) });
-    at("/studio/songs/song-001"); fireEvent.click(await screen.findByRole("button", { name: "Create a share link" }));
+    at("/studio/songs/song-001?tab=publish"); fireEvent.click(await screen.findByRole("button", { name: "Create a share link" }));
     expect(await screen.findByText(/licence is not confirmed/)).toBeInTheDocument();
   });
 });

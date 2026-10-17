@@ -89,6 +89,18 @@ def auto_gates(slug):
     return done
 
 
+# What a step that sits behind the credits approval actually spends, in words, so the approval can say it (not a fixed "Suno, Flow and OpenAI").
+SPEND_WHAT = {"suno": "Suno: makes the song from your lyrics (from your plan's credits)", "visuals": "Flow: cover art and video clips", "narrate": "ElevenLabs: the voice of the quote (counts against your monthly seconds)",
+              "background": "OpenAI: the background picture"}
+
+
+def spend_what(s):
+    """One line for the credits approval: the service and what it makes. The pictures step already carries its own count and price in its label."""
+    if s["id"] == "pictures": return s["label"]
+    if s["id"] == "background" and "(Flow)" in s.get("label", ""): return "Flow: the background picture"
+    return SPEND_WHAT.get(s["id"], s["label"])
+
+
 def song_picture_steps(slug, D, mc):
     """The director writes the picture prompts (story, character, places, motion hints), then OpenAI paints them. Done when the song already has enough pictures."""
     import prompt_pack, visuals_cfg, song_images_openai as SI, image_openai as IO
@@ -364,7 +376,7 @@ def plan(slug):
         notused = legacy and s["id"] in ("instagram_caption", "publish_instagram", "archive", "cleanup") and not s["done"](m) and not reel_made  # older song, finished before these steps existed
         if notused: skip = True
         d = s["done"](m) or skip
-        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "restart": s["id"] in PRODUCE_FROM, "spends": s.get("before") == "credits", "gate_before": s.get("before"), "gate_after": s.get("after")}
+        row = {"id": s["id"], "label": s["label"], "kind": s["kind"], "done": d, "redo": s.get("redo", True), "restart": s["id"] in PRODUCE_FROM, "spends": s.get("before") == "credits", "spends_what": spend_what(s) if s.get("before") == "credits" else None, "gate_before": s.get("before"), "gate_after": s.get("after")}
         gb, ga = s.get("before"), s.get("after")
         if d:
             row["status"] = "waiting for approval" if (ga and not gate_ok(D, ap, ga, ig_done(m))) else "done"

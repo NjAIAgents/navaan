@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Changed
+- The item page (a song or an inspiration) is rebuilt so it can be walked. One "now" card says the single thing that needs you (an approval, a question, a failure, or "Next: ..."), never an approval and a "Running" chip side by side. The steps run top to bottom with their name beside each node, their state in words, and Redo on the row. Everything else moved into tabs: Pipeline, Content (quote, lyrics, shot list, narration), Media, Publish, Activity. The tab is kept in the address (?tab=media).
+- The credits approval now lists exactly what it spends, from the item's own steps (for an inspiration: OpenAI for the background and ElevenLabs for the voice; Suno only where a song really uses it), instead of always saying "Suno, Flow and OpenAI".
+- A failure leads with a sentence in plain words and folds the raw error away under it. A failure that has since been fixed (the step it names now succeeded) no longer shows.
+- An item that is only waiting for an approval says that nothing is running.
+
 ## [0.30.0] - 2026-10-17
 
 ### Fixed
