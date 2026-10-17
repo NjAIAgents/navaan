@@ -31,4 +31,21 @@ describe("ClipCard", () => {
     render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
     fireEvent.click(screen.getByRole("button", { name: "Make the clip" })); expect(await screen.findByRole("alert")).toHaveTextContent("before the end of the song");
   });
+  it("lets a visitor download the clip, copy a caption with the link and the tag, and says what to do on a computer", async () => {
+    const write = vi.fn(() => Promise.resolve()); Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: write } });
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({ token: "t", url: "/c/t.mp4", page: "https://navaan.online/c/t" }))));
+    render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
+    fireEvent.click(screen.getByRole("button", { name: "Make the clip" }));
+    const dl = await screen.findByRole("link", { name: "Download the clip" }); expect(dl).toHaveAttribute("href", "/c/t.mp4"); expect(dl).toHaveAttribute("download", "song-001-clip.mp4");
+    expect(screen.getByText(/On a computer: download the clip, then post it from the Instagram app/)).toBeInTheDocument();   // no share sheet here
+    fireEvent.click(screen.getByRole("button", { name: "Copy caption" })); await waitFor(() => expect(write).toHaveBeenCalledWith("Tere Hone Se on NAVAAN. Hear the full song: https://navaan.online/c/t #NAVAAN #NewMusic"));
+    expect(await screen.findByText("Caption copied.")).toBeInTheDocument();
+  });
+  it("does not show the computer hint where the phone's share sheet can take the video", async () => {
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({ token: "t", url: "/c/t.mp4", page: "https://navaan.online/c/t" }))));
+    render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
+    fireEvent.click(screen.getByRole("button", { name: "Make the clip" })); await screen.findByRole("button", { name: "Share the clip" });
+    expect(screen.queryByText(/On a computer/)).toBeNull();
+  });
 });
