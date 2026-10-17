@@ -23,9 +23,11 @@ test("a song goes from the list to an approved gate", async ({ page }, info) => 
   await expect(page.locator(".art")).toContainText("Tere hone se");
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Lyrics", level: 2 })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Activity" }).click();   // what was approved and the history live in Activity
   await expect(page.getByText(`gate lyrics approved via ui:`)).toBeVisible();   // the history says who
   await page.getByRole("button", { name: "Revoke approval of Lyrics" }).click(); await page.getByRole("button", { name: "Yes, revoke" }).click();   // take it back: the gate opens again
-  await expect(page.getByRole("heading", { name: "Lyrics", level: 2 })).toBeVisible(); await expect(page.getByText(/gate lyrics revoked via ui:/)).toBeVisible();
+  await expect(page.getByText(/gate lyrics revoked via ui:/)).toBeVisible();
+  await page.getByRole("tab", { name: /Pipeline/ }).click(); await expect(page.getByRole("heading", { name: "Lyrics", level: 2 })).toBeVisible();
 });
 
 test("a song and an inspiration can be started from the lists and open at their first step", async ({ page }, info) => {
@@ -40,14 +42,14 @@ test("a song and an inspiration can be started from the lists and open at their 
 
 test("a song's words can be edited, saved, and are still there after a reload (and an unsaved edit is flagged)", async ({ page }, info) => {
   const slug = info.project.name === "mobile" ? "song-001" : "song-004";
-  await page.goto(`/app/studio/songs/${slug}`); await ready(page);
+  await page.goto(`/app/studio/songs/${slug}?tab=content`); await ready(page);   // the editors are under Content
   await page.locator("summary", { hasText: "Style" }).click();
   const box = page.getByLabel("Style", { exact: true }); await box.fill(`warm hindi pop, edited in the ${info.project.name} check`);
   await expect(page.getByText("Unsaved changes").first()).toBeVisible();
   await page.getByRole("button", { name: "Save style" }).click(); await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.reload(); await ready(page); await page.locator("summary", { hasText: "Style" }).click();
   await expect(page.getByLabel("Style", { exact: true })).toHaveValue(`warm hindi pop, edited in the ${info.project.name} check`);
-  await expect(page.getByText(/style\.txt edited via ui:/)).toBeVisible();   // the history says who
+  await page.getByRole("tab", { name: "Activity" }).click(); await expect(page.getByText(/style\.txt edited via ui:/)).toBeVisible();   // the history says who
 });
 
 test("the front door is the new app, and the classic view is still at /legacy", async ({ page }) => {
