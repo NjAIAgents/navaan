@@ -49,3 +49,31 @@ a.go:focus-visible,audio:focus-visible{{outline:2px solid #F2EEE7;outline-offset
 <a class="go" href="{site}">Open on NAVAAN</a>
 </main></body></html>
 """
+
+
+def render_clip(slug, title, token, base):
+    """The page a shared clip opens: the clip playing, and the way back to the whole song. No scripts."""
+    url = f"{base}/c/{E(token)}"; vid = f"{base}/c/{E(token)}.mp4"; img = f"{base}/img/{E(slug)}/1280.jpg"
+    desc = f"{title}: a clip. Hear the full song free on NAVAAN."
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{E(title)} · NAVAAN</title>
+<meta name="robots" content="noindex">
+<meta property="og:type" content="video.other"><meta property="og:site_name" content="NAVAAN"><meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}">
+<meta property="og:url" content="{url}"><meta property="og:image" content="{img}"><meta property="og:video" content="{vid}"><meta property="og:video:type" content="video/mp4">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{E(title)}"><meta name="twitter:description" content="{E(desc)}"><meta name="twitter:image" content="{img}">
+<style>
+:root{{color-scheme:dark}}*{{box-sizing:border-box}}
+body{{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(900px 500px at 50% -10%,#17243A,#0B1020);color:#F2EEE7;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}}
+main{{width:min(420px,100%);text-align:center}}
+video{{width:100%;max-height:72vh;border-radius:18px;background:#000;box-shadow:0 20px 60px rgba(0,0,0,.5)}}
+h1{{font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;font-size:28px;line-height:1.15;margin:18px 0 14px}}
+a.go{{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 24px;border-radius:14px;background:linear-gradient(135deg,#D6B477,#B58B4A);color:#0B1020;font-weight:700;text-decoration:none}}
+a.go:focus-visible{{outline:2px solid #F2EEE7;outline-offset:3px}}
+</style></head>
+<body><main>
+<video controls playsinline preload="metadata" poster="/img/{E(slug)}/640.jpg" src="/c/{E(token)}.mp4">Your browser cannot play video.</video>
+<h1>{E(title)}</h1>
+<a class="go" href="/app/song/{E(slug)}">Hear the full song</a>
+</main></body></html>
+"""

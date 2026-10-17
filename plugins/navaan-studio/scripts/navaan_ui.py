@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
-import poster as POST, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
+import clip_share as CLIP, poster as POST, album_pipeline as ALB, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
@@ -82,6 +82,7 @@ def scheduler_state():
 
 
 TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
+ALBUM_COVER = {}  # album slug -> {"running": bool, "error": str}, the album cover being made
 POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
@@ -92,7 +93,7 @@ MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", 
 LOCAL_USER = str(uuid.uuid5(uuid.NAMESPACE_URL, "navaan-local-dev-user"))   # the one person when the login is off
 LOCAL_LISTENER = str(uuid.uuid5(uuid.NAMESPACE_URL, "navaan-local-dev-listener"))   # the same, signed in as a listener
 LISTENER_ROUTES = (("/api/playlists", "library.view", "playlists.write"), ("/api/library", "library.view", "playlists.write"), ("/api/plans", "library.view", None), ("/api/account", "account.manage", "account.manage"),
-                   ("/api/catalog", "library.view", None), ("/api/share", "library.view", "playlists.write"))   # prefix, permission to read, to change
+                   ("/api/catalog", "library.view", None), ("/api/share", "library.view", "playlists.write"), ("/api/clip", "library.view", "library.view"))   # prefix, permission to read, to change
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
 
@@ -195,7 +196,7 @@ def start_job(slug, all_steps=False, step=None, redo=False):
 
 
 CLIENT_LOG = {}  # client address -> times of recent browser error reports
-SITE_REACT = {}; SITE_FEEDBACK = {}; SITE_INTEREST = {}   # per address: reactions and messages sent from the public site
+SITE_REACT = {}; SITE_FEEDBACK = {}; SITE_INTEREST = {}; SITE_CLIP = {}   # per address: reactions and messages sent from the public site
 GUEST_READ = {}; GUEST_PLAY = {}   # per address: how often a visitor who is not signed in reads the catalogue and asks for songs
 GUEST = {"user": "", "user_id": "", "csrf": "", "roles": ["guest"], "permissions": [], "guest": True}   # someone not signed in on a public host
 CLIENT_LOG_LOCK = threading.Lock()
@@ -254,6 +255,15 @@ class H(BaseHTTPRequestHandler):
             ei = sys.exc_info() if code >= 500 and sys.exc_info()[0] else None  # inside an except block this is the error that caused the reply
             LOG.log(logging.ERROR if code >= 500 else (logging.DEBUG if code == 401 else logging.INFO), "http_error", exc_info=ei, extra={"fields": {"status": code, "error": str(err)[:300]}})
             if code >= 500: self._err_logged = True
+    def _send_ranged(self, data, ctype, cache="public, max-age=86400"):
+        """Bytes with Range support (Safari will not play a video without it)."""
+        size = len(data); m = re.match(r"bytes=(\d*)-(\d*)$", self.headers.get("Range") or ""); hdr = {"Accept-Ranges": "bytes", "Cache-Control": cache}
+        if m and (m.group(1) or m.group(2)):
+            if m.group(1): start = int(m.group(1)); end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+            else: start = max(0, size - int(m.group(2))); end = size - 1
+            if start > end or start >= size: return self._send(416, b"", ctype, {**hdr, "Content-Range": f"bytes */{size}"})
+            return self._send(206, data[start:end + 1], ctype, {**hdr, "Content-Range": f"bytes {start}-{end}/{size}"})
+        return self._send(200, data, ctype, hdr)
     def _host_ok(self):
         h = (self.headers.get("Host") or "").split(":")[0]
         return h in ("127.0.0.1", "localhost") or h in _hosts("NAVAAN_PUBLIC_HOST")
@@ -271,6 +281,17 @@ class H(BaseHTTPRequestHandler):
         if sh and (sess.get("guest") or sess.get("_studio")): out["studio_url"] = f"https://{sh}"   # a guest gets it as the place to sign in, the studio's owner as the way to the studio
         if lh and not self._public_host() and auth.can(sess, "studio.access"): out["public_url"] = f"https://{lh}"
         return out
+    def _clip_reply(self, body):
+        """A clip of a song to share: 15 or 30 seconds from where they choose; made once and kept. The same for a visitor and a signed in person."""
+        try:
+            if not rate_ok(SITE_CLIP, self._ip(), 20, 3600): return self._send(429, {"error": "that is a lot of clips, try again later"})
+            start, length = int(body.get("start") or 0), int(body.get("length") or 15); slug = str(body.get("slug") or "")
+            if not SLUG.match(slug): return self._send(404, {"error": "no such song to clip"})
+            CLIP.make(slug, start, length); t = CLIP.token(slug, start, length)
+            return self._send(200, {"token": t, "url": f"/c/{t}.mp4", "page": f"{self._base()}/c/{t}"})
+        except (TypeError, ValueError) as e: return self._send(400, {"error": str(e) if isinstance(e, ValueError) else "start and length are numbers"})
+        except LookupError as e: return self._send(404, {"error": str(e)})
+        except RuntimeError: L.exc(LOG, "clip_failed"); return self._send(502, {"error": "cannot make the clip right now"})
     def _site_post(self, p):
         """The two things anyone may send from the public site: a reaction to a song, and a message. Counts and a message: no session, no cookie, nothing about the sender is kept (not even the address). Slowed down per address; a hidden field catches bots."""
         n = int(self.headers.get("Content-Length") or 0)
@@ -288,11 +309,14 @@ class H(BaseHTTPRequestHandler):
                 if body.get("website"): return self._send(200, {"ok": True})
                 catalog_store.add_interest(body.get("moods"), body.get("genres"), body.get("languages"), body.get("email"))
                 return self._send(200, {"ok": True})
+            if p == "/api/clip": return self._clip_reply(body)
             if not rate_ok(SITE_FEEDBACK, self._ip(), 5, 3600): return self._send(429, {"error": "you have sent a few already, try again in an hour"})
             if body.get("website"): return self._send(200, {"ok": True})   # the hidden field a person never fills: a bot, thanked and ignored
             catalog_store.add_feedback(str(body.get("slug") or ""), str(body.get("message") or ""), body.get("email"))
             return self._send(200, {"ok": True})
         except ValueError as e: return self._send(400, {"error": str(e)})
+        except LookupError as e: return self._send(404, {"error": str(e)})
+        except RuntimeError: L.exc(LOG, "clip_failed"); return self._send(502, {"error": "cannot make the clip right now"})
     def _guest_get(self, p, sess):
         """What anyone may do without signing in on a public host (the free site): browse, search, read a song's page, play it. Nothing else. True when answered."""
         if p == "/" or p == "/app" or p.startswith("/app/") or p in ("/privacy", "/terms"): return False   # the app itself and the legal pages
@@ -374,6 +398,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/playlists/remove": library_store.remove_track(uid, pid, str(body.get("slug") or "")); return self._send(200, {"ok": True})
             if p == "/api/playlists/move": library_store.move_track(uid, pid, str(body.get("slug") or ""), body.get("after")); return self._send(200, {"ok": True})
             if p == "/api/library/save": library_store.save(uid, str(body.get("kind") or ""), str(body.get("slug") or ""), bool(body.get("on", True))); return self._send(200, {"ok": True})
+            if p == "/api/clip": return self._clip_reply(body)   # a signed in person (the owner on the studio host too) makes a clip the same way a visitor does
             if p in ("/api/share", "/api/share/revoke"):   # a link to a published, licence-confirmed song: the page and preview are public, the owner can stop any link
                 who = sess.get("user") or "owner"
                 if p.endswith("/revoke"): return self._send(200, {"revoked": catalog_store.revoke_share(str(body.get("token") or ""), who, auth.can(sess, "studio.settings"))})
@@ -423,6 +448,16 @@ class H(BaseHTTPRequestHandler):
                 hdr = {"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"}
                 if self.headers.get("If-None-Match") == etag: return self._send(304, b"", mime, hdr)
                 return self._send(200, data, mime, hdr)
+            m = re.match(r"^/c/([A-Za-z0-9_-]{1,60})(\.mp4)?$", p)
+            if m:   # a shared clip: the page, or the video itself (made again when the cache was emptied)
+                try: slug, start, length = CLIP.parse(m.group(1))
+                except ValueError: return self._send(404, {"error": "not found"})
+                try:
+                    if m.group(2): return self._send_ranged(open(CLIP.make(slug, start, length), "rb").read(), "video/mp4")
+                    CLIP.check(slug, start, length); tv = catalog_store.track_view(slug) or {"title": slug}
+                    return self._send(200, share_page.render_clip(slug, tv["title"], m.group(1), self._base()), "text/html")
+                except (LookupError, ValueError): return self._send(404, {"error": "not found"})
+                except RuntimeError: L.exc(LOG, "clip_failed", item=slug); return self._send(502, {"error": "not available right now"})
             m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3)?$", p)
             if m:
                 t = catalog_store.open_share(m.group(1), count=not m.group(2))
@@ -443,7 +478,7 @@ class H(BaseHTTPRequestHandler):
         if p in ("/privacy", "/terms"):  # public on purpose: Google asks for these links on the OAuth consent screen
             return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
         if p.startswith("/dev-bucket/") and objstore.local_dir(): return self._dev_bucket(p[len("/dev-bucket/"):])   # the local stand-in for the bucket (development, browser checks)
-        if p.startswith(("/s/", "/img/")): return self._public(p)   # shared links and cover pictures: no sign in, published and confirmed tracks only
+        if p.startswith(("/s/", "/img/", "/c/")): return self._public(p)   # shared links and cover pictures: no sign in, published and confirmed tracks only
         if p.startswith(("/app/brand/", "/app/moods/")):   # the logo and the mood pictures are public art: the sign in page shows them before anyone has signed in
             f = web_file(p[5:]) if ".." not in p else None
             if not f: return self._send(404, {"error": "not found"})
@@ -565,6 +600,16 @@ class H(BaseHTTPRequestHandler):
                     out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
                 return self._send(200, sorted(out, key=lambda e: e["at"]))
             if p == "/api/albums": return self._send(200, catalog_store.albums())
+            if p == "/api/albums/cover":   # the cover's prompt, cost and whether it exists (no spend)
+                al = (parse_qs(urlparse(self.path).query).get("album") or [""])[0]
+                try: return self._send(200, {**ALB.cover_state(al), **ALBUM_COVER.get(al, {})})
+                except LookupError as e: return self._send(404, {"error": str(e)})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            m = re.match(r"^/api/albums/cover/([A-Za-z0-9_-]{1,80})\.png$", p)
+            if m:   # the made cover picture, for the studio
+                f = os.path.join(os.path.dirname(C.songs_root()), "albums", m.group(1), "cover_1x1.png")
+                if not os.path.isfile(f): return self._send(404, {"error": "no cover yet"})
+                return self._send(200, open(f, "rb").read(), "image/png", {"Cache-Control": "private, no-cache"})
             if p == "/api/site/reactions":   # how the public site's visitors reacted, per song
                 q = parse_qs(urlparse(self.path).query)
                 try: d = int((q.get("days") or ["0"])[0]) or None
@@ -638,7 +683,7 @@ class H(BaseHTTPRequestHandler):
         org = self.headers.get("Origin")
         if org and org != ("https://" if self._https() else "http://") + (self.headers.get("Host") or ""): return self._send(403, {"error": "forbidden origin"})
         ck = self.headers.get("Cookie")
-        if self.path in ("/api/site/react", "/api/site/feedback", "/api/site/interest") and self._public_host(): return self._site_post(self.path)
+        if self.path in ("/api/site/react", "/api/site/feedback", "/api/site/interest", "/api/clip") and self._public_host(): return self._site_post(self.path)
         if self.path.startswith("/auth/"):
             sec = secrets_status()
             if self.path.startswith("/auth/setup") and sec and sec["status"] != "ok": return self._send(503, {"error": "Secrets are waiting for Vault. The login is restored from Vault once it is unsealed; try again then."})
@@ -756,6 +801,33 @@ class H(BaseHTTPRequestHandler):
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 if not ok: return self._send(404, {"error": "no such track"})
                 auth._audit("track_license", user=sess.get("user"), ip=self._ip(), slug=body.get("slug"), status=body.get("status"), plan=body.get("plan"))
+                return self._send(200, {"ok": True})
+            if p == "/api/albums/suggest":   # five names for an album from the chosen songs (a few cents of OpenAI chat)
+                try: return self._send(200, {"names": ALB.suggest_names([str(x) for x in body.get("tracks") or [] if isinstance(x, str) and SLUG.match(x)])})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except (RuntimeError, SystemExit) as e: return self._send(502, {"error": str(e)[:300]})
+            if p == "/api/albums/cover":
+                al = str(body.get("album") or "")
+                if ALBUM_COVER.get(al, {}).get("running"): return self._send(409, {"error": "A cover is already being made."})
+                try:
+                    ALB._album(al)
+                    if body.get("picture"):   # your own picture as the art: free
+                        ALB.use_picture(al, base64.b64decode(str(body["picture"]), validate=True)); return self._send(200, {"ok": True})
+                    if body.get("only_text"):   # redraw the title over the art already made: free
+                        if body.get("style") in POST.STYLES:
+                            with open(os.path.join(ALB.album_dir(al), "cover_style.txt"), "w") as f: f.write(body["style"])
+                        ALB.typeset(al); return self._send(200, {"ok": True})
+                    prompt = str(body.get("prompt") or ""); style = body.get("style"); ALB.IO.check_cap(ALB.media_cfg.load()["image_quality"], None, ALB.SIZE)
+                except LookupError as e: return self._send(404, {"error": str(e)})
+                except (ValueError, OSError) as e: L.ignored(LOG, "album cover refused (shown to the owner)", e); return self._send(400, {"error": str(e)[:200]})
+                ALBUM_COVER[al] = {"running": True, "error": ""}
+                def aw():
+                    err = ""
+                    try: ALB.generate_cover(al, prompt, style)
+                    except (ValueError, RuntimeError) as e: L.ignored(LOG, "aw: refused or failed (shown to the owner)", e); err = str(e)[:300]
+                    except Exception as e: L.soft(LOG, "aw_error"); err = str(e)[:300]
+                    ALBUM_COVER[al] = {"running": False, "error": err}
+                threading.Thread(target=aw, daemon=True).start()
                 return self._send(200, {"ok": True})
             if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
                 try:

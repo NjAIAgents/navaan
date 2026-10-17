@@ -9,6 +9,7 @@ import { getJSON, postJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { coverOf } from "./Albums";
 import { Loading } from "../components/Loading";
+import { AlbumCoverCard } from "../components/AlbumCoverCard";
 
 // One album: the hero with its cover, title, kind and status; the details; the songs in order (up, down, remove) and a way to add more. A published album may only hold published songs: the server says so.
 export default function Album() {
@@ -60,6 +61,7 @@ export default function Album() {
         <label htmlFor="a-desc">Description</label><textarea id="a-desc" className="field" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         <div className="row"><button className="btn p" type="submit" disabled={busy || !form.title.trim()}>Save details</button></div>
       </form>
+      <AlbumCoverCard slug={slug} />
       <section className="sec" aria-labelledby="tl-h">
         <div className="sh"><h2 id="tl-h">Songs</h2><span className="n">{a.tracks.length}</span></div>
         <div className="card" style={{ padding: 8 }}>
