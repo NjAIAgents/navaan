@@ -10,11 +10,12 @@ import html
 E = lambda s: html.escape(str(s), quote=True)
 
 
-def render(track, token, base, colour=None, has_cover=True):
+def render(track, token, base, colour=None, has_cover=True, has_poster=False):
     """track {slug, title, start_ms}; base is the public origin without a trailing slash; colour the cover's dominant colour (shown while the picture loads)."""
     slug, title = track["slug"], track["title"]
     url = f"{base}/s/{E(token)}"
-    img = f"{base}/img/{E(slug)}/1280.jpg"
+    img = f"{base}/img/{E(slug)}/{'poster-' if has_poster else ''}1280.jpg"   # the poster stands in for the cover in a shared link's preview
+    has_cover = has_cover or has_poster
     desc = f"{title}: listen free on NAVAAN."
     bg = E(colour) if colour and len(colour) == 7 and colour[0] == "#" else "#17243A"
     t = round(track.get("start_ms", 0) / 1000)
@@ -51,9 +52,9 @@ a.go:focus-visible,audio:focus-visible{{outline:2px solid #F2EEE7;outline-offset
 """
 
 
-def render_clip(slug, title, token, base):
+def render_clip(slug, title, token, base, has_poster=False):
     """The page a shared clip opens: the clip playing, the way back to the whole song, and a way to pass it on: Download always, Share (the phone's share sheet, with the video itself) where the browser has one."""
-    url = f"{base}/c/{E(token)}"; vid = f"{base}/c/{E(token)}.mp4"; img = f"{base}/img/{E(slug)}/1280.jpg"
+    url = f"{base}/c/{E(token)}"; vid = f"{base}/c/{E(token)}.mp4"; img = f"{base}/img/{E(slug)}/{'poster-' if has_poster else ''}1280.jpg"
     desc = f"{title}: a clip. Hear the full song free on NAVAAN."
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

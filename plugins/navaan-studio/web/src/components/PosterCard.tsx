@@ -17,6 +17,7 @@ export function PosterCard({ d, done }: { d: SongDetail; done: () => Promise<unk
     setBusy(true); setErr("");
     try { await postJSON("/api/poster/generate", { slug: d.slug, ...body }); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
+  const publish = async () => { setBusy(true); setErr(""); try { await postJSON("/api/poster/publish", { slug: d.slug }); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   const look = style ?? p.style;
   const cover = !!(d.files ?? {})["cover_1x1.png"];
   return (
@@ -43,6 +44,16 @@ export function PosterCard({ d, done }: { d: SongDetail; done: () => Promise<unk
         <label className="btn g" style={{ cursor: running ? "default" : "pointer" }}>Use my own picture<input type="file" accept="image/*" hidden disabled={running} onChange={(e) => { const f = e.target.files?.[0]; if (f) void fileB64(f).then((picture) => go({ picture })); e.target.value = ""; }} /></label>
         {(p.default ? prompt !== p.default : text !== null) && <button className="btn g" disabled={running} onClick={() => setText(p.default ?? null)}>Reset to the suggested prompt</button>}   {/* the suggestion is rebuilt from the song's own style: a prompt saved earlier is not lost, but one click returns to the current suggestion */}
       </div>
+      {p.has && (
+        <div className="stack" role="group" aria-label="Share links">
+          <h3>Share links</h3>
+          {p.published && !p.stale && <p className="mu" role="status">Shared links of this song show this poster in their preview.</p>}
+          {p.published && p.stale && <p className="mu" role="status">You made a new poster since. Shared links still show the earlier one.</p>}
+          {!p.published && p.can_publish && <p className="mu">A shared link shows the cover in its preview. Use the poster instead?</p>}
+          {!p.published && !p.can_publish && <p className="mu" role="status">Put the song in the bucket first (the Publish tab); then its poster can be used on share links.</p>}
+          {p.can_publish && (!p.published || p.stale) && <div className="row"><button className="btn p" disabled={running} onClick={() => void publish()}>{p.published ? "Update the poster on share links" : "Use this poster for share links"}</button></div>}
+        </div>
+      )}
       {(err || p.error) && <p role="alert" style={{ color: "var(--bad)" }}>{err || p.error}</p>}
     </section>
   );

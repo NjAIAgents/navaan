@@ -12,6 +12,8 @@ and poster_prompt.txt (the prompt used, so the next run starts from it). Spends 
 import os, sys, json, io
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("poster")
 import media_cfg, image_openai as IO
 from make_cover import split_title, shade, cover_scale, latin
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -51,9 +53,34 @@ def default_prompt(slug):
             + FINISH.strip())
 
 
+def publish(slug):
+    """Put the poster in the song's bucket folder and register it, so a shared link's preview shows it in place of the cover. Raises ValueError with a sentence when it cannot."""
+    try: D = C.song_dir(slug)
+    except SystemExit: raise ValueError("There is no such song.") from None   # expected: song_dir exits for a folder that does not exist
+    src = os.path.join(D, "poster_2x3.png")
+    if not os.path.isfile(src): raise ValueError("Make the poster first.")
+    cloud = (C.item_load(slug, None) or {}).get("cloud") or {}
+    if not (cloud.get("verified") and cloud.get("prefix") is not None): raise ValueError("This song is not in the bucket yet. Publish the song first, then its poster.")
+    import objstore, catalog_store as K
+    with open(src, "rb") as f: data = f.read()
+    key = (cloud.get("prefix") or "") + "poster_2x3.png"
+    objstore.put(key, data, "image/png")
+    if not K.set_picture(slug, "poster", key, "image/png", len(data)): raise ValueError("This song is not in the catalog yet.")
+    return {"key": key, "bytes": len(data)}
+
+
+def published(slug):
+    """{"published": a poster is registered for share links, "stale": the poster made since is not the one published, "can_publish": the song is in the bucket}."""
+    import catalog_store as K
+    D = C.song_dir(slug); f = os.path.join(D, "poster_2x3.png"); cloud = (C.item_load(slug, None) or {}).get("cloud") or {}
+    try: a = K.poster_asset(slug)
+    except Exception as _e: L.soft(LOG, "poster_published_lookup"); a = None   # a catalog that cannot be read just means nothing is published
+    return {"published": bool(a), "stale": bool(a) and os.path.isfile(f) and a.get("bytes") != os.path.getsize(f), "can_publish": bool(cloud.get("verified") and cloud.get("prefix") is not None)}
+
+
 def state(slug):
     D = C.song_dir(slug); cfg = media_cfg.load(); q = cfg["image_quality"]
-    return {"prompt": _read(D, "poster_prompt.txt") or default_prompt(slug), "default": default_prompt(slug), "has": os.path.isfile(os.path.join(D, "poster_2x3.png")),
+    return {"prompt": _read(D, "poster_prompt.txt") or default_prompt(slug), "default": default_prompt(slug), **published(slug), "has": os.path.isfile(os.path.join(D, "poster_2x3.png")),
             "v": int(os.path.getmtime(os.path.join(D, "poster_2x3.png"))) if os.path.isfile(os.path.join(D, "poster_2x3.png")) else 0,
             "style": current_style(D), "styles": list(STYLES), "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "quality": q, "key": bool(media_cfg.get_key("openai"))}
 

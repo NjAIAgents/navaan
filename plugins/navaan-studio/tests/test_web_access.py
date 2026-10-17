@@ -312,7 +312,13 @@ class Access(unittest.TestCase):
         st, h, b = self.raw("/img/song-001/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"]); self.assertTrue(b[:4] == b"RIFF")
         self.assertEqual(self.raw("/img/song-001/320.webp", headers={"If-None-Match": h["ETag"]})[0], 304)
         self.assertEqual(self.raw("/img/song-001/999.webp")[0], 404); self.assertEqual(self.raw("/img/ghost/320.webp")[0], 404)
-        code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [1])   # the page was opened once; the preview does not count
+        self.assertEqual(self.raw("/img/song-001/poster-320.webp")[0], 404); self.assertIn("/img/song-001/1280.jpg", self.raw("/s/" + tok)[2].decode())   # no poster yet: the cover is the preview
+        K.set_picture("song-001", "poster", pre + "poster_2x3.png", "image/png", len(cover))   # the owner put the poster on share links
+        st, h2, b2 = self.raw("/img/song-001/poster-320.webp"); self.assertEqual((st, h2["Content-Type"]), (200, "image/webp")); self.assertNotEqual(h2["ETag"], h["ETag"])   # its own picture and cache entry, not the cover's
+        self.assertEqual(self.raw("/img/ghost/poster-320.webp")[0], 404)
+        self.assertEqual(post("lis-tok", "csrf-lis", "/api/poster/publish", slug="song-001")[0], 403); self.assertEqual(post("owner-tok", "csrf-owner", "/api/poster/publish", slug="song-001")[0], 400)   # a listener has no say; the owner is told there is no poster yet
+        page = self.raw("/s/" + tok)[2].decode(); self.assertIn("/img/song-001/poster-1280.jpg", page); self.assertNotIn("/img/song-001/1280.jpg", page)   # the poster replaces the cover in the link preview
+        code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [3])   # the page was opened three times (once, then before and after the poster was put on it); the preview does not count
         rows = json.loads(self.call("/api/songs", "owner-tok")[1]); self.assertEqual(rows[0]["art"], {"colour": "#c82828"})   # the list is told the cover exists and its colour (set by the first resize above)
         st, h, b = self.raw("/api/play?slug=song-001", "lis-tok"); self.assertEqual((st, json.loads(b)["url"]), (200, "https://bucket.example/navaan/songs/song-001/final.mp3"))
         self.assertEqual(self.raw("/api/play?slug=ghost", "lis-tok")[0], 404); self.assertEqual(self.raw("/api/play?slug=song-001")[0], 401)

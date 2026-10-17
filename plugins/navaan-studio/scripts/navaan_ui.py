@@ -490,9 +490,9 @@ class H(BaseHTTPRequestHandler):
         """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3|/play.mp3]. Nothing here needs a session; everything is limited per address."""
         if not rate_ok(PUBLIC_LOG, self._ip(), 240): return self._send(429, {"error": "slow down"}, extra={"Retry-After": "30"})
         try:
-            m = re.match(r"^/img/([A-Za-z0-9_-]{1,40})/(\d{2,4})\.(webp|avif|jpg)$", p)
+            m = re.match(r"^/img/([A-Za-z0-9_-]{1,40})/(poster-)?(\d{2,4})\.(webp|avif|jpg)$", p)
             if m:
-                try: r = media.variant(m.group(1), int(m.group(2)), m.group(3))
+                try: r = media.variant(m.group(1), int(m.group(3)), m.group(4), "poster" if m.group(2) else "cover")
                 except ValueError: r = None   # expected: a size or format that does not exist is simply a 404
                 if not r: return self._send(404, {"error": "not found"})
                 data, etag, mime = r
@@ -506,7 +506,7 @@ class H(BaseHTTPRequestHandler):
                 try:
                     if m.group(2): return self._send_ranged(open(CLIP.make(slug, start, length), "rb").read(), "video/mp4")
                     CLIP.check(slug, start, length); tv = catalog_store.track_view(slug) or {"title": slug}
-                    return self._send(200, share_page.render_clip(slug, tv["title"], m.group(1), self._base()), "text/html")
+                    return self._send(200, share_page.render_clip(slug, tv["title"], m.group(1), self._base(), has_poster=bool(catalog_store.poster_asset(slug))), "text/html")
                 except (LookupError, ValueError): return self._send(404, {"error": "not found"})
                 except RuntimeError: L.exc(LOG, "clip_failed", item=slug); return self._send(502, {"error": "not available right now"})
             m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3)?$", p)
@@ -519,7 +519,7 @@ class H(BaseHTTPRequestHandler):
                     return self._send(302, b"", "text/plain", {"Location": objstore.par_url(key, 300)})
                 if m.group(2): return self._send(302, b"", "text/plain", {"Location": objstore.par_url(media.ensure_preview(t["slug"]), 300)})
                 cv = catalog_store.cover_asset(t["slug"])
-                return self._send(200, share_page.render(t, m.group(1), self._base(), (cv or {}).get("dominant_colour"), bool(cv)), "text/html")
+                return self._send(200, share_page.render(t, m.group(1), self._base(), (cv or {}).get("dominant_colour"), bool(cv), has_poster=bool(catalog_store.poster_asset(t["slug"]))), "text/html")
         except Exception:
             L.exc(LOG, "public_failed", path=p[:60]); return self._send(502, {"error": "not available right now"})
         return self._send(404, {"error": "not found"})
@@ -1002,6 +1002,11 @@ class H(BaseHTTPRequestHandler):
                     navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                     return self._send(200, {"ok": True, "music": r or None, "redo": "Plan the typography" if approved else ""})
                 except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/poster/publish":   # the poster goes to the bucket and shared links show it instead of the cover
+                try: r = POST.publish(slug)
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "poster published for share links via ui"))
+                return self._send(200, {"ok": True, **r})
             if p == "/api/poster/generate":
                 if POSTER.get(slug, {}).get("running"): return self._send(409, {"error": "A poster is already being made."})
                 if body.get("picture"):   # your own picture as the art: free

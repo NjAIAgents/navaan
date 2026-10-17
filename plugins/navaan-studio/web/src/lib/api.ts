@@ -48,7 +48,7 @@ export type SongDetail = {
   visuals_problems?: string[];
   music?: { file: string; name: string; added: string; seconds: number } | null;
   narrate?: { on: boolean; voice: string; voices: Record<string, string>; pace?: string; paces?: Record<string, string>; estimate_s: number; script?: string; script_custom?: boolean; used_s: number; cap_s: number; key: boolean } | null;
-  poster?: { style: string; styles: string[]; prompt: string; default?: string; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
+  poster?: { style: string; styles: string[]; prompt: string; default?: string; published?: boolean; stale?: boolean; can_publish?: boolean; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
 };
 
 export type ScheduleEntry = { slug: string; title: string; type: string; platform: string; at: string; state: "scheduled" | "done" | "missed" | "blocked"; reason: string };

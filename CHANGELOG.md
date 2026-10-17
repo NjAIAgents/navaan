@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- A song's poster can be the picture a shared link shows. On the song's Poster card, "Use this poster for share links" puts the poster in the song's bucket folder; from then on the link you share (the song page and a shared clip) previews the poster, in portrait, instead of the square cover, in WhatsApp, Instagram messages and the like. If you make a new poster later, the card says shared links still show the earlier one and offers "Update the poster on share links". It needs the song to be in the bucket already; before that the card says so. The cover is still the cover everywhere else.
+
 ## [0.35.1] - 2026-10-17
 
 ### Fixed
