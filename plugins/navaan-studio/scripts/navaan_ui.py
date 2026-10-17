@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
-import poster as POST, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
+import poster as POST, album_pipeline as ALB, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
@@ -82,6 +82,7 @@ def scheduler_state():
 
 
 TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
+ALBUM_COVER = {}  # album slug -> {"running": bool, "error": str}, the album cover being made
 POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
@@ -565,6 +566,16 @@ class H(BaseHTTPRequestHandler):
                     out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
                 return self._send(200, sorted(out, key=lambda e: e["at"]))
             if p == "/api/albums": return self._send(200, catalog_store.albums())
+            if p == "/api/albums/cover":   # the cover's prompt, cost and whether it exists (no spend)
+                al = (parse_qs(urlparse(self.path).query).get("album") or [""])[0]
+                try: return self._send(200, {**ALB.cover_state(al), **ALBUM_COVER.get(al, {})})
+                except LookupError as e: return self._send(404, {"error": str(e)})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+            m = re.match(r"^/api/albums/cover/([A-Za-z0-9_-]{1,80})\.png$", p)
+            if m:   # the made cover picture, for the studio
+                f = os.path.join(os.path.dirname(C.songs_root()), "albums", m.group(1), "cover_1x1.png")
+                if not os.path.isfile(f): return self._send(404, {"error": "no cover yet"})
+                return self._send(200, open(f, "rb").read(), "image/png", {"Cache-Control": "private, no-cache"})
             if p == "/api/site/reactions":   # how the public site's visitors reacted, per song
                 q = parse_qs(urlparse(self.path).query)
                 try: d = int((q.get("days") or ["0"])[0]) or None
@@ -756,6 +767,33 @@ class H(BaseHTTPRequestHandler):
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 if not ok: return self._send(404, {"error": "no such track"})
                 auth._audit("track_license", user=sess.get("user"), ip=self._ip(), slug=body.get("slug"), status=body.get("status"), plan=body.get("plan"))
+                return self._send(200, {"ok": True})
+            if p == "/api/albums/suggest":   # five names for an album from the chosen songs (a few cents of OpenAI chat)
+                try: return self._send(200, {"names": ALB.suggest_names([str(x) for x in body.get("tracks") or [] if isinstance(x, str) and SLUG.match(x)])})
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except (RuntimeError, SystemExit) as e: return self._send(502, {"error": str(e)[:300]})
+            if p == "/api/albums/cover":
+                al = str(body.get("album") or "")
+                if ALBUM_COVER.get(al, {}).get("running"): return self._send(409, {"error": "A cover is already being made."})
+                try:
+                    ALB._album(al)
+                    if body.get("picture"):   # your own picture as the art: free
+                        ALB.use_picture(al, base64.b64decode(str(body["picture"]), validate=True)); return self._send(200, {"ok": True})
+                    if body.get("only_text"):   # redraw the title over the art already made: free
+                        if body.get("style") in POST.STYLES:
+                            with open(os.path.join(ALB.album_dir(al), "cover_style.txt"), "w") as f: f.write(body["style"])
+                        ALB.typeset(al); return self._send(200, {"ok": True})
+                    prompt = str(body.get("prompt") or ""); style = body.get("style"); ALB.IO.check_cap(ALB.media_cfg.load()["image_quality"], None, ALB.SIZE)
+                except LookupError as e: return self._send(404, {"error": str(e)})
+                except (ValueError, OSError) as e: L.ignored(LOG, "album cover refused (shown to the owner)", e); return self._send(400, {"error": str(e)[:200]})
+                ALBUM_COVER[al] = {"running": True, "error": ""}
+                def aw():
+                    err = ""
+                    try: ALB.generate_cover(al, prompt, style)
+                    except (ValueError, RuntimeError) as e: L.ignored(LOG, "aw: refused or failed (shown to the owner)", e); err = str(e)[:300]
+                    except Exception as e: L.soft(LOG, "aw_error"); err = str(e)[:300]
+                    ALBUM_COVER[al] = {"running": False, "error": err}
+                threading.Thread(target=aw, daemon=True).start()
                 return self._send(200, {"ok": True})
             if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
                 try:

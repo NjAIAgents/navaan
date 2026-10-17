@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- Album pipeline in Studio > Albums: "New album from songs" lets you pick two or more songs, get five name ideas made from them (a few cents of OpenAI chat), type your own if you prefer, and create the album with the songs in the order you picked. An album's page has a Cover card: square art from a prompt you can read and change (about 4 cents), the NAVAAN mark, the album title and artist drawn over it in a lettering you choose, or use your own picture. The cover is kept in Studio for now; showing it on the public site is the next step.
+
 ## [0.29.0] - 2026-10-17
 
 ### Added
