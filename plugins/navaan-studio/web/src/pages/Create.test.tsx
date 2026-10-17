@@ -71,7 +71,7 @@ describe("answering the agent, uploading Suno's MP3, revoking an approval", () =
   });
   it("lists what is approved and revokes one only after a confirmation", async () => {
     const f = route(OWNER, { "/api/revoke": () => ({ ok: true }), "/api/song/": () => detail({ approvals: { lyrics: { at: "2026-10-16T01:00:00Z", via: "ui:meera" } } }) });
-    at("/studio/songs/song-001"); const item = (await screen.findByText("Lyrics", { selector: "b" })).closest("li")!; expect(item).toHaveTextContent("meera");
+    at("/studio/songs/song-001?tab=activity"); const item = (await screen.findByText("Lyrics", { selector: "b" })).closest("li")!; expect(item).toHaveTextContent("meera");
     fireEvent.click(screen.getByRole("button", { name: "Revoke approval of Lyrics" })); expect(posts(f, "/api/revoke")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Yes, revoke" })); await waitFor(() => expect(posts(f, "/api/revoke")).toEqual([{ slug: "song-001", gate: "lyrics" }]));
   });
@@ -133,7 +133,7 @@ describe("an approval a running job is waiting for", () => {
   it("also offers to stop the waiting run, so something earlier can be changed", async () => {
     const f = route(OWNER, { "/api/stop": () => ({ stopped: true }), "/api/song/": () => detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate media" }) });
     at("/studio/inspiration/insp-004");
-    expect(await screen.findByText("A run is waiting")).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: "Stop the run" }));
+    expect(await screen.findByText(/A run is waiting for this approval/)).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: "Stop the run" }));
     await waitFor(() => expect(posts(f, "/api/stop")).toEqual([{ slug: "insp-004" }]));
     expect(await screen.findByRole("button", { name: "Stopping…" })).toBeDisabled();   // the worker takes a few seconds to act: say so, so it is not clicked again
   });
@@ -141,5 +141,37 @@ describe("an approval a running job is waiting for", () => {
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "run", step: "render" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "running render" }) });
     at("/studio/inspiration/insp-004");
     expect(await screen.findByText("Running")).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+});
+
+describe("the pipeline page: one thing that needs you, honest words, sections in tabs", () => {
+  const step = (id: string, o: object = {}) => ({ id, label: id, kind: "script", done: false, redo: true, restart: false, spends: false, status: "ready", needs_gate: null, scheduled_for: null, ...o });
+  it("lists the steps top to bottom with their state, and shows only the Pipeline section by default", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: [] }, next: { type: "run", step: "narrate" }, steps: [step("quote", { done: true, status: "done" }), step("narrate"), step("render")] }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByRole("heading", { name: "Next: Narrate the quote (ElevenLabs)" })).toBeInTheDocument();
+    const rows = screen.getAllByRole("listitem").filter((li) => li.id.startsWith("step-")); expect(rows.map((r) => r.id)).toEqual(["step-quote", "step-narrate", "step-render"]);   // in order, each with the anchor
+    expect(rows[0]).toHaveTextContent("done: Write the quote"); expect(rows[1]).toHaveAttribute("aria-current", "step"); expect(rows[2]).toHaveTextContent("later: Render the video");
+    expect(screen.getByRole("tab", { name: "Pipeline" })).toHaveAttribute("aria-selected", "true"); expect(screen.queryByRole("heading", { name: "Narration" })).toBeNull();   // the editors are under Content
+    fireEvent.click(screen.getByRole("tab", { name: "Content" })); expect(await screen.findByRole("heading", { name: "Narration" })).toBeInTheDocument();
+  });
+  it("says exactly what the credits approval spends, from the item's own steps, and never Suno for an inspiration", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: [] }, next: { type: "gate", step: "background", gate: "credits" },
+      steps: [step("background", { spends: true, spends_what: "OpenAI: the background picture" }), step("narrate", { spends: true, spends_what: "ElevenLabs: the voice of the quote (counts against your monthly seconds)" }), step("render")] }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByText("OpenAI: the background picture")).toBeInTheDocument(); expect(screen.getByText(/ElevenLabs: the voice of the quote/)).toBeInTheDocument();
+    expect(screen.queryByText(/Suno/)).toBeNull(); expect(screen.getByText(/Nothing is running: it is paused here/)).toBeInTheDocument();
+  });
+  it("shows a failure in plain words first, the raw error folded away, and only that one card", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: [] }, next: { type: "run", step: "render" }, steps: [step("render")], failure: { step: "render", error: "FileNotFoundError: scenes/bg.png", ref: "job-9", plain: "A file this step needs is missing (bg.png). Making the step before it again usually fixes this." } }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByText(/A file this step needs is missing \(bg.png\)/)).toBeInTheDocument();
+    expect(screen.getByText("The raw error, for the log").closest("details")).not.toHaveAttribute("open"); expect(screen.queryByRole("heading", { name: /^Next:/ })).toBeNull();   // one card, not a failure and a next-step card
+  });
+  it("marks the Pipeline tab when something needs you and keeps the tab in the address", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: [] }, next: { type: "gate", step: "render", gate: "media" } }) });
+    at("/studio/inspiration/insp-004");
+    const tab = await screen.findByRole("tab", { name: /Pipeline/ }); expect(tab).toContainElement(screen.getByRole("img", { name: "needs you" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" })); expect(screen.getByRole("tab", { name: "Activity" })).toHaveAttribute("aria-selected", "true"); expect(screen.getByRole("heading", { name: "History" })).toBeInTheDocument();
   });
 });
