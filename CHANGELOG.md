@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-10-17
+
+### Changed
+- Making a clip: the start is now a slider (with the start and end time beside it, never past the end of the song) instead of a number box. Where the song's length isn't known yet it stays a number box.
+
 ## [0.33.0] - 2026-10-17
 
 ### Added
@@ -404,7 +409,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.33.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...HEAD
+[0.33.1]: https://github.com/NjAIAgents/navaan/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/NjAIAgents/navaan/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/NjAIAgents/navaan/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/NjAIAgents/navaan/compare/v0.30.1...v0.31.0
