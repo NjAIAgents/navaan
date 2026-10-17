@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.4] - 2026-10-17
+
+### Fixed
+- Retry works after a restart. When a deploy restarted the worker in the middle of a run, the page showed a failure with a Retry button that was switched off (no step was named). It now says Run again and carries on from the next step.
+
 ## [0.29.3] - 2026-10-17
 
 ### Changed
@@ -329,7 +334,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.3...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.4...HEAD
+[0.29.4]: https://github.com/NjAIAgents/navaan/compare/v0.29.3...v0.29.4
 [0.29.3]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...v0.29.3
 [0.29.2]: https://github.com/NjAIAgents/navaan/compare/v0.29.1...v0.29.2
 [0.29.1]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...v0.29.1

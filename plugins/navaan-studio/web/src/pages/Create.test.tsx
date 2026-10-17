@@ -124,6 +124,12 @@ describe("an approval a running job is waiting for", () => {
     const ok = screen.getByRole("button", { name: "Approve" }); expect(ok).toBeEnabled(); fireEvent.click(ok);
     await waitFor(() => expect(posts(f, "/api/approve")).toEqual([{ slug: "insp-004", gate: "media" }]));
   });
+  it("a run stopped by a restart has no failed step: its button runs the next step again instead of being switched off", async () => {
+    const f = route(OWNER, { "/api/run": () => ({ started: true }), "/api/song/": () => detail({ slug: "insp-004", next: { type: "run", step: "narrate" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, failure: { step: "", error: "the worker stopped before the job finished", ref: "job-1" } }) });
+    at("/studio/inspiration/insp-004");
+    const b = await screen.findByRole("button", { name: /Run again: Narrate the quote/ }); expect(b).toBeEnabled(); fireEvent.click(b);
+    await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "insp-004", all: true }]));
+  });
   it("also offers to stop the waiting run, so something earlier can be changed", async () => {
     const f = route(OWNER, { "/api/stop": () => ({ stopped: true }), "/api/song/": () => detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate media" }) });
     at("/studio/inspiration/insp-004");
