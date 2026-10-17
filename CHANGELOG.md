@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Changed
+- ElevenLabs is only ever asked for speech. The one address the app can send a narration to is text to speech; music generation and sound effects (which cost credits) are refused in code before anything is sent, a test fails if any other ElevenLabs address is added, and the pace tags are limited to tone and pauses. The background music is your own licensed track, mixed in on our server with ffmpeg, at no ElevenLabs cost. The Narration and Background music cards say so.
+
 ## [0.35.1] - 2026-10-17
 
 ### Fixed

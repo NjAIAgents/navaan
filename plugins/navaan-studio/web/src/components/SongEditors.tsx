@@ -141,7 +141,7 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
       {n && (
         <div className="stack" role="group" aria-label="Narrate with ElevenLabs">
           <h3>Narrate the quote with ElevenLabs</h3>
-          <p className="mu">Speaks the quote only (not the author). It is a standard step of every inspiration, and the spend is approved before it runs. You can skip it for one short.</p>
+          <p className="mu">Speaks the quote only (not the author). It is a standard step of every inspiration, and the spend is approved before it runs. You can skip it for one short. ElevenLabs only speaks: it is never asked for music or sound effects (those cost extra credits). Music is your own licensed track, added under Background music and mixed in on our server.</p>
           <label htmlFor="nr-v">Voice</label>
           <select id="nr-v" className="field" value={voice} disabled={busy} onChange={(e) => setVoice(e.target.value)}>{Object.entries(n.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <label htmlFor="nr-pace">Pace</label>
@@ -190,7 +190,7 @@ export function MusicCard({ d, done }: { d: SongDetail; done: Done }) {
   return (
     <section className="card stack" aria-labelledby="bm-h">
       <h2 id="bm-h">Background music</h2>
-      <p className="mu">A quiet track under the voice. ffmpeg trims it to the length of the video, fades it in and out and levels it; the voice stays on top. Use a track you may use: free tracks from pixabay.com/music work under its Content License, and the licence of each track is yours to check.</p>
+      <p className="mu">Nothing is generated here, and ElevenLabs is never asked for music: this is your own licensed track, so it costs no credits. A quiet track under the voice. ffmpeg trims it to the length of the video, fades it in and out and levels it; the voice stays on top. Use a track you may use: free tracks from pixabay.com/music work under its Content License, and the licence of each track is yours to check.</p>
       {m ? (
         <div className="stack" role="status"><p>Using <b>{m.name}</b> ({Math.round(m.seconds)} s). It is trimmed to the video.</p><div className="row"><button className="btn g" disabled={busy} onClick={() => void send("/api/music/remove", {})}>Remove the music</button></div></div>
       ) : <p className="mu" role="status">No background music: the short has the voice and the text only.</p>}

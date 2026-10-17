@@ -48,6 +48,16 @@ def directed(text, speed):
     return ("[warmly] [softly] [slowly] " if slow else "[warmly] [softly] ") + body
 
 
+# The only ElevenLabs call this app makes that can cost credits is text to speech. Music generation and sound effects are deliberately not here: the owner's background music is
+# a licensed track of their own, mixed in locally by ffmpeg (bg_music.py, inspire_prep.py), so a take is never charged for music. A URL outside this list is refused before it is sent.
+ALLOWED_URL = "https://api.elevenlabs.io/v1/text-to-speech/"
+
+
+def check_url(url):
+    if not str(url).startswith(ALLOWED_URL): raise RuntimeError("only ElevenLabs text to speech is allowed here (no music, no sound effects: they spend credits)")
+    return url
+
+
 def cache_dir():
     # not the config folder: on the server that is a 16 MB memory disk that holds the tokens (a few takes would fill it)
     return os.path.join(os.environ.get("NAVAAN_CACHE_DIR") or os.path.join(os.path.expanduser("~"), ".cache", "navaan"), "tts_cache")
@@ -94,7 +104,7 @@ def synth(text, out, voice=None, model=None, force=False, speed=None, raw=False)
     def ask(settings):
         body = {"text": spoken, "model_id": model}
         if settings: body["voice_settings"] = settings
-        req = urllib.request.Request("https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=mp3_44100_128" % vid, data=json.dumps(body).encode("utf-8"),
+        req = urllib.request.Request(check_url("https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=mp3_44100_128" % vid), data=json.dumps(body).encode("utf-8"),
                                      headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"})
         return urllib.request.urlopen(req, timeout=180).read()
     try:
