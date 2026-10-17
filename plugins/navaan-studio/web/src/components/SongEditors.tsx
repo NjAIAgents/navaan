@@ -122,7 +122,8 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const has = Object.keys(d.files ?? {}).some((f) => f.startsWith("narration"));
   const n = d.narrate; const [voice, setVoice] = useState(n?.voice ?? "frank");
-  const eleven = async (on: boolean) => { setBusy(true); setErr(""); try { await postJSON("/api/narration/eleven", { slug: d.slug, on, voice }); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const [pace, setPace] = useState(n?.pace ?? "slow");
+  const eleven = async (on: boolean) => { setBusy(true); setErr(""); try { await postJSON("/api/narration/eleven", { slug: d.slug, on, voice, pace }); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   const upload = async () => {
     if (!audio) return setErr("Pick the narration audio first.");
     if (audio.size > MAX_AUDIO_BYTES) return setErr("That file is over 20 MB.");
@@ -140,6 +141,8 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
           <p className="mu">Speaks the quote only (not the author). It is a standard step of every inspiration, and the spend is approved before it runs. You can skip it for one short.</p>
           <label htmlFor="nr-v">Voice</label>
           <select id="nr-v" className="field" value={voice} disabled={busy} onChange={(e) => setVoice(e.target.value)}>{Object.entries(n.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          <label htmlFor="nr-pace">Pace</label>
+          <select id="nr-pace" className="field" value={pace} disabled={busy} onChange={(e) => setPace(e.target.value)}>{Object.entries(n.paces ?? { slow: "Slow (reflective)", calm: "Calm", normal: "Normal" }).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <p className="mu">About {Math.round(n.estimate_s)} seconds of narration. This month {n.used_s} of {n.cap_s} seconds used.{!n.key && " Paste an ElevenLabs key in Settings first."}</p>
           <div className="row">
             <button className="btn p" disabled={busy || !n.key || n.estimate_s <= 0} onClick={() => void eleven(true)}>{n.on ? "Save the voice" : "Turn narration on"}</button>
