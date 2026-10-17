@@ -209,12 +209,12 @@ export default function Song() {
       {d.question && <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />}
       {!d.question && d.needs_you && <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>}
       {d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] && <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />}
-      {running ? (
+      {running && !gate ? (   // a job that is alive while the next thing is an approval is WAITING for it: show the approval, not Running
         <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" onClick={() => void act("/api/stop", {})}>Stop</button></section>
       ) : gate === "visuals_mode" ? (
         <VisualsCard d={d} done={load} />
       ) : gate ? (
-        <GateCard key={gate} d={d} gate={gate} act={act} busy={busy} />
+        <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} />
       ) : d.next.type === "run" && !d.failure ? (
         <section className="card"><h2>Next: {stepLabel(d.next.step ?? "")}</h2>
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>

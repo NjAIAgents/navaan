@@ -114,3 +114,19 @@ describe("narration offered for an inspiration", () => {
     expect(await screen.findByText(/no narration on this short, so the video has music and text only/)).toBeInTheDocument();
   });
 });
+
+describe("an approval a running job is waiting for", () => {
+  it("is shown with an Approve button that works, not hidden behind Running (inspiration insp-004: the job waits for the media gate)", async () => {
+    const waiting = detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate media", files: { "final_reel_9x16.mp4": 1000 } });
+    const f = route(OWNER, { "/api/approve": () => ({ ok: true }), "/api/song/": () => waiting });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByRole("heading", { name: "Review the videos" })).toBeInTheDocument(); expect(screen.getByText("Waiting for you")).toBeInTheDocument(); expect(screen.queryByText("Running")).toBeNull();
+    const ok = screen.getByRole("button", { name: "Approve" }); expect(ok).toBeEnabled(); fireEvent.click(ok);
+    await waitFor(() => expect(posts(f, "/api/approve")).toEqual([{ slug: "insp-004", gate: "media" }]));
+  });
+  it("still shows Running with Stop while a step really runs (no approval is next)", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "run", step: "render" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "running render" }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByText("Running")).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+});
