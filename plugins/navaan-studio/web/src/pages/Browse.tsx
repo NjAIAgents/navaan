@@ -28,7 +28,7 @@ export default function Browse() {
   const langs = rows ? [...new Set(rows.map((r) => r.language).filter(Boolean))].sort() : [];
   return (
     <>
-      <div className="ph"><h1 className="disp">Browse</h1><p>Songs by NAVAAN.</p></div>
+      <div className="ph"><h1 className="disp">Browse</h1><p>Every new sound carries an old emotion.</p></div>
       {err && <div className="card" role="alert"><h2>Could not load the songs</h2><p className="mu">{err}</p></div>}
       {!rows && !err && <Loading />}
       {rows && !rows.length && <div className="card"><p className="empty">No songs are out yet.</p></div>}

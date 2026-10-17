@@ -71,7 +71,7 @@ def info(D):
     except ValueError: text = ""   # expected: no quote yet, so no estimate (the card says so)
     s = M.load()
     return {"on": narration.get_option(D, "narrate", "eleven").lower() != "none", "voice": chosen_voice(D), "voices": {k: v["label"] for k, v in M.VOICES.items()},
-            "pace": chosen_pace(D), "paces": {"slow": "Slow (reflective)", "calm": "Calm", "normal": "Normal"}, "estimate_s": T.estimate(text, T.PACES[chosen_pace(D)]) if text else 0, "script": text, "script_custom": os.path.isfile(os.path.join(D, SCRIPT)), "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
+            "pace": chosen_pace(D), "paces": {"slow": "Slow (reflective)", "calm": "Calm", "normal": "Normal"}, "estimate_s": T.estimate(text, T.PACES[chosen_pace(D)]) if text else 0, "script": text, "script_custom": os.path.isfile(os.path.join(D, SCRIPT)), "from_suno": narration.get_option(D, "voice_from", "") == "suno", "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
 
 
 def run(slug):
@@ -83,7 +83,7 @@ def run(slug):
     except RuntimeError as e:
         if "No ElevenLabs key" in str(e): raise RuntimeError(str(e) + " Or skip narration for this short on its Narration card.") from None
         raise
-    narration.set_options(D, {"voiceover": "file"})   # the music option is left as it is: background music can sit under the voice
+    narration.set_options(D, {"voiceover": "file", "voice_from": "elevenlabs"})   # the music option is left as it is: background music can sit under the voice
     return r
 
 

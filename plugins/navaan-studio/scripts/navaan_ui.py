@@ -1,6 +1,6 @@
 """Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
-import os, re, json, glob, gzip, hashlib, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging
+import os, re, json, glob, gzip, hashlib, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging, shutil
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
@@ -890,7 +890,22 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/new":
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 import new_song
-                sl = new_song.create(slug or None, body.get("type") or "music", str(body.get("idea") or ""))
+                suno_url = str(body.get("suno_url") or "").strip() if (body.get("type") or "music") == "inspiration" else ""
+                voice_file = voice_tmp = info = None
+                if suno_url:   # the primary voice: the Suno song's own sound and words. Everything is read and checked before the item is created, so a bad link leaves nothing behind.
+                    import suno_import, tempfile
+                    voice_tmp = tempfile.mkdtemp(prefix="navaan-suno-")
+                    try:
+                        info = suno_import.read_page(suno_url); suno_import.voice_lines(info)
+                        if not info.get("video_url"): raise ValueError("That Suno page lists no video to take the sound from. Leave the Suno link empty to narrate with ElevenLabs instead.")
+                        voice_file = suno_import.fetch_voice(info["video_url"], voice_tmp)
+                    except ValueError as e:
+                        shutil.rmtree(voice_tmp, ignore_errors=True); return self._send(400, {"error": str(e)})
+                sl = new_song.create(slug or None, body.get("type") or "music", str(body.get("idea") or (info or {}).get("lyrics") or ""))
+                if voice_file:
+                    try: suno_import.attach_voice(C.song_dir(sl), info, voice_file)
+                    finally: shutil.rmtree(voice_tmp, ignore_errors=True)
+                    navaan.edit_meta(sl, lambda m: navaan.log_hist(m, f"voice taken from the Suno song {suno_url} (via ui); narrating with ElevenLabs instead stays possible"))
                 if (body.get("type") or "music") == "inspiration":   # the quote is narrated by ElevenLabs unless this short skips it; the spend is still approved at the credits gate
                     import narration, media_cfg
                     if body.get("narrate") == "none": narration.set_options(C.song_dir(sl), {"narrate": "none"})

@@ -184,6 +184,29 @@ class Access(unittest.TestCase):
         self.assertEqual(code, 200); import navaan_common as C; D = C.song_dir(json.loads(body)["slug"])
         self.assertEqual(open(os.path.join(D, "lyrics.txt")).read().strip(), info["lyrics"]); self.assertEqual(open(os.path.join(D, "style.txt")).read().strip(), "soft pop, cinematic"); self.assertTrue(os.path.isfile(os.path.join(D, "takes", "upload.mp3")))   # the words from the link, the sound from the file
 
+    def test_an_inspiration_can_take_its_voice_from_a_suno_link_and_a_bad_link_creates_nothing(self):
+        import suno_import, shutil as _sh, subprocess, tempfile as _tf, navaan_common as C, narration
+        if not (_sh.which("ffmpeg") and _sh.which("ffprobe")): self.skipTest("ffmpeg is needed")
+        t = _tf.mkdtemp(); self.addCleanup(_sh.rmtree, t, True); m4a = os.path.join(t, "voice.m4a")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=330:duration=5", "-c:a", "aac", m4a], check=True)
+        new = lambda **b: self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="inspiration", **b))
+        info = {"title": "You Are Allowed to Change", "lyrics": "[Verse]\nYou are allowed to change,\nand grow", "style": "intimate", "video_url": "https://cdn1.suno.ai/x.mp4"}
+        before = len(json.loads(self.call("/api/songs", "owner-tok", "csrf-owner")[1]))
+        with mock.patch.object(suno_import, "read_page", side_effect=ValueError("I could not find lyrics on that Suno page.")):
+            code, body = new(suno_url="https://suno.com/s/abc123", narrate="eleven", voice="suno1"); self.assertEqual(code, 400); self.assertIn("could not find lyrics", json.loads(body)["error"])
+        with mock.patch.object(suno_import, "read_page", return_value=info), mock.patch.object(suno_import, "fetch_voice", side_effect=ValueError("The downloaded Suno file is damaged, so I did not use it.")):
+            code, body = new(suno_url="https://suno.com/s/abc123"); self.assertEqual(code, 400); self.assertIn("damaged", json.loads(body)["error"])
+        with mock.patch.object(suno_import, "read_page", return_value={**info, "video_url": ""}):
+            code, body = new(suno_url="https://suno.com/s/abc123"); self.assertEqual(code, 400); self.assertIn("ElevenLabs", json.loads(body)["error"])   # says what to do instead
+        self.assertEqual(len(json.loads(self.call("/api/songs", "owner-tok", "csrf-owner")[1])), before)   # the refused ones created nothing
+        with mock.patch.object(suno_import, "read_page", return_value=info), mock.patch.object(suno_import, "fetch_voice", return_value=m4a):
+            code, body = new(suno_url="https://suno.com/s/abc123", narrate="eleven", voice="suno1")
+        self.assertEqual(code, 200); D = C.song_dir(json.loads(body)["slug"])
+        self.assertTrue(os.path.isfile(os.path.join(D, "voiceover.m4a"))); self.assertEqual(narration.get_option(D, "voice_from"), "suno")
+        self.assertEqual(narration.get_option(D, "narrate"), "eleven")   # ElevenLabs stays the backup: running that step again replaces the Suno voice
+        self.assertEqual(json.load(open(os.path.join(D, "quote.json")))["lines"], ["You are allowed to change,", "and grow"])
+        self.assertEqual(self.call("/api/new", "lis-tok", "csrf-lis", post=True, body=dict(type="inspiration", suno_url="https://suno.com/s/abc123"))[0], 403)
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")

@@ -52,16 +52,16 @@ class Watermark(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("NAVAAN_ROOT", None); self.tmp.cleanup()
 
-    def test_default_is_the_handle_or_navaan(self):
+    def test_default_is_the_site_address_whatever_the_handle(self):
         import watermark as W, navaan_common as C
         D = os.path.join(C.songs_root(), "s1"); os.makedirs(D)
         json.dump({"slug": "s1", "type": "music"}, open(os.path.join(D, "meta.json"), "w"))
         old = C.cfg
         try:
             C.cfg = lambda k, d=None: {"publish.instagram_handle": "@navaan.music"}.get(k, d)
-            self.assertEqual(W.text(D), "@navaan.music")
+            self.assertEqual(W.text(D), "navaan.online")   # the mark is the address, not the Instagram handle
             C.cfg = lambda k, d=None: d
-            self.assertEqual(W.text(D), "NAVAAN")
+            self.assertEqual(W.text(D), "navaan.online")
             C.cfg = lambda k, d=None: {"video.watermark": "off"}.get(k, d)
             self.assertIsNone(W.text(D))
             C.cfg = lambda k, d=None: {"video.watermark": "© The Unsaid Within"}.get(k, d)
