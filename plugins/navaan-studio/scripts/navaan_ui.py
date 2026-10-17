@@ -444,6 +444,10 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, open(os.path.join(navaan.HERE, p[1:] + ".html"), encoding="utf-8").read(), "text/html")
         if p.startswith("/dev-bucket/") and objstore.local_dir(): return self._dev_bucket(p[len("/dev-bucket/"):])   # the local stand-in for the bucket (development, browser checks)
         if p.startswith(("/s/", "/img/")): return self._public(p)   # shared links and cover pictures: no sign in, published and confirmed tracks only
+        if p.startswith(("/app/brand/", "/app/moods/")):   # the logo and the mood pictures are public art: the sign in page shows them before anyone has signed in
+            f = web_file(p[5:]) if ".." not in p else None
+            if not f: return self._send(404, {"error": "not found"})
+            return self._send(200, f[0], f[1], {"Cache-Control": "public, max-age=86400"})
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
@@ -808,6 +812,17 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"started": start_job(slug, True)})
             if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
             if p == "/api/stop": return self._send(200, {"stopped": jobs.request_cancel(slug)})
+            if p == "/api/mood":   # the song's mood picks the background of the full screen player; empty clears it
+                mood = str(body.get("mood") or "").strip().lower()
+                if mood and mood not in catalog_store.MOODS: return self._send(400, {"error": "mood must be one of: " + ", ".join(catalog_store.MOODS)})
+                def setm(m):
+                    if mood: m["mood"] = mood
+                    else: m.pop("mood", None)
+                    navaan.log_hist(m, f"mood {mood or 'cleared'} (via ui)")
+                navaan.edit_meta(slug, setm)
+                try: catalog_store.sync_item(slug)   # a published song shows it at once; an unpublished one takes it when it is published
+                except Exception: L.exc(LOG, "mood_sync_failed", item=slug)
+                return self._send(200, {"ok": True, "mood": mood})
             if p == "/api/narration/eleven":   # narrate the quote with ElevenLabs as a step of this item: on or off, and which voice (the spend is approved at the credits gate)
                 import narration, narrate_eleven, media_cfg
                 if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})

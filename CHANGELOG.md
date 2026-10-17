@@ -6,6 +6,14 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-17
+
+### Added
+- A mood for each song (dawn, dusk, night or quiet), chosen on the Studio song page. It picks the picture behind the lyrics in full screen play mode (the night picture when none is chosen; the parchment picture on the light theme).
+
+### Changed
+- The studio sign in page has the new look: the night picture behind, the NAVAAN logo above the card, gold instead of pink. The logo and the mood pictures are public files so this page can show them before anyone has signed in.
+
 ## [0.28.0] - 2026-10-17
 
 ### Changed
@@ -15,6 +23,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - A round play button on every song cover in Browse, Library, saved songs and playlists (and on album covers, which play the whole album) plays it without opening the song page. On a mouse it appears when you point at the cover; on a touch screen it is always there; it turns into Pause while that song plays.
 - The ElevenLabs audio cache no longer lives in the small config folder.
 - Full screen play mode keeps the lyrics folded away until you press Lyrics (the choice is remembered). With them hidden, the cover and controls are centred.
+
+### Changed
 
 ### Changed
 - The public site's Library is open to visitors: they can browse every song, and Create playlist (or Add to playlist) leads to Create account, which asks what they like (mood, genres, languages) and an optional email for when accounts open. Studio > Analytics > Feedback shows how many asked and what they like.
@@ -301,7 +311,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/NjAIAgents/navaan/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/NjAIAgents/navaan/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/NjAIAgents/navaan/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/NjAIAgents/navaan/compare/v0.25.1...v0.26.0

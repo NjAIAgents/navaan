@@ -85,6 +85,23 @@ class Access(unittest.TestCase):
             for i in range(6): last = post("/api/site/feedback", {"message": f"spam {i}"})[0]
             self.assertEqual(last, 429)   # five messages an hour from one address
 
+    def test_the_owner_sets_a_songs_mood_and_nobody_else_can(self):
+        D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "drafted"}, open(os.path.join(D, "meta.json"), "w"))
+        post = lambda tok, csrf, **b: self.call("/api/mood", tok, csrf, post=True, body=b)
+        self.assertEqual(post("owner-tok", "csrf-owner", slug="song-001", mood="disco")[0], 400)
+        self.assertEqual(post("owner-tok", "csrf-owner", slug="song-001", mood="Dusk")[0], 200); self.assertEqual(json.load(open(os.path.join(D, "meta.json")))["mood"], "dusk")
+        self.assertEqual(post("lis-tok", "csrf-lis", slug="song-001", mood="dawn")[0], 403)   # a listener has no say
+        self.assertEqual(post("owner-tok", "csrf-owner", slug="song-001", mood="")[0], 200); self.assertNotIn("mood", json.load(open(os.path.join(D, "meta.json"))))   # empty clears it
+
+    def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
+        d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
+        open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")
+        with mock.patch.dict(os.environ, {"NAVAAN_WEB_DIST": d}):
+            st, h, b = self.raw("/app/moods/night-wide.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("max-age", h["Cache-Control"])
+            self.assertEqual(self.raw("/app/brand/mark.png")[0], 200)
+            self.assertEqual(self.raw("/app/moods/missing.webp")[0], 404)
+            self.assertEqual(self.raw("/app/moods/../index.html")[0], 404)   # nothing else of the app leaks without a sign in
+            st, h, b = self.raw("/app/index.html"); self.assertNotIn(b"TOPSECRETAPP", b)   # the app itself still asks for a sign in
     def test_the_sign_in_page_can_show_the_version_without_a_session(self):
         code, body = self.call("/auth/state"); d = json.loads(body)
         self.assertEqual(code, 200); self.assertTrue(d.get("version"))   # public: the sign in page prints it

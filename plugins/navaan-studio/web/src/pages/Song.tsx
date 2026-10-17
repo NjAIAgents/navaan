@@ -4,6 +4,7 @@ import { Equaliser } from "../components/Equaliser";
 import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
+import { MoodCard } from "../components/MoodCard";
 import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
 import { SongAnalytics } from "../components/SongAnalytics";
@@ -227,6 +228,7 @@ export default function Song() {
       {!(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
       <MediaCard d={d} />
       <PosterCard d={d} done={load} />
+      {d.meta.type !== "inspiration" && <MoodCard d={d} done={load} />}
       <TextEditors d={d} done={load} />
       <ShotsEditor key={slug} d={d} done={load} />
       {insp && <NarrationCard d={d} done={load} />}

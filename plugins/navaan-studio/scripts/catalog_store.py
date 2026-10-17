@@ -75,6 +75,9 @@ def _ts(s):
     except ValueError: return None   # expected: not an ISO time, so there is no timestamp
 
 
+MOODS = ("dawn", "dusk", "night", "quiet")   # the mood pictures of the player (web/public/moods); "light" is the picture for the light theme, not a mood
+
+
 def sync_item(slug):
     """Make the catalog match one studio item. Returns the track slug, or None when the item is not a song."""
     m = C.item_load(slug, None)
@@ -92,15 +95,16 @@ def sync_item(slug):
     pub = m.get("published", {}); cloud = m.get("cloud", {})
     published = m.get("state") == "published" or bool(pub.get("youtube_items") and all(i.get("privacy") == "public" for i in pub["youtube_items"]))
     origin = "suno" if (m.get("suno_url") or m.get("suno_model")) else "unknown"
+    mood = str(m.get("mood") or "").strip().lower(); mood = mood if mood in MOODS else None
     detail = {k: m[k] for k in ("suno_model", "suno_plan") if m.get(k)}
 
     def go(c):
         aid = _artist(c)
-        t = c.execute("INSERT INTO tracks (artist_id, slug, studio_slug, title, lyrics_text, status, published_at, origin, origin_detail, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                      "ON CONFLICT (slug) DO UPDATE SET title = excluded.title, lyrics_text = excluded.lyrics_text, status = excluded.status, language = COALESCE(excluded.language, tracks.language), "
+        t = c.execute("INSERT INTO tracks (artist_id, slug, studio_slug, title, lyrics_text, status, published_at, origin, origin_detail, language, mood) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                      "ON CONFLICT (slug) DO UPDATE SET mood = excluded.mood, title = excluded.title, lyrics_text = excluded.lyrics_text, status = excluded.status, language = COALESCE(excluded.language, tracks.language), "
                       "published_at = COALESCE(tracks.published_at, excluded.published_at), origin = excluded.origin, origin_detail = tracks.origin_detail || excluded.origin_detail, updated_at = now() "
                       "RETURNING id", (aid, slug, slug, title, lyrics, "published" if published else "draft",
-                                       (_ts(cloud.get("uploaded_at")) or datetime.datetime.now(datetime.timezone.utc)) if published else None, origin, db_json(detail), language)).fetchone()
+                                       (_ts(cloud.get("uploaded_at")) or datetime.datetime.now(datetime.timezone.utc)) if published else None, origin, db_json(detail), language, mood)).fetchone()
         tid = str(t["id"])
         if genre:
             g = c.execute("INSERT INTO genres (name) VALUES (?) ON CONFLICT (name) DO UPDATE SET name = excluded.name RETURNING id", (genre,)).fetchone()
@@ -372,8 +376,8 @@ def track_view(slug, all_licences=False):
     """One track for its page: title, language, genre, albums, the plain lyrics, whether timed lyrics exist, and its cover. None when it is not visible to this person."""
     hit = [t for t in browse(all_licences, limit=500) if t["slug"] == slug]
     if not hit: return None
-    lyrics = _tx(lambda c: c.execute("SELECT lyrics_text FROM tracks WHERE slug = ?", (slug,)).fetchone()["lyrics_text"])
-    return {**hit[0], "lyrics": lyrics, "timed": timed_asset(slug) is not None}
+    row = _tx(lambda c: c.execute("SELECT lyrics_text, mood FROM tracks WHERE slug = ?", (slug,)).fetchone())
+    return {**hit[0], "lyrics": row["lyrics_text"], "mood": row["mood"], "timed": timed_asset(slug) is not None}
 
 
 def timed_asset(slug): return _asset(slug, "lyrics_timed")

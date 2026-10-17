@@ -32,6 +32,14 @@ button:disabled{opacity:.5;cursor:wait}.err{color:var(--bad);font-size:13px;min-
 h1.brand::after{content:"STUDIO";display:block;margin-top:3px;font-size:11px;font-weight:600;letter-spacing:.22em;color:var(--mut);background:linear-gradient(90deg,var(--acc),var(--vio));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .cr{position:fixed;left:0;right:0;bottom:10px;z-index:2;text-align:center;font-size:12px;color:#B9B9CC;text-shadow:0 1px 6px #0B0B10,0 0 2px #0B0B10;pointer-events:none}
 .box{position:relative;z-index:1;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+/* the new look: Midnight Cinema, the night picture behind, the logo on top, gold instead of pink */
+:root{--bg:#0B1020;--card:rgba(15,22,40,.74);--line:#2A3550;--fg:#F2EEE7;--mut:#A9B0C2;--acc:#D6B477;--vio:#A96F52;--input:#3A4560}
+body{background:linear-gradient(rgba(11,16,32,.5),rgba(11,16,32,.86)),url(/app/moods/night-wide.webp) center/cover no-repeat fixed,#0B1020}
+@media (orientation:portrait){body{background:linear-gradient(rgba(11,16,32,.5),rgba(11,16,32,.86)),url(/app/moods/night-tall.webp) center/cover no-repeat fixed,#0B1020}}
+#bg{display:none}
+button{color:#0B1020}button.alt{color:var(--fg)}
+.studio{display:none}   /* the logo above and the STUDIO line below say it; the pink script is gone */
+.box::before{content:"";display:block;height:84px;margin:-6px 0 12px;background:url(/app/brand/mark.png) center/contain no-repeat}
 @media (prefers-reduced-motion:reduce){.orb,.f,.f svg,.eq i{animation:none}.f{bottom:auto;top:var(--y);opacity:var(--o)}.eq i{transform:scaleY(var(--h))}}
 </style></head><body><div id="bg" aria-hidden="true"><i class="orb o1"></i><i class="orb o2"></i><div id="fl"></div><div class="eq" id="eq"></div></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
