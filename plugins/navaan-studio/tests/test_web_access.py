@@ -117,6 +117,27 @@ class Access(unittest.TestCase):
             for i in range(21): last = post({"slug": "song-001", "start": 5, "length": 15})[0]
             self.assertEqual(last, 429)   # twenty clips an hour from one address
 
+    def test_a_new_inspiration_is_narrated_unless_skipped_and_only_a_known_voice_counts(self):
+        import narration, navaan_common as C
+        post = lambda **b: self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=b)
+        code, body = post(type="inspiration", idea="You are allowed to outgrow your old life.", narrate="eleven", voice="nj"); self.assertEqual(code, 200); D = C.song_dir(json.loads(body)["slug"])
+        self.assertEqual((narration.get_option(D, "narrate"), narration.get_option(D, "voice")), ("eleven", "nj"))
+        code, body = post(type="inspiration", idea="Another quote that stays quiet.", narrate="none"); D2 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D2, "narrate"), "none")   # skipped when asked
+        code, body = post(type="inspiration", idea="A third quote.", narrate="eleven", voice="bogus"); D3 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D3, "voice"), "suno1")   # an unknown voice falls back to the default
+
+    def test_changing_the_voice_or_pace_drops_a_voice_made_the_old_way_until_the_video_is_approved(self):
+        import narration, navaan, navaan_common as C
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="inspiration", idea="Stay soft, stay kind.", narrate="eleven", voice="suno1")); D = C.song_dir(json.loads(body)["slug"]); slug = json.loads(body)["slug"]
+        mk = lambda: [open(os.path.join(D, f), "w").write("x") for f in ("voiceover.mp3", "voiceover.srt", "narration_sync.json")]
+        has = lambda: [os.path.exists(os.path.join(D, f)) for f in ("voiceover.mp3", "voiceover.srt", "narration_sync.json")]
+        post = lambda **b: self.call("/api/narration/eleven", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, **b))
+        mk(); self.assertEqual(post(on=True, voice="suno1", pace="slow")[0], 200); self.assertEqual(has(), [True] * 3)    # suno1 and slow are the defaults: nothing changed, the take stays
+        mk(); self.assertEqual(post(on=True, voice="suno1", pace="normal")[0], 200); self.assertEqual(has(), [False] * 3)   # a new pace: made again
+        self.assertEqual(narration.get_option(D, "pace"), "normal")
+        self.assertEqual(post(on=True, voice="suno1", pace="fast")[0], 400)
+        navaan.edit_meta(slug, lambda m: m.setdefault("approvals", {}).update(media={"at": "x"}))
+        mk(); self.assertEqual(post(on=True, voice="nj", pace="calm")[0], 200); self.assertEqual(has(), [True] * 3)   # the approved video is not undone by a settings change
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")

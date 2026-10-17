@@ -12,6 +12,60 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - Album pipeline in Studio > Albums: "New album from songs" lets you pick two or more songs, get five name ideas made from them (a few cents of OpenAI chat), type your own if you prefer, and create the album with the songs in the order you picked. An album's page has a Cover card: square art from a prompt you can read and change (about 4 cents), the NAVAAN mark, the album title and artist drawn over it in a lettering you choose, or use your own picture. The cover is kept in Studio for now; showing it on the public site is the next step.
 
+## [0.29.10] - 2026-10-17
+
+### Changed
+- Slow and Calm narration now keep the newer ElevenLabs voice model. On eleven_v4 and v3, which ignore the speed setting, the pace comes from direction tags in the spoken text ([warmly] [softly] [slowly], a pause between lines and after commas); the other models still take the speed setting. This replaces the 0.29.8 switch to the older multilingual v2 model.
+
+## [0.29.9] - 2026-10-16
+
+### Added
+- Three more narration voices from your ElevenLabs account, SunoCustom1, SunoCustom2 and SunoCustom3, and SunoCustom1 is now the default voice (Frank and NJ stay in the list). A short or Setting that already names a voice keeps it.
+
+## [0.29.8] - 2026-10-16
+
+### Fixed
+- The slow narration pace now works: ElevenLabs' newest models (v4, v3) accept the speed setting but ignore it, so a take with a pace uses a model that obeys it (multilingual v2), and a quote kept as one run of sentences gets a pause after each sentence. A take with no pace (Normal) still uses the model chosen in Settings.
+
+## [0.29.7] - 2026-10-16
+
+### Fixed
+- "Stop the run" now says "Stopping…" and cannot be clicked twice while the worker acts on it, and a run waiting for an approval notices the stop within about 2 seconds instead of up to 15.
+- An item that is only waiting for an approval (nothing running) now says so and points to Redo, instead of leaving you looking for a Stop button that has nothing to stop.
+
+## [0.29.6] - 2026-10-16
+
+### Fixed
+- ElevenLabs narration is no longer rushed: it speaks slowly by default (pace Slow, with a pause between lines) so the voice can match the text on screen. The Narration card has a Pace choice (Slow, Calm, Normal); changing the voice or pace makes the voice again, as long as the video has not been approved. A voice made at the same settings is reused from the cache and costs nothing.
+
+## [0.29.5] - 2026-10-17
+
+### Changed
+- The Studio page of a song or inspiration is easier to walk through. Right under the title there is now a progress strip: one chip per pipeline step in order, showing done, the one you are at, a step waiting for your approval, a failed step, and what is still to come (each chip jumps to its row). The Steps list moved up from the bottom of the page to sit straight under the action card, so the steps and what to do next come first and the editors, files and analytics follow.
+
+## [0.29.4] - 2026-10-17
+
+### Fixed
+- Retry works after a restart. When a deploy restarted the worker in the middle of a run, the page showed a failure with a Retry button that was switched off (no step was named). It now says Run again and carries on from the next step.
+
+## [0.29.3] - 2026-10-17
+
+### Changed
+- Inspiration videos show one line of the quote at a time: each line fades out as the next comes in (the last holds), instead of every new line being added under the one before. A short can keep the old look with `- layout: stack` in its brief.
+
+### Fixed
+- A run that is waiting for an approval can be stopped from the page again: the approval now has "A run is waiting" with a Stop the run button beside it, so you can stop it, change something earlier (or redo or restart from a step) and run on, without the classic view.
+
+## [0.29.2] - 2026-10-17
+
+### Changed
+- Narrating the quote with ElevenLabs is now a standard step of every inspiration, not an option you have to find: the Steps list shows "Narrate the quote (ElevenLabs)" (before the timing and typography steps) and it runs with Frank unless you pick NJ on the Narration card. The spend is approved first, and a short can still skip it (untick it in the New inspiration dialog, or press Skip narration on the Narration card) to stay music and text only. A short whose video was already approved is not reopened. Without a saved ElevenLabs key the step stops and says how to add it or skip.
+
+## [0.29.1] - 2026-10-17
+
+### Fixed
+- An approval a running job is waiting for is now shown. A pipeline step that waits for you (for example "Review the videos" after an inspiration is rendered) used to show only "Running" with a Stop button, so the Approve button was missing and the only way to approve was the classic view. The page now shows the approval, with Approve and Request changes, as soon as the job is waiting for it.
+
 ## [0.29.0] - 2026-10-17
 
 ### Added
@@ -317,7 +371,17 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.10...HEAD
+[0.29.10]: https://github.com/NjAIAgents/navaan/compare/v0.29.9...v0.29.10
+[0.29.9]: https://github.com/NjAIAgents/navaan/compare/v0.29.8...v0.29.9
+[0.29.8]: https://github.com/NjAIAgents/navaan/compare/v0.29.7...v0.29.8
+[0.29.7]: https://github.com/NjAIAgents/navaan/compare/v0.29.6...v0.29.7
+[0.29.6]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...v0.29.6
+[0.29.5]: https://github.com/NjAIAgents/navaan/compare/v0.29.4...v0.29.5
+[0.29.4]: https://github.com/NjAIAgents/navaan/compare/v0.29.3...v0.29.4
+[0.29.3]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...v0.29.3
+[0.29.2]: https://github.com/NjAIAgents/navaan/compare/v0.29.1...v0.29.2
+[0.29.1]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/NjAIAgents/navaan/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/NjAIAgents/navaan/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/NjAIAgents/navaan/compare/v0.26.0...v0.27.0

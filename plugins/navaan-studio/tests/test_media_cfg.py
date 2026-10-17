@@ -21,8 +21,10 @@ class Base(unittest.TestCase):
 class Cfg(Base):
     def test_defaults(self):
         s = M.load()
-        self.assertEqual((s["voice"], s["image_provider"], s["narration_source"], s["image_quality"]), ("frank", "flow", "upload", "high"))
+        self.assertEqual((s["voice"], s["image_provider"], s["narration_source"], s["image_quality"]), ("suno1", "flow", "upload", "high"))
         self.assertEqual(s["image_model"], "gpt-image-2.5-flare")
+        self.assertEqual({k: M.VOICES[k]["id"] for k in ("suno1", "suno2", "suno3")}, {"suno1": "RolbsV2FrXoOuw9WMoGA", "suno2": "bPnfgYfv98trOeQJkL0s", "suno3": "neLkJ2FTGxCOW53t1Gsi"})
+        self.assertEqual(next(iter(M.VOICES)), "suno1")   # first in the list: the default
         self.assertEqual(M.VOICES["frank"]["id"], "V2bPluzT7MuirpucVAKH")
         self.assertEqual(M.VOICES["nj"]["id"], "r3RejoyX9duc0wFH79cE")
 
@@ -35,14 +37,14 @@ class Cfg(Base):
         for bad in ({"voice": "bob"}, {"nope": 1}, {"max_run_usd": 500}, {"max_run_usd": "x"}):
             with self.assertRaises(ValueError):
                 M.save(bad)
-        self.assertEqual(M.load()["voice"], "frank")
+        self.assertEqual(M.load()["voice"], "suno1")
 
     def test_corrupt_file_falls_back(self):
         open(os.path.join(self.d, "media.json"), "w").write('{"voice": "zzz", "eleven_monthly_seconds": "abc"')
-        self.assertEqual(M.load()["voice"], "frank")
+        self.assertEqual(M.load()["voice"], "suno1")
         open(os.path.join(self.d, "media.json"), "w").write('{"voice": "zzz", "eleven_monthly_seconds": "abc"}')
         s = M.load()
-        self.assertEqual((s["voice"], s["eleven_monthly_seconds"]), ("frank", 1500))
+        self.assertEqual((s["voice"], s["eleven_monthly_seconds"]), ("suno1", 1500))
 
 
 class Keys(Base):
@@ -134,7 +136,7 @@ class Tts(Base):
         with mock.patch("urllib.request.urlopen", return_value=fake_resp()) as u:
             r = T.synth("Maybe you're not falling behind.", self.out)
         req = u.call_args[0][0]
-        self.assertIn("V2bPluzT7MuirpucVAKH", req.full_url)
+        self.assertIn("RolbsV2FrXoOuw9WMoGA", req.full_url)
         self.assertEqual(req.headers["Xi-api-key"], "sk_" + "c" * 40)
         self.assertEqual(json.loads(req.data)["model_id"], "eleven_v4")
         self.assertFalse(r["cached"])

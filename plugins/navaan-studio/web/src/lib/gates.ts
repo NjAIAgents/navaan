@@ -23,6 +23,7 @@ const STEP: Record<string, string> = {
   lyrics: "Write lyrics and style", suno: "Generate the song on Suno", suno_import: "Import the song from Suno", visuals_mode: "Choose the visuals", visuals: "Make the visuals", captions: "Sync the captions",
   video: "Build the video", youtube_meta: "Write the YouTube text", publish_youtube: "Upload to YouTube", youtube_short: "Make the Short", instagram_caption: "Write the Instagram caption",
   go_public: "Make it public", publish_instagram: "Post the Reel", archive: "Archive to the cloud", cleanup: "Clean up local files", quote: "Write the quote", originality: "Check originality",
+  narrate: "Narrate the quote (ElevenLabs)", narration: "Time the narration to the voice", background_prompt: "Write the background prompt",
   background: "Make the background", typeset: "Plan the typography", render: "Render the video",
 };
 export const stepLabel = (id: string) => STEP[id] ?? id.replace(/_/g, " ");

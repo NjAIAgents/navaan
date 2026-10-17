@@ -259,3 +259,6 @@ body.lock { overflow: hidden; }
 /* Settings: rows that fold open */
 .fold { padding: 0; } .fold-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%; min-height: var(--tap); padding: 10px 16px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--r3); }
 .fold-head:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; } .fold-act { margin-left: auto; } .fold-body { padding: 0 16px 16px; }
+
+/* The pipeline strip of an item: one chip per step */
+.strip { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; } .strip a.chip { text-decoration: none; height: auto; min-height: 28px; padding: 4px 10px; } .strip a.chip[aria-current="step"] { outline: 2px solid var(--ac); outline-offset: 1px; }

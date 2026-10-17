@@ -4,6 +4,7 @@ import { Equaliser } from "../components/Equaliser";
 import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
+import { StepStrip } from "../components/StepStrip";
 import { MoodCard } from "../components/MoodCard";
 import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
@@ -31,6 +32,9 @@ function GateCard({ d, gate, act, busy }: { d: SongDetail; gate: string; act: Ac
       <span className="chip wn"><span className="dot" />Waiting for you</span>
       <h2 id="gate-h">{gateTitle(gate)}</h2>
       <p>{GATE_ASK[gate] ?? "Approve to move this song forward."}</p>
+      {(gate === "quote" || gate === "media") && d.meta.type === "inspiration" && d.narrate && !d.narrate.on && !Object.keys(d.files ?? {}).some((f) => f.startsWith("voiceover")) && (
+        <p className="mu" role="note">There is no narration on this short, so the video has music and text only. To add a voice, use the Narration card below.</p>
+      )}
       {file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
       {changing ? (
         <form className="stack" onSubmit={(e) => { e.preventDefault(); void ok("/api/request-changes", { note }); }}>
@@ -129,7 +133,7 @@ function StepRow({ s, failed, act, busy }: { s: Step; failed: boolean; act: Act;
   const chip = failed ? <span className="chip bad">Failed</span> : s.status === "done" ? <span className="chip ok"><Icon name="check" />Done</span> : s.status === "waiting for approval" ? <span className="chip wn">Needs approval</span> : <span className="chip">{s.status === "ready" ? "Ready" : "Later"}</span>;
   const go = async () => { if (await act(ask === "redo" ? "/api/redo" : "/api/restart", { step: s.id })) setAsk(null); };
   return (
-    <li className="stp">
+    <li className="stp" id={`step-${s.id}`}>
       <span className="tx">{stepLabel(s.id)}{s.spends && <span className="mu"> · spends credits</span>}</span>{chip}
       {s.done && (s.redo || s.restart) && !ask && (
         <span className="row">
@@ -170,6 +174,9 @@ export default function Song() {
   const making = !!(d?.try?.running || d?.vertical?.running || d?.poster?.running);   // a test or 9:16 picture is being made by a background thread
   useEffect(() => { if (!running && !making) return; const t = setInterval(() => void load(), 3000); return () => clearInterval(t); }, [running, making, load]);
 
+  const [stopping, setStopping] = useState(false);
+  useEffect(() => { if (!running) setStopping(false); }, [running]);   // the run really ended: the button goes back to normal
+  const stop = async () => { setStopping(true); if (!(await act("/api/stop", {}))) setStopping(false); };
   const act: Act = async (path, body) => {
     setPending(true);
     try { await postJSON(path, { slug, ...body }); setErr(""); await load(); return true; }
@@ -191,6 +198,7 @@ export default function Song() {
         <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
         <p>{slug} · {d.meta.state ?? "new"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })}</p>
       </div>
+      <StepStrip d={d} />
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
       {d.failure && (
         <section className="card fail" role="alert" aria-labelledby="fail-h">
@@ -198,7 +206,9 @@ export default function Song() {
           {d.failure.error && <p>{d.failure.error}</p>}
           <p className="mu">Log reference <code>{d.failure.ref}</code> (search it in the app log as <code>job_id</code>).</p>
           <div className="row">
-            <button className="btn p" disabled={busy || !d.failure.step} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
+            {d.failure.step
+              ? <button className="btn p" disabled={busy} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
+              : <button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
             <a className="btn g" href={classic(slug)}>Full log in the classic view <Icon name="external" /></a>
           </div>
         </section>
@@ -206,17 +216,26 @@ export default function Song() {
       {d.question && <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />}
       {!d.question && d.needs_you && <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>}
       {d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] && <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />}
-      {running ? (
-        <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" onClick={() => void act("/api/stop", {})}>Stop</button></section>
+      {running && gate && (   // a run that is alive and waiting for the approval below: it can be stopped (to change something earlier, or to restart from a step)
+        <section className="card row" role="status"><span className="chip wn"><span className="dot" />A run is waiting</span><span className="tx mu">{d.status_text || "Waiting for your approval."} Stop it if you need to change something earlier.</span><button className="btn" disabled={pending || stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop the run"}</button></section>
+      )}
+      {running && !gate ? (   // a job that is alive while the next thing is an approval is WAITING for it: show the approval, not Running
+        <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></section>
       ) : gate === "visuals_mode" ? (
         <VisualsCard d={d} done={load} />
-      ) : gate ? (
-        <GateCard key={gate} d={d} gate={gate} act={act} busy={busy} />
+      ) : gate ? (<>
+        {!d.failure && <p className="mu">Nothing is running: this is only waiting for your approval, so there is nothing to stop. To change something first, use Redo on a step in the list below.</p>}
+        <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} />
+      </>
       ) : d.next.type === "run" && !d.failure ? (
         <section className="card"><h2>Next: {stepLabel(d.next.step ?? "")}</h2>
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
         </section>
       ) : null}
+      <section className="sec" aria-labelledby="steps-h">
+        <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
+        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} act={act} busy={busy} />)}</ol>
+      </section>
       {d.meta.type !== "inspiration" && d.meta.state === "published" && (
         <section className="card row" aria-label="Play">
           <button className="btn p" onClick={() => void pl.toggle(slug, title)}>{pl.slug === slug && pl.playing ? "Pause" : "Play"}<span className="sr"> {title}</span></button>
@@ -233,10 +252,6 @@ export default function Song() {
       <ShotsEditor key={slug} d={d} done={load} />
       {insp && <NarrationCard d={d} done={load} />}
       {d.meta.type !== "inspiration" && d.meta.state === "published" && <SongAnalytics slug={slug} />}
-      <section className="sec" aria-labelledby="steps-h">
-        <div className="sh"><h2 id="steps-h">Steps</h2><span className="n">{d.steps.filter((s) => s.done).length}/{d.steps.length}</span></div>
-        <ol className="card steps">{d.steps.map((s) => <StepRow key={s.id} s={s} failed={d.failure?.step === s.id} act={act} busy={busy} />)}</ol>
-      </section>
       <Approvals d={d} act={act} busy={busy} />
       <section className="sec" aria-labelledby="hist-h">
         <div className="sh"><h2 id="hist-h">History</h2></div>

@@ -33,7 +33,7 @@ describe("New song and New inspiration", () => {
     at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" })); expect(await screen.findByRole("alert")).toHaveTextContent("Write the quote or the idea first."); expect(posts(f, "/api/new")).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Maybe you are not behind" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    expect(await screen.findByText(/inspiration pipeline is planned \(ref req-8\)/)).toBeInTheDocument(); expect(posts(f, "/api/new")[0]).toEqual({ type: "inspiration", idea: "Maybe you are not behind" });
+    expect(await screen.findByText(/inspiration pipeline is planned \(ref req-8\)/)).toBeInTheDocument(); expect(posts(f, "/api/new")[0]).toEqual({ type: "inspiration", idea: "Maybe you are not behind", narrate: "eleven", voice: "suno1" });   // narration is a standard step: on unless unticked
   });
   it("imports from a Suno link, with an MP3 as well, and refuses an empty or too big import", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
@@ -87,5 +87,59 @@ describe("accessibility", () => {
       const r = await axe.run(document.body, { rules: { "color-contrast": { enabled: false } } });
       expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${path} ${v.id}: ${v.nodes[0]?.html.slice(0, 140)}`)).toEqual([]);
     }
+  });
+});
+
+describe("narration offered for an inspiration", () => {
+  const SET = (key: boolean) => ({ media: { keys: { elevenlabs: key, openai: true }, voices: { frank: "Frank (deep, wise)", nj: "NJ (my own voice)" }, settings: { voice: "frank" }, choices: {}, usage: {} } });
+  it("is on by default, with the voice to pick, and is sent with the new inspiration", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-005" }), "/api/songs": () => [], "/api/settings": () => SET(true), "/api/song/": () => detail({ slug: "insp-005" }) });
+    at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    const box = await screen.findByLabelText(/Narrate the quote with ElevenLabs/); expect(box).toBeChecked(); expect(box).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Voice"), { target: { value: "nj" } });
+    fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "You are allowed to outgrow your old life." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "You are allowed to outgrow your old life.", narrate: "eleven", voice: "nj" }]));
+  });
+  it("stays a standard step without a key, says the key is needed before it runs, and can be unticked for a music and text only short", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-005" }), "/api/songs": () => [], "/api/settings": () => SET(false), "/api/song/": () => detail({ slug: "insp-005" }) });
+    at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    const box = await screen.findByLabelText(/Narrate the quote with ElevenLabs/); expect(box).toBeChecked(); expect(await screen.findByText(/Paste an ElevenLabs key in Settings before this step runs/)).toBeInTheDocument();
+    fireEvent.click(box); expect(box).not.toBeChecked();
+    fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Stay soft." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "Stay soft.", narrate: "none" }]));
+  });
+  it("is mentioned on the quote and the video approvals when the short has no voice", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, narrate: { on: false, voice: "frank", voices: {}, estimate_s: 12, used_s: 0, cap_s: 1500, key: true } }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByText(/no narration on this short, so the video has music and text only/)).toBeInTheDocument();
+  });
+});
+
+describe("an approval a running job is waiting for", () => {
+  it("is shown with an Approve button that works, not hidden behind Running (inspiration insp-004: the job waits for the media gate)", async () => {
+    const waiting = detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate media", files: { "final_reel_9x16.mp4": 1000 } });
+    const f = route(OWNER, { "/api/approve": () => ({ ok: true }), "/api/song/": () => waiting });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByRole("heading", { name: "Review the videos" })).toBeInTheDocument(); expect(screen.getByText("Waiting for you")).toBeInTheDocument(); expect(screen.queryByText("Running")).toBeNull();
+    const ok = screen.getByRole("button", { name: "Approve" }); expect(ok).toBeEnabled(); fireEvent.click(ok);
+    await waitFor(() => expect(posts(f, "/api/approve")).toEqual([{ slug: "insp-004", gate: "media" }]));
+  });
+  it("a run stopped by a restart has no failed step: its button runs the next step again instead of being switched off", async () => {
+    const f = route(OWNER, { "/api/run": () => ({ started: true }), "/api/song/": () => detail({ slug: "insp-004", next: { type: "run", step: "narrate" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, failure: { step: "", error: "the worker stopped before the job finished", ref: "job-1" } }) });
+    at("/studio/inspiration/insp-004");
+    const b = await screen.findByRole("button", { name: /Run again: Narrate the quote/ }); expect(b).toBeEnabled(); fireEvent.click(b);
+    await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "insp-004", all: true }]));
+  });
+  it("also offers to stop the waiting run, so something earlier can be changed", async () => {
+    const f = route(OWNER, { "/api/stop": () => ({ stopped: true }), "/api/song/": () => detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate media" }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByText("A run is waiting")).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: "Stop the run" }));
+    await waitFor(() => expect(posts(f, "/api/stop")).toEqual([{ slug: "insp-004" }]));
+    expect(await screen.findByRole("button", { name: "Stopping…" })).toBeDisabled();   // the worker takes a few seconds to act: say so, so it is not clicked again
+  });
+  it("still shows Running with Stop while a step really runs (no approval is next)", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "run", step: "render" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, job: { running: true, queued: false, rc: null }, status_text: "running render" }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByText("Running")).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   });
 });

@@ -232,7 +232,7 @@ def inspiration_steps(slug, D):
     has_bg = lambda m: any(glob.glob(os.path.join(D, f"background.{e}")) for e in ("jpg", "jpeg", "png", "webp"))
     # a narration uploaded as audio only: its lines are timed against the voice (pauses first, Whisper when they do not fit)
     narr = any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac"))
-    eleven = brief_opt(D, "narrate", "none").lower() == "eleven"   # the quote narrated by ElevenLabs (the Narration card sets it): a step of its own, behind the credits approval
+    eleven = brief_opt(D, "narrate", "eleven").lower() != "none"   # the quote is narrated by ElevenLabs: a standard step of every inspiration, behind the credits approval; `- narrate: none` skips it for one short
     narr = narr or eleven
     need_w = bool((load_json(os.path.join(D, "narration_sync.json"), default={}) or {}).get("needs_whisper")) and not setup_captions.ready()
     narr_step = dict(id="narration", outputs=["voiceover.srt"], label="Time the narration lines to the voice", kind="script", before=("captions_setup" if need_w else None),
@@ -244,7 +244,7 @@ def inspiration_steps(slug, D):
              done=lambda m: has(D, "originality.json"), after="originality"),
         *background_steps(slug, D, gen, has_bg),
         *([dict(id="narrate", outputs=["voiceover.mp3"], label="Narrate the quote (ElevenLabs)", kind="script", cmds=[sc("narrate_eleven.py", slug)], before="credits",
-                done=lambda m: any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac")))] if eleven else []),
+                done=lambda m: any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac")) or bool((m.get("approvals") or {}).get("media")))] if eleven else []),   # a voice exists, or the video was already approved (a short made before narration existed is not reopened)
         *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
              done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),
@@ -699,7 +699,7 @@ def _pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40)
             while not meta(slug).get("approvals", {}).get(g):
                 if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
                 if timeout and time.time() - t0 > timeout: print("timed out waiting for approval"); return 3
-                time.sleep(poll)
+                time.sleep(min(poll, 2))   # a Stop is noticed within a couple of seconds, not after a whole poll
             print(f"gate {g} approved, continuing", flush=True); continue
         STATUS[slug] = f"running {nxt['step']}"; print(f"running {nxt['step']} ...", flush=True)
         rc = run(slug, step=nxt["step"]); steps_run += 1

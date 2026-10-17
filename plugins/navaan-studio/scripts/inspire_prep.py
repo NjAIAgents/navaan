@@ -11,6 +11,7 @@ brief.md options (a line like `music: auto`):
   duration:   target seconds, 10 to 30 (default: from the length of the text)
   camera:     push_in | pull_out | pan_left | pan_right | drift (default: picked from the slug)
   transition: rise | fade | blur (default rise)
+  layout:     single (default: one line on screen at a time) | stack (every line stays until the end)
 """
 import os, sys, re, json, glob, hashlib, subprocess, struct, array, random
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +28,13 @@ def opt(D, key, default=""):
             m = re.match(rf"^\s*[-*]?\s*{key}\s*:\s*(.+?)\s*$", ln, re.I)
             if m and m.group(1).strip(): return m.group(1).strip()
     return default
+
+
+def apply_layout(lines, layout):
+    """single (default): one line on screen at a time, each ends where the next starts (the last holds); stack: every line stays until the end, as before."""
+    if layout == "single":
+        for i in range(len(lines) - 1): lines[i]["end"] = lines[i + 1]["start"]
+    return lines
 
 
 def parse_srt(path):
@@ -250,6 +258,8 @@ def main(slug):
         vo = os.path.join(D, "narration.mp3")  # a plain mp3 so every renderer can play it
         C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-i", voice, "-vn", "-ac", "2", "-ar", "44100", "-af", "loudnorm=I=-16:TP=-1.5:LRA=9", "-c:a", "libmp3lame", "-b:a", "192k", vo])
         voice = vo
+    layout = opt(D, "layout", "single").lower(); layout = layout if layout in ("single", "stack") else "single"
+    apply_layout(out_lines, layout)
     h = int(hashlib.sha1(slug.encode()).hexdigest(), 16)
     presets = ["push_in", "pan_left", "pull_out", "pan_right", "drift"]
     cam = opt(D, "camera", presets[h % len(presets)]).lower()
@@ -262,7 +272,7 @@ def main(slug):
         "lines": out_lines, "hold_until": hold_end,
         "brand": ({"text": brand, "icon": "instagram", "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),
-        "camera": cam, "transition": tr, "language": q.get("language", ""), "narration": narr,
+        "camera": cam, "transition": tr, "layout": layout, "language": q.get("language", ""), "narration": narr,
         "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
         "watermark": watermark(slug),
         "music_source": how, "beat_source": bkind, "beats": bts[:80],

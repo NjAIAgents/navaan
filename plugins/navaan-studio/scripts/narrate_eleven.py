@@ -6,11 +6,11 @@ Description: the pipeline step that narrates an inspiration's quote (the quote o
 
   narrate_eleven.py <slug> [--estimate]
 
-Reads quote.json (the lines of the quote, not the author), speaks it in the voice the brief names (`- voice: frank|nj`, else the Settings choice, Frank by default),
+Reads quote.json (the lines of the quote, not the author), speaks it in the voice the brief names (`- voice: suno1|suno2|suno3|frank|nj`, else the Settings choice, SunoCustom1 by default),
 writes voiceover.mp3 and sets `voiceover: file` and `music: none` in brief.md. The timing of the lines is made by the next step (narration_sync.py).
 It sits behind the credits approval and the monthly ElevenLabs cap of Settings; the same text in the same voice is never generated twice (tts_eleven cache).
 """
-import os, sys, json, glob
+import os, re, sys, json, glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import media_cfg as M, narration, tts_eleven as T
@@ -21,7 +21,8 @@ def quote_text(D):
     q = C.load_json(os.path.join(D, "quote.json"), default=None) or {}
     lines = [" ".join(str(l).split()) for l in (q.get("lines") or []) if str(l).strip()] or ([" ".join(str(q.get("text") or "").split())] if str(q.get("text") or "").strip() else [])
     if not lines: raise ValueError("there is no quote yet: write or pick the quote first")
-    return "\n".join(lines)
+    if len(lines) == 1: lines = re.split(r"(?<=[.!?])\s+", lines[0])   # a quote kept as one sentence-run: a pause after each sentence
+    return "\n\n".join(lines)   # a blank row between the lines: the voice leaves a pause, so the words can keep pace with the text on screen
 
 
 def chosen_voice(D):
@@ -29,13 +30,19 @@ def chosen_voice(D):
     return v if v in M.VOICES else M.load()["voice"]
 
 
+def chosen_pace(D):
+    """slow (default), calm or normal: a reflective quote is read slowly so each line can sit on screen while it is spoken."""
+    p = narration.get_option(D, "pace", "slow").lower()
+    return p if p in T.PACES else "slow"
+
+
 def info(D):
     """What the Narration card shows: the voice, the estimate, this month's use. No spend."""
     try: text = quote_text(D)
     except ValueError: text = ""   # expected: no quote yet, so no estimate (the card says so)
     s = M.load()
-    return {"on": narration.get_option(D, "narrate", "none").lower() == "eleven", "voice": chosen_voice(D), "voices": {k: v["label"] for k, v in M.VOICES.items()},
-            "estimate_s": T.estimate(text) if text else 0, "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
+    return {"on": narration.get_option(D, "narrate", "eleven").lower() != "none", "voice": chosen_voice(D), "voices": {k: v["label"] for k, v in M.VOICES.items()},
+            "pace": chosen_pace(D), "paces": {"slow": "Slow (reflective)", "calm": "Calm", "normal": "Normal"}, "estimate_s": T.estimate(text, T.PACES[chosen_pace(D)]) if text else 0, "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
 
 
 def run(slug):
@@ -43,7 +50,10 @@ def run(slug):
     out = os.path.join(D, "voiceover.mp3")
     for old in glob.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:
         if os.path.exists(old): os.remove(old)   # a new voice means new timing
-    r = T.synth(text, out, voice)
+    try: r = T.synth(text, out, voice, speed=T.PACES[chosen_pace(D)])
+    except RuntimeError as e:
+        if "No ElevenLabs key" in str(e): raise RuntimeError(str(e) + " Or skip narration for this short on its Narration card.") from None
+        raise
     narration.set_options(D, {"voiceover": "file", "music": "none"})
     return r
 
