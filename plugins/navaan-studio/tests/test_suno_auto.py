@@ -4,6 +4,10 @@ import suno_import as S
 
 
 class T(unittest.TestCase):
+    def setUp(self):
+        self._saved = {n: getattr(S, n) for n in ['fetch', 'fetch_audio', 'ingest', 'song_dir']}   # what the tests below replace on the module...
+        self.addCleanup(lambda: [setattr(S, n, v) for n, v in self._saved.items()])   # ...is put back, so it cannot leak into the tests that run after this file
+
     def test_pick_audio(self):
         c = {"audio_url": "https://studio-api.prod.suno.com/api/forbidden",
              "media_urls": [{"url": "https://d2lwuy8qc234o3.cloudfront.net/1/clip/x.m4a", "content_type": "m4a-opus"}]}

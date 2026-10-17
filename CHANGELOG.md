@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Changed
+- Importing a song needs BOTH the Suno link and the audio file. The link gives the title, lyrics and style, read from the public Suno page over plain HTTPS (a /s/ share link works) and checked before anything is created, so a private song or one with no lyrics is refused with a sentence; your file gives the sound. Before, either one alone was accepted, and an MP3 on its own produced a song with no lyrics, which broke the captions and let the picture plan invent a story.
+
 ## [0.33.1] - 2026-10-17
 
 ### Changed

@@ -6,7 +6,7 @@ import { errText, itemPath } from "../lib/songs";
 
 type Mode = "idea" | "import";
 
-// Start something new: a song from an idea (or none), a song imported from Suno (its link, an MP3, or both), or an inspiration short from a quote or idea.
+// Start something new: a song from an idea (or none), a song imported from Suno (its link AND its audio file, both required), or an inspiration short from a quote or idea.
 // Creating an item runs nothing; an import starts the pipeline, as the classic page does, so it says so.
 export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const go = useNavigate();
@@ -33,12 +33,12 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   };
   const doImport = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
-    if (!url.trim() && !file) return setErr("Give the Suno link, an MP3, or both.");
-    if (file && file.size > MAX_AUDIO_BYTES) return setErr("That file is over 22 MB.");
+    if (!url.trim()) return setErr("Add the Suno link: the title, lyrics and style are read from it.");
+    if (!file) return setErr("Add the song's audio file (mp3, wav or m4a): the sound comes from your file.");
+    if (file.size > MAX_AUDIO_BYTES) return setErr("That file is over 22 MB.");
     setBusy(true);
     try {
-      const body: Record<string, unknown> = { url: url.trim() };
-      if (file) body.audio = { name: file.name, data: await fileB64(file) };
+      const body: Record<string, unknown> = { url: url.trim(), audio: { name: file.name, data: await fileB64(file) } };
       const r = await postJSON<{ slug: string }>("/api/import", body); done(r.slug);
     } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
@@ -66,12 +66,12 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
           <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? "Creating…" : "Create"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>
         </form>
       ) : (
-        <form className="stack" onSubmit={(e) => void doImport(e)}>
-          <p className="mu">Importing starts the pipeline: it fetches the text and cover from the link, takes the audio from the MP3, and runs to the first approval.</p>
-          <label htmlFor="ni-url">Suno link</label>
-          <input id="ni-url" className="field" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://suno.com/song/…" autoComplete="off" />
-          <label htmlFor="ni-file">MP3 file (optional when you give the link; up to 22 MB)</label>
-          <input id="ni-file" className="field" type="file" accept="audio/*,.mp3,.m4a,.wav,.flac" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <form className="stack" noValidate onSubmit={(e) => void doImport(e)}>   {/* our own messages say what is missing, in one place, instead of the browser's bubble */}
+          <p className="mu">Both are needed. The link gives the title, lyrics and style; your file gives the sound. Importing then starts the pipeline and runs to the first approval.</p>
+          <label htmlFor="ni-url">Suno link (required)</label>
+          <input id="ni-url" className="field" type="url" required aria-required="true" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://suno.com/song/… or https://suno.com/s/…" autoComplete="off" />
+          <label htmlFor="ni-file">Audio file (required; mp3, wav or m4a, up to 22 MB)</label>
+          <input id="ni-file" className="field" type="file" required aria-required="true" accept="audio/*,.mp3,.m4a,.wav,.flac" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? "Importing…" : "Import"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>
         </form>
       )}
