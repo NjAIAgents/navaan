@@ -138,6 +138,20 @@ class Access(unittest.TestCase):
         navaan.edit_meta(slug, lambda m: m.setdefault("approvals", {}).update(media={"at": "x"}))
         mk(); self.assertEqual(post(on=True, voice="nj", pace="calm")[0], 200); self.assertEqual(has(), [True] * 3)   # the approved video is not undone by a settings change
 
+    def test_saving_an_edited_narration_script_drops_the_old_voice_and_empty_goes_back(self):
+        import narrate_eleven, navaan, navaan_common as C
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="inspiration", idea="Stay soft, stay kind.", narrate="eleven")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
+        mk = lambda: [open(os.path.join(D, f), "w").write("x") for f in ("voiceover.mp3", "narration_sync.json")]
+        has = lambda: [os.path.exists(os.path.join(D, f)) for f in ("voiceover.mp3", "narration_sync.json")]
+        post = lambda **b: self.call("/api/narration/script", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, **b))
+        mk(); code, body = post(text="[softly] Stay... kind."); self.assertEqual(code, 200); self.assertEqual(has(), [False, False]); self.assertEqual(json.loads(body)["script"], "[softly] Stay... kind.")
+        self.assertEqual(open(os.path.join(D, narrate_eleven.SCRIPT)).read().strip(), "[softly] Stay... kind.")
+        self.assertEqual(post(text="x" * 5000)[0], 400)
+        code, body = post(text=""); self.assertEqual(code, 200); self.assertFalse(json.loads(body)["script_custom"]); self.assertFalse(os.path.exists(os.path.join(D, narrate_eleven.SCRIPT)))
+        navaan.edit_meta(slug, lambda m: m.setdefault("approvals", {}).update(media={"at": "x"}))
+        mk(); self.assertEqual(post(text="Changed after approval.")[0], 200); self.assertEqual(has(), [True, True])   # an approved video is not undone by an edit
+        self.assertEqual(self.call("/api/narration/script", "lis-tok", "csrf-lis", post=True, body=dict(slug=slug, text="x"))[0], 403)   # a listener has no say
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")

@@ -23,4 +23,16 @@ describe("NarrationCard: narrate the quote with ElevenLabs", () => {
     rerender(<NarrationCard d={d({ on: true })} done={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Skip narration for this short" })).toBeEnabled(); expect(screen.getByRole("status")).toHaveTextContent("Frank (deep, wise)");
   });
+  it("shows the script ElevenLabs will read, lets you edit and save it, and go back to the suggestion", async () => {
+    const f = vi.fn(() => Promise.resolve(new Response("{}", { headers: { "Content-Type": "application/json" } }))); vi.stubGlobal("fetch", f);
+    const { rerender } = render(<NarrationCard d={d({ script: "[warmly] [slowly] Stay... soft.", script_custom: false })} done={vi.fn()} />);
+    const box = screen.getByLabelText("Spoken script (what ElevenLabs reads)") as HTMLTextAreaElement; expect(box.value).toBe("[warmly] [slowly] Stay... soft.");
+    expect(screen.getByRole("button", { name: "Save the script" })).toBeDisabled();   // nothing changed yet
+    fireEvent.change(box, { target: { value: "[warmly] [slowly] Stay... SOFT." } }); fireEvent.click(screen.getByRole("button", { name: "Save the script" }));
+    await waitFor(() => expect(f).toHaveBeenCalled()); const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit]; expect(url).toBe("/api/narration/script"); expect(JSON.parse(String(init.body))).toEqual({ slug: "insp-001", text: "[warmly] [slowly] Stay... SOFT." });
+    rerender(<NarrationCard d={d({ script: "[warmly] [slowly] Stay... SOFT.", script_custom: true })} done={vi.fn()} />);
+    expect((screen.getByLabelText("Spoken script (what ElevenLabs reads)") as HTMLTextAreaElement).value).toBe("[warmly] [slowly] Stay... SOFT.");
+    fireEvent.click(screen.getByRole("button", { name: "Back to the suggestion" })); await waitFor(() => expect(f).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(String((f.mock.calls[1] as unknown as [string, RequestInit])[1].body))).toEqual({ slug: "insp-001", text: "" });
+  });
 });

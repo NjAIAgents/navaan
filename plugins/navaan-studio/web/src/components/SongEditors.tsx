@@ -123,6 +123,9 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
   const has = Object.keys(d.files ?? {}).some((f) => f.startsWith("narration"));
   const n = d.narrate; const [voice, setVoice] = useState(n?.voice ?? "suno1");
   const [pace, setPace] = useState(n?.pace ?? "slow");
+  const [script, setScript] = useState(n?.script ?? ""); const [seen, setSeen] = useState(n?.script ?? "");
+  if ((n?.script ?? "") !== seen) { setSeen(n?.script ?? ""); setScript(n?.script ?? ""); }   // the server's script changed (a new pace, a reset): show it
+  const saveScript = async (text: string) => { setBusy(true); setErr(""); try { await postJSON("/api/narration/script", { slug: d.slug, text }); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   const eleven = async (on: boolean) => { setBusy(true); setErr(""); try { await postJSON("/api/narration/eleven", { slug: d.slug, on, voice, pace }); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   const upload = async () => {
     if (!audio) return setErr("Pick the narration audio first.");
@@ -143,6 +146,13 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
           <select id="nr-v" className="field" value={voice} disabled={busy} onChange={(e) => setVoice(e.target.value)}>{Object.entries(n.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <label htmlFor="nr-pace">Pace</label>
           <select id="nr-pace" className="field" value={pace} disabled={busy} onChange={(e) => setPace(e.target.value)}>{Object.entries(n.paces ?? { slow: "Slow (reflective)", calm: "Calm", normal: "Normal" }).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          <label htmlFor="nr-script">Spoken script (what ElevenLabs reads)</label>
+          <textarea id="nr-script" className="field" rows={7} value={script} disabled={busy} onChange={(e) => setScript(e.target.value)} />
+          <p className="mu">Words in [brackets] set the tone ([warmly], [softly], [slowly]); … and [pause] make it slow down. Capital letters add stress on a word. None of this shows on screen. {n.script_custom ? "This is your edited script." : "This is the suggestion for the pace above."}</p>
+          <div className="row">
+            <button className="btn p" disabled={busy || !script.trim() || script.trim() === (n.script ?? "").trim()} onClick={() => void saveScript(script)}>Save the script</button>
+            {n.script_custom && <button className="btn g" disabled={busy} onClick={() => void saveScript("")}>Back to the suggestion</button>}
+          </div>
           <p className="mu">About {Math.round(n.estimate_s)} seconds of narration. This month {n.used_s} of {n.cap_s} seconds used.{!n.key && " Paste an ElevenLabs key in Settings first."}</p>
           <div className="row">
             <button className="btn p" disabled={busy || !n.key || n.estimate_s <= 0} onClick={() => void eleven(true)}>{n.on ? "Save the voice" : "Turn narration on"}</button>

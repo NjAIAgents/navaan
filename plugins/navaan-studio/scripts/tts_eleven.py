@@ -22,12 +22,29 @@ def estimate(text, speed=1.0):
     return round(len(text.strip()) / CHARS_PER_SECOND / max(0.5, float(speed or 1.0)), 1)
 
 
+_BREAK_BEFORE = {"to", "and", "for", "but", "when", "without", "your", "even"}
+_ENDS_WITH_PUNCT = re.compile(r"[.!?;:…—–,\]]$")   # a sentence end, a comma, an ellipsis, a dash, a tag: the text already pauses here
+
+
+def _phrase_breaks(body):
+    """An ellipsis before a connecting word, but only where the text does not already pause and the phrase before it is at least two words: no ellipsis after a full stop, a dash or a tag, none that would cut a two-word phrase in half."""
+    out, since = [], 0
+    for tok in body.split(" "):
+        w = tok.lower().strip(".,!?;:…—–\"'()[]")
+        if w in _BREAK_BEFORE and since >= 2 and out and not _ENDS_WITH_PUNCT.search(out[-1]):
+            out[-1] += "..."; since = 0
+        out.append(tok); since = 0 if _ENDS_WITH_PUNCT.search(tok) else since + 1
+    return " ".join(out)
+
+
 def directed(text, speed):
     """The text with direction tags for a pace below 1.0 (eleven_v4 / v3 only). Slow: warm, soft, slow, a pause between lines and after each comma."""
     if not speed or speed >= 1.0: return text
     slow = speed <= 0.8
     body = re.sub(r"\n\s*\n", " [pause] ", text.strip())
-    if slow: body = re.sub(r",\s+", "... ", body)
+    if slow:   # measured on the live service: the tag alone does not slow v4 (5.76 s for a sentence); an ellipsis between phrases does (7.84 s for the same words)
+        body = re.sub(r",\s+", "... ", body)
+        body = _phrase_breaks(body)
     return ("[warmly] [softly] [slowly] " if slow else "[warmly] [softly] ") + body
 
 
@@ -49,7 +66,7 @@ def _seconds(path):
         return 0.0
 
 
-def synth(text, out, voice=None, model=None, force=False, speed=None):
+def synth(text, out, voice=None, model=None, force=False, speed=None, raw=False):
     text = (text or "").strip()
     if not text:
         raise ValueError("there is no text to speak")
@@ -63,7 +80,7 @@ def synth(text, out, voice=None, model=None, force=False, speed=None):
     vid = M.VOICES[voice]["id"]
     speed = None if speed is None else round(min(1.2, max(0.7, float(speed))), 2)
     spoken, setting = text, speed
-    if model in TAG_MODELS: spoken, setting = directed(text, speed), None   # this model is paced by tags, not by the speed setting
+    if model in TAG_MODELS: spoken, setting = (text if raw else directed(text, speed)), None   # this model is paced by tags, not by the speed setting; a script already written (raw) is spoken as it is
     hit = os.path.join(cache_dir(), _key(spoken, vid, model, speed or 1.0) + ".mp3")
     if os.path.exists(hit) and not force:
         shutil.copyfile(hit, out)
