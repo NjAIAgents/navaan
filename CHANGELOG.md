@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.2] - 2026-10-17
+
 ### Changed
 - Narrating the quote with ElevenLabs is now a standard step of every inspiration, not an option you have to find: the Steps list shows "Narrate the quote (ElevenLabs)" (before the timing and typography steps) and it runs with Frank unless you pick NJ on the Narration card. The spend is approved first, and a short can still skip it (untick it in the New inspiration dialog, or press Skip narration on the Narration card) to stay music and text only. A short whose video was already approved is not reopened. Without a saved ElevenLabs key the step stops and says how to add it or skip.
 
@@ -319,7 +321,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...HEAD
+[0.29.2]: https://github.com/NjAIAgents/navaan/compare/v0.29.1...v0.29.2
 [0.29.1]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/NjAIAgents/navaan/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/NjAIAgents/navaan/compare/v0.27.0...v0.28.0
