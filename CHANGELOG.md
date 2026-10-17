@@ -6,6 +6,10 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- The song page shows where you are in the song: a bar you can drag, with the time played and the length beside it (the full-screen player had this already). The clip card's "start at" time can now be read straight off it.
+- Click a lyric line to play from there. Each timed line is a button that shows when it starts ("Play from 1:08"); it works before the song has started (the song starts at that line), while it plays (it jumps) and while it is paused (it jumps and plays). It is offered in the song page and in full-screen play mode, for songs with measured timing, or while the song plays when the line times are only estimated (the page then says a jump may land a little off).
+
 ## [0.40.0] - 2026-10-18
 
 ### Added

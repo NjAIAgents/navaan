@@ -303,3 +303,4 @@ body.lock { overflow: hidden; }
 
 /* YouTube and Instagram each have a lane of their own once the videos are approved: side by side on a wide screen, stacked on a phone. */
 .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; } .lane > .row { align-items: baseline; }
+.ly-line { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; display: inline-flex; gap: 12px; align-items: baseline; border-radius: 6px; } .ly-line:hover span:last-child { text-decoration: underline; text-underline-offset: 4px; } .ly-line:focus-visible { outline: 2px solid var(--ac); outline-offset: 3px; } .ly-t { font-size: .6em; font-variant-numeric: tabular-nums; color: var(--dim); min-width: 2.6em; }

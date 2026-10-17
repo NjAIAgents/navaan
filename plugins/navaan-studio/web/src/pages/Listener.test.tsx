@@ -47,13 +47,13 @@ describe("a song for a listener", () => {
     fireEvent.click(play); await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
     const audio = document.querySelector("audio")!;
     now = 9; fireEvent.timeUpdate(audio);
-    await waitFor(() => expect(screen.getByText("line two")).toHaveAttribute("aria-current", "true")); expect(screen.getByText("line one")).not.toHaveAttribute("aria-current");
-    now = 15; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line three")).toHaveAttribute("aria-current", "true"));
+    await waitFor(() => expect(screen.getByText("line two").closest("li")!).toHaveAttribute("aria-current", "true")); expect(screen.getByText("line one").closest("li")!).not.toHaveAttribute("aria-current");
+    now = 15; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line three").closest("li")!).toHaveAttribute("aria-current", "true"));
     fireEvent.click(screen.getAllByRole("button", { name: "Open play mode" })[0]);   // one in the hero, one in the Now playing bar
     const dlg = await screen.findByRole("dialog", { name: "Play mode" }); expect(document.body.classList.contains("lock")).toBe(true);
     expect(within(dlg).getByRole("button", { name: "Pause" })).toBeInTheDocument();
     expect(within(dlg).queryByText("line three")).toBeNull(); expect(within(dlg).getByRole("button", { name: "Lyrics" })).toHaveAttribute("aria-pressed", "false");   // lyrics are folded away by default
-    fireEvent.click(within(dlg).getByRole("button", { name: "Lyrics" })); expect(localStorage.getItem("navaan.lyrics")).toBe("1"); expect(within(dlg).getByText("line three")).toHaveAttribute("aria-current", "true");
+    fireEvent.click(within(dlg).getByRole("button", { name: "Lyrics" })); expect(localStorage.getItem("navaan.lyrics")).toBe("1"); expect(within(dlg).getByText("line three").closest("li")!).toHaveAttribute("aria-current", "true");
     fireEvent.change(within(dlg).getByLabelText("Seek"), { target: { value: "50" } }); expect(now).toBe(50);
     fireEvent.click(within(dlg).getByRole("button", { name: "Pause" })); await waitFor(() => expect(within(dlg).getByRole("button", { name: "Play" })).toBeInTheDocument());
     fireEvent.keyDown(document, { key: "Escape" }); await waitFor(() => expect(screen.queryByRole("dialog", { name: "Play mode" })).toBeNull()); expect(document.body.classList.contains("lock")).toBe(false);
@@ -75,12 +75,25 @@ describe("a song for a listener", () => {
     expect(play.className).toMatch(/\bsq\b/); expect(play.className).toMatch(/\bround\b/);   // base.css: .btn.sq.round is 56 by 56 with a 50% radius, which beats .btn.sq's 44px width
     expect(readFileSync("src/styles/base.css", "utf8")).toMatch(/\.btn\.sq\.round \{[^}]*width: 56px; height: 56px/);
   });
+  it("shows the time played and the length with a bar to drag, and a lyric line jumps the song there, even before it has started", async () => {
+    const f = route(LISTENER, pageRoutes); at("/song/song-001");
+    const line = await screen.findByRole("button", { name: "Play from 0:08: line two" });   // each timed line says when it starts
+    expect(screen.queryByRole("slider", { name: "Seek" })).toBeNull();   // nothing is loaded yet, so no bar
+    fireEvent.click(line);   // the song has not started: it starts at that line
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()); expect(f.mock.calls.some(([u]) => String(u).startsWith("/api/play?slug=song-001"))).toBe(true); expect(now).toBe(8);
+    const audio = document.querySelector("audio")!; now = 9; fireEvent.timeUpdate(audio);
+    const bar = (await screen.findAllByRole("slider", { name: "Seek" }))[0] as HTMLInputElement; expect(bar.max).toBe("200"); expect(bar.value).toBe("9"); expect(bar).toHaveAttribute("aria-valuetext", "0:09 of 3:20");
+    expect(screen.getAllByText("0:09").length).toBeGreaterThan(0); expect(screen.getAllByText("3:20").length).toBeGreaterThan(0);   // the time played and the length, in the page
+    fireEvent.click(screen.getByRole("button", { name: "Play from 0:14: line three" })); expect(now).toBe(14);   // playing: it just jumps
+    paused = true; fireEvent.click(screen.getByRole("button", { name: "Play from 0:02: line one" })); await waitFor(() => expect(paused).toBe(false)); expect(now).toBe(2);   // paused: it jumps and plays
+    now = 100; fireEvent.change(bar, { target: { value: "100" } }); fireEvent.timeUpdate(audio); expect(bar.value).toBe("100");
+  });
   it("follows the lyrics approximately when nobody measured the timing", async () => {
     route(LISTENER, { ...pageRoutes, "/api/catalog/track/song-001": () => track({ timed: false, timed_lines: null, lyrics: "[Verse 1]\nline one\nline two\nline three\nline four" }) }); at("/song/song-001");
     fireEvent.click(await screen.findByRole("button", { name: "Play" })); const audio = document.querySelector("audio")!;
-    now = 1; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("Lines follow the song approximately.")).toBeInTheDocument());   // the song is 200 s long in this test
-    expect(screen.queryByText("[Verse 1]")).toBeNull(); now = 190; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line four")).toHaveAttribute("aria-current", "true"));
-    now = 60; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line two")).toHaveAttribute("aria-current", "true"));
+    now = 1; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText(/Lines follow the song approximately/)).toBeInTheDocument());   // the song is 200 s long in this test
+    expect(screen.queryByText("[Verse 1]")).toBeNull(); now = 190; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line four").closest("li")!).toHaveAttribute("aria-current", "true"));
+    now = 60; fireEvent.timeUpdate(audio); await waitFor(() => expect(screen.getByText("line two").closest("li")!).toHaveAttribute("aria-current", "true"));
   });
   it("shows plain lyrics when there is no timing, and says so when a song is not available", async () => {
     route(LISTENER, { ...pageRoutes, "/api/catalog/track/song-001": () => track({ timed: false, timed_lines: null }) }); at("/song/song-001");
