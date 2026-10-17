@@ -7,19 +7,28 @@ estimate(text)                                          rough seconds the take w
 CLI: tts_eleven.py --text-file lines.txt --out voiceover.mp3 [--voice suno1|suno2|suno3|frank|nj] [--model eleven_v4] [--estimate] [--force]
 Voice and model default to the Settings choices (media.json). The key comes from ELEVENLABS_API_KEY or elevenlabs.env.
 """
-import os, sys, json, shutil, hashlib, argparse, subprocess, urllib.request, urllib.error
+import os, re, sys, json, shutil, hashlib, argparse, subprocess, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import media_cfg as M
 import navaan_log as L
 LOG = L.get("tts_eleven")
 
 CHARS_PER_SECOND = 12.0   # measured: 235 characters of English came out as 19 seconds at a slow, soft pace
-SPEED_MODELS = ("eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_turbo_v2_5")   # measured on the live service: eleven_v4 and eleven_v3 take the speed setting and ignore it, these obey it
+TAG_MODELS = ("eleven_v4", "eleven_v3")   # measured on the live service: these take the speed setting and ignore it, but they obey direction tags in the text; the other models obey the speed setting
 PACES = {"slow": 0.75, "calm": 0.85, "normal": 1.0}   # ElevenLabs speed: 0.7 slowest, 1.0 as the voice speaks, 1.2 fastest
 
 
 def estimate(text, speed=1.0):
     return round(len(text.strip()) / CHARS_PER_SECOND / max(0.5, float(speed or 1.0)), 1)
+
+
+def directed(text, speed):
+    """The text with direction tags for a pace below 1.0 (eleven_v4 / v3 only). Slow: warm, soft, slow, a pause between lines and after each comma."""
+    if not speed or speed >= 1.0: return text
+    slow = speed <= 0.8
+    body = re.sub(r"\n\s*\n", " [pause] ", text.strip())
+    if slow: body = re.sub(r",\s+", "... ", body)
+    return ("[warmly] [softly] [slowly] " if slow else "[warmly] [softly] ") + body
 
 
 def cache_dir():
@@ -53,8 +62,9 @@ def synth(text, out, voice=None, model=None, force=False, speed=None):
         raise ValueError("unknown ElevenLabs model " + str(model))
     vid = M.VOICES[voice]["id"]
     speed = None if speed is None else round(min(1.2, max(0.7, float(speed))), 2)
-    if speed and speed != 1.0 and model not in SPEED_MODELS: model = SPEED_MODELS[0]   # a pace that is not obeyed is no pace: this take uses a model that does
-    hit = os.path.join(cache_dir(), _key(text, vid, model, speed or 1.0) + ".mp3")
+    spoken, setting = text, speed
+    if model in TAG_MODELS: spoken, setting = directed(text, speed), None   # this model is paced by tags, not by the speed setting
+    hit = os.path.join(cache_dir(), _key(spoken, vid, model, speed or 1.0) + ".mp3")
     if os.path.exists(hit) and not force:
         shutil.copyfile(hit, out)
         return {"file": out, "cached": True, "seconds": _seconds(out), "voice": voice, "model": model, "spent_seconds": 0.0}
@@ -65,15 +75,15 @@ def synth(text, out, voice=None, model=None, force=False, speed=None):
     if not key:
         raise RuntimeError("No ElevenLabs key is saved. Add it under Settings, Narration.")
     def ask(settings):
-        body = {"text": text, "model_id": model}
+        body = {"text": spoken, "model_id": model}
         if settings: body["voice_settings"] = settings
         req = urllib.request.Request("https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=mp3_44100_128" % vid, data=json.dumps(body).encode("utf-8"),
                                      headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"})
         return urllib.request.urlopen(req, timeout=180).read()
     try:
-        try: data = ask({"speed": speed, "stability": 0.6, "similarity_boost": 0.8} if speed else None)
+        try: data = ask({"speed": setting, "stability": 0.6, "similarity_boost": 0.8} if setting else None)
         except urllib.error.HTTPError as e:
-            if speed and e.code in (400, 422): data = ask(None)   # this model does not take the speed setting: speak at its own pace rather than fail
+            if setting and e.code in (400, 422): data = ask(None)   # this model does not take the speed setting: speak at its own pace rather than fail
             else: raise
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace").replace(key, "<key>")[:200]
