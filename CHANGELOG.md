@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-10-17
+
+### Fixed
+- Release 0.36.0 did not go out: the deploy checks failed because a browser test still expected the old wording of the message shown when you press Create on a new inspiration with nothing typed. Nothing changed in production. The message ("Write the quote or the idea first, or paste a Suno link.") and the test now agree, and the browser and speed checks were run before this release. Everything listed under 0.36.0 ships here.
+
 ## [0.36.0] - 2026-10-17
 
 ### Changed
@@ -450,7 +455,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...HEAD
+[0.36.1]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...v0.36.0
 [0.35.1]: https://github.com/NjAIAgents/navaan/compare/v0.35.0...v0.35.1
 [0.35.0]: https://github.com/NjAIAgents/navaan/compare/v0.34.0...v0.35.0
