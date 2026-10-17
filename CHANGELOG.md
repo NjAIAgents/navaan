@@ -9,6 +9,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [0.36.0] - 2026-10-17
 
 ### Added
+- The site has a tagline: "Every new sound carries an old emotion." It sits under the Browse heading, on the sign-in page, and in the page description that search results and link previews read.
 - A new inspiration can take its voice from a Suno song. Paste the song's Suno link when you create the inspiration: its lyric lines become the quote, its title becomes the title, and the sound is taken from the video file that the public Suno page itself lists (on Suno's own servers, nothing is decrypted and no third-party site is used). The download is checked before anything is created: it must come from Suno's servers, be a video file of a sensible size and length, decode all the way through, have a sound track, and not be silent. A link that fails any check is refused with a sentence and creates nothing. The pipeline then times the lines to that voice, makes the background picture, and renders the reel as usual; the voice already holds the song's music, so no background track is added unless you add one.
 - ElevenLabs narration stays as the backup. Without a Suno link an inspiration is narrated by ElevenLabs exactly as before. On a short whose voice came from Suno, the Narration card says so and offers ElevenLabs as the backup, and running "Narrate the quote" again replaces the Suno voice.
 
