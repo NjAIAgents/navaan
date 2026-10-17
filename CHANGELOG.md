@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- Visitors can pass a clip on, for sharing and publicity. After making a clip: **Download the clip** (to post from the Instagram app on a phone), **Copy caption** (the song, the link back to the full song and #NAVAAN #NewMusic), and on a computer a line saying how to post it, because only a phone's share sheet can take the video itself. The page a shared clip opens (/c/...) now has **Download the clip** always and **Share this clip** where the browser has a share sheet, so whoever receives a clip can pass it on too. The link preview (video, picture, title) was already there.
+
 ## [0.30.1] - 2026-10-17
 
 ### Added

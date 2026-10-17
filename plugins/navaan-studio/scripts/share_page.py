@@ -52,7 +52,7 @@ a.go:focus-visible,audio:focus-visible{{outline:2px solid #F2EEE7;outline-offset
 
 
 def render_clip(slug, title, token, base):
-    """The page a shared clip opens: the clip playing, and the way back to the whole song. No scripts."""
+    """The page a shared clip opens: the clip playing, the way back to the whole song, and a way to pass it on: Download always, Share (the phone's share sheet, with the video itself) where the browser has one."""
     url = f"{base}/c/{E(token)}"; vid = f"{base}/c/{E(token)}.mp4"; img = f"{base}/img/{E(slug)}/1280.jpg"
     desc = f"{title}: a clip. Hear the full song free on NAVAAN."
     return f"""<!doctype html>
@@ -70,10 +70,20 @@ video{{width:100%;max-height:72vh;border-radius:18px;background:#000;box-shadow:
 h1{{font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;font-size:28px;line-height:1.15;margin:18px 0 14px}}
 a.go{{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 24px;border-radius:14px;background:linear-gradient(135deg,#D6B477,#B58B4A);color:#0B1020;font-weight:700;text-decoration:none}}
 a.go:focus-visible{{outline:2px solid #F2EEE7;outline-offset:3px}}
+.pass{{display:flex;gap:18px;justify-content:center;align-items:center;margin:18px 0 0;flex-wrap:wrap}}
+.pass button,.pass a{{min-height:44px;display:inline-flex;align-items:center;padding:0 6px;background:none;border:0;color:#D6B477;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}}
+.pass :focus-visible{{outline:2px solid #F2EEE7;outline-offset:3px}}
 </style></head>
 <body><main>
 <video controls playsinline preload="metadata" poster="/img/{E(slug)}/640.jpg" src="/c/{E(token)}.mp4">Your browser cannot play video.</video>
 <h1>{E(title)}</h1>
 <a class="go" href="/app/song/{E(slug)}">Hear the full song</a>
-</main></body></html>
+<p class="pass"><button id="sh" type="button" hidden data-title="{E(title)}" data-page="{url}" data-vid="/c/{E(token)}.mp4" data-name="{E(slug)}-clip.mp4">Share this clip</button><a href="/c/{E(token)}.mp4" download="{E(slug)}-clip.mp4">Download the clip</a></p>
+</main>
+<script>
+(function(){{var b=document.getElementById("sh");if(!b||!navigator.share)return;b.hidden=false;
+b.onclick=function(){{var d=b.dataset,t=d.title+" on NAVAAN. Hear the full song: "+d.page+" #NAVAAN #NewMusic";
+fetch(d.vid).then(function(r){{return r.blob()}}).then(function(x){{var f=new File([x],d.name,{{type:"video/mp4"}});
+return navigator.canShare&&navigator.canShare({{files:[f]}})?navigator.share({{files:[f],text:t}}):navigator.share({{title:d.title,text:t,url:d.page}})}}).catch(function(){{}})}}}})();
+</script></body></html>
 """
