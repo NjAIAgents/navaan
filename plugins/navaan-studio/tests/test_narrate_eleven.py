@@ -2,6 +2,7 @@ import os, sys, json, tempfile, unittest
 from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 import narrate_eleven as N, narration, tts_eleven as T, media_cfg as M
+REAL_LOAD = M.load   # the patched M.load calls this, not itself
 
 
 class Base(unittest.TestCase):
@@ -33,10 +34,11 @@ class Narrate(Base):
     def test_run_writes_the_voiceover_sets_the_options_and_drops_stale_timing(self):
         open(os.path.join(self.D, "voiceover.srt"), "w").write("old"); open(os.path.join(self.D, "narration_sync.json"), "w").write("{}")
         seen = {}
-        def fake(text, out, voice=None, model=None, force=False, speed=None): seen.update(text=text, voice=voice, speed=speed); open(out, "wb").write(b"mp3"); return {"file": out, "cached": False, "seconds": 3.0, "voice": voice, "model": "m", "spent_seconds": 3.0}
+        def fake(text, out, voice=None, model=None, force=False, speed=None, raw=False): seen.update(text=text, voice=voice, speed=speed); open(out, "wb").write(b"mp3"); return {"file": out, "cached": False, "seconds": 3.0, "voice": voice, "model": "m", "spent_seconds": 3.0}
         narration.set_options(self.D, {"voice": "nj"})
         with mock.patch.object(T, "synth", fake): r = N.run("s")
-        self.assertEqual(seen, {"text": "Stay soft.\n\nStay.", "voice": "nj", "speed": T.PACES["slow"]})   # slow unless the brief says otherwise
+        self.assertEqual((seen["voice"], seen["speed"]), ("nj", T.PACES["slow"]))   # slow unless the brief says otherwise
+        self.assertEqual(seen["text"], N.script_text(self.D)); self.assertTrue(seen["text"].startswith("[warmly] [softly] [slowly] Stay soft."))   # the script is what is spoken
         self.assertTrue(os.path.isfile(os.path.join(self.D, "voiceover.mp3"))); self.assertFalse(os.path.exists(os.path.join(self.D, "voiceover.srt"))); self.assertFalse(os.path.exists(os.path.join(self.D, "narration_sync.json")))
         self.assertEqual((narration.get_option(self.D, "voiceover"), narration.get_option(self.D, "music")), ("file", "none"))
 
@@ -58,6 +60,33 @@ class Narrate(Base):
     def test_removing_the_narration_also_turns_the_step_off(self):
         narration.set_options(self.D, {"narrate": "eleven"}); narration.remove(self.D)
         self.assertEqual(narration.get_option(self.D, "narrate"), "none")
+
+
+class Script(Base):
+    def v4(self): return mock.patch.object(N.M, "load", lambda: {**REAL_LOAD(), "eleven_model": "eleven_v4"})
+
+    def test_the_suggested_script_is_the_quote_with_the_tags_and_pauses_of_the_pace_on_v4_and_plain_on_other_models(self):
+        narration.set_options(self.D, {"pace": "slow"})
+        with self.v4(): self.assertTrue(N.script_text(self.D).startswith("[warmly] [softly] [slowly] Stay soft."))
+        with mock.patch.object(N.M, "load", lambda: {**REAL_LOAD(), "eleven_model": "eleven_multilingual_v2"}): self.assertEqual(N.script_text(self.D), "Stay soft.\n\nStay.")   # that model takes the speed setting, not tags
+
+    def test_an_edited_script_wins_is_spoken_as_it_is_and_empty_goes_back_to_the_suggestion(self):
+        seen = {}
+        def fake(text, out, voice=None, model=None, force=False, speed=None, raw=False): seen.update(text=text, raw=raw); open(out, "wb").write(b"mp3"); return {"file": out, "cached": False, "seconds": 3.0, "voice": voice, "model": "m", "spent_seconds": 3.0}
+        with self.v4():
+            N.save_script(self.D, "  [warmly] Stay... SOFT.  "); self.assertEqual(N.script_text(self.D), "[warmly] Stay... SOFT.")
+            self.assertEqual((N.info(self.D)["script"], N.info(self.D)["script_custom"]), ("[warmly] Stay... SOFT.", True))
+            with mock.patch.object(T, "synth", fake): N.run("s")
+            self.assertEqual(seen, {"text": "[warmly] Stay... SOFT.", "raw": True})   # no second pass of tags over the owner's words
+            N.save_script(self.D, ""); self.assertFalse(N.info(self.D)["script_custom"]); self.assertIn("[slowly]", N.script_text(self.D)) if N.chosen_pace(self.D) == "slow" else None
+        with self.assertRaises(ValueError): N.save_script(self.D, "x" * (N.MAX_SCRIPT + 1))
+
+    def test_a_script_sent_raw_to_v4_is_not_given_tags_again(self):
+        sent = []
+        def fake_open(req, timeout=0): sent.append(json.loads(req.data)); r = mock.Mock(); r.read.return_value = b"mp3"; return r
+        with mock.patch.object(T.urllib.request, "urlopen", fake_open), mock.patch.object(T.M, "get_key", lambda p: "k"), mock.patch.object(T, "_seconds", lambda p: 2.0), mock.patch.object(T.M, "load", lambda: {**REAL_LOAD(), "eleven_model": "eleven_v4"}):
+            T.synth("[softly] Already written.", os.path.join(self.D, "o.mp3"), voice="frank", speed=0.75, force=True, raw=True)
+        self.assertEqual(sent[0]["text"], "[softly] Already written."); self.assertNotIn("voice_settings", sent[0])
 
 
 class Speed(Base):
@@ -87,6 +116,22 @@ class Speed(Base):
         self.assertEqual(self.take(0.85, model="eleven_v4")[0]["text"], "[warmly] [softly] Stay soft. Stay.")   # calm: softer, not slower
         self.assertEqual(self.take(1.0, model="eleven_v4")[0]["text"], "Stay soft. Stay.")   # normal: the words as they are
         self.assertEqual(self.take(None, model="eleven_v4")[0]["text"], "Stay soft. Stay.")
+
+    def test_slow_puts_an_ellipsis_at_phrase_breaks_because_the_tag_alone_does_not_slow_v4(self):   # measured live: 5.76 s with tags, 7.84 s with these ellipses, same words
+        t = T.directed("You are allowed to outgrow your old life, and still be grateful for who you were.\n\nYou are allowed to change, even when no one understands why.", 0.75)
+        self.assertEqual(t, "[warmly] [softly] [slowly] You are allowed... to outgrow... your old life... and still be grateful... for who you were. [pause] You are allowed... to change... even when no one understands why.")
+        self.assertNotIn("......", t); self.assertNotIn("... ...", t)   # a comma and a connector together make one break, not two
+        self.assertEqual(T.directed("Stay.", 0.85), "[warmly] [softly] Stay.")   # calm is tone only: no extra breaks
+
+    def test_the_ellipsis_is_phrase_aware_it_does_not_double_a_pause_the_text_already_has(self):
+        d = lambda t: T.directed(t, 0.75).replace("[warmly] [softly] [slowly] ", "")
+        self.assertEqual(d("Wait! And then go to the sea."), "Wait! And then go... to the sea.")   # none after the sentence end, and the break only where a phrase of two words or more came before
+        self.assertEqual(d("Go to the sea."), "Go to the sea.")   # two words before "to" is a phrase: but "Go" alone is not
+        self.assertEqual(d("Stay, and go."), "Stay... and go.")   # the comma is the pause: one ellipsis, not two
+        self.assertEqual(d("Stay — and go to it."), "Stay — and go... to it.")   # no ellipsis next to the dash (it already pauses); the later phrase break is fine
+        self.assertEqual(d("Stay soft [pause] and go."), "Stay soft [pause] and go.")   # nor right after a tag
+        self.assertEqual(d("Be calm. To you, for your life."), "Be calm. To you... for your life.")
+        self.assertNotIn("... ...", d("Light, and love, and loss, to be, for you.")); self.assertNotIn("......", d("Light, and love, and loss, to be, for you."))
 
     def test_a_take_at_another_speed_is_not_served_from_the_cache(self):
         self.assertNotEqual(T._key("x", "v", "m", 0.75), T._key("x", "v", "m", 1.0))
