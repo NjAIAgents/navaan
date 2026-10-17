@@ -121,7 +121,7 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
   const [audio, setAudio] = useState<File | null>(null); const [srt, setSrt] = useState<File | null>(null); const [text, setText] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const has = Object.keys(d.files ?? {}).some((f) => f.startsWith("narration"));
-  const n = d.narrate; const [voice, setVoice] = useState(n?.voice ?? "frank");
+  const n = d.narrate; const [voice, setVoice] = useState(n?.voice ?? "suno1");
   const [pace, setPace] = useState(n?.pace ?? "slow");
   const eleven = async (on: boolean) => { setBusy(true); setErr(""); try { await postJSON("/api/narration/eleven", { slug: d.slug, on, voice, pace }); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   const upload = async () => {

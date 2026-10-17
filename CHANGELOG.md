@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.9] - 2026-10-16
+
+### Added
+- Three more narration voices from your ElevenLabs account, SunoCustom1, SunoCustom2 and SunoCustom3, and SunoCustom1 is now the default voice (Frank and NJ stay in the list). A short or Setting that already names a voice keeps it.
+
 ## [0.29.8] - 2026-10-16
 
 ### Fixed
@@ -355,7 +360,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.8...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.9...HEAD
+[0.29.9]: https://github.com/NjAIAgents/navaan/compare/v0.29.8...v0.29.9
 [0.29.8]: https://github.com/NjAIAgents/navaan/compare/v0.29.7...v0.29.8
 [0.29.7]: https://github.com/NjAIAgents/navaan/compare/v0.29.6...v0.29.7
 [0.29.6]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...v0.29.6

@@ -25,10 +25,10 @@ class Narrate(Base):
         json.dump({"text": "You are allowed. Still be grateful, truly. Why?", "author": ""}, open(os.path.join(self.D, "quote.json"), "w"))
         self.assertEqual(N.quote_text(self.D), "You are allowed.\n\nStill be grateful, truly.\n\nWhy?")
 
-    def test_voice_is_frank_by_default_and_the_brief_can_pick_nj(self):
-        self.assertEqual(N.chosen_voice(self.D), "frank")
+    def test_voice_is_suno1_by_default_and_the_brief_can_pick_another(self):
+        self.assertEqual(N.chosen_voice(self.D), "suno1")
         narration.set_options(self.D, {"voice": "nj"}); self.assertEqual(N.chosen_voice(self.D), "nj")
-        narration.set_options(self.D, {"voice": "bogus"}); self.assertEqual(N.chosen_voice(self.D), "frank")
+        narration.set_options(self.D, {"voice": "bogus"}); self.assertEqual(N.chosen_voice(self.D), "suno1")
 
     def test_run_writes_the_voiceover_sets_the_options_and_drops_stale_timing(self):
         open(os.path.join(self.D, "voiceover.srt"), "w").write("old"); open(os.path.join(self.D, "narration_sync.json"), "w").write("{}")
@@ -44,7 +44,7 @@ class Narrate(Base):
         self.assertTrue(N.info(self.D)["on"])   # on unless skipped
         narration.set_options(self.D, {"voice": "nj"})
         i = N.info(self.D)
-        self.assertEqual((i["on"], i["voice"], sorted(i["voices"])), (True, "nj", ["frank", "nj"])); self.assertGreater(i["estimate_s"], 0); self.assertEqual(i["cap_s"], M.load()["eleven_monthly_seconds"])
+        self.assertEqual((i["on"], i["voice"], sorted(i["voices"])), (True, "nj", ["frank", "nj", "suno1", "suno2", "suno3"])); self.assertGreater(i["estimate_s"], 0); self.assertEqual(i["cap_s"], M.load()["eleven_monthly_seconds"])
 
     def test_pace_is_slow_by_default_the_brief_can_change_it_and_a_slower_pace_means_a_longer_estimate(self):
         self.assertEqual(N.chosen_pace(self.D), "slow"); slow = N.info(self.D)["estimate_s"]
