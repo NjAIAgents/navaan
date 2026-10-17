@@ -166,7 +166,7 @@ def music_steps(slug, D):
         *([cap_step] if CAPR else []),
         dict(id="reel", outputs=["final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "thumb_9x16.jpg", "reel_report.json", "reel_audio.mp3", "reel_props.json"], label="Render the vertical reel for Instagram and the Short from the hook" + (" and burn the lyrics onto it" if CAPR else "") + " (redo this alone to remake only the reel)", kind="script",
              cmds=[sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []),
-             done=lambda m: fresh(D, ["final_reel_9x16.mp4"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", "images/vert/*", ".cache/motion/*.mp4", "reel_start.json"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json"] if CAPR else []))),
+             done=lambda m: fresh(D, ["final_reel_9x16.mp4"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", "images/vert/*", ".cache/motion/*.mp4", "reel_start.json"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json", "reel_lyrics.json"] if CAPR else []))),
         dict(id="video", outputs=["final_16x9.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the full video here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
              cmds=[sc("shots_render.py", slug), sc("tag_mp3.py", slug)],
              done=lambda m: fresh(D, ["final_16x9.mp4", "final_tagged.mp3"], ["visuals.json", "images/*", ".cache/motion/*.mp4"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
@@ -185,20 +185,20 @@ def music_steps(slug, D):
     tail = [
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube title, description and tags from the lyrics", kind="claude", skill="youtube-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
-        dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
+        dict(id="publish_youtube", outputs=["published.json"], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
              cmds=[sc("publish_youtube.py", "upload", slug, "--file", FULL, "--meta", "youtube.json", *(["--thumbnail", "thumb_16x9.jpg"] if has(D, "thumb_16x9.jpg") and cfg("publish.youtube_thumbnail", True) else []), "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
-        *([dict(id="youtube_short", outputs=[], redo=False, label="Upload the Short to YouTube (API, private)", kind="script", before="publish_short",
+        *([dict(id="youtube_short", outputs=["published.json"], redo=False, label="Upload the Short to YouTube (API, private)", kind="script", before="publish_short",
                 cmds=[sc("short_meta.py", slug), sc("publish_youtube.py", "upload", slug, "--file", "final_reel_9x16.mp4", "--meta", "youtube_short.json", "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
                 done=lambda m: any(i.get("file") == "final_reel_9x16.mp4" for i in m.get("published", {}).get("youtube_items", [])), sets_after="published")]
           if vmode == "own" else  # the Short is cut on the server from the song's own pictures and uploaded with the API, like the inspiration videos
-          [dict(id="youtube_short", outputs=[], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
+          [dict(id="youtube_short", outputs=["published.json"], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
                 done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4"))]),
-        dict(id="go_public", outputs=[], redo=False, label="Make the YouTube video and Short public", kind="script", before="go_public",
+        dict(id="go_public", outputs=["published.json"], redo=False, label="Make the YouTube video and Short public", kind="script", before="go_public",
              cmds=[sc("publish_youtube.py", "go-public", slug, "--yes")], done=lambda m: public_done(m)),
         dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption from the lyrics (you review and can edit it)", kind="claude", skill="instagram-caption", optional=True, after="instagram_caption",
              done=lambda m: has(D, "instagram.txt")),
-        dict(id="publish_instagram", outputs=[], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
+        dict(id="publish_instagram", outputs=["published.json"], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
              cmds=None, done=lambda m: ig_done(m)),
         dict(id="archive", outputs=[], redo=False, label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
              cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
@@ -264,14 +264,14 @@ def inspiration_steps(slug, D):
              cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "music.mp3", "voiceover.*"]), after="media", sets="approved"),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube Shorts title, description and tags", kind="claude", skill="inspiration-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
-        dict(id="publish_youtube", outputs=[], redo=False, label="Upload to YouTube as a Short (API, private)", kind="script", before="publish_youtube",
+        dict(id="publish_youtube", outputs=["published.json"], redo=False, label="Upload to YouTube as a Short (API, private)", kind="script", before="publish_youtube",
              cmds=[sc("publish_youtube.py", "upload", slug, "--file", FINAL, "--meta", "youtube.json", "--privacy", os.environ.get("NAVAAN_YT_PRIVACY", "private"), "--yes")],
              done=lambda m: yt_done(m), sets_after="published"),
         dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption (you review and can edit it)", kind="claude", skill="inspiration-caption", optional=True, after="instagram_caption",
              done=lambda m: has(D, "instagram.txt")),
-        dict(id="go_public", outputs=[], redo=False, label="Make the YouTube Short public", kind="script", before="go_public",
+        dict(id="go_public", outputs=["published.json"], redo=False, label="Make the YouTube Short public", kind="script", before="go_public",
              cmds=[sc("publish_youtube.py", "go-public", slug, "--yes")], done=lambda m: public_done(m)),
-        dict(id="publish_instagram", outputs=[], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
+        dict(id="publish_instagram", outputs=["published.json"], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
              cmds=None, done=lambda m: ig_done(m)),
         dict(id="archive", outputs=[], redo=False, label="Archive to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
              cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
@@ -403,7 +403,27 @@ MAX_LOGGED_LINES = 3000   # per command; a render prints thousands of progress l
 MAX_LOGGED_LINE = 1000
 
 
-def _pump(stream, logf):
+PROGRESS_RE = re.compile(r"^PROGRESS\s+(\d+)\s*/\s*(\d+)\s*(.*)$")
+
+
+def parse_progress(line):
+    """`PROGRESS 3/16 picture 3` printed by a step -> {"done", "total", "pct", "label"}, else None. A step prints it to say how far it has got."""
+    m = PROGRESS_RE.match((line or "").strip())
+    if not m or int(m.group(2)) <= 0: return None
+    done, total = min(int(m.group(1)), int(m.group(2))), int(m.group(2))
+    return {"done": done, "total": total, "pct": round(100 * done / total), "label": m.group(3).strip()[:80]}
+
+
+def note_output(slug, line):
+    """A line of a running step's output is a sign of life; a PROGRESS line also moves its bar. Both are published to the portal with the job's other progress."""
+    r = RUN.get(slug) if slug else None
+    if not r or not r.get("step"): return
+    r["activity_at"] = time.time()
+    p = parse_progress(line)
+    if p: r.update(p)
+
+
+def _pump(stream, logf, slug=None):
     """Copy a command's output to the per-step file exactly as it comes, and into the log stream line by line (split on newline and carriage return, which ffmpeg uses for progress)."""
     buf, n, cut = "", 0, 0
     dec = codecs.getincrementaldecoder("utf-8")("replace")   # a character split across two reads stays whole
@@ -411,6 +431,8 @@ def _pump(stream, logf):
         nonlocal n, cut
         line = line.strip()
         if not line: return
+        note_output(slug, line)
+        if line.startswith("PROGRESS "): return   # the bar is the report; the log keeps the file's own copy
         if n >= MAX_LOGGED_LINES: cut += 1; return
         n += 1; L.event(LOG, "info", "step_output", line=line[:MAX_LOGGED_LINE])
     while True:
@@ -432,7 +454,7 @@ def run_cmd(cmd, logf, env=None, slug=None):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=find_root(), env=env, start_new_session=True)
     if slug: PROC[slug] = p
     def reader():
-        try: _pump(p.stdout, logf)
+        try: _pump(p.stdout, logf, slug)
         except Exception:
             L.exc(LOG, "step_output_reader_failed")
             try:
@@ -624,7 +646,7 @@ def _run(slug, step=None, dry=False, retries=2):
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4
-        cands = ["final_reel_9x16_cap.mp4", "final_reel_9x16.mp4"] + (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]  # the captioned reel when it exists, then the tuned reel, the YouTube Studio clip as fallback
+        cands = ig_reel_candidates(slug)  # the captioned reel when it exists, then the tuned reel, the YouTube Studio clip as fallback
         rf = next((c for c in cands if os.path.exists(os.path.join(D, c))), None)
         if not rf: print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
         if not gate_ok(D, meta(slug).get("approvals", {}), "instagram_caption"): show_gate(slug, "instagram_caption"); print("The Instagram caption is missing or changed since you approved it. Approve gate 'instagram_caption' again."); return 3
@@ -644,7 +666,7 @@ def _run(slug, step=None, dry=False, retries=2):
     os.makedirs(os.path.join(D, "logs"), exist_ok=True)
     lp = os.path.join(D, "logs", f"{sid}.log"); env = account_env(slug)
     for attempt in range(1, retries + 2):
-        RUN[slug] = {"step": sid, "attempt": attempt, "attempts": retries + 1, "started": time.time(), "failed": None}
+        RUN[slug] = {"step": sid, "attempt": attempt, "attempts": retries + 1, "started": time.time(), "activity_at": time.time(), "failed": None}
         L.event(LOG, "info", "step_started", attempt=attempt, attempts=retries + 1, kind=s["kind"], label=s["label"])
         with open(lp, "a", encoding="utf-8") as lf:
             lf.write(f"\n=== {now()} {sid} attempt {attempt} ===\n")
@@ -656,9 +678,12 @@ def _run(slug, step=None, dry=False, retries=2):
             RUN[slug] = {"step": None, "failed": sid, "log": lp, "stopped": True}
             print(f"step {sid} stopped by you"); return 130
         if ok and s["done"](m):
+            took = round(time.time() - (RUN.get(slug) or {}).get("started", time.time()))
             def finish(d):
                 if s.get("sets_after"): d["state"] = s["sets_after"]
-                log_hist(d, f"step {sid} done (attempt {attempt})")
+                d.setdefault("step_seconds", {})[sid] = took   # how long it took this time: the next run shows "usually about N min" while it has no progress to report
+                urls = " ".join(l["url"] for l in C.published_links(d) if l["step"] == sid and l["url"])   # a publish step's own line says where it published
+                log_hist(d, f"step {sid} done (attempt {attempt})" + (f": {urls}" if urls else ""))
             edit_meta(slug, finish); RUN.pop(slug, None); print("done", sid); L.event(LOG, "info", "step_done", attempt=attempt); return 0
         edit_meta(slug, lambda d: log_hist(d, f"step {sid} attempt {attempt} did not finish"))
         L.event(LOG, "warning", "step_attempt_failed", attempt=attempt, commands_ok=ok, output_file=lp)
@@ -886,14 +911,21 @@ def set_gate(slug, gate, on, via):
     edit_meta(slug, put)
 
 
-def request_changes(slug, gate, note, via):
-    """Send an item back instead of approving it (FR-023): drops any approval of the gate, keeps the note in the history, never counts as an approval."""
+def ig_reel_candidates(slug):
+    """The files Instagram may take as the reel, best first: the one with lyrics when it exists (unless you chose the reel without lyrics for this song), then the plain reel, then the YouTube Studio clip."""
+    import reel_lyrics
+    cands = ["final_reel_9x16_cap.mp4", "final_reel_9x16.mp4"] + (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]
+    return cands if reel_lyrics.on(meta(slug)) else [c for c in cands if "_cap" not in c]
+
+
+def request_changes(slug, gate, note, via, about=""):
+    """Send an item back instead of approving it (FR-023): drops any approval of the gate, keeps the note in the history, never counts as an approval. `about` names the video the note is about."""
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
     note = " ".join(str(note or "").split())[:500]
     if not note: sys.exit("say what should change")
     def put(m):
         m.setdefault("approvals", {}).pop(gate, None)
-        log_hist(m, f"changes requested at {gate} via {via}: {note}")
+        log_hist(m, f"changes requested at {gate}{' about ' + about if about else ''} via {via}: {note}")
     edit_meta(slug, put)
 
 

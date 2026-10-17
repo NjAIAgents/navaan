@@ -6,6 +6,19 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- A running step now looks alive. Its chip and its row in the step list show a moving icon, a progress bar fills as the step reports how far it has got (pictures made, the lyrics being timed, the video being joined) or moves when it reports nothing, and under it: how long it has run, which attempt of how many, when it last did anything, and how long it usually takes. The step it names is the one really running (the old text could lag a step behind).
+- Opening a step no longer hides what needs you: the approval, the running card or the failure stays at the top and the step opens under it. The right side stays in view while you scroll the list.
+- Every click is answered: approve, send back, redo, restart, run, stop, take an approval back, answer, and the approval switches each show a message saying what is being done and then what was done, and say so when nothing started because a run was already going.
+- At "Review the videos" the approve and change buttons are above the videos, not below them. The full video, the reel without lyrics and the reel with lyrics sit side by side, each with its name.
+- Feedback at the video review asks which video it is about and makes only that one again (the full video, or the reel). For the reel with lyrics you can also move the lyrics earlier or later by up to 10 seconds. The Instagram reel can go without lyrics: choose "Without lyrics" beside the approval while the lyrics are out of sync; the YouTube Short never had lyrics.
+- Each step shows its data laid out for reading instead of as JSON: the picture plan (its idea, character, look and every picture's prompt, which you can edit and save), the shot list, which pictures move and where, the captions as a table, and the facts of a finished video. A step that has not run says what it will do and what it spends, and shows a draft where one exists. A step that ran before but must run again says so and when it last ran, and a running step marks the old files as the previous version.
+- The approval a step asks for has a switch on the step ("Ask me before it runs"). It is the same setting as Settings, Approvals that approve themselves, so it applies to every song; switching off one that spends, publishes or deletes asks first.
+- A publish step shows where it published: the YouTube video, the Short and the Instagram Reel, each with its link and whether it is private or public, and writes them to published.json. The history line of the step carries the links.
+
+### Changed
+- Every YouTube description and every Instagram caption now ends with the site address: the song's page on navaan.online for a song, navaan.online for an inspiration. It is added when posting, only if it is not already there.
+
 ## [0.35.1] - 2026-10-17
 
 ### Fixed

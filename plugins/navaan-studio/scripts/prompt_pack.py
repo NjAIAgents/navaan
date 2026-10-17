@@ -28,6 +28,38 @@ def load(D):
     return C.load_json(pack_path(D), default=None)
 
 
+EDIT_LIMITS = {"concept": 2000, "character": 3000, "style_line": 1500}
+MAX_PROMPT = 3000
+
+
+def apply_edits(D, edits):
+    """Change the words of the picture plan and keep everything else in it: edits is {"concept", "character", "style_line"} (any of them) and "prompts": [{"n", "prompt"}].
+    Raises ValueError with a sentence for a missing plan, an empty or too long text, or a picture number the plan does not have. Pictures already made are not touched."""
+    pack = load(D)
+    if not pack or not pack.get("prompts"): raise ValueError("There is no picture plan yet. Run 'Write the picture plan' first.")
+    if not isinstance(edits, dict): raise ValueError("send the changes as an object")
+    for k, limit in EDIT_LIMITS.items():
+        if k not in edits: continue
+        v = str(edits[k] or "").strip()
+        if not v: raise ValueError(f"{k.replace('_', ' ')} cannot be empty")
+        if len(v) > limit: raise ValueError(f"{k.replace('_', ' ')} is over {limit} characters")
+        pack[k] = v
+        if k == "style_line" and isinstance(pack.get("look"), dict): pack["look"]["style_line"] = v
+    by_n = {int(x["n"]): x for x in pack["prompts"]}
+    for e in edits.get("prompts") or []:
+        try: n = int(e["n"])
+        except (KeyError, TypeError, ValueError): raise ValueError("each prompt needs its picture number") from None
+        if n not in by_n: raise ValueError(f"the plan has no picture {n}")
+        v = str(e.get("prompt") or "").strip()
+        if not v: raise ValueError(f"the prompt of picture {n} cannot be empty")
+        if len(v) > MAX_PROMPT: raise ValueError(f"the prompt of picture {n} is over {MAX_PROMPT} characters")
+        by_n[n]["prompt"] = v
+    tmp = pack_path(D) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f: json.dump(pack, f, indent=2, ensure_ascii=False); f.write("\n")
+    os.replace(tmp, pack_path(D))
+    return pack
+
+
 def default_count(duration):
     """About one picture per 10 seconds, never fewer than 6 or more than the picture limit, and never shorter than a minimum shot."""
     n = int(round(duration / SECONDS_PER_PICTURE))

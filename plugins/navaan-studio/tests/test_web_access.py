@@ -184,6 +184,49 @@ class Access(unittest.TestCase):
         self.assertEqual(code, 200); import navaan_common as C; D = C.song_dir(json.loads(body)["slug"])
         self.assertEqual(open(os.path.join(D, "lyrics.txt")).read().strip(), info["lyrics"]); self.assertEqual(open(os.path.join(D, "style.txt")).read().strip(), "soft pop, cinematic"); self.assertTrue(os.path.isfile(os.path.join(D, "takes", "upload.mp3")))   # the words from the link, the sound from the file
 
+    def test_the_picture_plan_is_edited_on_the_step_page_and_a_bad_edit_changes_nothing(self):
+        import navaan, navaan_common as C
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
+        pack = {"concept": "A quiet ache.", "character": "A woman.", "style_line": "Rain.", "look": {"style_line": "Rain."}, "prompts": [{"n": 1, "section": "Verse", "prompt": "First.", "camera": "pan"}]}
+        json.dump(pack, open(os.path.join(D, "prompt_pack.json"), "w"))
+        save = lambda tok="owner-tok", csrf="csrf-owner", **b: self.call("/api/plan/save", tok, csrf, post=True, body=dict(slug=slug, **b))
+        self.assertEqual(save(character="A lone man.", prompts=[{"n": 1, "prompt": "Second."}])[0], 200)
+        got = json.load(open(os.path.join(D, "prompt_pack.json"))); self.assertEqual((got["character"], got["prompts"][0]["prompt"], got["prompts"][0]["camera"]), ("A lone man.", "Second.", "pan"))
+        self.assertIn("picture plan edited via ui:owner1", "\n".join(str(h) for h in navaan.meta(slug)["history"]))
+        code, body = save(prompts=[{"n": 9, "prompt": "x"}]); self.assertEqual(code, 400); self.assertIn("no picture 9", json.loads(body)["error"])
+        self.assertEqual(json.load(open(os.path.join(D, "prompt_pack.json")))["character"], "A lone man.")
+        self.assertEqual(save("lis-tok", "csrf-lis", character="x")[0], 403)   # a listener has no say
+
+    def test_feedback_at_the_video_review_names_one_video_and_only_that_one_is_made_again(self):
+        import navaan, navaan_common as C, reel_lyrics
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
+        navaan.edit_meta(slug, lambda m: m.setdefault("approvals", {}).update(media={"at": "x", "via": "ui:owner1"}))
+        sent = []; req = lambda **b: self.call("/api/request-changes", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, gate="media", **b))
+        with mock.patch.object(U, "start_job", lambda sl, all_=False, step=None, redo=False: sent.append((sl, all_, step, redo)) or True), mock.patch.object(U.jobs, "active", lambda sl: False):
+            code, body = req(note="lyrics late", video="trailer"); self.assertEqual(code, 400); self.assertIn("say which video", json.loads(body)["error"])
+            code, body = req(note="lyrics late", video="reel_lyrics", offset=99); self.assertEqual(code, 400)   # a bad nudge is refused before anything changes
+            self.assertEqual(sent, []); self.assertIn("media", navaan.meta(slug)["approvals"])
+            code, body = req(note="lyrics are late", video="reel_lyrics", offset=-1.5); self.assertEqual((code, json.loads(body)["started"]), (200, True))
+            self.assertEqual(sent, [(slug, False, "reel", True)])   # the reel only, not the full video
+            self.assertEqual(reel_lyrics.offset(D), -1.5); self.assertNotIn("media", navaan.meta(slug)["approvals"])
+            self.assertIn("changes requested at media about the reel with lyrics via ui:owner1: lyrics are late", "\n".join(str(h) for h in navaan.meta(slug)["history"]))
+            sent.clear(); code, body = req(note="too dark", video="full"); self.assertEqual(json.loads(body)["started"], True); self.assertEqual(sent, [(slug, False, "video", True)])
+            sent.clear(); code, body = req(note="old style, note only"); self.assertEqual((code, json.loads(body)["started"]), (200, False)); self.assertEqual(sent, [])   # without a video it only records the note, as before
+        with mock.patch.object(U.jobs, "active", lambda sl: True): self.assertEqual(req(note="x", video="reel")[0], 409)
+
+    def test_the_instagram_reel_can_go_without_lyrics_and_the_lyrics_can_be_nudged(self):
+        import navaan, navaan_common as C, reel_lyrics
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
+        lyr = lambda **b: self.call("/api/reel/lyrics", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, **b))
+        self.assertEqual(navaan.ig_reel_candidates(slug)[:2], ["final_reel_9x16_cap.mp4", "final_reel_9x16.mp4"])   # with lyrics by default
+        code, body = lyr(on=False); self.assertEqual((code, json.loads(body)["on"]), (200, False))
+        self.assertEqual(navaan.ig_reel_candidates(slug)[0], "final_reel_9x16.mp4"); self.assertTrue(all("_cap" not in c for c in navaan.ig_reel_candidates(slug)))   # Instagram takes the plain reel
+        self.assertFalse(json.loads(self.call(f"/api/song/{slug}", "owner-tok")[1])["reel_lyrics"]["on"])
+        code, body = lyr(on=True, offset=1.5); self.assertEqual(json.loads(body), {"ok": True, "on": True, "offset": 1.5}); self.assertEqual(navaan.ig_reel_candidates(slug)[0], "final_reel_9x16_cap.mp4")
+        self.assertEqual(lyr(offset="soon")[0], 400); self.assertEqual(lyr(offset=11)[0], 400); self.assertEqual(reel_lyrics.offset(D), 1.5)   # a bad nudge changes nothing
+        lyr(offset=0); self.assertFalse(os.path.exists(os.path.join(D, "reel_lyrics.json")))
+        self.assertEqual(self.call("/api/reel/lyrics", "lis-tok", "csrf-lis", post=True, body=dict(slug=slug, on=False))[0], 403)
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")
