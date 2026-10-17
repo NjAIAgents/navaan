@@ -61,31 +61,32 @@ class Narrate(Base):
 
 
 class Speed(Base):
-    def take(self, speed, errors=()):
-        """one synth call with the network faked; returns the request bodies sent"""
+    def take(self, speed, errors=(), model="eleven_multilingual_v2", text="Stay soft. Stay."):
+        """one synth call with the network faked and the Settings model chosen; returns the request bodies sent"""
         import io, urllib.error
         sent = []
         def fake_open(req, timeout=0):
             sent.append(json.loads(req.data))
             if errors and len(sent) == 1: raise urllib.error.HTTPError(req.full_url, errors[0], "bad", {}, io.BytesIO(b"no speed"))
             r = mock.Mock(); r.read.return_value = b"mp3"; return r
-        out = os.path.join(self.D, "o.mp3")
-        with mock.patch.object(T.urllib.request, "urlopen", fake_open), mock.patch.object(T.M, "get_key", lambda p: "k"), mock.patch.object(T, "_seconds", lambda p: 2.0):
-            T.synth("Stay soft.", out, voice="frank", speed=speed, force=True)
+        out = os.path.join(self.D, "o.mp3"); real = M.load
+        with mock.patch.object(T.urllib.request, "urlopen", fake_open), mock.patch.object(T.M, "get_key", lambda p: "k"), mock.patch.object(T, "_seconds", lambda p: 2.0), mock.patch.object(T.M, "load", lambda: {**real(), "eleven_model": model}):
+            T.synth(text, out, voice="frank", speed=speed, force=True)
         return sent
 
-    def test_the_request_carries_the_speed_and_a_slow_pace_is_below_one(self):
+    def test_a_model_that_obeys_the_speed_setting_gets_it_and_a_slow_pace_is_below_one(self):
         self.assertLess(T.PACES["slow"], T.PACES["calm"]); self.assertLess(T.PACES["calm"], T.PACES["normal"])
-        sent = self.take(T.PACES["slow"]); self.assertEqual(sent[0]["voice_settings"]["speed"], 0.75)
+        sent = self.take(T.PACES["slow"]); self.assertEqual(sent[0]["voice_settings"]["speed"], 0.75); self.assertEqual(sent[0]["text"], "Stay soft. Stay.")   # no tags: it would speak them
         self.assertNotIn("voice_settings", self.take(None)[0])   # no pace asked: the model's own
 
-    def test_a_model_that_ignores_the_speed_is_swapped_for_one_that_obeys_it_only_when_a_pace_is_asked(self):
-        real = M.load
-        with mock.patch.object(T.M, "load", lambda: {**real(), "eleven_model": "eleven_v4"}):
-            self.assertEqual(self.take(0.75)[0]["model_id"], "eleven_multilingual_v2")   # v4 and v3 take the setting and ignore it (measured live)
-            self.assertEqual(self.take(None)[0]["model_id"], "eleven_v4")   # no pace asked: the chosen model
-            self.assertEqual(self.take(1.0)[0]["model_id"], "eleven_v4")
-        with mock.patch.object(T.M, "load", lambda: {**real(), "eleven_model": "eleven_flash_v2_5"}): self.assertEqual(self.take(0.75)[0]["model_id"], "eleven_flash_v2_5")
+    def test_v4_and_v3_are_paced_by_direction_tags_not_by_the_speed_setting_they_ignore(self):
+        for m in ("eleven_v4", "eleven_v3"):
+            b = self.take(0.75, model=m, text="Stay soft, stay.\n\nStay kind.")[0]
+            self.assertNotIn("voice_settings", b); self.assertEqual(b["model_id"], m)   # the chosen model stays
+            self.assertEqual(b["text"], "[warmly] [softly] [slowly] Stay soft... stay. [pause] Stay kind.")
+        self.assertEqual(self.take(0.85, model="eleven_v4")[0]["text"], "[warmly] [softly] Stay soft. Stay.")   # calm: softer, not slower
+        self.assertEqual(self.take(1.0, model="eleven_v4")[0]["text"], "Stay soft. Stay.")   # normal: the words as they are
+        self.assertEqual(self.take(None, model="eleven_v4")[0]["text"], "Stay soft. Stay.")
 
     def test_a_take_at_another_speed_is_not_served_from_the_cache(self):
         self.assertNotEqual(T._key("x", "v", "m", 0.75), T._key("x", "v", "m", 1.0))
