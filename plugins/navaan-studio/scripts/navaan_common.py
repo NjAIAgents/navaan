@@ -140,7 +140,7 @@ def font_for(text, size):
     for path, idx in LATIN_FONT_CANDIDATES:
         if os.path.exists(path):
             try: return ImageFont.truetype(path, size, index=idx)
-            except OSError: continue   # a collection without that face: try the next font
+            except OSError: continue   # expected: a font collection without that face, so the next font is tried
     return font(size)
 
 
