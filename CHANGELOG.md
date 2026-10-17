@@ -7,6 +7,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [Unreleased]
 
 ### Added
+- Making the poster is a step of a song's pipeline, right after the pictures and behind the same spending approval (which now lists it with its price, about 7 cents). It paints from the prompt saved on the Media tab's Poster card when there is one, else from a prompt written from the song, and it is finished once the poster exists. A song whose videos were already approved is not sent back to make one, so nothing is spent on older songs without you asking; for those the Poster card still makes it.
 - A song's poster can be the picture a shared link shows. On the song's Poster card, "Use this poster for share links" puts the poster in the song's bucket folder; from then on the link you share (the song page and a shared clip) previews the poster, in portrait, instead of the square cover, in WhatsApp, Instagram messages and the like. If you make a new poster later, the card says shared links still show the earlier one and offers "Update the poster on share links". It needs the song to be in the bucket already; before that the card says so. The cover is still the cover everywhere else.
 
 ## [0.35.1] - 2026-10-17

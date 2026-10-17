@@ -152,10 +152,14 @@ def generate(slug, prompt, style=None):
     return cost
 
 
-if __name__ == "__main__":
-    a = sys.argv[1:]
+def main(a):
     if not a: sys.exit("usage: poster.py <slug> [--prompt TEXT] [--estimate]")
-    if "--estimate" in a: print(json.dumps(state(a[0]))); sys.exit(0)
-    p = a[a.index("--prompt") + 1] if "--prompt" in a else default_prompt(a[0])
+    if "--estimate" in a: print(json.dumps(state(a[0]))); return 0
+    p = a[a.index("--prompt") + 1] if "--prompt" in a else state(a[0])["prompt"]   # the prompt saved on the Poster card when there is one, else the one made from the song
     try: print("poster_2x3.png, about $%.3f" % generate(a[0], p))
     except (ValueError, RuntimeError) as e: sys.exit("navaan: " + str(e))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
