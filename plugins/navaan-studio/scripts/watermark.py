@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """watermark.py  the small channel mark burned into every video we make.
 
-text(D)        what to write: video.watermark in the profile when set ("off" turns it off), else the handle of the account this song
-               publishes to, else NAVAAN. A handle is shown as "@handle".
+text(D)        what to write: video.watermark in the profile when set ("off" turns it off), else the site's address, navaan.online.
 drawtext_vf()  an ffmpeg drawtext filter for the paths that do not go through Remotion (a held cover picture, Flow clips), or "" when
                this ffmpeg has no drawtext or no font can be found."""
 import os, sys, re, subprocess
@@ -10,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import navaan_log as L
 LOG = L.get("watermark")
+DEFAULT = "navaan.online"
 
 FONTS = ("/System/Library/Fonts/Helvetica.ttc", "/Library/Fonts/Arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
          "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
@@ -20,16 +20,7 @@ def text(D=None):
     if isinstance(v, str) and v.strip():
         return None if v.strip().lower() in ("off", "none", "no") else v.strip()
     if v is False: return None
-    handle = ""
-    try:
-        m = C.load_json(os.path.join(D, "meta.json"), default={}) if D else {}
-        handle = (C.account(C.item_type(m)).get("handle") or "").strip()
-    except Exception as _e:
-        L.soft(LOG, "text_error")
-        handle = ""
-    handle = handle or (C.cfg("publish.instagram_handle", "") or "").strip()
-    handle = handle.lstrip("@")
-    return "@" + handle if handle else "NAVAAN"
+    return DEFAULT
 
 
 def drawtext_vf(D, vertical=False):

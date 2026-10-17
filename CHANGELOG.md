@@ -23,6 +23,21 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - YouTube and Instagram are separate lanes once the videos are approved. Each lane has its own next step and its own approvals, they show side by side on the song's page, and neither waits for the other: the Instagram caption can be written and approved, and the Reel posted, before the YouTube video is uploaded or public, and the other way round. Archive and clean up wait until both lanes are finished. The Instagram caption no longer needs the YouTube link; the song's page on navaan.online is added to it instead. A run still does one step at a time, but it carries on with the other lane instead of stopping at an approval the first lane is waiting for.
 - Every YouTube description and every Instagram caption now ends with the site address: the song's page on navaan.online for a song, navaan.online for an inspiration. It is added when posting, only if it is not already there.
 
+## [0.36.1] - 2026-10-17
+
+### Fixed
+- Release 0.36.0 did not go out: the deploy checks failed because a browser test still expected the old wording of the message shown when you press Create on a new inspiration with nothing typed. Nothing changed in production. The message ("Write the quote or the idea first, or paste a Suno link.") and the test now agree, and the browser and speed checks were run before this release. Everything listed under 0.36.0 ships here.
+
+## [0.36.0] - 2026-10-17
+
+### Changed
+- The small mark on every video, the wide one and the reel, now says navaan.online instead of the Instagram handle. A mark set in the profile (video.watermark, or "off") still wins. Videos made before keep the old mark until their video step is redone.
+
+### Added
+- The site has a tagline: "Every new sound carries an old emotion." It sits under the Browse heading, on the sign-in page, and in the page description that search results and link previews read.
+- A new inspiration can take its voice from a Suno song. Paste the song's Suno link when you create the inspiration: its lyric lines become the quote, its title becomes the title, and the sound is taken from the video file that the public Suno page itself lists (on Suno's own servers, nothing is decrypted and no third-party site is used). The download is checked before anything is created: it must come from Suno's servers, be a video file of a sensible size and length, decode all the way through, have a sound track, and not be silent. A link that fails any check is refused with a sentence and creates nothing. The pipeline then times the lines to that voice, makes the background picture, and renders the reel as usual; the voice already holds the song's music, so no background track is added unless you add one.
+- ElevenLabs narration stays as the backup. Without a Suno link an inspiration is narrated by ElevenLabs exactly as before. On a short whose voice came from Suno, the Narration card says so and offers ElevenLabs as the backup, and running "Narrate the quote" again replaces the Suno voice.
+
 ## [0.35.1] - 2026-10-17
 
 ### Fixed
@@ -457,7 +472,9 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...HEAD
+[0.36.1]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...v0.36.1
+[0.36.0]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...v0.36.0
 [0.35.1]: https://github.com/NjAIAgents/navaan/compare/v0.35.0...v0.35.1
 [0.35.0]: https://github.com/NjAIAgents/navaan/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...v0.34.0

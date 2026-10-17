@@ -23,6 +23,12 @@ describe("NarrationCard: narrate the quote with ElevenLabs", () => {
     rerender(<NarrationCard d={d({ on: true })} done={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Skip narration for this short" })).toBeEnabled(); expect(screen.getByRole("status")).toHaveTextContent("Frank (deep, wise)");
   });
+  it("says the voice is the Suno song's own when it came from a link, and that ElevenLabs below is the backup", () => {
+    render(<NarrationCard d={d({ from_suno: true })} done={vi.fn()} />);
+    expect(screen.getByText(/The voice of this short is the Suno song's own sound/)).toBeInTheDocument(); expect(screen.getByRole("heading", { name: "Backup: narrate the quote with ElevenLabs" })).toBeInTheDocument();
+    cleanup(); render(<NarrationCard d={d()} done={vi.fn()} />);
+    expect(screen.queryByText(/Suno song's own sound/)).toBeNull(); expect(screen.getByRole("heading", { name: "Narrate the quote with ElevenLabs" })).toBeInTheDocument();
+  });
   it("shows the script ElevenLabs will read, lets you edit and save it, and go back to the suggestion", async () => {
     const f = vi.fn(() => Promise.resolve(new Response("{}", { headers: { "Content-Type": "application/json" } }))); vi.stubGlobal("fetch", f);
     const { rerender } = render(<NarrationCard d={d({ script: "[warmly] [slowly] Stay... soft.", script_custom: false })} done={vi.fn()} />);
