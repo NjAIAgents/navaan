@@ -88,6 +88,12 @@ class Speed(Base):
         self.assertEqual(self.take(1.0, model="eleven_v4")[0]["text"], "Stay soft. Stay.")   # normal: the words as they are
         self.assertEqual(self.take(None, model="eleven_v4")[0]["text"], "Stay soft. Stay.")
 
+    def test_slow_puts_an_ellipsis_at_phrase_breaks_because_the_tag_alone_does_not_slow_v4(self):   # measured live: 5.76 s with tags, 7.84 s with these ellipses, same words
+        t = T.directed("You are allowed to outgrow your old life, and still be grateful for who you were.\n\nYou are allowed to change, even when no one understands why.", 0.75)
+        self.assertEqual(t, "[warmly] [softly] [slowly] You are allowed... to outgrow... your old life... and still be grateful... for who you were. [pause] You are allowed... to change... even when no one understands why.")
+        self.assertNotIn("......", t); self.assertNotIn("... ...", t)   # a comma and a connector together make one break, not two
+        self.assertEqual(T.directed("Stay.", 0.85), "[warmly] [softly] Stay.")   # calm is tone only: no extra breaks
+
     def test_a_take_at_another_speed_is_not_served_from_the_cache(self):
         self.assertNotEqual(T._key("x", "v", "m", 0.75), T._key("x", "v", "m", 1.0))
 

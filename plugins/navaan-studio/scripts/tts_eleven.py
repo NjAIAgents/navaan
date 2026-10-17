@@ -27,7 +27,9 @@ def directed(text, speed):
     if not speed or speed >= 1.0: return text
     slow = speed <= 0.8
     body = re.sub(r"\n\s*\n", " [pause] ", text.strip())
-    if slow: body = re.sub(r",\s+", "... ", body)
+    if slow:   # measured on the live service: the tag alone does not slow v4 (5.76 s for a sentence); an ellipsis between phrases does (7.84 s for the same words)
+        body = re.sub(r",\s+", "... ", body)
+        body = re.sub(r"(?<![.])(?<!even)\s+(?=(?:to|and|for|but|when|without|your|even)\b)", "... ", body)
     return ("[warmly] [softly] [slowly] " if slow else "[warmly] [softly] ") + body
 
 
