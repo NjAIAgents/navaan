@@ -209,6 +209,9 @@ export default function Song() {
       {d.question && <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />}
       {!d.question && d.needs_you && <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>}
       {d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] && <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />}
+      {running && gate && (   // a run that is alive and waiting for the approval below: it can be stopped (to change something earlier, or to restart from a step)
+        <section className="card row" role="status"><span className="chip wn"><span className="dot" />A run is waiting</span><span className="tx mu">{d.status_text || "Waiting for your approval."} Stop it if you need to change something earlier.</span><button className="btn" disabled={pending} onClick={() => void act("/api/stop", {})}>Stop the run</button></section>
+      )}
       {running && !gate ? (   // a job that is alive while the next thing is an approval is WAITING for it: show the approval, not Running
         <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" onClick={() => void act("/api/stop", {})}>Stop</button></section>
       ) : gate === "visuals_mode" ? (

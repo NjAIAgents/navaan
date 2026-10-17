@@ -6,6 +6,14 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.3] - 2026-10-17
+
+### Changed
+- Inspiration videos show one line of the quote at a time: each line fades out as the next comes in (the last holds), instead of every new line being added under the one before. A short can keep the old look with `- layout: stack` in its brief.
+
+### Fixed
+- A run that is waiting for an approval can be stopped from the page again: the approval now has "A run is waiting" with a Stop the run button beside it, so you can stop it, change something earlier (or redo or restart from a step) and run on, without the classic view.
+
 ## [0.29.2] - 2026-10-17
 
 ### Changed
@@ -321,7 +329,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.3...HEAD
+[0.29.3]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...v0.29.3
 [0.29.2]: https://github.com/NjAIAgents/navaan/compare/v0.29.1...v0.29.2
 [0.29.1]: https://github.com/NjAIAgents/navaan/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/NjAIAgents/navaan/compare/v0.28.0...v0.29.0

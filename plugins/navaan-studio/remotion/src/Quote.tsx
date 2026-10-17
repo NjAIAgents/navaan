@@ -16,6 +16,7 @@ export type QuoteProps = {
   brand?: {text: string; start: number; end: number; icon?: string} | null;
   camera: 'push_in' | 'pull_out' | 'pan_left' | 'pan_right' | 'drift';
   transition: 'rise' | 'fade' | 'blur';
+  layout?: 'single' | 'stack';   // single (default): one line on screen at a time; stack: every line stays
   style: {color: string; accent: string; dim: number};
   watermark: string;
 };
@@ -49,7 +50,9 @@ export const Quote: React.FC<QuoteProps> = (props) => {
   const longest = Math.max(...props.lines.map((l) => Array.from(l.text).length));
   const size = Math.min(dev ? 92 : 104, Math.floor((width - 192) / (longest * (dev ? 0.5 : 0.52))));
   const lh = Math.round(size * 1.42);
-  const blockTop = Math.round(height * 0.44 - (lh * props.lines.length) / 2);
+  const single = (props.layout ?? 'single') === 'single';
+  const blockTop = single ? Math.round(height * 0.44 - lh / 2) : Math.round(height * 0.44 - (lh * props.lines.length) / 2);
+  const gone = (l: Line, i: number) => (single && i < props.lines.length - 1 ? interpolate(t, [l.end - 0.35, l.end], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) : 1);   // a line fades out as the next one comes
   const holdOut = interpolate(t, [props.hold_until, props.hold_until + 0.6], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const master = interpolate(t, [0, 0.5, props.duration - 0.6, props.duration], [0, 1, 1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 
@@ -70,12 +73,12 @@ export const Quote: React.FC<QuoteProps> = (props) => {
       </AbsoluteFill>
       <AbsoluteFill style={{background: `linear-gradient(180deg, rgba(0,0,0,${props.style.dim * 0.7}) 0%, rgba(0,0,0,${props.style.dim * 1.15}) 45%, rgba(0,0,0,${props.style.dim * 1.3}) 100%)`}} />
       {props.lines.map((l, i) => (
-        <div key={i} style={{position: 'absolute', left: 0, width, top: blockTop + i * lh, height: lh, display: 'flex', alignItems: 'center', justifyContent: 'center', ...enter(l.start)}}>
+        <div key={i} style={{position: 'absolute', left: 0, width, top: blockTop + (single ? 0 : i * lh), height: lh, display: 'flex', alignItems: 'center', justifyContent: 'center', ...enter(l.start), opacity: (enter(l.start).opacity as number) * gone(l, i)}}>
           <span style={{fontFamily: FONT, fontSize: size, fontWeight: dev ? 600 : 400, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{l.text}</span>
         </div>
       ))}
       {props.author ? (
-        <div style={{position: 'absolute', left: 0, width, top: blockTop + lh * props.lines.length + 36, display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: interpolate(t, [props.author.start, props.author.start + 0.7], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) * holdOut}}>
+        <div style={{position: 'absolute', left: 0, width, top: blockTop + lh * (single ? 1 : props.lines.length) + 36, display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: interpolate(t, [props.author.start, props.author.start + 0.7], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) * holdOut}}>
           <div style={{height: 4, width: accentW, background: props.style.accent, marginBottom: 30, borderRadius: 2}} />
           <span style={{fontFamily: FONT, fontSize: Math.round(size * 0.5), color: 'rgba(255,255,255,0.92)', textShadow: shadow}}>{props.author.text}</span>
         </div>
