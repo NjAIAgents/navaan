@@ -17,6 +17,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 - A song with no lyrics saved (an imported MP3 has none) now says so up front on the Pipeline tab, and the captions and the picture plan stop at once with a plain sentence ("this song has no lyrics saved, so there is nothing to time. Add the lyrics on the Content tab") instead of crashing deep in the aligner with a divide by zero. A failure whose step printed its own reason now shows that reason, not an empty message.
 
+- The captions step now also makes an English transcript when the lyrics have Latin-script lines (English, or romanised Hindi). The aligner matches those lines against it, but it was never made, so an English song had no speech to line up against.
+
 ### Changed
 - The shot list approval shows the pictures in order, each with when it is on screen, the camera move and the scene, with the raw JSON folded away under it.
 - Steps use real names ("Write the picture plan", "Create the pictures", "Plan the shots", "Plan what moves") instead of internal ones.

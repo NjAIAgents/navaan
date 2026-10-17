@@ -51,6 +51,12 @@ class NoLyrics(unittest.TestCase):
             with self.assertRaises(SystemExit) as c: prompt_pack.main(["s"])
         self.assertIn("would be invented", str(c.exception)); self.assertIn("male vocals", str(c.exception))
 
+    def test_english_or_romanised_lines_get_an_english_transcript_and_devanagari_only_lyrics_do_not(self):
+        import captions_run
+        self.put("[Verse 1]\nThere was a quiet in those little streets,\nFamiliar faces\n"); self.assertTrue(captions_run.has_latin_lines(os.path.join(self.D, "lyrics.txt")))   # song-007: English, so the aligner needs _asren.json
+        self.put("[Verse]\nतेरे होने से रंग है\nसब कुछ है\n"); self.assertFalse(captions_run.has_latin_lines(os.path.join(self.D, "lyrics.txt")))
+        self.put("[Intro]\n\n[Outro]\n"); self.assertFalse(captions_run.has_latin_lines(os.path.join(self.D, "lyrics.txt")))   # labels alone are not lyrics
+
     def test_the_failure_says_the_lyrics_are_missing_and_our_own_messages_pass_through(self):
         rows = [{"id": "captions", "label": "Measure lyric timing", "done": False}]
         self.assertIn("no lyrics saved", U.plain_failure("captions", "navaan: no cues were produced", rows, no_lyrics=True))
