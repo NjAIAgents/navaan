@@ -153,6 +153,12 @@ def music_source(D, dur):
     return None, "pad"
 
 
+def narrated_music(narr, mode, src, how):
+    """Under a voice, `auto` means only the owner's own track (music_src.*): no library pick and no generated pad."""
+    if narr and mode.lower() == "auto" and how != "file in folder": return None, "none"
+    return src, how
+
+
 def fit_music(src, out, dur, start=0.0):
     ff = C.tool("ffmpeg")
     total = probe_dur(src)
@@ -238,7 +244,7 @@ def main(slug):
     tot_w = sum(words) or 1
     # music first, so the lines can follow its beats
     mfile = os.path.join(D, "music.mp3"); src, how = music_source(D, dur)
-    if narr and opt(D, "music", "auto").lower() == "auto": src, how = None, "none"  # the narration already carries its own music
+    src, how = narrated_music(narr, opt(D, "music", "auto"), src, how)
     if how == "none": mfile = None
     elif src: fit_music(src, mfile, dur)
     else: make_pad(mfile, dur, opt(D, "bed", "piano").lower())

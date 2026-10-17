@@ -93,7 +93,7 @@ def save(D, audio_name, audio, srt_text, text=""):
     for old in glob.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:
         if os.path.exists(old): os.remove(old)
     open(os.path.join(D, "voiceover" + ext), "wb").write(bytes(raw))
-    set_options(D, {"voiceover": "file", "music": "none"})
+    set_options(D, {"voiceover": "file"})   # the music option is left as it is: background music can sit under a voice
     if not have_srt:
         write_lines(D, lines)
         return {"audio": "voiceover" + ext, "cues": len(lines), "seconds": None, "timing": "pending"}

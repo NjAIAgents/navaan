@@ -40,7 +40,7 @@ class Narrate(Base):
         self.assertEqual((seen["voice"], seen["speed"]), ("nj", T.PACES["slow"]))   # slow unless the brief says otherwise
         self.assertEqual(seen["text"], N.script_text(self.D)); self.assertTrue(seen["text"].startswith("[warmly] [softly] [slowly] Stay soft."))   # the script is what is spoken
         self.assertTrue(os.path.isfile(os.path.join(self.D, "voiceover.mp3"))); self.assertFalse(os.path.exists(os.path.join(self.D, "voiceover.srt"))); self.assertFalse(os.path.exists(os.path.join(self.D, "narration_sync.json")))
-        self.assertEqual((narration.get_option(self.D, "voiceover"), narration.get_option(self.D, "music")), ("file", "none"))
+        self.assertEqual((narration.get_option(self.D, "voiceover"), narration.get_option(self.D, "music")), ("file", "auto"))   # a voice no longer switches the music off: background music can sit under it
 
     def test_info_shows_the_estimate_and_the_month_without_spending(self):
         self.assertTrue(N.info(self.D)["on"])   # on unless skipped

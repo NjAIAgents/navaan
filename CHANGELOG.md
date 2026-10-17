@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- Background music for an inspiration short. The Content tab has a "Background music" card: add your own track (mp3, wav, m4a, aac, flac or ogg, up to 20 MB). ffmpeg trims it to the length of the video, fades it in and out and levels it, and the renderer keeps it quiet under the voice. The track's own name is kept in the item's history so its licence can be checked later. Free tracks, for example from pixabay.com/music under its Content License, work; checking each track's licence is up to you. A video that is already approved keeps its sound until you Redo "Plan the typography".
+
+### Changed
+- A narration (a recorded or an ElevenLabs voice) no longer switches the background music off, and with a voice `music: auto` now means only your own added track, never a library pick or a generated pad under the voice.
+
 ## [0.31.0] - 2026-10-17
 
 ### Changed

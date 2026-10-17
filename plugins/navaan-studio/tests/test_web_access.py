@@ -152,6 +152,23 @@ class Access(unittest.TestCase):
         mk(); self.assertEqual(post(text="Changed after approval.")[0], 200); self.assertEqual(has(), [True, True])   # an approved video is not undone by an edit
         self.assertEqual(self.call("/api/narration/script", "lis-tok", "csrf-lis", post=True, body=dict(slug=slug, text="x"))[0], 403)   # a listener has no say
 
+    def test_background_music_for_an_inspiration_is_added_and_removed_and_a_voice_does_not_switch_it_off(self):
+        import base64, shutil as _sh, subprocess as _sp, tempfile as _tf, narration, navaan, navaan_common as C
+        if not (_sh.which("ffmpeg") and _sh.which("ffprobe")): self.skipTest("ffmpeg is needed")
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="inspiration", idea="Stay soft, stay kind.", narrate="none")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
+        wav = os.path.join(_tf.mkdtemp(), "a.mp3"); _sp.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=330:duration=3", "-c:a", "libmp3lame", wav], check=True)
+        b64 = base64.b64encode(open(wav, "rb").read()).decode()
+        up = lambda **b: self.call("/api/music/upload", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, **b))
+        open(os.path.join(D, "timing.json"), "w").write("old")
+        code, body = up(name="Calm Piano.mp3", audio=b64); self.assertEqual(code, 200); self.assertEqual(json.loads(body)["music"]["name"], "Calm Piano.mp3")
+        self.assertEqual(narration.get_option(D, "music"), "auto"); self.assertFalse(os.path.exists(os.path.join(D, "timing.json")))   # made from the old music: made again
+        self.assertEqual(up(name="x.exe", audio=b64)[0], 400); self.assertEqual(up(name="x.mp3", audio=base64.b64encode(b"not audio").decode())[0], 400)
+        self.assertIn("music added via ui: Calm Piano.mp3", "\n".join(str(h) for h in navaan.meta(slug)["history"]))
+        code, body = self.call("/api/music/remove", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug)); self.assertEqual(code, 200); self.assertEqual(narration.get_option(D, "music"), "none")
+        navaan.edit_meta(slug, lambda m: m.setdefault("approvals", {}).update(media={"at": "x"})); open(os.path.join(D, "timing.json"), "w").write("old")
+        code, body = up(name="Calm Piano.mp3", audio=b64); self.assertEqual(code, 200); self.assertEqual(json.loads(body)["redo"], "Plan the typography"); self.assertTrue(os.path.exists(os.path.join(D, "timing.json")))   # an approved video keeps its sound and is told what to redo
+        self.assertEqual(self.call("/api/music/upload", "lis-tok", "csrf-lis", post=True, body=dict(slug=slug, name="a.mp3", audio=b64))[0], 403)   # a listener has no say
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")

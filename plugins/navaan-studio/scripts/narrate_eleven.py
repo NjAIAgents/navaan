@@ -83,7 +83,7 @@ def run(slug):
     except RuntimeError as e:
         if "No ElevenLabs key" in str(e): raise RuntimeError(str(e) + " Or skip narration for this short on its Narration card.") from None
         raise
-    narration.set_options(D, {"voiceover": "file", "music": "none"})
+    narration.set_options(D, {"voiceover": "file"})   # the music option is left as it is: background music can sit under the voice
     return r
 
 

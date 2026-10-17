@@ -10,7 +10,7 @@ import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
 import { SongAnalytics } from "../components/SongAnalytics";
 import { ScheduleCard } from "../components/SchedulePanel";
-import { MediaCard, NarrationCard, ShotsEditor, TextEditors } from "../components/SongEditors";
+import { MediaCard, MusicCard, NarrationCard, ShotsEditor, TextEditors } from "../components/SongEditors";
 import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
@@ -236,6 +236,7 @@ export default function Song() {
           <TextEditors d={d} done={load} />
           <ShotsEditor key={slug} d={d} done={load} />
           {insp && <NarrationCard d={d} done={load} />}
+          {insp && <MusicCard d={d} done={load} />}
         </>)}
         {tab === "media" && (<>
           <MediaCard d={d} />
