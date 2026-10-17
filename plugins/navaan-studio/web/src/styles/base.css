@@ -295,3 +295,6 @@ body.lock { overflow: hidden; }
 /* The answer to a click: a short message at the top right that says what is being done, then what was done. */
 .toast { position: fixed; top: 76px; right: 24px; z-index: 80; max-width: min(380px, calc(100vw - 24px)); display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: var(--r3); background: var(--s2); color: var(--tx); border: 1px solid var(--ln); box-shadow: var(--shadow); font-weight: 600; }
 @media (max-width: 899px) { .toast { top: auto; bottom: calc(96px + env(safe-area-inset-bottom)); left: 12px; right: 12px; max-width: none; } }
+
+/* YouTube and Instagram each have a lane of their own once the videos are approved: side by side on a wide screen, stacked on a phone. */
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; } .lane > .row { align-items: baseline; }

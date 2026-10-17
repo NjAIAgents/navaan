@@ -124,8 +124,9 @@ def write_brief(D, m, a):
 
 def short_language(text):
     """One word language for the ID3 tag, or empty when unknown."""
+    if "confirm" in (text or "").lower(): return ""   # "Devanagari script (Hindi, Maithili or similar), confirm which": the language is not known, so nothing is written
     t = (text or "").split("(")[0].split(",")[0].strip()
-    return t if t and len(t) < 20 and "confirm" not in t.lower() else ""
+    return t if t and len(t) < 20 else ""
 
 
 def write_tags(D, a, m=None):
@@ -227,6 +228,8 @@ def apply_page(slug, info):
         if (info.get(key) or "").strip() and not (os.path.isfile(p) and open(p, encoding="utf-8").read().strip()):
             with open(p, "w", encoding="utf-8") as f: f.write(info[key].strip() + "\n")
     mp = os.path.join(D, "meta.json"); m = _meta(mp); m.setdefault("history", []).append(f"{now()} title, lyrics and style read from the Suno page"); save(mp, m)
+    class _NoArgs: genre = ""; language = ""
+    write_tags(D, _NoArgs(), m)   # the catalog groups a song by the language and genre in tags.json; a web import used to leave them empty, so an English song had no language on the site
 
 
 def ingest(slug, a):

@@ -48,6 +48,10 @@ def public_done(m):
     p = m.get("published", {}); its = list(p.get("youtube_items", [])) + ([p["youtube_short"]] if p.get("youtube_short", {}).get("id") else [])
     return bool(its) and all(i.get("privacy") == "public" for i in its)
 def ig_done(m): return bool(m.get("published", {}).get("instagram"))
+# After the video and the reel are made, YouTube and Instagram each have a lane of their own: neither waits for the other's approvals or for the other to be posted.
+LANES = {"youtube": ("youtube_meta", "publish_youtube", "youtube_short", "go_public"), "instagram": ("instagram_caption", "publish_instagram")}
+LANE_OF = {sid: lane for lane, ids in LANES.items() for sid in ids}
+LANE_NAME = {"youtube": "YouTube", "instagram": "Instagram"}
 SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json", "shots": "shots.json"}  # these approvals are tied to the file's hash, so an edit after approval needs a new approval
 def file_sha(D, name):
     p = os.path.join(D, name)
@@ -362,7 +366,14 @@ def log_hist(m, text): m.setdefault("history", []).append(f"{now()} {text}")
 
 def plan(slug):
     """Walk the steps in order and return (rows, next_action). Everything is derived from files plus approvals."""
-    D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); rows = []; nxt = None
+    rows, nxt, _lanes = plan_lanes(slug)
+    return rows, nxt
+
+
+def plan_lanes(slug):
+    """(rows, next_action, lanes): the same walk, plus, once the videos are approved, the next step of each publishing lane ({"youtube": {...}, "instagram": {...}}, only the lanes that still have something to do).
+    next_action is the first thing to run, else the first approval waiting, so a single run never stalls on one lane while the other can move."""
+    D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); rows = []; nxt = None; lane_nxt = {}; lanes_open = False
     legacy = m.get("state") == "published" and any(a.get("via") == "legacy backfill" for a in ap.values())  # songs finished before navaan-studio
     cleaned = bool(m.get("cleanup"))  # local media was deleted after a verified archive, so earlier steps no longer have their files and must not look unfinished
     for s in steps(slug, D):
@@ -383,14 +394,25 @@ def plan(slug):
             row["needs_gate"] = ga if (ga and not gate_ok(D, ap, ga, ig_done(m))) else None
         else:
             row["needs_gate"] = gb if (gb and not gate_ok(D, ap, gb, ig_done(m))) else None
-            row["status"] = "waiting for approval" if row["needs_gate"] else ("blocked" if (nxt and nxt["type"] == "gate") else "ready")
+            lane = LANE_OF.get(s["id"]); own = lane_nxt.get(lane) if (lane and nxt is None) else nxt   # a lane step waits for its own lane, not for the other one
+            row["status"] = "waiting for approval" if row["needs_gate"] else ("blocked" if (own and own["type"] == "gate") else ("blocked" if (not lane and lane_nxt) else "ready"))
         if notused: row["status"] = "done"; row["needs_gate"] = None; row["notused"] = True
         row["scheduled_for"] = PS.when(m, s["id"]) if not d else None
+        lane = LANE_OF.get(s["id"])
+        if lane: row["lane"] = lane
         rows.append(row)
-        if nxt is None:
-            if row["needs_gate"]: nxt = {"type": "gate", "step": s["id"], "gate": row["needs_gate"]}
-            elif not d: nxt = {"type": "run", "step": s["id"]}
-    return rows, (nxt or {"type": "done"})
+        want = {"type": "gate", "step": s["id"], "gate": row["needs_gate"]} if row["needs_gate"] else ({"type": "run", "step": s["id"]} if not d else None)
+        if lane and nxt is None:   # the main line is clear (the videos are approved): this step belongs to a lane, and each lane keeps its own next step
+            lanes_open = True
+            if want and lane not in lane_nxt: lane_nxt[lane] = want
+        elif not lane and nxt is None and lane_nxt:
+            pass   # archive and clean up wait until both lanes are finished
+        elif nxt is None and want:
+            nxt = want
+    if nxt is None and lane_nxt:   # work that can run goes first, then the approvals, YouTube before Instagram
+        order = [l for l in LANES if l in lane_nxt]
+        nxt = next((lane_nxt[l] for l in order if lane_nxt[l]["type"] == "run"), None) or lane_nxt[order[0]]
+    return rows, (nxt or {"type": "done"}), (dict(lane_nxt) if lanes_open else {})
 
 LOG = L.get("pipeline")
 
@@ -642,7 +664,6 @@ def _run(slug, step=None, dry=False, retries=2):
             sg = PS.suggest(slug)
             if sg: print(f"Tip: the analytics suggest publishing at {PS.parse(sg['youtube_at'] or sg['instagram_at']).astimezone():%a %b %d %H:%M}. See it with: navaan.py schedule {slug} --suggest")
         except Exception as _e: L.soft(LOG, "run_error"); pass
-    if s["id"] == "publish_instagram" and not public_done(meta(slug)): print("Publish to YouTube first: the Reel links to the public full video. Approve gate 'go_public' and run that step."); return 3
     if s["id"] == "publish_instagram" and not s.get("cmds"):
         bucket = cfg("storage.cloud_bucket") if cfg("storage.cloud_provider") == "oci" else None
         if not bucket: print("Instagram needs a public video URL. Use an OCI bucket in the profile (storage.cloud_provider oci), or run publish_instagram.py yourself with --video-url."); return 4

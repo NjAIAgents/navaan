@@ -50,6 +50,18 @@ class Page(unittest.TestCase):
         self.assertEqual(open(os.path.join(D, "title.txt")).read().strip(), "My own title")   # kept
         self.assertEqual(open(os.path.join(D, "lyrics.txt")).read().strip(), "[Verse]\nline"); self.assertEqual(open(os.path.join(D, "style.txt")).read().strip(), "soft pop")
 
+    def test_a_web_import_fills_the_tags_so_an_english_song_is_english_on_the_site(self):
+        import json
+        D = tempfile.mkdtemp(); json.dump({"title": "", "language": "", "genre": ""}, open(os.path.join(D, "tags.json"), "w"))
+        with mock.patch.object(S, "song_dir", lambda slug: D), mock.patch.object(S, "_meta", lambda p, required=False: {}), mock.patch.object(S, "save", lambda p, o: None):
+            S.apply_page("s", {"title": "You Are Allowed to Change", "lyrics": "[Verse]\nYou are allowed to change,\nand grow", "style": "intimate, conversational"})
+        t = json.load(open(os.path.join(D, "tags.json")))
+        self.assertEqual((t["language"], t["title"], t["genre"]), ("English", "You Are Allowed to Change", "intimate"))
+        D2 = tempfile.mkdtemp(); json.dump({"language": ""}, open(os.path.join(D2, "tags.json"), "w"))
+        with mock.patch.object(S, "song_dir", lambda slug: D2), mock.patch.object(S, "_meta", lambda p, required=False: {}), mock.patch.object(S, "save", lambda p, o: None):
+            S.apply_page("s", {"title": "T", "lyrics": "तेरे होने से\nसब कुछ", "style": "soft"})
+        self.assertEqual(json.load(open(os.path.join(D2, "tags.json")))["language"], "")   # a Devanagari song is not guessed: Hindi, Maithili or other, the owner says which
+
 
 if __name__ == "__main__":
     unittest.main()

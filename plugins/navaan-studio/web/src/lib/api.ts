@@ -28,7 +28,7 @@ export type SongRow = {
 
 export type Step = {
   id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean; spends_what?: string | null; gate_before?: string | null; gate_after?: string | null; outputs?: string[]; made?: { name: string; size: number }[]; texts?: { name: string; text: string }[]; links?: { where: string; url: string; privacy: string }[];
-  status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null;
+  status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null; lane?: "youtube" | "instagram";
 };
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
 export type SongDetail = {
@@ -45,6 +45,7 @@ export type SongDetail = {
   visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; openai_pictures?: boolean;
   prompt_pack?: { aspect?: string; concept?: string; character?: string; style_line: string; look?: Record<string, unknown>; prompts: { n: number; section: string; lyric?: string; prompt: string; camera?: string; motion?: string }[] } | null;
   run?: { step?: string; attempt?: number; attempts?: number; elapsed?: number; quiet_s?: number; pct?: number; done?: number; total?: number; label?: string; failed?: string | null };
+  lanes?: Record<string, { type: "gate" | "run"; step: string; gate?: string }>;
   gates_off?: string[]; reel_lyrics?: { on: boolean; offset: number };
   try?: { running?: boolean; error?: string; files?: string[]; v?: number }; vertical?: { running?: boolean; error?: string; done?: number[] };
   visuals_problems?: string[];

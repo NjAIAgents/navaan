@@ -311,4 +311,17 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(await screen.findByText("Stop requested. The step ends in a moment.")).toBeInTheDocument(); expect(posts(f, "/api/stop")).toEqual([{ slug: "song-007" }]);
   });
+  it("shows YouTube and Instagram as two lanes once the videos are approved, each with its own approval or Run button, and runs just that lane's step", async () => {
+    const f = route(OWNER, { "/api/run": () => ({ started: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "instagram_caption" },
+      lanes: { youtube: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, instagram: { type: "run", step: "instagram_caption" } },
+      steps: [step("video", { done: true, status: "done" }), step("youtube_meta", { done: true, status: "done", lane: "youtube" }), step("publish_youtube", { status: "waiting for approval", needs_gate: "publish_youtube", gate_before: "publish_youtube", lane: "youtube" }),
+              step("instagram_caption", { lane: "instagram" }), step("publish_instagram", { lane: "instagram", gate_before: "publish_instagram" })] }) });
+    at(A);
+    const yt = await screen.findByRole("region", { name: "YouTube" }); const ig = screen.getByRole("region", { name: "Instagram" });
+    expect(yt).toHaveTextContent("Upload the video to YouTube (private)"); expect(yt.querySelector("button")).not.toBeNull();   // its own approval
+    expect(ig).toHaveTextContent("Write the Instagram caption"); expect(ig).toHaveTextContent("Only this lane moves");
+    expect(document.getElementById("step-publish_youtube")).toHaveTextContent("YouTube lane"); expect(document.getElementById("step-instagram_caption")).toHaveTextContent("Instagram lane");
+    fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
+    await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
+  });
 });

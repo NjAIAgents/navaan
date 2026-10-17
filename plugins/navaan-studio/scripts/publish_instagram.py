@@ -56,12 +56,8 @@ def publish(a):
     D = song_dir(a.slug)
     cap = open(a.caption_file if os.path.isabs(a.caption_file) else os.path.join(D, a.caption_file), encoding="utf-8").read().strip() if a.caption_file else ""
     if not a.video_url.startswith("https://"): sys.exit("navaan: --video-url must be a public https URL")
-    try:  # the caption should carry the full song link itself, the bio has none
-        pub = ((item_load(a.slug, {}) or {}).get("published") or {})
-        yt = ((pub.get("youtube_items") or [{}])[0].get("url") or "")
-        if "link in bio" in cap.lower() or (yt and yt not in cap and "youtu" not in cap):
-            print(f"WARNING: the caption does not carry the full YouTube link ({yt or 'none yet'}). Rewrite it with: navaan.py caption {a.slug} --feedback \"put the YouTube link in the caption, not link in bio\"", file=sys.stderr)
-    except Exception as _e: L.soft(LOG, "publish_error"); pass
+    if "link in bio" in cap.lower():   # the bio has no link; the caption gets the site address below
+        print("WARNING: the caption says 'link in bio', but the bio has no link. The site address is added to the caption; rewrite it with: navaan.py caption " + a.slug + " --feedback \"no link in bio\"", file=sys.stderr)
     cap = with_site_link(cap, a.slug if (item_load(a.slug, {}) or {}).get("type", "music") == "music" else None, plain=True)   # every Reel names the site
     plan = {"video_url": a.video_url[:80] + "...", "caption": cap, "share_to_feed": a.share_to_feed, "cover_url": a.cover_url}
     print(json.dumps(plan, ensure_ascii=False, indent=2))

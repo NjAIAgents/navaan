@@ -189,6 +189,30 @@ const when = (h: NonNullable<SongDetail["meta"]["history"]>[number]) => {
   return Number.isNaN(ms) ? { at: "", text: h } : { at: new Date(ms).toLocaleString(), text: rest.join(" ") };
 };
 
+const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
+
+// After the videos are approved, YouTube and Instagram each have a lane of their own: each shows its own next step or approval, and neither waits for the other.
+function LanesView({ d, act, busy, running, stopping, onStop }: { d: SongDetail; act: Act; busy: boolean; running: boolean; stopping: boolean; onStop: () => void }) {
+  const lanes = d.lanes ?? {};
+  return (
+    <div className="lanes" aria-label="Publishing lanes">
+      {(["youtube", "instagram"] as const).filter((l) => lanes[l]).map((l) => {
+        const nx = lanes[l]; const mine = d.steps.filter((x) => x.lane === l); const done = mine.filter((x) => x.done && x.status === "done").length;
+        return (
+          <section key={l} className="stack lane" aria-labelledby={`lane-${l}`}>
+            <div className="row"><h2 id={`lane-${l}`}>{LANE_TITLE[l]}</h2><span className="n">{done}/{mine.length}</span></div>
+            {nx.type === "gate" && nx.gate
+              ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={busy} running={running} stopping={stopping} onStop={onStop} />
+              : <section className="card stack live"><StepStatus kind={running ? "later" : "next"} /><h3>{stepLabel(nx.step)}</h3>
+                  <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { step: nx.step })}>Run {stepLabel(nx.step)}</button></div>
+                  <p className="mu">Only this lane moves. The {l === "youtube" ? "Instagram" : "YouTube"} lane keeps its own place.</p></section>}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 // What a click said it would do, in words, while it is being done and once it is done. Shown as a status message so no button press goes unanswered.
 const sayFor = (path: string, b: Record<string, unknown>): [string, string] => {
   const st = stepLabel(String(b.step ?? "")); const g = gateTitle(String(b.gate ?? ""));
@@ -256,6 +280,14 @@ export default function Song() {
   const setGate: SetGate = async (g, on) => { setPending(true); setNotice("Saving…"); try { await postJSON("/api/settings/gates_save", { gates: { [g]: on } }); setErr(""); await load(); setNotice(on ? `${gateTitle(g)} will ask you again.` : `${gateTitle(g)} will approve itself from now on.`); return true; } catch (e) { setErr(errText(e)); setNotice(""); return false; } finally { setPending(false); } };   // the same switch as Settings, Approvals that approve themselves: it applies to every song
 
   // The one thing that needs you now: exactly one card, never an approval and a "Running" chip side by side.
+  const hasLanes = !!d.lanes && Object.keys(d.lanes).length > 0 && !d.failure;   // the videos are approved: the publishing steps run in their own lanes
+  const runCard = (
+    <section className="card stack live" aria-labelledby="run-h">
+      <StepStatus kind="running" run={d.run} usual={d.meta.step_seconds?.[runStep]} />
+      <h2 id="run-h">{runStep ? stepLabel(runStep) : d.status_text || "Working…"}</h2>
+      <div className="row"><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></div>
+    </section>
+  );
   const now = d.failure ? (
     <section className="card fail stack live" role="alert" aria-labelledby="fail-h">
       <span className="chip bad"><span className="dot" />Failed</span>
@@ -275,13 +307,8 @@ export default function Song() {
   ) : d.question ? <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />
   : d.needs_you ? <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>
   : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
-  : running && !gate ? (
-    <section className="card stack live" aria-labelledby="run-h">
-      <StepStatus kind="running" run={d.run} usual={d.meta.step_seconds?.[runStep]} />
-      <h2 id="run-h">{runStep ? stepLabel(runStep) : d.status_text || "Working…"}</h2>
-      <div className="row"><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></div>
-    </section>
-  ) : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
+  : hasLanes ? (running ? runCard : null)
+  : running && !gate ? runCard : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
   : gate ? <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} running={running} stopping={stopping} onStop={() => void stop()} />
   : d.next.type === "run" ? (
     <section className="card stack live"><StepStatus kind={ranBefore(d.next.step ?? "") ? "stale" : "next"} /><h2>{stepLabel(d.next.step ?? "")}</h2>
@@ -314,7 +341,7 @@ export default function Song() {
         {tab === "pipeline" && (
           <div className="pl-grid">
             <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} setGate={setGate} />
-            <div className="pl-now stack">{now}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
+            <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
           </div>
         )}
         {tab === "content" && (<>

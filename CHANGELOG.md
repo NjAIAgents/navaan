@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- An English song imported from a Suno link had no language, so it did not appear under English on navaan.online (the import left the song's tags empty). The import now fills the language and genre; a song written in Devanagari is left without a language until you say which (Hindi, Maithili or other), instead of getting the placeholder text it used to get.
+
 ### Added
 - A running step now looks alive. Its chip and its row in the step list show a moving icon, a progress bar fills as the step reports how far it has got (pictures made, the lyrics being timed, the video being joined) or moves when it reports nothing, and under it: how long it has run, which attempt of how many, when it last did anything, and how long it usually takes. The step it names is the one really running (the old text could lag a step behind).
 - Opening a step no longer hides what needs you: the approval, the running card or the failure stays at the top and the step opens under it. The right side stays in view while you scroll the list.
@@ -17,6 +20,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - A publish step shows where it published: the YouTube video, the Short and the Instagram Reel, each with its link and whether it is private or public, and writes them to published.json. The history line of the step carries the links.
 
 ### Changed
+- YouTube and Instagram are separate lanes once the videos are approved. Each lane has its own next step and its own approvals, they show side by side on the song's page, and neither waits for the other: the Instagram caption can be written and approved, and the Reel posted, before the YouTube video is uploaded or public, and the other way round. Archive and clean up wait until both lanes are finished. The Instagram caption no longer needs the YouTube link; the song's page on navaan.online is added to it instead. A run still does one step at a time, but it carries on with the other lane instead of stopping at an approval the first lane is waiting for.
 - Every YouTube description and every Instagram caption now ends with the site address: the song's page on navaan.online for a song, navaan.online for an inspiration. It is added when posting, only if it is not already there.
 
 ## [0.35.1] - 2026-10-17

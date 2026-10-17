@@ -21,6 +21,7 @@ function Row({ s, state, act, busy, selected, onSelect, live, run, off, setGate 
       <span className="rt">
         {onSelect ? <button type="button" className="lb lb-btn" aria-pressed={selected} onClick={() => onSelect(s.id)}><span className="sr">{WORD[state]}:</span>{" "}{stepLabel(s.id)}</button>
           : <span className="lb"><span className="sr">{WORD[state]}:</span>{" "}{stepLabel(s.id)}</span>}
+        {s.lane && <span className="mu st">{s.lane === "youtube" ? "YouTube lane" : "Instagram lane"}</span>}
         {live ? <span className="mu st">running{run?.elapsed !== undefined ? ` for ${dur(run.elapsed)}` : ""}{run?.pct !== undefined ? `, ${run.pct}%` : ""}</span> : note && <span className="mu st">{note}</span>}
         {live && <Bar pct={run?.pct} label={run?.label} small />}
       </span>

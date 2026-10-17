@@ -201,7 +201,7 @@ def detail(slug):
     D = C.song_dir(slug)
     try: navaan.auto_gates(slug)   # gates switched off in Settings approve themselves
     except Exception as _e: L.soft(LOG, "detail_error"); pass
-    m = navaan.meta(slug); rows, nxt = navaan.plan(slug)
+    m = navaan.meta(slug); rows, nxt, lanes = navaan.plan_lanes(slug)
     links = C.published_links(m)
     for r in rows:
         r["made"] = made_files(D, r.get("outputs")); r["texts"] = made_texts(D, r.get("outputs"))   # what each step produced and said, so a finished step can be opened
@@ -235,7 +235,7 @@ def detail(slug):
     failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
-            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "reel_lyrics": reel_lyrics.view(D, m),
+            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "reel_lyrics": reel_lyrics.view(D, m),
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
@@ -967,7 +967,9 @@ class H(BaseHTTPRequestHandler):
                 try: navaan.redo_from(slug, body.get("step"))
                 except SystemExit as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"started": start_job(slug, True)})
-            if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
+            if p == "/api/run":   # all: run to the next approval; step: run just that step (a publishing lane's own next step)
+                if body.get("step") and body["step"] not in {r["id"] for r in navaan.plan(slug)[0]}: return self._send(400, {"error": "no such step"})
+                return self._send(200, {"started": start_job(slug, bool(body.get("all")), body.get("step") or None)})
             if p == "/api/stop": return self._send(200, {"stopped": jobs.request_cancel(slug)})
             if p == "/api/mood":   # the song's mood picks the background of the full screen player; empty clears it
                 mood = str(body.get("mood") or "").strip().lower()
