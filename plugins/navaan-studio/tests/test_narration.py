@@ -17,7 +17,7 @@ class T(unittest.TestCase):
         self.assertEqual(r, {"audio": "voiceover.mp3", "cues": 2, "seconds": 7.0})
         self.assertEqual(open(os.path.join(D, "voiceover.mp3"), "rb").read(), b"ID3fake")
         b = open(os.path.join(D, "brief.md")).read()
-        self.assertIn("- voiceover: file", b); self.assertIn("- music: none", b); self.assertIn("- tone: relatable", b)
+        self.assertIn("- voiceover: file", b); self.assertIn("- music: auto", b); self.assertNotIn("- music: none", b);   # a voice does not switch the background music off; self.assertIn("- tone: relatable", b)
 
     def test_quote_and_title_come_from_the_narration(self):
         D = folder(); N.save(D, "a.mp3", b"1", SRT)
