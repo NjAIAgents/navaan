@@ -14,6 +14,15 @@ def mp3(seconds=40):
 
 
 class Token(unittest.TestCase):
+    def test_the_clip_page_can_be_passed_on_download_always_share_where_the_browser_has_it_and_the_preview_tags_stay(self):
+        import share_page
+        h = share_page.render_clip("song-001", 'Tere "Hone" Se', "song-001-42-15", "https://navaan.online")
+        self.assertIn('href="/c/song-001-42-15.mp4" download="song-001-clip.mp4"', h)   # a plain link: works with no script, on a computer too
+        self.assertIn('id="sh"', h); self.assertIn("hidden", h.split('id="sh"')[1].split(">")[0])   # the Share button is shown only by the script, where navigator.share exists
+        self.assertIn('data-page="https://navaan.online/c/song-001-42-15"', h); self.assertIn("&quot;Hone&quot;", h)   # the title is escaped into the attribute
+        self.assertIn('og:video" content="https://navaan.online/c/song-001-42-15.mp4"', h); self.assertIn('property="og:image"', h)   # the link preview still works
+        self.assertIn("#NAVAAN", h)   # the caption that travels carries the tag
+
     def test_a_token_is_the_whole_recipe_and_nothing_else_parses(self):
         self.assertEqual(CS.parse(CS.token("song-002", 45, 15)), ("song-002", 45, 15)); self.assertEqual(CS.parse("a-b-c-0-30"), ("a-b-c", 0, 30))
         for bad in ("", "song-002", "song-002-45-20", "song-002-45-15.mp4", "../x-1-15"):
