@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.10] - 2026-10-17
+
+### Changed
+- Slow and Calm narration now keep the newer ElevenLabs voice model. On eleven_v4 and v3, which ignore the speed setting, the pace comes from direction tags in the spoken text ([warmly] [softly] [slowly], a pause between lines and after commas); the other models still take the speed setting. This replaces the 0.29.8 switch to the older multilingual v2 model.
+
 ## [0.29.9] - 2026-10-16
 
 ### Added
@@ -360,7 +365,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.9...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.10...HEAD
+[0.29.10]: https://github.com/NjAIAgents/navaan/compare/v0.29.9...v0.29.10
 [0.29.9]: https://github.com/NjAIAgents/navaan/compare/v0.29.8...v0.29.9
 [0.29.8]: https://github.com/NjAIAgents/navaan/compare/v0.29.7...v0.29.8
 [0.29.7]: https://github.com/NjAIAgents/navaan/compare/v0.29.6...v0.29.7
