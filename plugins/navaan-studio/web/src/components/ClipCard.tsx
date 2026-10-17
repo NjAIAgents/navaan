@@ -31,7 +31,15 @@ export function ClipCard({ slug, title, position, duration }: { slug: string; ti
       <h2 id="clip-h">Share a clip</h2>
       <p className="mu">Pick where the clip starts and how long it is. It is a video with the cover and a way back to the full song.</p>
       <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div><label htmlFor="clip-start">Start at (seconds)</label><br /><input id="clip-start" className="field sel" type="number" min={0} max={max} value={start} onChange={(e) => setStart(Math.max(0, Math.min(max, Number(e.target.value) || 0)))} /></div>
+        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <label htmlFor="clip-start">Start at (seconds)</label><br />
+          {duration > 20 ? (   // the song's length is known: drag to where the clip should begin
+            <>
+              <input id="clip-start" type="range" min={0} max={max} step={1} value={start} aria-valuetext={mmss(start)} style={{ width: "100%" }} onChange={(e) => setStart(Math.max(0, Math.min(max, Number(e.target.value) || 0)))} />
+              <output htmlFor="clip-start" className="mu">Starts at {mmss(start)}, ends at {mmss(Math.min(start + length, duration))} of {mmss(duration)}</output>
+            </>
+          ) : <input id="clip-start" className="field sel" type="number" min={0} max={max} value={start} onChange={(e) => setStart(Math.max(0, Math.min(max, Number(e.target.value) || 0)))} />}
+        </div>
         {position != null && <button className="btn g" onClick={() => setStart(Math.min(max, Math.floor(position)))}>Use where it is now ({mmss(position)})</button>}
       </div>
       <div className="seg" role="group" aria-label="Length" style={{ alignSelf: "flex-start" }}>
