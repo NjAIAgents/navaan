@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Changed
+- Making a clip: the start is now a slider (with the start and end time beside it, never past the end of the song) instead of a number box. Where the song's length isn't known yet it stays a number box.
+
 ## [0.33.0] - 2026-10-17
 
 ### Added
