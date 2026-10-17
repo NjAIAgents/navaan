@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-17
+
 ### Fixed
 - An English song imported from a Suno link had no language, so it did not appear under English on navaan.online (the import left the song's tags empty). The import now fills the language and genre; a song written in Devanagari is left without a language until you say which (Hindi, Maithili or other), instead of getting the placeholder text it used to get.
 
@@ -472,7 +474,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...HEAD
+[0.37.0]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...v0.36.0
 [0.35.1]: https://github.com/NjAIAgents/navaan/compare/v0.35.0...v0.35.1
