@@ -96,11 +96,11 @@ class Upload(unittest.TestCase):
 
 
 class Step(unittest.TestCase):
-    def test_pipeline_has_the_narration_step_only_with_audio(self):
+    def test_pipeline_has_the_timing_step_only_with_audio_or_narration(self):
         import navaan
-        D = tempfile.mkdtemp(); open(os.path.join(D, "brief.md"), "w").write(BRIEF)
+        D = tempfile.mkdtemp(); open(os.path.join(D, "brief.md"), "w").write(BRIEF + "\n- narrate: none\n")   # narration skipped for this short
         ids = lambda: [s["id"] for s in navaan.inspiration_steps("insp-x", D)]
-        self.assertNotIn("narration", ids())
+        self.assertNotIn("narration", ids())   # no audio and no narration: no timing step (narration is a standard step unless skipped, see test_narrate_eleven)
         open(os.path.join(D, "voiceover.m4a"), "wb").write(b"x")
         i = ids(); self.assertIn("narration", i); self.assertLess(i.index("narration"), i.index("typeset"))
         st = [s for s in navaan.inspiration_steps("insp-x", D) if s["id"] == "narration"][0]
