@@ -126,7 +126,7 @@ def watermark_png(text, W, H, path, vignette=0.0):
     im = vignette_layer(W, H, vignette) if vignette else Image.new("RGBA", (W, H), (0, 0, 0, 0))
     if not text:
         im.save(path); return
-    f = C.font(size); d = ImageDraw.Draw(im)
+    f = C.font_for(text, size); d = ImageDraw.Draw(im)   # Latin text needs a font with letters: the caption font is Devanagari
     l, t, r, b = d.textbbox((0, 0), text, font=f)
     tw, th = r - l, b - t
     x, y = (round(W * 0.045), round(H * 0.12)) if vertical else (W - tw - round(W * 0.025), H - th - round(H * 0.04))
