@@ -14,10 +14,11 @@ import navaan_log as L
 LOG = L.get("tts_eleven")
 
 CHARS_PER_SECOND = 12.0   # measured: 235 characters of English came out as 19 seconds at a slow, soft pace
+PACES = {"slow": 0.75, "calm": 0.85, "normal": 1.0}   # ElevenLabs speed: 0.7 slowest, 1.0 as the voice speaks, 1.2 fastest
 
 
-def estimate(text):
-    return round(len(text.strip()) / CHARS_PER_SECOND, 1)
+def estimate(text, speed=1.0):
+    return round(len(text.strip()) / CHARS_PER_SECOND / max(0.5, float(speed or 1.0)), 1)
 
 
 def cache_dir():
@@ -25,8 +26,8 @@ def cache_dir():
     return os.path.join(os.environ.get("NAVAAN_CACHE_DIR") or os.path.join(os.path.expanduser("~"), ".cache", "navaan"), "tts_cache")
 
 
-def _key(text, voice_id, model):
-    return hashlib.sha1(("%s|%s|%s" % (voice_id, model, text.strip())).encode("utf-8")).hexdigest()
+def _key(text, voice_id, model, speed=1.0):
+    return hashlib.sha1(("%s|%s|%s|%s" % (voice_id, model, speed, text.strip())).encode("utf-8")).hexdigest()
 
 
 def _seconds(path):
@@ -38,7 +39,7 @@ def _seconds(path):
         return 0.0
 
 
-def synth(text, out, voice=None, model=None, force=False):
+def synth(text, out, voice=None, model=None, force=False, speed=None):
     text = (text or "").strip()
     if not text:
         raise ValueError("there is no text to speak")
@@ -50,21 +51,28 @@ def synth(text, out, voice=None, model=None, force=False):
     if model not in M.CHOICES["eleven_model"]:
         raise ValueError("unknown ElevenLabs model " + str(model))
     vid = M.VOICES[voice]["id"]
-    hit = os.path.join(cache_dir(), _key(text, vid, model) + ".mp3")
+    speed = None if speed is None else round(min(1.2, max(0.7, float(speed))), 2)
+    hit = os.path.join(cache_dir(), _key(text, vid, model, speed or 1.0) + ".mp3")
     if os.path.exists(hit) and not force:
         shutil.copyfile(hit, out)
         return {"file": out, "cached": True, "seconds": _seconds(out), "voice": voice, "model": model, "spent_seconds": 0.0}
-    cap, used, est = s["eleven_monthly_seconds"], M.usage()["eleven_seconds"], estimate(text)
+    cap, used, est = s["eleven_monthly_seconds"], M.usage()["eleven_seconds"], estimate(text, speed or 1.0)
     if used + est > cap:
         raise RuntimeError("The monthly ElevenLabs cap would be passed (%.0f s used of %.0f s, this take needs about %.0f s). Raise the cap in Settings or wait for next month." % (used, cap, est))
     key = M.get_key("elevenlabs")
     if not key:
         raise RuntimeError("No ElevenLabs key is saved. Add it under Settings, Narration.")
-    req = urllib.request.Request("https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=mp3_44100_128" % vid,
-                                 data=json.dumps({"text": text, "model_id": model}).encode("utf-8"),
-                                 headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"})
+    def ask(settings):
+        body = {"text": text, "model_id": model}
+        if settings: body["voice_settings"] = settings
+        req = urllib.request.Request("https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=mp3_44100_128" % vid, data=json.dumps(body).encode("utf-8"),
+                                     headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"})
+        return urllib.request.urlopen(req, timeout=180).read()
     try:
-        data = urllib.request.urlopen(req, timeout=180).read()
+        try: data = ask({"speed": speed, "stability": 0.6, "similarity_boost": 0.8} if speed else None)
+        except urllib.error.HTTPError as e:
+            if speed and e.code in (400, 422): data = ask(None)   # this model does not take the speed setting: speak at its own pace rather than fail
+            else: raise
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace").replace(key, "<key>")[:200]
         raise RuntimeError("ElevenLabs refused the request (HTTP %s): %s" % (e.code, body))

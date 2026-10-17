@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.6] - 2026-10-16
+
+### Fixed
+- ElevenLabs narration is no longer rushed: it speaks slowly by default (pace Slow, with a pause between lines) so the voice can match the text on screen. The Narration card has a Pace choice (Slow, Calm, Normal); changing the voice or pace makes the voice again, as long as the video has not been approved. A voice made at the same settings is reused from the cache and costs nothing.
+
 ## [0.29.5] - 2026-10-17
 
 ### Changed
@@ -339,7 +344,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.6...HEAD
+[0.29.6]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...v0.29.6
 [0.29.5]: https://github.com/NjAIAgents/navaan/compare/v0.29.4...v0.29.5
 [0.29.4]: https://github.com/NjAIAgents/navaan/compare/v0.29.3...v0.29.4
 [0.29.3]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...v0.29.3

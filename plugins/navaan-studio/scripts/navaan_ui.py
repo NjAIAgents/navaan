@@ -829,13 +829,18 @@ class H(BaseHTTPRequestHandler):
                 try: catalog_store.sync_item(slug)   # a published song shows it at once; an unpublished one takes it when it is published
                 except Exception: L.exc(LOG, "mood_sync_failed", item=slug)
                 return self._send(200, {"ok": True, "mood": mood})
-            if p == "/api/narration/eleven":   # narrate the quote with ElevenLabs as a step of this item: on or off, and which voice (the spend is approved at the credits gate)
-                import narration, narrate_eleven, media_cfg
+            if p == "/api/narration/eleven":   # narrate the quote with ElevenLabs as a step of this item: on or off, which voice and how fast (the spend is approved at the credits gate)
+                import narration, narrate_eleven, media_cfg, tts_eleven
                 if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
-                D = C.song_dir(slug); on = bool(body.get("on")); voice = str(body.get("voice") or "")
+                D = C.song_dir(slug); on = bool(body.get("on")); voice = str(body.get("voice") or ""); pace = str(body.get("pace") or "")
                 if on and voice not in media_cfg.VOICES: return self._send(400, {"error": "voice must be one of: " + ", ".join(media_cfg.VOICES)})
-                narration.set_options(D, {"narrate": "eleven", "voice": voice} if on else {"narrate": "none"})
-                note = f"narration by ElevenLabs {'on, voice ' + voice if on else 'off'} (via ui)"
+                if on and pace and pace not in tts_eleven.PACES: return self._send(400, {"error": "pace must be one of: " + ", ".join(tts_eleven.PACES)})
+                old = (narrate_eleven.chosen_voice(D), narrate_eleven.chosen_pace(D))
+                narration.set_options(D, ({"narrate": "eleven", "voice": voice, **({"pace": pace} if pace else {})}) if on else {"narrate": "none"})
+                if on and (narrate_eleven.chosen_voice(D), narrate_eleven.chosen_pace(D)) != old and not (navaan.meta(slug).get("approvals") or {}).get("media"):
+                    for f in glob.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:   # the voice made with the old settings is stale: the narrate step makes it again
+                        if os.path.exists(f): os.remove(f)
+                note = f"narration by ElevenLabs {'on, voice ' + voice + ', pace ' + (pace or narrate_eleven.chosen_pace(D)) if on else 'off'} (via ui)"
                 navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                 return self._send(200, {"ok": True, **narrate_eleven.info(D)})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
