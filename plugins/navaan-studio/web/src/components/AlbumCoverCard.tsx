@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ZoomImage } from "./ZoomImage";
 import { getJSON, postJSON } from "../lib/api";
 import { fileB64 } from "../lib/files";
 import { errText } from "../lib/songs";
@@ -19,7 +20,7 @@ export function AlbumCoverCard({ slug }: { slug: string }) {
   return (
     <section className="card stack" aria-labelledby="ac-h">
       <h2 id="ac-h">Cover</h2>
-      {s.has ? <img src={`/api/albums/cover/${slug}.png?v=${s.v}`} alt="Album cover" width={180} height={180} style={{ borderRadius: 10, objectFit: "cover" }} /> : <span className="mu">No cover yet.</span>}
+      {s.has ? <ZoomImage src={`/api/albums/cover/${slug}.png?v=${s.v}`} alt="Album cover" width={180} height={180} style={{ borderRadius: 10, objectFit: "cover" }} /> : <span className="mu">No cover yet.</span>}
       <label htmlFor="ac-prompt">Prompt for the art (change it as you like)</label>
       <textarea id="ac-prompt" className="field" rows={5} value={prompt} onChange={(e) => setText(e.target.value)} disabled={running} />
       <label htmlFor="ac-style">Lettering</label>

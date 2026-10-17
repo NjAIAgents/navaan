@@ -69,6 +69,17 @@ def plugin_repo_root():
         d = p
 
 
+def lyric_lines(D):
+    """The sung lines saved for a song: lyrics.txt without blank lines and [Section] labels. Empty when the song has none (an imported song often has none)."""
+    p = os.path.join(D, "lyrics.txt")
+    if not os.path.isfile(p): return []
+    with open(p, encoding="utf-8", errors="ignore") as f:
+        return [l.strip() for l in f if l.strip() and not l.strip().startswith("[")]
+
+
+NO_LYRICS = "this song has no lyrics saved, so there is nothing to work from. Add the lyrics on the Content tab, then run this step again."
+
+
 def songs_root():
     """Where songs live and are exported: storage.local_dir from the profile (outside the plugin and its repo), else <workspace>/songs."""
     ld = cfg("storage.local_dir")

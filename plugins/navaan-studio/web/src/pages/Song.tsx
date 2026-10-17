@@ -5,6 +5,8 @@ import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
 import { PipelineRail } from "../components/PipelineRail";
+import { StepDetail } from "../components/StepDetail";
+import { ShotsPreview } from "../components/ShotsPreview";
 import { MoodCard } from "../components/MoodCard";
 import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
@@ -45,7 +47,8 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       )}
       {videos.map((n) => <figure key={n} className="stack" style={{ margin: 0 }}><video controls playsInline preload="metadata" src={url(n)} style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: 12 }} aria-label={n} /><figcaption className="mu">{n}</figcaption></figure>)}
       {songs.map((n) => <audio key={n} controls preload="none" src={url(n)} aria-label={n} />)}
-      {file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
+      {gate === "shots" && <ShotsPreview d={d} />}
+      {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
       {changing ? (
         <form className="stack" onSubmit={(e) => { e.preventDefault(); void ok("/api/request-changes", { note }); }}>
           <label htmlFor="note">What should change?</label>
@@ -163,6 +166,8 @@ export default function Song() {
   const making = !!(d?.try?.running || d?.vertical?.running || d?.poster?.running);   // a test or 9:16 picture is being made by a background thread
   useEffect(() => { if (!running && !making) return; const t = setInterval(() => void load(), 3000); return () => clearInterval(t); }, [running, making, load]);
 
+  const stepParam = sp.get("step");
+  useEffect(() => { if (stepParam) document.getElementById("sd-h")?.scrollIntoView?.({ block: "nearest" }); }, [stepParam]);   // a hook, so it sits above the early returns: a step was opened, bring its detail into view (on a phone it is above the list)
   const [stopping, setStopping] = useState(false);
   useEffect(() => { if (!running) setStopping(false); }, [running]);   // the run really ended: the button goes back to normal
   const stop = async () => { setStopping(true); if (!(await act("/api/stop", {}))) setStopping(false); };
@@ -182,6 +187,9 @@ export default function Song() {
   const history = [...(d.meta.history ?? [])].reverse().slice(0, 30);
   const published = d.meta.type !== "inspiration" && d.meta.state === "published";
   const needsYou = !!(gate || d.question || d.needs_you || d.failure);
+  const selId = d.steps.some((x) => x.id === sp.get("step")) ? (sp.get("step") as string) : "";   // a step opened from the list
+  const pick = (id: string) => { const n = new URLSearchParams(sp); if (n.get("step") === id) n.delete("step"); else n.set("step", id); setSp(n, { replace: true }); };
+  const eventsFor = (id: string) => { const st = d.steps.find((x) => x.id === id); const gs = [st?.gate_before, st?.gate_after].filter(Boolean); return history.map(when).filter((w) => w.text.includes(`step ${id} `) || w.text.includes(`step ${id}`) && /\b(done|failed)\b/.test(w.text) || gs.some((g) => w.text.includes(`gate ${g} `))); };
 
   // The one thing that needs you now: exactly one card, never an approval and a "Running" chip side by side.
   const now = d.failure ? (
@@ -232,10 +240,11 @@ export default function Song() {
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="stack">
+        {tab === "pipeline" && (d.notes ?? []).map((n) => <section key={n} className="card row" role="note"><p style={{ margin: 0, flex: "1 1 260px" }}>{n}</p><button className="btn" onClick={() => setSp({ tab: "content" }, { replace: true })}>Open Content</button></section>)}
         {tab === "pipeline" && (
           <div className="pl-grid">
-            <PipelineRail d={d} act={act} busy={busy} />
-            <div className="pl-now stack">{now}</div>
+            <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} />
+            <div className="pl-now stack">{selId ? <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} /> : now}</div>
           </div>
         )}
         {tab === "content" && (<>
