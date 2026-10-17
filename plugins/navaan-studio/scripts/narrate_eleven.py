@@ -25,6 +25,35 @@ def quote_text(D):
     return "\n\n".join(lines)   # a blank row between the lines: the voice leaves a pause, so the words can keep pace with the text on screen
 
 
+SCRIPT = "narration_script.txt"   # what ElevenLabs reads, when the owner has edited it; else the suggested script is made from the quote
+MAX_SCRIPT = 4000
+
+
+def default_script(D):
+    """The suggested spoken script: the quote with the tone tags and pauses the chosen pace needs (v4 and v3 are paced by the text itself)."""
+    text = quote_text(D); sp = T.PACES[chosen_pace(D)]
+    return T.directed(text, sp) if M.load()["eleven_model"] in T.TAG_MODELS else text
+
+
+def script_text(D):
+    """The script that will be spoken: the owner's saved one, else the suggestion."""
+    p = os.path.join(D, SCRIPT)
+    if os.path.isfile(p):
+        t = open(p, encoding="utf-8").read().strip()
+        if t: return t
+    return default_script(D)
+
+
+def save_script(D, text):
+    """Keep an edited script (empty clears it, back to the suggestion). The voice made from the old one is stale."""
+    text = (text or "").strip()
+    if len(text) > MAX_SCRIPT: raise ValueError("the script is over %d characters" % MAX_SCRIPT)
+    p = os.path.join(D, SCRIPT)
+    if text:
+        with open(p, "w", encoding="utf-8") as f: f.write(text + "\n")
+    elif os.path.exists(p): os.remove(p)
+
+
 def chosen_voice(D):
     v = narration.get_option(D, "voice", "").lower()
     return v if v in M.VOICES else M.load()["voice"]
@@ -38,19 +67,19 @@ def chosen_pace(D):
 
 def info(D):
     """What the Narration card shows: the voice, the estimate, this month's use. No spend."""
-    try: text = quote_text(D)
+    try: text = script_text(D)
     except ValueError: text = ""   # expected: no quote yet, so no estimate (the card says so)
     s = M.load()
     return {"on": narration.get_option(D, "narrate", "eleven").lower() != "none", "voice": chosen_voice(D), "voices": {k: v["label"] for k, v in M.VOICES.items()},
-            "pace": chosen_pace(D), "paces": {"slow": "Slow (reflective)", "calm": "Calm", "normal": "Normal"}, "estimate_s": T.estimate(text, T.PACES[chosen_pace(D)]) if text else 0, "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
+            "pace": chosen_pace(D), "paces": {"slow": "Slow (reflective)", "calm": "Calm", "normal": "Normal"}, "estimate_s": T.estimate(text, T.PACES[chosen_pace(D)]) if text else 0, "script": text, "script_custom": os.path.isfile(os.path.join(D, SCRIPT)), "used_s": round(M.usage()["eleven_seconds"]), "cap_s": s["eleven_monthly_seconds"], "key": bool(M.get_key("elevenlabs"))}
 
 
 def run(slug):
-    D = C.song_dir(slug); text = quote_text(D); voice = chosen_voice(D)
+    D = C.song_dir(slug); text = script_text(D); voice = chosen_voice(D)
     out = os.path.join(D, "voiceover.mp3")
     for old in glob.glob(os.path.join(D, "voiceover.*")) + [os.path.join(D, "narration_sync.json")]:
         if os.path.exists(old): os.remove(old)   # a new voice means new timing
-    try: r = T.synth(text, out, voice, speed=T.PACES[chosen_pace(D)])
+    try: r = T.synth(text, out, voice, speed=T.PACES[chosen_pace(D)], raw=True)   # the script is spoken as it is: the suggestion already carries the tags
     except RuntimeError as e:
         if "No ElevenLabs key" in str(e): raise RuntimeError(str(e) + " Or skip narration for this short on its Narration card.") from None
         raise
