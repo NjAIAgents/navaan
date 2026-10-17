@@ -169,6 +169,21 @@ class Access(unittest.TestCase):
         code, body = up(name="Calm Piano.mp3", audio=b64); self.assertEqual(code, 200); self.assertEqual(json.loads(body)["redo"], "Plan the typography"); self.assertTrue(os.path.exists(os.path.join(D, "timing.json")))   # an approved video keeps its sound and is told what to redo
         self.assertEqual(self.call("/api/music/upload", "lis-tok", "csrf-lis", post=True, body=dict(slug=slug, name="a.mp3", audio=b64))[0], 403)   # a listener has no say
 
+    def test_importing_a_song_needs_both_the_suno_link_and_the_audio_file_and_reads_the_link_first(self):
+        import base64, suno_import
+        audio = {"name": "The Streets.mp3", "data": base64.b64encode(b"\0" * 60000).decode()}
+        imp = lambda **b: self.call("/api/import", "owner-tok", "csrf-owner", post=True, body=b)
+        code, body = imp(audio=audio); self.assertEqual(code, 400); self.assertIn("Add the Suno link", json.loads(body)["error"])   # the file alone is no longer enough
+        code, body = imp(url="https://suno.com/s/1K4BKj0pldFbnlkF"); self.assertEqual(code, 400); self.assertIn("Add the song's audio file", json.loads(body)["error"])   # nor the link alone
+        with mock.patch.object(suno_import, "read_page", side_effect=ValueError("I could not find lyrics on that Suno page. Check that the song is public.")):
+            code, body = imp(url="https://suno.com/song/25dbc87e-adf4-46a6-a532-080437def045", audio=audio); self.assertEqual(code, 400); self.assertIn("could not find lyrics", json.loads(body)["error"])
+        self.assertEqual(self.call("/api/songs", "owner-tok", "csrf-owner")[0], 200)   # nothing was created by the refused imports
+        info = {"title": "The Streets We Carry", "lyrics": "[Verse 1]\nThere was a quiet in those little streets,", "style": "soft pop, cinematic"}
+        with mock.patch.object(suno_import, "read_page", return_value=info), mock.patch.object(suno_import, "fetch", lambda slug, dest=None: False), mock.patch.object(U, "start_job", lambda sl, all_=True: True):   # no job: a worker left by another test would run the import under us
+            code, body = imp(url="https://suno.com/song/25dbc87e-adf4-46a6-a532-080437def045", audio=audio)
+        self.assertEqual(code, 200); import navaan_common as C; D = C.song_dir(json.loads(body)["slug"])
+        self.assertEqual(open(os.path.join(D, "lyrics.txt")).read().strip(), info["lyrics"]); self.assertEqual(open(os.path.join(D, "style.txt")).read().strip(), "soft pop, cinematic"); self.assertTrue(os.path.isfile(os.path.join(D, "takes", "upload.mp3")))   # the words from the link, the sound from the file
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")

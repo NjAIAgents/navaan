@@ -189,6 +189,46 @@ def fetch(slug, dest=None):
     return True
 
 
+def parse_page(html_text):
+    """Title, lyrics and style tags from a public Suno song page (plain HTML, no browser). Lyrics sit in the page's read-only lyrics box. Returns {"title", "lyrics", "style"}; any may be empty."""
+    import html as _h
+    m = re.search(r"<textarea[^>]*custom-textarea[^>]*>(.*?)</textarea>", html_text, re.S)
+    lyrics = _h.unescape(m.group(1)).strip() if m else ""
+    t = re.search(r"<title>(.*?)</title>", html_text, re.S); title = _h.unescape(t.group(1)).strip() if t else ""
+    title = re.sub(r"\s*\|\s*Suno\s*$", "", title); title = re.sub(r"\s+by\s+[^|]+$", "", title).strip()
+    tags = []
+    for x in re.findall(r'href="/style/([^"#?]+)"', html_text):
+        x = _h.unescape(x).replace("-", " ").strip()
+        if x and x not in tags: tags.append(x)
+    return {"title": clean_title(title) if title else "", "lyrics": lyrics, "style": ", ".join(tags)}
+
+
+def read_page(src):
+    """Read a Suno link before anything is created: the title, lyrics and style that import will use. Raises ValueError with a sentence when the link cannot be read or has no lyrics."""
+    import urllib.request, urllib.error
+    try: sid, url = parse_ref(src)
+    except SystemExit as e: raise ValueError(str(e).replace("navaan: ", "")) from None
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html"})
+        with urllib.request.urlopen(req, timeout=25) as r: page = r.read().decode("utf-8", "ignore")
+    except (urllib.error.URLError, OSError) as e:
+        raise ValueError(f"I could not open that Suno link ({getattr(e, 'reason', e)}). Check that it is a public song link.") from None
+    info = parse_page(page)
+    if not [l for l in info["lyrics"].splitlines() if l.strip() and not l.strip().startswith("[")]:
+        raise ValueError("I could not find lyrics on that Suno page. Check that the song is public and has lyrics (an instrumental song cannot be imported here).")
+    return info
+
+
+def apply_page(slug, info):
+    """Write the title, lyrics and style read from the page, where the song does not already have them."""
+    D = song_dir(slug)
+    for name, key in (("title.txt", "title"), ("lyrics.txt", "lyrics"), ("style.txt", "style")):
+        p = os.path.join(D, name)
+        if (info.get(key) or "").strip() and not (os.path.isfile(p) and open(p, encoding="utf-8").read().strip()):
+            with open(p, "w", encoding="utf-8") as f: f.write(info[key].strip() + "\n")
+    mp = os.path.join(D, "meta.json"); m = _meta(mp); m.setdefault("history", []).append(f"{now()} title, lyrics and style read from the Suno page"); save(mp, m)
+
+
 def ingest(slug, a):
     D = song_dir(slug); mp = os.path.join(D, "meta.json"); m = _meta(mp, required=True)
     if m.get("source") != "suno_import":

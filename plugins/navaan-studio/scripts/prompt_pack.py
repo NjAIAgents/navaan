@@ -79,10 +79,21 @@ def singer(style):
     return "female" if f and not m else "male" if m and not f else ""
 
 
+def artist_voice():
+    """Who sings every song, from the artist profile (music.voice: male or female). Empty for duet, mixed or unset."""
+    v = str(C.cfg("music.voice", "") or "").strip().lower()
+    return v if v in ("male", "female") else ""
+
+
+def who_sings(style):
+    """The singer for one song: what its style says, else the artist's own voice from the profile."""
+    return singer(style) or artist_voice()
+
+
 def voice_note(ctx_or_style):
     """One sentence for the directors: who sings, so the film does not show someone else."""
     style = ctx_or_style.get("style") if isinstance(ctx_or_style, dict) else ctx_or_style
-    g = singer(style)
+    g = who_sings(style)
     if g: return f"Voice note: the singer is {'a man' if g == 'male' else 'a woman'}. The main person in the film is {'a man' if g == 'male' else 'a woman'}; never make the main person {'a woman' if g == 'male' else 'a man'}."
     return "Voice note: the singer's gender is not stated, so do not assume it. Prefer silhouettes, backs, hands and places, or a person whose gender the lyrics make clear."
 
