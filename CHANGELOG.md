@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.29.5] - 2026-10-17
+
+### Changed
+- The Studio page of a song or inspiration is easier to walk through. Right under the title there is now a progress strip: one chip per pipeline step in order, showing done, the one you are at, a step waiting for your approval, a failed step, and what is still to come (each chip jumps to its row). The Steps list moved up from the bottom of the page to sit straight under the action card, so the steps and what to do next come first and the editors, files and analytics follow.
+
 ## [0.29.4] - 2026-10-17
 
 ### Fixed
@@ -334,7 +339,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.4...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.29.5...HEAD
+[0.29.5]: https://github.com/NjAIAgents/navaan/compare/v0.29.4...v0.29.5
 [0.29.4]: https://github.com/NjAIAgents/navaan/compare/v0.29.3...v0.29.4
 [0.29.3]: https://github.com/NjAIAgents/navaan/compare/v0.29.2...v0.29.3
 [0.29.2]: https://github.com/NjAIAgents/navaan/compare/v0.29.1...v0.29.2
