@@ -201,7 +201,9 @@ export default function Song() {
           {d.failure.error && <p>{d.failure.error}</p>}
           <p className="mu">Log reference <code>{d.failure.ref}</code> (search it in the app log as <code>job_id</code>).</p>
           <div className="row">
-            <button className="btn p" disabled={busy || !d.failure.step} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
+            {d.failure.step
+              ? <button className="btn p" disabled={busy} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
+              : <button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
             <a className="btn g" href={classic(slug)}>Full log in the classic view <Icon name="external" /></a>
           </div>
         </section>
