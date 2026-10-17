@@ -7,6 +7,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [Unreleased]
 
 ### Added
+- Share a clip: on a song's page, anyone can pick where a clip starts and make a 15 or 30 second vertical video of the song (the cover, the title, "Hear the full song" and navaan.online over the song's sound). It is shared through the phone's share sheet (Instagram, WhatsApp and the rest) with a link that opens a page playing the clip and leading back to the whole song; where the share sheet cannot take a file the link is shared. Only songs a visitor may play can be clipped, up to 20 clips an hour from one address.
+
+### Added
 - Album pipeline in Studio > Albums: "New album from songs" lets you pick two or more songs, get five name ideas made from them (a few cents of OpenAI chat), type your own if you prefer, and create the album with the songs in the order you picked. An album's page has a Cover card: square art from a prompt you can read and change (about 4 cents), the NAVAAN mark, the album title and artist drawn over it in a lettering you choose, or use your own picture. The cover is kept in Studio for now; showing it on the public site is the next step.
 
 ## [0.29.0] - 2026-10-17
