@@ -6,6 +6,14 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-17
+
+### Changed
+- The item page (a song or an inspiration) is rebuilt so it can be walked. One "now" card says the single thing that needs you (an approval, a question, a failure, or "Next: ..."), never an approval and a "Running" chip side by side. The steps run top to bottom with their name beside each node, their state in words, and Redo on the row. Everything else moved into tabs: Pipeline, Content (quote, lyrics, shot list, narration), Media, Publish, Activity. The tab is kept in the address (?tab=media).
+- The credits approval now lists exactly what it spends, from the item's own steps (for an inspiration: OpenAI for the background and ElevenLabs for the voice; Suno only where a song really uses it), instead of always saying "Suno, Flow and OpenAI".
+- A failure leads with a sentence in plain words and folds the raw error away under it. A failure that has since been fixed (the step it names now succeeded) no longer shows.
+- An item that is only waiting for an approval says that nothing is running.
+
 ## [0.30.1] - 2026-10-17
 
 ### Added
@@ -382,7 +390,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.30.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.31.0...HEAD
+[0.31.0]: https://github.com/NjAIAgents/navaan/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/NjAIAgents/navaan/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/NjAIAgents/navaan/compare/v0.29.10...v0.30.0
 [0.29.10]: https://github.com/NjAIAgents/navaan/compare/v0.29.9...v0.29.10

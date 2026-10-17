@@ -40,7 +40,7 @@ describe("Schedule editing (NAV-26)", () => {
     let sched: unknown = undefined;
     const f = vi.fn((u: string) => Promise.resolve(u.startsWith("/api/me") ? json(OWNER) : u.startsWith("/api/schedule/suggest") ? json({ suggestion: { youtube_at: null, instagram_at: "2030-01-05T13:00:00Z", confidence: "high", basis: ["followers online"], note: "" } }) : u === "/api/schedule/accept" ? (sched = { youtube_at: "2030-01-05T12:45:00Z", instagram_at: "2030-01-05T13:00:00Z" }, json({ ok: true })) : u === "/api/schedule/clear" ? (sched = undefined, json({ ok: true })) : u.startsWith("/api/song/") ? json({ slug: "song-001", steps: [], next: { type: "run", step: "lyrics" }, text: { "title.txt": "T" }, files: {}, meta: { type: "music", state: "drafted", history: [], schedule: sched }, approvals: {}, job: { running: false, queued: false, rc: null }, status_text: "", failure: null, question: null, needs_you: "" }) : json([])));
     vi.stubGlobal("fetch", f);
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=publish"]}><App /></MemoryRouter>);
     expect(await screen.findByText(/Suggested from your analytics/)).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: "Use these times" }));
     expect(await screen.findByText(/YouTube public:/)).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear" })); expect(f.mock.calls.some(([u]) => u === "/api/schedule/clear")).toBe(false);

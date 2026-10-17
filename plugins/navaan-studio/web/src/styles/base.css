@@ -262,3 +262,13 @@ body.lock { overflow: hidden; }
 
 /* The pipeline strip of an item: one chip per step */
 .strip { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; } .strip a.chip { text-decoration: none; height: auto; min-height: 28px; padding: 4px 10px; } .strip a.chip[aria-current="step"] { outline: 2px solid var(--ac); outline-offset: 1px; }
+
+/* The pipeline page: tabs, the rail of steps beside the one thing that needs you. Tokens only. */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--ln); margin: 0 0 16px; } .tabs button { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--mu); font: inherit; font-weight: 600; min-height: var(--tap); padding: 0 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; } .tabs button[aria-selected="true"] { color: var(--ac); border-bottom-color: var(--ac); } .tabs button:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; } .tabs .dot { width: 7px; height: 7px; border-radius: 99px; background: var(--wn); }
+.pl-grid { display: grid; grid-template-columns: minmax(280px, 400px) minmax(0, 1fr); gap: 20px; align-items: start; } @media (max-width: 860px) { .pl-grid { grid-template-columns: minmax(0, 1fr); } .pl-now { order: -1; } }
+.rail { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 2px; } .rl { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: var(--tap); padding: 6px 10px; border-radius: var(--r2); border: 1px solid transparent; }
+.rl .nd { width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; flex: none; font-size: 12px; font-weight: 700; border: 1.5px solid var(--dim); color: var(--dim); } .rl .nd svg { width: 13px; height: 13px; }
+.rl.done .nd { background: color-mix(in srgb, var(--ok) 18%, transparent); border-color: transparent; color: var(--ok); } .rl.now .nd { background: var(--ac); border-color: transparent; color: var(--on-action); }
+.rl.waiting { background: color-mix(in srgb, var(--wn) 12%, transparent); border-color: color-mix(in srgb, var(--wn) 40%, transparent); } .rl.waiting .nd { background: var(--wn); border-color: transparent; color: var(--on-action); } .rl.failed .nd { background: var(--bad); border-color: transparent; color: var(--on-action); }
+.rl .rt { display: flex; flex-direction: column; flex: 1 1 140px; min-width: 0; } .rl .lb { font-weight: 500; } .rl.later .lb { color: var(--mu); } .rl.waiting .lb, .rl.now .lb, .rl.failed .lb { font-weight: 700; } .rl .st { font-size: 12px; } .rl .rc { flex-basis: 100%; }
+.spend-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }

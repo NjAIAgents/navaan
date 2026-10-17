@@ -42,7 +42,7 @@ describe("Studio > song", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByRole("heading", { name: /Next: Generate the song on Suno/ });
     const post = f.mock.calls.find(([u]) => u === "/api/approve")!; expect(JSON.parse(String(post[1]?.body))).toEqual({ slug: "song-001", gate: "lyrics" });
-    expect(screen.getByText(/gate lyrics approved via ui:owner/)).toBeInTheDocument();   // history says who
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" })); expect(screen.getByText(/gate lyrics approved via ui:owner/)).toBeInTheDocument();   // history says who
   });
   it("asks twice before a gate that spends credits", async () => {
     const f = mock({ "/api/song/": () => detail({ next: { type: "gate", step: "pictures", gate: "credits" } }), "/api/approve": () => ({ ok: true }) });

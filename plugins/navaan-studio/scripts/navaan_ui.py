@@ -151,6 +151,18 @@ def cloud_view(refresh=False):
     return out
 
 
+def plain_failure(step, error, rows):
+    """A failure in words a person can act on. The raw error stays available under it."""
+    label = next((r["label"] for r in rows if r["id"] == step), "") or "A step"; e = error or ""
+    if "No ElevenLabs key" in e: return "ElevenLabs has no key saved. Add it under Settings, or skip narration for this short on its Narration card."
+    if "monthly ElevenLabs cap" in e: return "This month's ElevenLabs allowance would be passed. Raise it in Settings or wait for next month."
+    if "worker stopped before the job finished" in e: return "The server restarted while this was running. Nothing is lost: run it again."
+    m = re.search(r"(?:No such file or directory|FileNotFoundError)[^\n]*?['\"]?([\w./-]+\.\w{2,4})", e)
+    if m: return f"A file this step needs is missing ({os.path.basename(m.group(1))}). Making the step before it again usually fixes this."
+    if "timed out" in e.lower(): return f"{label} took too long and was stopped. Trying again usually works."
+    return f"{label} did not finish. The details are under this message."
+
+
 def detail(slug):
     D = C.song_dir(slug)
     try: navaan.auto_gates(slug)   # gates switched off in Settings approve themselves
@@ -176,7 +188,9 @@ def detail(slug):
     if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
     rn.pop("started", None)
     # rc 5 and 6 are "waiting for you", not failures. The ref is the job id every log line of the run carries (job_id in app.jsonl).
-    failure = {"step": rn.get("failed") or "", "error": jv.get("error", ""), "ref": jv.get("id", "")} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6)) else None
+    fstep = rn.get("failed") or ""
+    stale = bool(fstep) and any(r["id"] == fstep and r["done"] for r in rows)   # the step that failed has since succeeded: the pipeline moved on, so the failure is history, not news
+    failure = {"step": fstep, "error": jv.get("error", ""), "ref": jv.get("id", ""), "plain": plain_failure(fstep, jv.get("error", ""), rows)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),

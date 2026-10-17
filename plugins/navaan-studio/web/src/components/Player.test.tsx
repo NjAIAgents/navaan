@@ -36,7 +36,7 @@ describe("playing a song", () => {
   it("plays through a link from /api/play, marks the song with an equaliser and keeps playing across screens", async () => {
     const f = vi.fn((url: string) => Promise.resolve(url.startsWith("/api/play") ? json({ url: "https://bucket.example/final.mp3", expires_in: 300 }) : url.startsWith("/api/song/") ? json(detail) : url.startsWith("/api/songs") ? json([]) : json({})));
     vi.stubGlobal("fetch", f);
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=publish"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: /^Play/ }));
     await waitFor(() => expect(plays).toEqual(["https://bucket.example/final.mp3"]));
     expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-001")).toBe(true);
@@ -49,7 +49,7 @@ describe("playing a song", () => {
   });
   it("says so when the play link cannot be made", async () => {
     vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(url.startsWith("/api/play") ? json({ error: "cannot make a play link right now" }, 502) : url.startsWith("/api/song/") ? json(detail) : json([]))));
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=publish"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: /^Play/ }));
     expect(await screen.findByText(/cannot make a play link right now/)).toBeInTheDocument(); expect(plays).toHaveLength(0);
   });

@@ -28,7 +28,7 @@ const open = (name: string) => { const s = screen.getByText(name, { selector: "s
 describe("editing a song (NAV-22)", () => {
   it("saves edited lyrics and shows the change as saved", async () => {
     const f = route({ "/api/save": () => ({ ok: true }), "/api/song/": () => detail() });
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=content"]}><App /></MemoryRouter>);
     await screen.findByRole("heading", { name: "Words and settings" }); open("Lyrics");
     const box = screen.getByLabelText(/^Lyrics/); fireEvent.change(box, { target: { value: "line one\nline two" } });
     expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument();
@@ -38,7 +38,7 @@ describe("editing a song (NAV-22)", () => {
   it("keeps an unsaved draft for the tab and warns before leaving", async () => {
     route({ "/api/song/": () => detail() });
     const warn = vi.fn(); window.addEventListener("beforeunload", warn);
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=content"]}><App /></MemoryRouter>);
     await screen.findByRole("heading", { name: "Words and settings" }); open("Lyrics");
     fireEvent.change(screen.getByLabelText(/^Lyrics/), { target: { value: "half done" } });
     await waitFor(() => expect(sessionStorage.getItem("navaan-draft:song-001:lyrics.txt")).toBe("half done"));
@@ -47,14 +47,14 @@ describe("editing a song (NAV-22)", () => {
   });
   it("shows the server's refusal and keeps the text", async () => {
     route({ "/api/save": () => json({ error: "Expecting value" }, 400), "/api/song/": () => detail({ text: { "tags.json": "{}" } }) });
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=content"]}><App /></MemoryRouter>);
     await screen.findByRole("heading", { name: "Words and settings" }); open("Tags");
     fireEvent.change(screen.getByLabelText(/^Tags/), { target: { value: "{" } }); fireEvent.click(screen.getByRole("button", { name: "Save tags" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Expecting value"); expect((screen.getByLabelText(/^Tags/) as HTMLTextAreaElement).value).toBe("{");
   });
   it("saves the shot list with the changed camera move", async () => {
     const f = route({ "/api/shots/save": () => ({ ok: true }), "/api/song/": () => detail() });
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=content"]}><App /></MemoryRouter>);
     fireEvent.change(await screen.findByLabelText("Camera move"), { target: { value: "hold" } });
     fireEvent.click(screen.getByRole("button", { name: "Save shot list" }));
     await waitFor(() => expect(posts(f, "/api/shots/save")).toHaveLength(1)); const b = posts(f, "/api/shots/save")[0];
@@ -62,16 +62,16 @@ describe("editing a song (NAV-22)", () => {
   });
   it("plays the made audio and video, and falls back to the bucket copy when audio is archived", async () => {
     route({ "/api/song/": () => detail() });
-    const { unmount } = render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    const { unmount } = render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=media"]}><App /></MemoryRouter>);
     expect(await screen.findByLabelText("final.mp3")).toHaveAttribute("src", "/media/song-001/final.mp3"); expect(screen.getByLabelText("video.mp4")).toHaveAttribute("src", "/media/song-001/video.mp4");
     unmount(); cleanup();
     route({ "/api/song/": () => detail({ files: {}, cloud: true }) });
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=media"]}><App /></MemoryRouter>);
     expect(await screen.findByText(/archived in the bucket/)).toBeInTheDocument(); expect(screen.getByLabelText("final.mp3")).toHaveAttribute("src", "/media/song-001/final.mp3");
   });
   it("attaches a narration to an inspiration, with words when there is no .srt", async () => {
     const f = route({ "/api/narration/upload": () => ({ ok: true }), "/api/song/": () => detail({ meta: { type: "inspiration", state: "drafted", history: [] }, files: {} }) });
-    render(<MemoryRouter initialEntries={["/studio/inspiration/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/inspiration/song-001?tab=content"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Attach narration" })); expect(await screen.findByRole("alert")).toHaveTextContent("Pick the narration audio first.");
     fireEvent.change(screen.getByLabelText(/^Audio/), { target: { files: [new File(["abc"], "v.mp3", { type: "audio/mpeg" })] } });
     fireEvent.change(screen.getByLabelText("Words, one line per row"), { target: { value: "one\ntwo" } }); fireEvent.click(screen.getByRole("button", { name: "Attach narration" }));
@@ -79,7 +79,7 @@ describe("editing a song (NAV-22)", () => {
   });
   it("has no serious accessibility violations", async () => {
     route({ "/api/song/": () => detail() });
-    const { container } = render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    const { container } = render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=content"]}><App /></MemoryRouter>);
     await screen.findByRole("heading", { name: "Shot list" }); open("Lyrics");
     const r = await axe.run(container, { rules: { "color-contrast": { enabled: false } } }); expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
   });
@@ -138,12 +138,12 @@ describe("redo and restart a step", () => {
 describe("older songs", () => {
   it("shows a history written as objects instead of a black screen (song-001 on prod)", async () => {
     route({ "/api/song/": () => detail({ meta: { type: undefined, state: "published", history: [{ at: "2026-10-11T20:18:52Z", event: "lyrics_approved" }, { at: "2026-10-11T20:24:28Z", note: "v6, English rap verse", event: "suno_run_1_created" }, "2026-10-12T02:38:39Z gate media approved via legacy backfill"] } }) });
-    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001?tab=activity"]}><App /></MemoryRouter>);
     expect(await screen.findByText(/lyrics approved/)).toBeInTheDocument(); expect(screen.getByText(/suno run 1 created: v6, English rap verse/)).toBeInTheDocument(); expect(screen.getByText(/gate media approved via legacy backfill/)).toBeInTheDocument();
   });
   it("shows an error screen with a way on when a screen throws", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    route({ "/api/song/": () => detail({ steps: null }), "/api/client-log": () => ({ ok: true }) });
+    route({ "/api/song/": () => detail({ meta: null }), "/api/client-log": () => ({ ok: true }) });   // a screen that really throws (the rail tolerates missing steps)
     render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
     expect(await screen.findByText("This screen hit a problem")).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
