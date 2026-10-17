@@ -48,4 +48,16 @@ describe("ClipCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Make the clip" })); await screen.findByRole("button", { name: "Share the clip" });
     expect(screen.queryByText(/On a computer/)).toBeNull();
   });
+  it("has a slider for where the clip starts, showing the time and where the clip ends, and a number box when the length is not known", async () => {
+    const f = vi.fn(() => Promise.resolve(json({ token: "song-001-90-30", url: "/c/song-001-90-30.mp4", page: "https://navaan.online/c/song-001-90-30" }))); vi.stubGlobal("fetch", f);
+    const { unmount } = render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={200} />);
+    const s = screen.getByRole("slider", { name: "Start at (seconds)" }) as HTMLInputElement; expect(s.max).toBe("198");   // two seconds before the end: a clip must start inside the song
+    fireEvent.change(s, { target: { value: "90" } }); expect(screen.getByText("Starts at 1:30, ends at 1:45 of 3:20")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "30 seconds" })); expect(screen.getByText("Starts at 1:30, ends at 2:00 of 3:20")).toBeInTheDocument();
+    fireEvent.change(s, { target: { value: "190" } }); expect(screen.getByText("Starts at 3:10, ends at 3:20 of 3:20")).toBeInTheDocument();   // the end never passes the song
+    fireEvent.change(s, { target: { value: "90" } }); fireEvent.click(screen.getByRole("button", { name: "Make the clip" }));
+    await waitFor(() => expect(f).toHaveBeenCalled()); expect(JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({ slug: "song-001", start: 90, length: 30 });
+    unmount(); render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
+    expect(screen.queryByRole("slider")).toBeNull(); expect(screen.getByRole("spinbutton", { name: "Start at (seconds)" })).toBeInTheDocument();
+  });
 });

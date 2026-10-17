@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-17
+
 ### Added
 - Any step in the pipeline can be opened: click it to see what it said (a prompt, a plan), what it made (pictures, audio, video), its log and its own history, and go back to what needs you. A step that has not run yet opens too and says so.
 - Pictures can be opened large: click the poster, the cover, the album cover, a shot's picture or a step's picture to see it full screen; Escape, Close or a click outside closes it.
@@ -19,6 +21,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - The shot list approval shows the pictures in order, each with when it is on screen, the camera move and the scene, with the raw JSON folded away under it.
 - Steps use real names ("Write the picture plan", "Create the pictures", "Plan the shots", "Plan what moves") instead of internal ones.
 - In the steps list only the step whose approval is in front of you is marked "waiting for you"; steps blocked behind it are simply later, so one amber row shows the one thing that needs you.
+
+## [0.33.1] - 2026-10-17
+
+### Changed
+- Making a clip: the start is now a slider (with the start and end time beside it, never past the end of the song) instead of a number box. Where the song's length isn't known yet it stays a number box.
 
 ## [0.33.0] - 2026-10-17
 
@@ -418,7 +425,9 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.33.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.34.0...HEAD
+[0.34.0]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...v0.34.0
+[0.33.1]: https://github.com/NjAIAgents/navaan/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/NjAIAgents/navaan/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/NjAIAgents/navaan/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/NjAIAgents/navaan/compare/v0.30.1...v0.31.0
