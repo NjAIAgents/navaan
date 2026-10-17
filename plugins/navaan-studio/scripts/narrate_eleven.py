@@ -10,7 +10,7 @@ Reads quote.json (the lines of the quote, not the author), speaks it in the voic
 writes voiceover.mp3 and sets `voiceover: file` and `music: none` in brief.md. The timing of the lines is made by the next step (narration_sync.py).
 It sits behind the credits approval and the monthly ElevenLabs cap of Settings; the same text in the same voice is never generated twice (tts_eleven cache).
 """
-import os, sys, json, glob
+import os, re, sys, json, glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import media_cfg as M, narration, tts_eleven as T
@@ -21,6 +21,7 @@ def quote_text(D):
     q = C.load_json(os.path.join(D, "quote.json"), default=None) or {}
     lines = [" ".join(str(l).split()) for l in (q.get("lines") or []) if str(l).strip()] or ([" ".join(str(q.get("text") or "").split())] if str(q.get("text") or "").strip() else [])
     if not lines: raise ValueError("there is no quote yet: write or pick the quote first")
+    if len(lines) == 1: lines = re.split(r"(?<=[.!?])\s+", lines[0])   # a quote kept as one sentence-run: a pause after each sentence
     return "\n\n".join(lines)   # a blank row between the lines: the voice leaves a pause, so the words can keep pace with the text on screen
 
 
