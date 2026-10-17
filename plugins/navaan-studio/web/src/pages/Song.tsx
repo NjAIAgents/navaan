@@ -174,6 +174,9 @@ export default function Song() {
   const making = !!(d?.try?.running || d?.vertical?.running || d?.poster?.running);   // a test or 9:16 picture is being made by a background thread
   useEffect(() => { if (!running && !making) return; const t = setInterval(() => void load(), 3000); return () => clearInterval(t); }, [running, making, load]);
 
+  const [stopping, setStopping] = useState(false);
+  useEffect(() => { if (!running) setStopping(false); }, [running]);   // the run really ended: the button goes back to normal
+  const stop = async () => { setStopping(true); if (!(await act("/api/stop", {}))) setStopping(false); };
   const act: Act = async (path, body) => {
     setPending(true);
     try { await postJSON(path, { slug, ...body }); setErr(""); await load(); return true; }
@@ -214,14 +217,16 @@ export default function Song() {
       {!d.question && d.needs_you && <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>}
       {d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] && <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />}
       {running && gate && (   // a run that is alive and waiting for the approval below: it can be stopped (to change something earlier, or to restart from a step)
-        <section className="card row" role="status"><span className="chip wn"><span className="dot" />A run is waiting</span><span className="tx mu">{d.status_text || "Waiting for your approval."} Stop it if you need to change something earlier.</span><button className="btn" disabled={pending} onClick={() => void act("/api/stop", {})}>Stop the run</button></section>
+        <section className="card row" role="status"><span className="chip wn"><span className="dot" />A run is waiting</span><span className="tx mu">{d.status_text || "Waiting for your approval."} Stop it if you need to change something earlier.</span><button className="btn" disabled={pending || stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop the run"}</button></section>
       )}
       {running && !gate ? (   // a job that is alive while the next thing is an approval is WAITING for it: show the approval, not Running
-        <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" onClick={() => void act("/api/stop", {})}>Stop</button></section>
+        <section className="card" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></section>
       ) : gate === "visuals_mode" ? (
         <VisualsCard d={d} done={load} />
-      ) : gate ? (
+      ) : gate ? (<>
+        {!d.failure && <p className="mu">Nothing is running: this is only waiting for your approval, so there is nothing to stop. To change something first, use Redo on a step in the list below.</p>}
         <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} />
+      </>
       ) : d.next.type === "run" && !d.failure ? (
         <section className="card"><h2>Next: {stepLabel(d.next.step ?? "")}</h2>
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>

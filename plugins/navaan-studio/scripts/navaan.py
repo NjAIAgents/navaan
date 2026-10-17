@@ -699,7 +699,7 @@ def _pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40)
             while not meta(slug).get("approvals", {}).get(g):
                 if slug in STOP: STOP.discard(slug); STATUS[slug] = "stopped by you"; print("stopped by you"); return 130
                 if timeout and time.time() - t0 > timeout: print("timed out waiting for approval"); return 3
-                time.sleep(poll)
+                time.sleep(min(poll, 2))   # a Stop is noticed within a couple of seconds, not after a whole poll
             print(f"gate {g} approved, continuing", flush=True); continue
         STATUS[slug] = f"running {nxt['step']}"; print(f"running {nxt['step']} ...", flush=True)
         rc = run(slug, step=nxt["step"]); steps_run += 1

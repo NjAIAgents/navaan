@@ -1,7 +1,7 @@
 {
   "name": "navaan-web",
   "private": true,
-  "version": "0.29.6",
+  "version": "0.29.7",
   "type": "module",
   "description": "NAVAAN app: design tokens, themes and the mobile-first shell (NAV-8). Served by the portal at /app/.",
   "scripts": {
