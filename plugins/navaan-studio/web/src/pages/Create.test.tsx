@@ -89,3 +89,27 @@ describe("accessibility", () => {
     }
   });
 });
+
+describe("narration offered for an inspiration", () => {
+  const SET = (key: boolean) => ({ media: { keys: { elevenlabs: key, openai: true }, voices: { frank: "Frank (deep, wise)", nj: "NJ (my own voice)" }, settings: { voice: "frank" }, choices: {}, usage: {} } });
+  it("is on by default when an ElevenLabs key is saved, with the voice to pick, and is sent with the new inspiration", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-005" }), "/api/songs": () => [], "/api/settings": () => SET(true), "/api/song/": () => detail({ slug: "insp-005" }) });
+    at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    const box = await screen.findByLabelText(/Narrate the quote with ElevenLabs/); expect(box).toBeChecked(); expect(box).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Voice"), { target: { value: "nj" } });
+    fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "You are allowed to outgrow your old life." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "You are allowed to outgrow your old life.", narrate: "eleven", voice: "nj" }]));
+  });
+  it("is off and explained without a key, and can be switched off with one", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-005" }), "/api/songs": () => [], "/api/settings": () => SET(false), "/api/song/": () => detail({ slug: "insp-005" }) });
+    at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    expect(await screen.findByLabelText(/Narrate the quote with ElevenLabs/)).toBeDisabled(); expect(screen.getByText(/Paste an ElevenLabs key in Settings/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Stay soft." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "Stay soft." }]));
+  });
+  it("is mentioned on the quote and the video approvals when the short has no voice", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, narrate: { on: false, voice: "frank", voices: {}, estimate_s: 12, used_s: 0, cap_s: 1500, key: true } }) });
+    at("/studio/inspiration/insp-004");
+    expect(await screen.findByText(/no narration on this short, so the video has music and text only/)).toBeInTheDocument();
+  });
+});

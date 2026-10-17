@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Changed
+- A new inspiration can start with the quote narrated by ElevenLabs: the New inspiration dialog offers it (on by default when a key is saved, with the voice to pick, Frank first). Without a key it says so. Before this the voice was only on the Narration card, and a short made without it had music and text only with no hint that a voice was possible: the quote and video approvals now say when a short has no narration.
+
 ## [0.29.0] - 2026-10-17
 
 ### Added

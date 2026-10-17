@@ -768,6 +768,10 @@ class H(BaseHTTPRequestHandler):
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 import new_song
                 sl = new_song.create(slug or None, body.get("type") or "music", str(body.get("idea") or ""))
+                if body.get("narrate") == "eleven" and (body.get("type") or "music") == "inspiration":   # the quote narrated by ElevenLabs from the start; the spend is still approved at the credits gate
+                    import narration, media_cfg
+                    v = str(body.get("voice") or ""); v = v if v in media_cfg.VOICES else media_cfg.load()["voice"]
+                    narration.set_options(C.song_dir(sl), {"narrate": "eleven", "voice": v})
                 return self._send(200, {"rc": 0, "slug": sl})
             if p == "/api/import":
                 import suno_import
