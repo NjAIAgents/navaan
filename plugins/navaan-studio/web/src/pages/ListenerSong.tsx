@@ -8,6 +8,7 @@ import { SongFeedback } from "../components/SongFeedback";
 import { ClipCard } from "../components/ClipCard";
 import { Lyrics } from "../components/Lyrics";
 import { ShareDialog } from "../components/ShareCard";
+import { SeekBar } from "../components/SeekBar";
 import { Transport } from "../components/Transport";
 import { getJSON, type TrackView } from "../lib/api";
 import { usePlayer, usePosition } from "../lib/player";
@@ -37,10 +38,11 @@ export default function ListenerSong() {
             {mine && <button className="btn g sq" onClick={() => pl.setExpanded(true)} aria-label="Open play mode"><Icon name="expand" /></button>}
             <button className="btn sq" onClick={() => setSharing(true)} aria-label="Share"><Icon name="share" /></button>
           </div>
+          {mine && <SeekBar id="song-seek" />}
           {pl.error && mine === false && <p role="alert" className="mu">{pl.error}</p>}
         </div>
       </section>
-      <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} /></section>
+      <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} onPick={t.timed_lines || (mine && duration > 0) ? (s) => void pl.playAt(slug, t.title, s) : undefined} /></section>
       <KeepCard slug={slug} />
       <ClipCard slug={slug} title={t.title} position={mine ? position : null} duration={mine ? duration : 0} />
       <SongFeedback slug={slug} title={t.title} />
