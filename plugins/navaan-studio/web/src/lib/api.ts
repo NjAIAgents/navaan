@@ -109,6 +109,7 @@ export type SettingsData = {
   claude: { credential: string; state: string; headless: boolean };
   media: { settings: Record<string, string | number>; keys: Record<string, boolean>; usage: { month?: string; eleven_seconds?: number; openai_usd?: number }; voices: Record<string, string>; choices: Record<string, string[]> };
   gates: { id: string; on: boolean; types: string[] }[];
+  licence?: { auto: boolean; statement: string; suggested: string; set_by: string; set_at: string };
 };
 export type Alert = { id: string; kind: string; title: string; message: string; command?: string; where?: string };
 

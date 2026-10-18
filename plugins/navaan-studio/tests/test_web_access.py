@@ -286,6 +286,16 @@ class Access(unittest.TestCase):
         d = json.loads(self.call(f"/api/song/{kept}", "owner-tok")[1]); self.assertFalse(d["deletable"]["ok"]); self.assertIn("Take it down there first", d["deletable"]["why"])
         code, body = dele(kept); self.assertEqual(code, 400); self.assertIn("published", json.loads(body)["error"]); self.assertTrue(os.path.isdir(C.song_dir(kept)))   # a published item stays
 
+    def test_the_owner_switches_automatic_licence_confirmation_on_with_a_statement_and_nobody_else_can(self):
+        import licence_cfg
+        with mock.patch.dict(os.environ, {"NAVAAN_CONF_DIR": os.path.join(self.tmp.name, "conf")}):
+            save = lambda tok="owner-tok", csrf="csrf-owner", **b: self.call("/api/settings/licence_save", tok, csrf, post=True, body=b)
+            code, body = save(auto=True, statement=""); self.assertEqual(code, 400); self.assertIn("statement", json.loads(body)["error"]); self.assertFalse(licence_cfg.load()["auto"])
+            code, body = save(auto=True, statement="Every song I publish is on a paid Suno plan."); self.assertEqual(code, 200); self.assertTrue(json.loads(body)["licence"]["auto"]); self.assertTrue(licence_cfg.load()["auto"])
+            self.assertTrue(json.loads(self.call("/api/settings", "owner-tok")[1])["licence"]["auto"])   # the Settings page reads it back
+            self.assertEqual(save("lis-tok", "csrf-lis", auto=False, statement="x")[0], 403); self.assertTrue(licence_cfg.load()["auto"])   # a listener cannot change it
+            self.assertEqual(save(auto=False, statement="")[0], 200); self.assertFalse(licence_cfg.load()["auto"])
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")

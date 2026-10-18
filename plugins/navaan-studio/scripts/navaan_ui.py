@@ -827,6 +827,9 @@ class H(BaseHTTPRequestHandler):
                     if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
                     if act == "claude_save": return self._send(200, settings_api.claude_save(str(body.get("token") or "")))
                     if act == "gates_save": return self._send(200, settings_api.gates_save(body.get("gates") or {}))
+                    if act == "licence_save":
+                        r = settings_api.licence_save(body.get("auto"), body.get("statement"), sess.get("user") or "owner"); auth._audit("licence_setting", user=sess.get("user"), ip=self._ip(), auto=bool(body.get("auto")))
+                        return self._send(200, r)
                     if act == "media_save": return self._send(200, settings_api.media_save(body.get("settings") or {}))
                     if act == "media_key": return self._send(200, settings_api.media_key_save(str(body.get("provider") or ""), str(body.get("token") or "")))
                     if act == "yt_oauth_start": return self._send(200, settings_api.yt_oauth_start(ct, str(body.get("which") or "publish")))
