@@ -20,6 +20,7 @@ const at = (path: string) => render(<MemoryRouter initialEntries={[path]}><App /
 const posts = (f: ReturnType<typeof route>, path: string) => f.mock.calls.filter(([u]) => u === path).map(([, i]) => JSON.parse(String(i?.body)));
 let paused = true, now = 0;
 beforeEach(() => {
+  try { localStorage.setItem("navaan.song-lyrics", "1"); } catch { /* storage blocked */ }   // these checks read the lyrics: open them as a returning listener would have
   paused = true; now = 0;
   Object.defineProperty(HTMLMediaElement.prototype, "paused", { configurable: true, get: () => paused });
   Object.defineProperty(HTMLMediaElement.prototype, "currentTime", { configurable: true, get: () => now, set: (v: number) => { now = v; } });
@@ -57,6 +58,14 @@ describe("a song for a listener", () => {
     fireEvent.change(within(dlg).getByLabelText("Seek"), { target: { value: "50" } }); expect(now).toBe(50);
     fireEvent.click(within(dlg).getByRole("button", { name: "Pause" })); await waitFor(() => expect(within(dlg).getByRole("button", { name: "Play" })).toBeInTheDocument());
     fireEvent.keyDown(document, { key: "Escape" }); await waitFor(() => expect(screen.queryByRole("dialog", { name: "Play mode" })).toBeNull()); expect(document.body.classList.contains("lock")).toBe(false);
+  });
+  it("keeps the lyrics folded until the Lyrics icon is pressed, and offers Feedback in play mode", async () => {
+    localStorage.removeItem("navaan.song-lyrics"); route(LISTENER, pageRoutes); at("/song/song-001");
+    const icon = await screen.findByRole("button", { name: "Lyrics" }); expect(screen.queryByRole("heading", { name: "Lyrics" })).toBeNull(); expect(icon).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(icon); expect(screen.getByRole("heading", { name: "Lyrics" })).toBeInTheDocument(); expect(localStorage.getItem("navaan.song-lyrics")).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Play" })); await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    fireEvent.click(screen.getAllByRole("button", { name: "Open play mode" })[0]); const dlg = await screen.findByRole("dialog", { name: "Play mode" });
+    fireEvent.click(within(dlg).getByRole("button", { name: /Feedback/ })); const sheet = await screen.findByRole("dialog", { name: "What did you think?" }); expect(within(sheet).getByRole("button", { name: "Thumbs up" })).toBeInTheDocument();
   });
   it("moves between songs with Back and Next, and starts the next one when a song ends", async () => {
     const rows = ["song-001", "song-002", "song-003"].map((slug, i) => ({ slug, title: `Song ${i + 1}`, language: "Hindi", genre: "", albums: [], licence: "confirmed", art: null }));

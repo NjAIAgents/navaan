@@ -16,6 +16,7 @@ test("the front door is the app, with no sign in, and only licensed songs", asyn
 
 test("a visitor plays a whole song with its lyrics, shares it, and is told what an account will give", async ({ page }) => {
   await page.goto("/app/song/song-011"); await expect(page.getByRole("heading", { name: "Pata Hi Na Chala", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Lyrics" }).click();   // the lyrics are folded until asked for
   await page.getByRole("button", { name: "Play" }).first().click();
   await expect(page.getByRole("region", { name: "Now playing", exact: true })).toBeVisible(); await expect(page.getByRole("button", { name: "Mute" })).toBeVisible();   // the slider too on a wide screen; a phone keeps the mute button
   await expect.poll(async () => page.evaluate(() => (document.querySelector("audio") as HTMLAudioElement).currentTime)).toBeGreaterThan(0);   // it really plays
@@ -23,7 +24,7 @@ test("a visitor plays a whole song with its lyrics, shares it, and is told what 
   expect(await page.evaluate(() => document.querySelectorAll("audio[controls]").length)).toBe(0);   // no browser player with a download item
   await page.getByRole("button", { name: "Share", exact: true }).click(); await expect(page.getByLabel(/Anyone with this link can listen/)).toHaveValue(/\/app\/song\/song-011$/);
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Add to a playlist" }).click(); await expect(page.getByText(/Accounts are coming soon/)).toBeVisible();
+  await page.getByRole("button", { name: "Add to a playlist" }).click(); await expect(page.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/app/join");
 });
 
 test("a visitor makes a clip of a song, plays it, and the page for it leads back to the whole song", async ({ page, request }) => {

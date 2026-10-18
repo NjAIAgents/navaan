@@ -18,7 +18,7 @@ export default function ListenerSong() {
   const { slug = "" } = useParams();
   const [t, setT] = useState<TrackView | null>(null);
   const [err, setErr] = useState("");
-  const [sharing, setSharing] = useState(false);
+  const [sharing, setSharing] = useState(false); const [showLyrics, setShowLyrics] = useState(() => { try { return localStorage.getItem("navaan.song-lyrics") === "1"; } catch { return false; } });   // folded until the Lyrics icon is pressed; the choice is remembered in this browser. expected: storage can be blocked
   const pl = usePlayer(); const { position, duration } = usePosition();
   useEffect(() => { setT(null); getJSON<TrackView>(`/api/catalog/track/${slug}`).then(setT).catch((e) => setErr(errText(e))); }, [slug]);
   if (!t) return err ? <div className="card" role="alert"><h2>This song is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <Loading />;
@@ -36,12 +36,12 @@ export default function ListenerSong() {
             {mine && <button className="btn g sq" onClick={() => pl.setExpanded(true)} aria-label="Open play mode"><Icon name="expand" /></button>}
             <button className="btn sq" onClick={() => setSharing(true)} aria-label="Share"><Icon name="share" /></button>
           </div>
-          <SongTools slug={slug} title={t.title} position={mine ? position : null} duration={mine ? duration : 0} />
+          <SongTools slug={slug} title={t.title} position={mine ? position : null} duration={mine ? duration : 0} lyrics={showLyrics} onLyrics={() => setShowLyrics((v) => { try { localStorage.setItem("navaan.song-lyrics", v ? "0" : "1"); } catch { /* expected: storage can be blocked */ } return !v; })} />
           {mine && <SeekBar id="song-seek" />}
           {pl.error && mine === false && <p role="alert" className="mu">{pl.error}</p>}
         </div>
       </section>
-      <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} onPick={t.timed_lines || (mine && duration > 0) ? (s) => void pl.playAt(slug, t.title, s) : undefined} /></section>
+      {showLyrics && <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} onPick={t.timed_lines || (mine && duration > 0) ? (s) => void pl.playAt(slug, t.title, s) : undefined} /></section>}
       {sharing && <ShareDialog slug={slug} title={t.title} onClose={() => setSharing(false)} />}
     </>
   );

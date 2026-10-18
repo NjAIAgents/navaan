@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getJSON, postJSON, type LibraryData, type PlaylistRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { useMe } from "../lib/me";
@@ -8,11 +9,11 @@ import { PITCH } from "./GuestPitch";
 import { Sheet } from "./Sheet";
 import { FeedbackForm, SongFeedback } from "./SongFeedback";
 
-type Open = null | "playlist" | "clip" | "feedback" | "form";
+type Open = null | "playlist" | "clip" | "feedback" | "form" | "join";
 
 // What a listener can do with a song, as one row of icons at the top of its page instead of a card each: save it, add it to a playlist, make and share a clip, say what you think.
 // Save is a toggle at once; the others open a sheet. Someone not signed in presses the same icons and is told what an account will give them.
-export function SongTools({ slug, title, position, duration }: { slug: string; title: string; position: number | null; duration: number }) {
+export function SongTools({ slug, title, position, duration, lyrics, onLyrics }: { slug: string; title: string; position: number | null; duration: number; lyrics?: boolean; onLyrics?: () => void }) {
   const { guest } = useMe();
   const [open, setOpen] = useState<Open>(null); const [msg, setMsg] = useState("");
   const [saved, setSaved] = useState<boolean | null>(null); const [lists, setLists] = useState<PlaylistRow[]>([]); const [pick, setPick] = useState("");
@@ -22,20 +23,27 @@ export function SongTools({ slug, title, position, duration }: { slug: string; t
     getJSON<PlaylistRow[]>("/api/playlists").then((p) => { setLists(p); setPick(p[0]?.id ?? ""); }).catch(() => setLists([]));   // expected: no playlists to offer
   }, [slug, guest]);
   const save = async () => {
-    if (guest) return setMsg(PITCH);
+    if (guest) return setOpen("join");
     try { await postJSON("/api/library/save", { kind: "track", slug, on: !saved }); setSaved(!saved); setMsg(""); } catch (e) { setMsg(errText(e)); }
   };
   const add = async () => { try { await postJSON("/api/playlists/add", { id: pick, slug }); setMsg(`Added to "${lists.find((l) => l.id === pick)?.name}".`); } catch (e) { setMsg(errText(e)); } };
   const close = () => setOpen(null);
   return (
     <>
-      <div className="row tools" role="group" aria-label={`Do more with ${title}`}>
-        <button className={"btn sq" + (saved ? " p" : "")} aria-pressed={!!saved} aria-label={saved ? "Saved" : "Save song"} onClick={() => void save()}><Icon name="heart" filled={!!saved} /></button>
-        <button className="btn sq" aria-label="Add to a playlist" onClick={() => { setMsg(""); guest ? setMsg(PITCH) : setOpen("playlist"); }}><Icon name="playlist" /></button>
-        <button className="btn sq" aria-label="Share a clip" onClick={() => setOpen("clip")}><Icon name="scissors" /></button>
-        <button className="btn sq" aria-label="What did you think?" onClick={() => setOpen("feedback")}><Icon name="thumb" /></button>
+      <div className="row tools" role="group" aria-label={`Do more with ${title}`}>   {/* each icon carries its word under it, so Save is not read as a second like */}
+        <span className="tool"><button className={"btn sq" + (saved ? " p" : "")} aria-pressed={!!saved} aria-label={saved ? "Saved" : "Save song"} onClick={() => void save()}><Icon name="bookmark" filled={!!saved} /></button><span aria-hidden="true">{saved ? "Saved" : "Save"}</span></span>
+        <span className="tool"><button className="btn sq" aria-label="Add to a playlist" onClick={() => { setMsg(""); setOpen(guest ? "join" : "playlist"); }}><Icon name="playlist" /></button><span aria-hidden="true">Playlist</span></span>
+        <span className="tool"><button className="btn sq" aria-label="Share a clip" onClick={() => setOpen("clip")}><Icon name="scissors" /></button><span aria-hidden="true">Clip</span></span>
+        <span className="tool"><button className="btn sq" aria-label="What did you think?" onClick={() => setOpen("feedback")}><Icon name="thumb" /></button><span aria-hidden="true">Feedback</span></span>
+        {onLyrics && <span className="tool"><button className={"btn sq" + (lyrics ? " p" : "")} aria-pressed={!!lyrics} aria-label="Lyrics" onClick={onLyrics}><Icon name="lyrics" /></button><span aria-hidden="true">Lyrics</span></span>}
       </div>
       {msg && open !== "playlist" && <p role="status" className="mu">{msg}</p>}
+      {open === "join" && (
+        <Sheet title="Create your account" onClose={close}>
+          <p>{PITCH.replace("Accounts are coming soon. ", "")} With an account you save songs and make your own playlists.</p>
+          <div className="row"><Link className="btn p" to="/join">Create account</Link><button className="btn g" onClick={close}>Not now</button></div>
+        </Sheet>
+      )}
       {open === "playlist" && (
         <Sheet title="Add to a playlist" onClose={close}>
           {lists.length ? (

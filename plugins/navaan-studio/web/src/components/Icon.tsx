@@ -28,6 +28,8 @@ const PATHS: Record<string, string> = {
   download: "M12 3v12M7 11l5 5 5-5M5 20h14",
   expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
   close: "M6 6l12 12M18 6L6 18",
+  bookmark: "M6 3h12v18l-6-4-6 4z",
+  lyrics: "M4 6h16M4 10h16M4 14h10M4 18h7M18 14v6M18 14l3 1",
   heart: "M12 21s-8-5.2-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.8-8 11-8 11z",
   playlist: "M4 6h12M4 11h8M4 16h6M17 13v7M13.5 16.5h7",
   scissors: "M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12",

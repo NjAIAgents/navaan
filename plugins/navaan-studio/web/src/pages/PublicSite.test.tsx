@@ -16,7 +16,7 @@ function stub(me: unknown) {
 const at = (path: string) => render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
 let paused = true;
 beforeEach(() => {
-  paused = true; try { localStorage.clear(); } catch { /* storage may be blocked */ }
+  paused = true; try { localStorage.clear(); localStorage.setItem("navaan.song-lyrics", "1"); } catch { /* storage may be blocked */ }   // these checks read the lyrics: open them as a returning listener would have
   Object.defineProperty(HTMLMediaElement.prototype, "paused", { configurable: true, get: () => paused });
   HTMLMediaElement.prototype.play = vi.fn(function (this: HTMLMediaElement) { paused = false; this.dispatchEvent(new Event("play")); return Promise.resolve(); });
   HTMLMediaElement.prototype.pause = vi.fn(function (this: HTMLMediaElement) { paused = true; this.dispatchEvent(new Event("pause")); });
@@ -34,7 +34,7 @@ describe("the free public site (not signed in)", () => {
   it("plays a song with its lyrics and shows what an account will give: Save and Add to playlist say so", async () => {
     const f = stub(GUEST); at("/song/song-001"); fireEvent.click(await screen.findByRole("button", { name: "Play" })); await waitFor(() => expect(f.mock.calls.some(([u]) => u === "/api/play?slug=song-001")).toBe(true));
     expect(screen.getByLabelText("Lyrics", { selector: "p" })).toHaveTextContent("line one"); expect(document.querySelector("audio[controls]")).toBeNull();   // no browser player with a download item
-    fireEvent.click(screen.getByRole("button", { name: "Add to a playlist" })); expect(await screen.findByText(/Accounts are coming soon/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add to a playlist" })); const join = await screen.findByRole("dialog", { name: "Create your account" }); expect(within(join).getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/join");
     expect(f.mock.calls.some(([u]) => String(u).startsWith("/api/library") || String(u).startsWith("/api/playlists"))).toBe(false);   // nothing is asked of the server that needs an account
   });
   it("plays a song from its cover on Browse without opening the song page", async () => {
