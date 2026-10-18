@@ -1,5 +1,6 @@
 """Tests for the schedule suggestion built from the analytics timing. Run: python3 -W ignore -m unittest test_schedule_suggest"""
 import datetime, json, os, sys, tempfile, unittest
+from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 
 UTC = datetime.timezone.utc
@@ -110,3 +111,13 @@ class Suggest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Central(unittest.TestCase):
+    def test_a_time_typed_in_central_time_becomes_utc_across_daylight_saving(self):
+        import publish_schedule as P
+        with mock.patch.object(P, "now", lambda: P.datetime.datetime(2026, 1, 1, tzinfo=P.UTC)):
+            self.assertEqual(P.from_central("2026-12-01T18:30"), "2026-12-02T00:30:00Z")   # CST, UTC-6
+            self.assertEqual(P.from_central("2026-07-01T18:30"), "2026-07-01T23:30:00Z")   # CDT, UTC-5
+            for bad in ("", "tomorrow", "2025-12-31T17:00"):
+                with self.assertRaises(ValueError, msg=bad): P.from_central(bad)

@@ -18,27 +18,31 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [later, setLater] = useState(false); const [at, setAt] = useState("");   // publish when the pipeline finishes (default) or at a set time, US Central
   const song = type === "music";
   const [nar, setNar] = useState<{ key: boolean; voices: Record<string, string> } | null>(null); const [narrate, setNarrate] = useState(true); const [voice, setVoice] = useState("suno1");
   useEffect(() => {   // an inspiration can start with the quote narrated by ElevenLabs: on by default when a key is saved
     if (!open || song) return;
     getJSON<SettingsData>("/api/settings").then((d) => { if (d?.media?.keys) { setNar({ key: !!d.media.keys.elevenlabs, voices: d.media.voices ?? {} }); setVoice(String(d.media.settings?.voice || "suno1")); } }).catch(() => setNar(null));   // expected: without the settings the option is simply not offered
   }, [open, song]);
+  const when = later && at ? { publish_at_ct: at } : {};
   const useNarr = !song && narrate;   // narration is a standard step: on unless this short skips it
   const done = (slug: string) => go(itemPath(type, slug) ?? "/");
   const create = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
     if (!song && !idea.trim() && !sunoUrl.trim()) return setErr("Write the quote or the idea first, or paste a Suno link.");
+    if (later && !at) return setErr("Pick the date and time to publish, or choose to publish when the pipeline finishes.");
     setBusy(true);
-    try { const r = await postJSON<{ slug: string }>("/api/new", { type, idea: !song && sunoUrl.trim() ? "" : idea.trim(), ...(song ? {} : { ...(useNarr ? { narrate: "eleven", voice } : { narrate: "none" }), ...(sunoUrl.trim() ? { suno_url: sunoUrl.trim() } : {}) }) }); done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
+    try { const r = await postJSON<{ slug: string }>("/api/new", { type, ...when, idea: !song && sunoUrl.trim() ? "" : idea.trim(), ...(song ? {} : { ...(useNarr ? { narrate: "eleven", voice } : { narrate: "none" }), ...(sunoUrl.trim() ? { suno_url: sunoUrl.trim() } : {}) }) }); done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
   const doImport = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
     if (!url.trim()) return setErr("Add the Suno link: the title, lyrics and style are read from it.");
+    if (later && !at) return setErr("Pick the date and time to publish, or choose to publish when the pipeline finishes.");
     if (file && file.size > MAX_AUDIO_BYTES) return setErr("That file is over 22 MB.");
     setBusy(true);
     try {
-      const body: Record<string, unknown> = { url: url.trim(), ...(file ? { audio: { name: file.name, data: await fileB64(file) } } : {}) };
+      const body: Record<string, unknown> = { url: url.trim(), ...when, ...(file ? { audio: { name: file.name, data: await fileB64(file) } } : {}) };
       const r = await postJSON<{ slug: string }>("/api/import", body); done(r.slug);
     } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
@@ -70,6 +74,12 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
               {narrate && nar && !nar.key && !sunoUrl.trim() && <p className="mu" role="status">Paste an ElevenLabs key in Settings before this step runs. Untick the box to make this short with music and text only.</p>}
             </div>
           )}
+          <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend><b>When should it be published?</b></legend>
+            <label className="row" style={{ gap: 10 }}><input type="radio" name="ni-when" checked={!later} onChange={() => setLater(false)} /> When the pipeline finishes (after your approvals)</label>
+            <label className="row" style={{ gap: 10 }}><input type="radio" name="ni-when" checked={later} onChange={() => setLater(true)} /> On a date and time I choose</label>
+            {later && <><label htmlFor="ni-at">Date and time (Central Time, CST/CDT)</label><input id="ni-at" className="field" type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} /><p className="mu">YouTube and Instagram both go out then, once the approvals are given. You can change either time later on the item's Publishing schedule card.</p></>}
+          </fieldset>
           <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? "Creating…" : "Create"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>
         </form>
       ) : (
@@ -79,6 +89,12 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
           <input id="ni-url" className="field" type="url" required aria-required="true" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://suno.com/song/… or https://suno.com/s/…" autoComplete="off" />
           <label htmlFor="ni-file">Audio file (optional; mp3, wav or m4a, up to 22 MB)</label>
           <input id="ni-file" className="field" type="file" accept="audio/*,.mp3,.m4a,.wav,.flac" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend><b>When should it be published?</b></legend>
+            <label className="row" style={{ gap: 10 }}><input type="radio" name="ni-when" checked={!later} onChange={() => setLater(false)} /> When the pipeline finishes (after your approvals)</label>
+            <label className="row" style={{ gap: 10 }}><input type="radio" name="ni-when" checked={later} onChange={() => setLater(true)} /> On a date and time I choose</label>
+            {later && <><label htmlFor="ni-at">Date and time (Central Time, CST/CDT)</label><input id="ni-at" className="field" type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} /><p className="mu">YouTube and Instagram both go out then, once the approvals are given. You can change either time later on the item's Publishing schedule card.</p></>}
+          </fieldset>
           <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? "Importing…" : "Import"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>
         </form>
       )}
