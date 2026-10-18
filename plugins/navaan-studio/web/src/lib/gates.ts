@@ -29,3 +29,18 @@ const STEP: Record<string, string> = {
 };
 export const stepLabel = (id: string) => STEP[id] ?? id.replace(/_/g, " ");
 export const gateTitle = (g: string) => GATE_TITLE[g] ?? g.replace(/_/g, " ");
+
+// What a step does, in one plain sentence, shown on a step that has not run yet.
+const WHAT: Record<string, string> = {
+  suno_import: "Brings the song's words and sound in from Suno.", visuals_mode: "You choose how the video gets its pictures.", prompts: "The director writes the story, the character and one picture prompt for each shot.",
+  pictures: "Paints the pictures from the plan with OpenAI.", shots: "Lays the pictures along the song: when each appears and how the camera moves.", motion_plan: "Marks what moves in each picture (steam, cloth, flames); the rest stays still.",
+  motion_clips: "Makes a short moving loop for each picture that has something marked to move.", captions: "Times every lyric line to the singing.", reel: "Builds the vertical reel from the best part of the song.",
+  video: "Builds the full video from the pictures, their moves and the captions.", youtube_meta: "Writes the YouTube title, description and tags. Nothing is sent.", publish_youtube: "Uploads the video to YouTube as private.",
+  youtube_short: "Uploads the reel to YouTube as a private Short.", go_public: "Makes the YouTube video and Short public.", instagram_caption: "Writes the Instagram caption for you to review.",
+  publish_instagram: "Posts the reel to Instagram.", archive: "Copies the finished song to the cloud bucket.", cleanup: "Deletes the local copies, only after the bucket has been checked file by file.",
+  quote: "Writes or picks the quote.", originality: "Checks the quote's originality and attribution on the web.", background_prompt: "Writes the prompt for the background picture.", background: "Makes the background picture.",
+  narrate: "Speaks the quote with ElevenLabs.", narration: "Times each line of the quote to the voice.", typeset: "Plans the typography, the timing and the music under the voice.", render: "Renders the vertical video.",
+};
+export const stepWhat = (id: string) => WHAT[id] ?? "";
+// What an approval does once it stops asking, for the confirmation before it is switched off.
+export const riskText = (g: string) => (g === "local_cleanup" ? "deletes local media" : g === "credits" || g === "captions_setup" || g === "suno_download" ? "spends credits or downloads tools" : "reaches the outside world, such as uploading or posting");

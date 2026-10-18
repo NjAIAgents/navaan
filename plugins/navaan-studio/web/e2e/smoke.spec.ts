@@ -35,9 +35,9 @@ test("a finished step can be opened to see what it made, and you can go back to 
   await page.goto(`/app/studio/songs/${slug}`); await ready(page);
   const first = page.locator(".rail .lb-btn").first(); await expect(first).toBeVisible();   // every step in the list can be opened, finished or not
   await first.click();
-  await expect(page.getByRole("button", { name: /Back to what needs you/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close this step" })).toBeVisible();
   await page.screenshot({ path: `/tmp/step-detail-${info.project.name}.png`, fullPage: true });
-  await page.getByRole("button", { name: /Back to what needs you/ }).click(); await expect(page.getByRole("button", { name: /Back to what needs you/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Close this step" }).click(); await expect(page.getByRole("button", { name: "Close this step" })).toHaveCount(0);
 });
 
 test("a song and an inspiration can be started from the lists and open at their first step", async ({ page }, info) => {

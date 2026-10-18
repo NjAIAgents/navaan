@@ -160,6 +160,63 @@ def run(cmd):
     subprocess.run(cmd, check=True)
 
 
+SITE = "https://navaan.online"
+
+
+def with_site_link(text, slug=None, plain=False):
+    """A YouTube description or an Instagram caption with the site's address at the end, unless navaan.online is already in it. With a slug it is that song's page on the site
+    (a song, which anyone can open once its licence is confirmed); without one, the site itself (an inspiration has no page of its own). plain drops https://, because Instagram does not link a caption."""
+    t = str(text or "").rstrip()
+    if "navaan.online" in t.lower(): return t
+    url = f"{SITE}/app/song/{slug}" if slug else SITE
+    line = "Hear the full song free: " + (url.replace("https://", "") if plain else url)
+    return (t + "\n\n" if t else "") + line
+
+
+def published_links(m):
+    """Where an item is published, from its meta: [{"where", "url", "privacy", "step"}] for the YouTube video, the Short and the Instagram Reel. `step` is the pipeline step that made it."""
+    pub = (m or {}).get("published") or {}; out = []
+    for it in pub.get("youtube_items") or []:
+        f = os.path.basename(str(it.get("file") or ""))
+        short = f.startswith("final_reel") or "short" in f or "/shorts/" in str(it.get("url") or "")
+        out.append({"where": "YouTube Short" if short else "YouTube video", "url": it.get("url") or "", "privacy": it.get("privacy") or "", "step": "youtube_short" if short else "publish_youtube"})
+    ys = pub.get("youtube_short")
+    if isinstance(ys, dict) and ys.get("id"): out.append({"where": "YouTube Short", "url": ys.get("url") or f"https://youtube.com/shorts/{ys['id']}", "privacy": ys.get("privacy") or "", "step": "youtube_short"})
+    ig = pub.get("instagram")
+    if ig: out.append({"where": "Instagram Reel", "url": ig if str(ig).startswith("http") else "", "privacy": "", "step": "publish_instagram"})
+    return out
+
+
+def write_published(slug):
+    """published.json in the item's folder: every place it is published with its link and privacy, rebuilt from meta after each publish step so the stage has a file of its own to show and archive. None when nothing is published."""
+    import datetime
+    items = published_links(item_load(slug, {}) or {})
+    if not items: return None
+    p = os.path.join(song_dir(slug), "published.json"); tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f: json.dump({"updated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "items": [{k: v for k, v in i.items() if k != "step"} for i in items]}, f, indent=2); f.write("\n")
+    os.replace(tmp, p); return p
+
+
+def progress(done, total, label=""):
+    """Tell the pipeline how far a long step has got: one line, `PROGRESS done/total label`, that the runner turns into the step's progress bar."""
+    print(f"PROGRESS {int(done)}/{int(total)} {label}".rstrip(), flush=True)
+
+
+def run_ffmpeg(cmd, seconds, label="", base=0, span=100):
+    """subprocess.run(cmd, check=True) for an ffmpeg command that reports how far its output has got, as a share of `seconds` of output.
+    The share is mapped into the part of the step's bar from base to base+span (out of 100)."""
+    p = subprocess.Popen([cmd[0], "-progress", "pipe:1", "-nostats", *cmd[1:]], stdout=subprocess.PIPE, text=True)
+    last = -1
+    for line in p.stdout:
+        if line.startswith("out_time_us=") and seconds > 0:
+            try: t = int(line.split("=", 1)[1]) / 1e6
+            except ValueError: continue   # expected: ffmpeg prints N/A before the first frame
+            pct = base + int(span * min(0.99, max(0.0, t / seconds)))
+            if pct != last: last = pct; progress(pct, 100, label)
+    rc = p.wait()
+    if rc: raise subprocess.CalledProcessError(rc, cmd)
+
+
 _NO_DEFAULT = object()
 
 
