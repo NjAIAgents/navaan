@@ -6,6 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.41.1] - 2026-10-18
+
+### Changed
+- A clip is chosen on one bar with a handle at each end, instead of two separate sliders. The handles keep the clip 5 to 90 seconds long.
+- Share on a clip also puts the caption on the clipboard: the song's name, the link to the full song and the hashtags (#NAVAAN #NewMusic #IndieMusic #NowPlaying), and says to paste it into the post. Instagram and some other apps drop text that is handed to them with a video, so the caption cannot be filled in for you there; WhatsApp and Messages keep it.
+- The icons under Play have their word under them (Save, Playlist, Clip, Feedback, Lyrics). Save is a bookmark now, not a heart, so it is not read as a second like next to Feedback.
+- Lyrics on a song's page are folded until you press the Lyrics icon; the choice is remembered in this browser.
+- Play mode has a Feedback button next to Lyrics, opening the same reactions and message form.
+- Someone who is not signed in and presses Save or Playlist gets a sheet that invites them to create an account, with a Create account button, instead of a line of text.
+
 ## [0.41.0] - 2026-10-18
 
 ### Changed
@@ -538,7 +548,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.41.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.41.1...HEAD
+[0.41.1]: https://github.com/NjAIAgents/navaan/compare/v0.41.0...v0.41.1
 [0.41.0]: https://github.com/NjAIAgents/navaan/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/NjAIAgents/navaan/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/NjAIAgents/navaan/compare/v0.38.1...v0.39.0

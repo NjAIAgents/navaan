@@ -5,6 +5,8 @@ import { Lyrics } from "./Lyrics";
 import { Transport } from "./Transport";
 import { SeekBar } from "./SeekBar";
 import { Volume } from "./Volume";
+import { Sheet } from "./Sheet";
+import { FeedbackForm, SongFeedback } from "./SongFeedback";
 import { getJSON, type TrackView } from "../lib/api";
 import { usePlayer, usePosition } from "../lib/player";
 
@@ -21,7 +23,7 @@ export function PlayMode() {
   const [lyrics, flipLyrics] = useLyricsOpen();
   const p = usePlayer(); const { position, duration } = usePosition();
   const [t, setT] = useState<TrackView | null>(null);
-  const close = useRef<HTMLButtonElement>(null);
+  const close = useRef<HTMLButtonElement>(null); const [fb, setFb] = useState<null | "react" | "form">(null);
   const open = p.expanded && !!p.slug;
   useEffect(() => { if (open && p.slug) getJSON<TrackView>(`/api/catalog/track/${p.slug}`).then(setT).catch(() => setT(null)); else setT(null); }, [open, p.slug]);
   useEffect(() => {
@@ -44,9 +46,11 @@ export function PlayMode() {
           <SeekBar id="pm-seek" />
           <Transport big />
           <Volume />
-          <button className="btn g" aria-pressed={lyrics} onClick={flipLyrics}>Lyrics</button>
+          <div className="row" style={{ justifyContent: "center" }}><button className="btn g" aria-pressed={lyrics} onClick={flipLyrics}>Lyrics</button><button className="btn g" onClick={() => setFb("react")}><Icon name="thumb" /> Feedback</button></div>
         </div>
       </div>
+      {fb === "react" && <Sheet title="What did you think?" onClose={() => setFb(null)}><SongFeedback bare slug={p.slug} title={p.title} onForm={() => setFb("form")} /></Sheet>}
+      {fb === "form" && <FeedbackForm slug={p.slug} title={p.title} onClose={() => setFb(null)} />}
     </div>
   );
 }

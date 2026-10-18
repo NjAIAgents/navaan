@@ -28,6 +28,15 @@ describe("ClipCard", () => {
     fireEvent.click(btn); expect(share).toHaveBeenCalledTimes(1);   // called inside the tap, nothing awaited first: an iPhone opens the sheet only then
     const arg = (share.mock.calls[0] as unknown as [{ files: File[]; text: string }])[0]; expect(arg.files[0].type).toBe("video/mp4"); expect(arg.text).toContain("https://navaan.online/c/t");   // the way back to the song travels with it
   });
+  it("puts the caption, with the link and the hashtags, on the clipboard when Share is pressed, since Instagram drops text handed to it", async () => {
+    const write = vi.fn(() => Promise.resolve()); Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: write } });
+    Object.defineProperty(navigator, "share", { configurable: true, value: vi.fn(() => Promise.resolve()) }); Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
+    vi.stubGlobal("fetch", vi.fn((u: string) => Promise.resolve(u === "/api/clip" ? json({ token: "t", url: "/c/t.mp4", page: "https://navaan.online/c/t" }) : ({ blob: () => Promise.resolve(new Blob(["mp4"], { type: "video/mp4" })) } as unknown as Response))));
+    render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
+    fireEvent.click(screen.getByRole("button", { name: "Make the clip" })); const btn = await screen.findByRole("button", { name: "Share the clip" }); await waitFor(() => expect(btn).toBeEnabled(), { timeout: 5000 });
+    fireEvent.click(btn); expect(write).toHaveBeenCalledWith(expect.stringMatching(/https:\/\/navaan\.online\/c\/t[\s\S]*#NAVAAN/));
+    expect(await screen.findByText(/paste it into the post/)).toBeInTheDocument();
+  });
   it("keeps Share off, and says why, until the clip has been fetched; if the fetch fails it shares the link", async () => {
     const share = vi.fn(() => Promise.resolve()); Object.defineProperty(navigator, "share", { configurable: true, value: share }); Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
     let fail: () => void = () => {};
@@ -50,7 +59,7 @@ describe("ClipCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Make the clip" }));
     const dl = await screen.findByRole("link", { name: "Download the clip" }); expect(dl).toHaveAttribute("href", "/c/t.mp4"); expect(dl).toHaveAttribute("download", "song-001-clip.mp4");
     expect(screen.getByText(/On a computer: download the clip, then post it from the Instagram app/)).toBeInTheDocument();   // no share sheet here
-    fireEvent.click(screen.getByRole("button", { name: "Copy caption" })); await waitFor(() => expect(write).toHaveBeenCalledWith("Tere Hone Se on NAVAAN. Hear the full song: https://navaan.online/c/t #NAVAAN #NewMusic"));
+    fireEvent.click(screen.getByRole("button", { name: "Copy caption" })); await waitFor(() => expect(write).toHaveBeenCalledWith("Tere Hone Se on NAVAAN 🎧\nHear the full song: https://navaan.online/c/t\n\n#NAVAAN #NewMusic #IndieMusic #NowPlaying"));
     expect(await screen.findByText("Caption copied.")).toBeInTheDocument();
   });
   it("does not show the computer hint where the phone's share sheet can take the video", async () => {
@@ -64,7 +73,7 @@ describe("ClipCard", () => {
     const f = vi.fn(() => Promise.resolve(json({ token: "song-001-90-90", url: "/c/song-001-90-90.mp4", page: "https://navaan.online/c/song-001-90-90" }))); vi.stubGlobal("fetch", f);
     const { unmount } = render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={200} />);
     const s = screen.getByRole("slider", { name: "Start at (seconds)" }) as HTMLInputElement; const e = screen.getByRole("slider", { name: "End at (seconds)" }) as HTMLInputElement;
-    expect([s.max, e.min, e.max]).toEqual(["195", "5", "200"]);   // a clip is at least 5 seconds and ends inside the song
+    expect([s.min, s.max, e.min, e.max]).toEqual(["0", "200", "0", "200"]);   // two handles on one bar over the whole song; the 5 to 90 seconds are kept by the handles pushing each other
     fireEvent.change(s, { target: { value: "90" } }); expect(screen.getByText("Clip from 1:30 to 1:35, 5 seconds of 3:20")).toBeInTheDocument();   // the start passed the end: the end is pushed just ahead of it
     fireEvent.change(e, { target: { value: "190" } }); expect(screen.getByText("Clip from 1:40 to 3:10, 90 seconds of 3:20")).toBeInTheDocument();   // 90 seconds at most: the start is pushed
     fireEvent.change(s, { target: { value: "10" } }); expect(screen.getByText("Clip from 0:10 to 1:40, 90 seconds of 3:20")).toBeInTheDocument();   // and the end is pulled in

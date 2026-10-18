@@ -11,8 +11,8 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   }, [onClose]);
   return createPortal(
     <>
-      <div className="scrim" onClick={onClose} />
-      <div className="card dlg stack" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="scrim top" onClick={onClose} />
+      <div className="card dlg stack top" role="dialog" aria-modal="true" aria-label={title}>
         <div className="row"><h2 style={{ flex: 1 }}>{title}</h2><button ref={x} className="btn g sq" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>
         {children}
       </div>
