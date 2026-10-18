@@ -202,22 +202,31 @@ def snap(t, bts, lo, hi, tol=0.4):
     return min(cand, key=lambda b: abs(b - t)) if cand else t
 
 
+# Each short-form channel has its own look, so the two never pass for each other: colours, the font family (serif or sans) and the icon of the end card.
+LOOKS = {"inspiration": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
+         "aha": {"color": "#F4F7FF", "accent": "#3EE0C8", "dim": 0.55, "font": "sans"}}   # The Aha-lorithm: cool white on a darker picture, a teal accent, a clean sans
+
+
+def handle(t):
+    """The account this item posts to: its Instagram handle, or for a YouTube-only channel its YouTube handle (accounts.<type>.youtube_channel)."""
+    a = C.account(t)
+    return ((a.get("youtube_channel") if t in C.NO_INSTAGRAM else a.get("handle")) or "").strip().lstrip("@")
+
+
 def brand_name(slug):
     """Text of the end card: the handle of the account this item posts to. Music items post to NAVAAN, so they get no end card."""
     t = C.item_type(C.item_load(slug, {}))
-    if t == "music": return ""
-    h = (C.account(t).get("handle") or "").strip()
-    return h.lstrip("@")
+    return "" if t == "music" else handle(t)
 
 
 def watermark(slug):
     """The handle shown at the bottom is the account this item posts to (accounts.<type>), never the NAVAAN one."""
-    h = (C.account(C.item_type(C.item_load(slug, {}))).get("handle") or "").strip()
-    return ("@" + h.lstrip("@")) if h else "NAVAAN"
+    h = handle(C.item_type(C.item_load(slug, {})))
+    return ("@" + h) if h else "NAVAAN"
 
 
 def main(slug):
-    D = C.song_dir(slug)
+    D = C.song_dir(slug); itype = C.item_type(C.item_load(slug, {}))
     q = C.load_json(os.path.join(D, "quote.json"))
     text = (q.get("text") or "").strip()
     if not text: sys.exit("navaan: quote.json has no text")
@@ -281,10 +290,10 @@ def main(slug):
         "slug": slug, "width": W, "height": H, "fps": FPS, "duration": round(dur, 2),
         "background": bg, "music": os.path.basename(mfile) if mfile else None, "voiceover": os.path.basename(voice) if voice else None,
         "lines": out_lines, "hold_until": hold_end,
-        "brand": ({"text": brand, "icon": "instagram", "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
+        "brand": ({"text": brand, "icon": "youtube" if itype in C.NO_INSTAGRAM else "instagram", "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),
         "camera": cam, "transition": tr, "layout": layout, "language": q.get("language", ""), "narration": narr,
-        "style": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
+        "style": dict(LOOKS.get(itype, LOOKS["inspiration"])),
         "watermark": watermark(slug),
         "music_source": how, "beat_source": bkind, "beats": bts[:80],
     }

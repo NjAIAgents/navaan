@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { postJSON, type SongDetail } from "../lib/api";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
-import { errText } from "../lib/songs";
+import { errText, isShort } from "../lib/songs";
 
 type Done = () => Promise<unknown> | void;
 
@@ -252,7 +252,7 @@ export function MusicCard({ d, done }: { d: SongDetail; done: Done }) {
 export function MediaCard({ d }: { d: SongDetail }) {
   const names = Object.keys(d.files ?? {});
   const audio = names.filter((n) => n.endsWith(".mp3")); const video = names.filter((n) => n.endsWith(".mp4"));
-  const archived = d.cloud && !audio.length && d.meta.type !== "inspiration";
+  const archived = d.cloud && !audio.length && !isShort(d.meta.type);
   if (!audio.length && !video.length && !archived) return null;
   const url = (n: string) => `/media/${d.slug}/${n}`;
   return (

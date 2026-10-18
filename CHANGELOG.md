@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-18
+
+### Added
+- The Aha-lorithm (NAV-67): a second short-form channel, for YouTube Shorts on @TheAhalorithm about AI awareness and surprising insights. It has its own list under Studio (Aha-lorithm) and its own items (aha-001, aha-002 …), started like an inspiration from a Suno link (the song's voice and words, ElevenLabs as the backup) with the same choice of when to publish. It runs the inspiration steps without Instagram: the only publishing steps are the Short upload and making it public, on the channel's own YouTube account. The writing steps are told what the channel is about. Its videos have their own look: a clean sans font, cool white text, a teal accent, and an end card with a YouTube mark and @TheAhalorithm.
+- To use it, add the account in Settings › Accounts (type aha, YouTube channel @TheAhalorithm) and sign in to YouTube for it there; it shows only the YouTube rows, since the channel has no Instagram.
+
 ## [0.44.0] - 2026-10-18
 
 ### Changed
@@ -582,7 +588,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.45.0...HEAD
+[0.45.0]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/NjAIAgents/navaan/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/NjAIAgents/navaan/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/NjAIAgents/navaan/compare/v0.41.1...v0.42.0

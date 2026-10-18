@@ -21,7 +21,7 @@ import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
 import { fmtCentral } from "../lib/datetime";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
-import { classic, errText, nextAction } from "../lib/songs";
+import { classic, errText, isShort, listPath, nextAction } from "../lib/songs";
 import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
@@ -40,7 +40,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
   const names = Object.keys(d.files ?? {}); const url = (n: string) => `/media/${d.slug}/${n}?v=${d.files[n]}`;
   const rank = (n: string) => { const i = VIDEOS.findIndex(([f]) => f === n); return i < 0 ? 9 : i; };
   const videos = gate === "media" ? names.filter((n) => n.endsWith(".mp4") && !n.startsWith("clips~")).sort((x, y) => rank(x) - rank(y)) : [];
-  const named = d.meta.type !== "inspiration" ? VIDEOS.filter(([f]) => videos.includes(f)) : [];   // songs: feedback names one of these; an inspiration has a single video
+  const named = !isShort(d.meta.type) ? VIDEOS.filter(([f]) => videos.includes(f)) : [];   // songs: feedback names one of these; an inspiration has a single video
   const hasLyricReel = videos.includes("final_reel_9x16_cap.mp4"); const lyricsOn = d.reel_lyrics?.on !== false;
   const songs = gate === "listen" ? names.filter((n) => n === "final.mp3") : [];
   const spends = gate === "credits" ? d.steps.filter((x) => x.spends && !x.done && x.spends_what).map((x) => x.spends_what as string) : [];
@@ -101,7 +101,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
           </>
         )}
       </div>
-      {(gate === "quote" || gate === "media") && d.meta.type === "inspiration" && d.narrate && !d.narrate.on && !Object.keys(d.files ?? {}).some((f) => f.startsWith("voiceover")) && (
+      {(gate === "quote" || gate === "media") && isShort(d.meta.type) && d.narrate && !d.narrate.on && !Object.keys(d.files ?? {}).some((f) => f.startsWith("voiceover")) && (
         <p className="mu" role="note">There is no narration on this short, so the video has music and text only. To add a voice, use the Narration card below.</p>
       )}
       {videos.length > 0 && (
@@ -208,7 +208,7 @@ function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: b
         <button className="btn g" onClick={() => setAsk(false)}>Keep it</button>
       </div>
     </div>
-  ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : "song"}</button></div>;
+  ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : d.meta.type === "aha" ? "short" : "song"}</button></div>;
 }
 
 // What an approval card shows, as words a person reads rather than the file behind it. The raw file stays one click away.
@@ -341,12 +341,12 @@ export default function Song() {
   if (!d) return err ? <div className="card" role="alert"><h2>Could not load this song</h2><p className="mu">{err}</p><Link className="btn" to="/studio/songs">Back to Songs</Link></div> : <Loading />;
 
   const title = d.text["title.txt"]?.trim() || slug;
-  const insp = d.meta.type === "inspiration"; const list = insp ? "/studio/inspiration" : "/studio/songs";
+  const insp = isShort(d.meta.type); const list = listPath(d.meta.type);
   const coverFile = insp ? "thumb_9x16.jpg" : "cover_1x1.png"; const cover = (d.files ?? {})[coverFile] ? `/media/${slug}/${coverFile}?w=160&v=${d.files[coverFile]}` : "";   // the song's cover (an inspiration: its reel's first frame) beside the title
   const gate = d.next.type === "gate" ? d.next.gate : undefined;
   const busy = pending || running;
   const history = [...(d.meta.history ?? [])].reverse().slice(0, 30);
-  const published = d.meta.type !== "inspiration" && d.meta.state === "published";
+  const published = !isShort(d.meta.type) && d.meta.state === "published";
   const needsYou = !!(gate || d.question || d.needs_you || d.failure);
   const selId = d.steps.some((x) => x.id === sp.get("step")) ? (sp.get("step") as string) : "";   // a step opened from the list
   const pick = (id: string) => { const n = new URLSearchParams(sp); if (n.get("step") === id) n.delete("step"); else n.set("step", id); setSp(n, { replace: true }); };
@@ -406,7 +406,7 @@ export default function Song() {
       <div className="ph hd">
         {cover && <img className="ph-cover" src={cover} alt="" width={insp ? 54 : 96} height={96} />}
         <div className="ph-tx">
-          <Link className="back" to={list}><Icon name="chevron" />{insp ? "Inspiration" : "Songs"}</Link>
+          <Link className="back" to={list}><Icon name="chevron" />{d.meta.type === "aha" ? "The Aha-lorithm" : insp ? "Inspiration" : "Songs"}</Link>
           <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
           <p>{STATE_WORDS[d.meta.state ?? ""] ?? "New"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })} · <span className="mu">{slug}</span></p>
         </div>
@@ -444,7 +444,7 @@ export default function Song() {
         {tab === "media" && (<>
           <MediaCard d={d} />
           <PosterCard d={d} done={load} />
-          {d.meta.type !== "inspiration" && <MoodCard d={d} done={load} />}
+          {!isShort(d.meta.type) && <MoodCard d={d} done={load} />}
         </>)}
         {tab === "publish" && (<>
           {published && (

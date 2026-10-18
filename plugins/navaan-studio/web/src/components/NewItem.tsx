@@ -8,7 +8,7 @@ type Mode = "idea" | "import";
 
 // Start something new: a song from an idea (or none), a song imported from Suno (its link; the sound from the Suno page, or your own audio file), or an inspiration short from a quote or idea.
 // Creating an item runs nothing; an import starts the pipeline, as the classic page does, so it says so.
-export function NewItem({ type }: { type: "music" | "inspiration" }) {
+export function NewItem({ type }: { type: "music" | "inspiration" | "aha" }) {
   const go = useNavigate();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("idea");
@@ -46,10 +46,10 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
       const r = await postJSON<{ slug: string }>("/api/import", body); done(r.slug);
     } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
-  if (!open) return <div className="row"><button className="btn p" onClick={() => setOpen(true)}>{song ? "New song" : "New inspiration"}</button></div>;
+  if (!open) return <div className="row"><button className="btn p" onClick={() => setOpen(true)}>{song ? "New song" : type === "aha" ? "New Aha-lorithm short" : "New inspiration"}</button></div>;
   return (
     <section className="card stack" aria-labelledby="new-h">
-      <h2 id="new-h">{song ? "New song" : "New inspiration"}</h2>
+      <h2 id="new-h">{song ? "New song" : type === "aha" ? "New Aha-lorithm short" : "New inspiration"}</h2>
       {song && (
         <div className="seg" role="group" aria-label="How to start" style={{ alignSelf: "flex-start" }}>
           <button aria-pressed={mode === "idea"} onClick={() => setMode("idea")}>Start from an idea</button>

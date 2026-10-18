@@ -235,6 +235,7 @@ def brief_opt(D, key, default=""):
 
 def ig_enabled(m):
     """Instagram steps are on when the profile names a handle. Inspiration always shows them: it has its own account, checked before any post."""
+    if item_type(m) in C.NO_INSTAGRAM: return False   # The Aha-lorithm posts YouTube Shorts only
     return item_type(m) == "inspiration" or bool(cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
 
 
@@ -295,7 +296,23 @@ def inspiration_steps(slug, D):
     ]
 
 
-STEPSETS = {"music": music_steps, "inspiration": inspiration_steps}
+AHA_ABOUT = ("This item is for The Aha-lorithm (YouTube @TheAhalorithm), a YouTube Shorts channel about AI awareness and surprising insights: "
+             "what AI is doing in everyday life, what people should know about it, and short 'aha' facts that change how you see things. Not the inspiration channel.")
+
+
+def aha_steps(slug, D):
+    """The Aha-lorithm (NAV-67): the inspiration steps for a YouTube-Shorts-only channel. No Instagram caption or post; the writing steps are told what the channel is about."""
+    out = []
+    for s in inspiration_steps(slug, D):
+        if s["id"] in ("instagram_caption", "publish_instagram"): continue
+        if s.get("kind") == "claude": s = {**s, "hint": (AHA_ABOUT + " " + s.get("hint", "")).strip()}
+        if s["id"] == "publish_youtube": s = {**s, "label": "Upload to The Aha-lorithm on YouTube as a Short (API, private)"}
+        if s["id"] == "go_public": s = {**s, "label": "Make the Short public on The Aha-lorithm"}
+        out.append(s)
+    return out
+
+
+STEPSETS = {"music": music_steps, "inspiration": inspiration_steps, "aha": aha_steps}
 
 
 def steps(slug, D):

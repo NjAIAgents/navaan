@@ -17,7 +17,7 @@ export type QuoteProps = {
   camera: 'push_in' | 'pull_out' | 'pan_left' | 'pan_right' | 'drift';
   transition: 'rise' | 'fade' | 'blur';
   layout?: 'single' | 'stack';   // single (default): one line on screen at a time; stack: every line stays
-  style: {color: string; accent: string; dim: number};
+  style: {color: string; accent: string; dim: number; font?: 'sans' | 'serif'};
   watermark: string;
 };
 
@@ -28,6 +28,7 @@ export const defaultProps: QuoteProps = {
 };
 
 const FONT = `"Kohinoor Devanagari","Noto Serif Devanagari","Noto Sans Devanagari","Georgia","Noto Serif","DejaVu Serif",serif`;
+const SANS = `"Inter","Avenir Next","Helvetica Neue","Noto Sans Devanagari","Noto Sans","DejaVu Sans",sans-serif`;   // The Aha-lorithm's look (style.font: 'sans')
 const ease = Easing.bezier(0.22, 1, 0.36, 1);
 const smooth = Easing.inOut(Easing.cubic);
 
@@ -42,6 +43,7 @@ const cameraStyle = (cam: QuoteProps['camera'], p: number): React.CSSProperties 
 };
 
 export const Quote: React.FC<QuoteProps> = (props) => {
+  const face = props.style.font === 'sans' ? SANS : FONT;
   const frame = useCurrentFrame();
   const {fps, durationInFrames, width, height} = useVideoConfig();
   const t = frame / fps;
@@ -74,13 +76,13 @@ export const Quote: React.FC<QuoteProps> = (props) => {
       <AbsoluteFill style={{background: `linear-gradient(180deg, rgba(0,0,0,${props.style.dim * 0.7}) 0%, rgba(0,0,0,${props.style.dim * 1.15}) 45%, rgba(0,0,0,${props.style.dim * 1.3}) 100%)`}} />
       {props.lines.map((l, i) => (
         <div key={i} style={{position: 'absolute', left: 0, width, top: blockTop + (single ? 0 : i * lh), height: lh, display: 'flex', alignItems: 'center', justifyContent: 'center', ...enter(l.start), opacity: (enter(l.start).opacity as number) * gone(l, i)}}>
-          <span style={{fontFamily: FONT, fontSize: size, fontWeight: dev ? 600 : 400, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{l.text}</span>
+          <span style={{fontFamily: face, fontSize: size, fontWeight: dev ? 600 : 400, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{l.text}</span>
         </div>
       ))}
       {props.author ? (
         <div style={{position: 'absolute', left: 0, width, top: blockTop + lh * (single ? 1 : props.lines.length) + 36, display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: interpolate(t, [props.author.start, props.author.start + 0.7], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) * holdOut}}>
           <div style={{height: 4, width: accentW, background: props.style.accent, marginBottom: 30, borderRadius: 2}} />
-          <span style={{fontFamily: FONT, fontSize: Math.round(size * 0.5), color: 'rgba(255,255,255,0.92)', textShadow: shadow}}>{props.author.text}</span>
+          <span style={{fontFamily: face, fontSize: Math.round(size * 0.5), color: 'rgba(255,255,255,0.92)', textShadow: shadow}}>{props.author.text}</span>
         </div>
       ) : null}
       {props.brand ? (() => {
@@ -97,13 +99,18 @@ export const Quote: React.FC<QuoteProps> = (props) => {
                   <circle cx="12" cy="12" r="4.1" />
                   <circle cx="17.3" cy="6.7" r="0.6" fill={props.style.color} />
                 </svg>
+              ) : props.brand.icon === 'youtube' ? (
+                <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none" stroke={props.style.color} strokeWidth={1.9} strokeLinejoin="round" style={{filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.6))'}}>
+                  <rect x="2.5" y="5" width="19" height="14" rx="4.5" />
+                  <path d="M10 9.2v5.6l4.8-2.8z" fill={props.style.color} />
+                </svg>
               ) : null}
-              <span style={{fontFamily: FONT, fontSize: bs, letterSpacing: 3, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{props.brand.text}</span>
+              <span style={{fontFamily: face, fontSize: bs, letterSpacing: 3, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{props.brand.text}</span>
             </div>
           </div>
         );
       })() : null}
-      {props.brand ? null : <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: FONT, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
+      {props.brand ? null : <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: face, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
         {props.watermark.startsWith('@') ? props.watermark : props.watermark.toUpperCase()}
       </div>}
       {props.music ? <Audio src={staticFile(props.music)} volume={props.voiceover ? 0.35 : 0.9} /> : null}

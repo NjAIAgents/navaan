@@ -49,6 +49,16 @@ describe("New song and New inspiration", () => {
     fireEvent.change(screen.getByLabelText(/Central Time/), { target: { value: "2030-12-02T09:00" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(posts(f, "/api/new")[0]).toMatchObject({ type: "inspiration", publish_at_ct: "2030-12-02T09:00" }));
   });
+  it("has The Aha-lorithm as its own list, starting a short from a Suno link like an inspiration (NAV-67)", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ slug: "aha-001" }), "/api/songs": () => [{ slug: "aha-001", type: "aha", title: "AI knows your weekday", state: "draft", status: "production", steps_done: 2, steps_total: 13, public: false, published: false, scheduled: "", album: "" }, { slug: "insp-004", type: "inspiration", title: "Tired", state: "published", status: "done", steps_done: 14, steps_total: 14, public: true, published: true, scheduled: "", album: "" }], "/api/song/": () => detail({ slug: "aha-001", meta: { type: "aha", state: "draft", history: [] } }), "/api/settings": () => ({}) });
+    at("/studio/aha");
+    expect(await screen.findByRole("heading", { name: "The Aha-lorithm", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByText("AI knows your weekday")).toBeInTheDocument(); expect(screen.queryByText("Tired")).toBeNull();   // only its own items
+    fireEvent.click(screen.getByRole("button", { name: "New Aha-lorithm short" }));
+    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/abc" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")[0]).toMatchObject({ type: "aha", suno_url: "https://suno.com/s/abc" }));
+    expect(await screen.findByRole("link", { name: "The Aha-lorithm" })).toHaveAttribute("href", "/studio/aha");   // the back link from the new short names the channel list
+  });
   it("needs the Suno link, takes the sound from the Suno page unless an audio file is added, and refuses a too big file", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
     at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));

@@ -248,10 +248,16 @@ def cfg(key, default=None):
 GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "visuals_mode", "shots", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public")
 
 
-CONTENT_TYPES = ("music", "inspiration", "explainer")  # every item has one; it picks the pipeline steps, prompts and checks
-TYPE_PREFIX = {"music": "song", "inspiration": "insp", "explainer": "expl"}
+CONTENT_TYPES = ("music", "inspiration", "aha", "explainer")  # every item has one; it picks the pipeline steps, prompts and checks
+TYPE_PREFIX = {"music": "song", "inspiration": "insp", "aha": "aha", "explainer": "expl"}
+SHORT_TYPES = ("inspiration", "aha")   # short vertical videos made from a few spoken lines over one picture (the inspiration pipeline)
+NO_INSTAGRAM = ("aha",)   # The Aha-lorithm (NAV-67) posts YouTube Shorts only
+
+
+def is_short(t): return t in SHORT_TYPES
 TYPE_GATES = {"music": tuple(g for g in GATES if g not in ("quote", "originality")),
-              "inspiration": ("quote", "originality", "credits", "media", "publish_youtube", "instagram_caption", "go_public", "publish_instagram", "cloud_upload", "local_cleanup")}
+              "inspiration": ("quote", "originality", "credits", "media", "publish_youtube", "instagram_caption", "go_public", "publish_instagram", "cloud_upload", "local_cleanup"),
+              "aha": ("quote", "originality", "credits", "media", "publish_youtube", "go_public", "cloud_upload", "local_cleanup")}
 
 
 def item_type(m):
@@ -282,7 +288,8 @@ def account(ctype):
     rp = lambda k: os.path.realpath(os.path.expanduser(a[k])) if a.get(k) else ""
     ig, yt, ys = rp("instagram_env"), rp("youtube_token"), rp("youtube_client_secret")
     same_ig = bool(ig) and ig == os.path.realpath(f"{home}/instagram.env"); same_yt = bool(yt) and yt == os.path.realpath(f"{home}/youtube_token.json")
-    return {"type": ctype, "configured": bool(ig and yt), "handle": a.get("instagram_handle", ""), "youtube_channel": a.get("youtube_channel", ""),
+    # a YouTube-only channel (NO_INSTAGRAM) needs only its YouTube login to be configured
+    return {"type": ctype, "configured": bool(yt) if ctype in NO_INSTAGRAM else bool(ig and yt), "handle": a.get("instagram_handle", ""), "youtube_channel": a.get("youtube_channel", ""),
             "ig_env": ig, "yt_token": yt, "yt_secret": ys or None, "ig_ready": bool(ig) and os.path.exists(ig) and not same_ig,
             "yt_ready": bool(yt) and os.path.exists(yt) and not same_yt, "same_as_music": same_ig or same_yt}
 

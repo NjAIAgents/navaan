@@ -21,6 +21,11 @@ LATIN_FONTS = [("/System/Library/Fonts/Supplemental/Georgia.ttf", 0), ("/System/
                ("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", 0), ("/usr/share/fonts/opentype/inter/InterDisplay-Medium.otf", 0)]
 
 
+SANS_FONTS = [("/usr/share/fonts/opentype/inter/InterDisplay-Medium.otf", 0), ("/System/Library/Fonts/Avenir Next.ttc", 0), ("/System/Library/Fonts/HelveticaNeue.ttc", 0),
+              ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0)]   # a channel whose look is sans (style.font), e.g. The Aha-lorithm
+FACE = {"font": "serif"}   # set from timing.json's style when a render starts
+
+
 def has_dev(t): return bool(re.search(r"[ऀ-ॿ]", t))
 
 
@@ -28,7 +33,7 @@ def pil_font(size, dev):
     from PIL import ImageFont
     if dev: return C.font(size)   # (the Latin list below is this screen's own serif choice; C.font_for is the plain one)
     e = os.environ.get("NAVAAN_FONT_LATIN")
-    cands = ([(e.partition(":")[0], int(e.partition(":")[2] or 0))] if e else []) + LATIN_FONTS
+    cands = ([(e.partition(":")[0], int(e.partition(":")[2] or 0))] if e else []) + (SANS_FONTS if FACE["font"] == "sans" else LATIN_FONTS)
     for p, i in cands:
         if os.path.exists(p): return ImageFont.truetype(p, size, index=i)
     return C.font(size)
@@ -116,6 +121,11 @@ def make_pngs(D, T, tmp):
             d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(255, 255, 255, 255), width=lw)
             dr = max(2, ic // 20); dx, dy = x0 + int(ic * 0.72), cy - int(ic * 0.28)
             d.ellipse((dx - dr, dy - dr, dx + dr, dy + dr), fill=(255, 255, 255, 255))
+            draw_text(im, (x0 + ic + gap + tw // 2, cy), txt, bf, (255, 255, 255, 255))
+        elif T["brand"].get("icon") == "youtube":   # a rounded play button beside the handle
+            ic = int(bs * 0.95); gap = int(bs * 0.38); x0 = (W - (ic + gap + tw)) // 2; cy = yy + 10; lw = max(3, ic // 12)
+            d.rounded_rectangle((x0, cy - int(ic * 0.36), x0 + ic, cy + int(ic * 0.36)), radius=int(ic * 0.2), outline=(255, 255, 255, 255), width=lw)
+            tx = x0 + int(ic * 0.42); d.polygon([(tx, cy - int(ic * 0.14)), (tx, cy + int(ic * 0.14)), (tx + int(ic * 0.24), cy)], fill=(255, 255, 255, 255))
             draw_text(im, (x0 + ic + gap + tw // 2, cy), txt, bf, (255, 255, 255, 255))
         else:
             draw_text(im, (W // 2, yy + 10), txt, bf, (255, 255, 255, 255))
@@ -220,7 +230,7 @@ def validate(info, T, max_s=60):
 
 
 def main(slug, engine="auto"):
-    D = C.song_dir(slug); T = C.load_json(os.path.join(D, "timing.json"))
+    D = C.song_dir(slug); T = C.load_json(os.path.join(D, "timing.json")); FACE["font"] = (T.get("style") or {}).get("font") or "serif"
     for k in ("background", "music", "voiceover"):
         if T.get(k) and not os.path.exists(os.path.join(D, T[k])): sys.exit(f"navaan: timing.json points at {T[k]} but it is missing. Run the typography step again.")
     dev = any(has_dev(l["text"]) for l in T["lines"])
