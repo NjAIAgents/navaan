@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-10-18
+
+### Fixed
+- The words of a quote video drifted away from the voice (insp-005, the quote made from a Suno song). The step that times each line to the voice was meant to listen to the speech (Whisper) but, on the server, ran in a Python that does not have the speech tools, failed without saying so, and fell back to looking for pauses in the sound. A voice with music under it has no pauses, so every line after the first was placed by guesswork, up to four seconds late. The step now runs itself in the caption tools' Python whenever they are installed, so the lines are placed where they are spoken (on the same audio the first line ends at 5.9 s and the second at 11.0 s, where the guess had 6.9 s and 15.5 s). If it ever has to fall back to pauses again, the step's log now says so plainly. A quote video made before this keeps the old timing until it is made again: its sound files were already cleaned up from the server, so for insp-005 create the inspiration again from the Suno link.
+
 ## [0.38.0] - 2026-10-17
 
 ### Added
@@ -498,7 +503,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.38.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.38.1...HEAD
+[0.38.1]: https://github.com/NjAIAgents/navaan/compare/v0.38.0...v0.38.1
 [0.38.0]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...v0.36.1
