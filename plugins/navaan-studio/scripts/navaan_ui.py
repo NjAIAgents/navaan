@@ -86,7 +86,7 @@ ALBUM_COVER = {}  # album slug -> {"running": bool, "error": str}, the album cov
 POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
-EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
+EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "motion.json", "caption_cues.json"}
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
@@ -1155,11 +1155,34 @@ class H(BaseHTTPRequestHandler):
                 n = body.get("file")
                 if n not in EDITABLE: return self._send(400, {"error": "file not editable"})
                 if n.endswith(".json"): json.loads(body["content"])
+                bad = text_problem(n, str(body["content"]), uploaded=navaan.yt_done(navaan.meta(slug)))
+                if bad: return self._send(400, {"error": bad})
                 open(os.path.join(C.song_dir(slug), n), "w", encoding="utf-8").write(body["content"])
                 navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"{n} edited via ui:{sess.get('user') or 'owner'}"))   # the history says who and when
                 return self._send(200, {"ok": True})
         except (SystemExit, KeyError, ValueError) as e: return self._send(400, {"error": str(e)})
         self._send(404, {"error": "not found"})
+
+
+YT_TITLE_MAX, YT_DESC_BYTES, YT_TAGS_CHARS, IG_CAPTION_MAX = 100, 5000, 500, 2200   # what YouTube and Instagram accept; a longer text is refused when it is saved, not when it is posted
+
+
+def text_problem(name, content, uploaded=False):
+    """A sentence when the owner's edit of the YouTube text (youtube.json) or the Instagram caption (instagram.txt) cannot be posted as it is, else None."""
+    if name == "instagram.txt":
+        return f"Instagram allows {IG_CAPTION_MAX:,} characters in a caption; this one has {len(content):,}." if len(content) > IG_CAPTION_MAX else None
+    if name != "youtube.json": return None
+    if uploaded: return "The video is already on YouTube. Change its title and description in YouTube Studio."
+    try: y = json.loads(content)
+    except ValueError: return "The YouTube text is not valid."   # expected: the owner's text is not JSON; the answer says so
+    if not isinstance(y, dict): return "The YouTube text is not valid."
+    title, desc, tags = str(y.get("title") or "").strip(), str(y.get("description") or ""), y.get("tags") or []
+    if not title: return "The YouTube title cannot be empty."
+    if len(title) > YT_TITLE_MAX: return f"A YouTube title can have {YT_TITLE_MAX} characters; this one has {len(title)}."
+    if len(desc.encode("utf-8")) > YT_DESC_BYTES: return f"A YouTube description can hold {YT_DESC_BYTES:,} bytes (Hindi and other scripts take about 3 per letter); this one is over."
+    if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags): return "The YouTube tags must be a list of words."
+    if sum(len(t) + 1 for t in tags) > YT_TAGS_CHARS: return f"YouTube tags can total {YT_TAGS_CHARS} characters; these are over."
+    return None
 
 
 def serve(port=8765):
