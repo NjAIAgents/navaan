@@ -339,6 +339,15 @@ class H(BaseHTTPRequestHandler):
         if sh and (sess.get("guest") or sess.get("_studio")): out["studio_url"] = f"https://{sh}"   # a guest gets it as the place to sign in, the studio's owner as the way to the studio
         if lh and not self._public_host() and auth.can(sess, "studio.access"): out["public_url"] = f"https://{lh}"
         return out
+    def _publish_at(self, body):
+        """The publishing time given when the item is created (US Central), as ISO UTC, or None for "publish when the pipeline finishes". ValueError for a bad time, checked before anything is created."""
+        t = str(body.get("publish_at_ct") or "").strip()
+        return PS.from_central(t) if t else None
+    def _schedule_new(self, sl, at):
+        """Schedule a just-created item for both YouTube and Instagram at `at`. A refusal (it cannot happen for a time checked a moment ago) is logged; the item stays, publishing at the end."""
+        if not at: return None
+        try: PS.set_schedule(sl, at, at); return at
+        except ValueError: L.exc(LOG, "schedule_at_create_failed", item=sl); return None
     def _clip_reply(self, body):
         """A clip of a song to share: 5 to 90 seconds from where they choose; made once and kept. The same for a visitor and a signed in person."""
         try:
@@ -899,6 +908,8 @@ class H(BaseHTTPRequestHandler):
                 except LookupError as e: return self._send(404, {"error": str(e)})
             if p == "/api/new":
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
+                try: at = self._publish_at(body)
+                except ValueError as e: return self._send(400, {"error": str(e)})
                 import new_song
                 suno_url = str(body.get("suno_url") or "").strip() if (body.get("type") or "music") == "inspiration" else ""
                 voice_file = voice_tmp = info = None
@@ -922,12 +933,14 @@ class H(BaseHTTPRequestHandler):
                     else:
                         v = str(body.get("voice") or ""); v = v if v in media_cfg.VOICES else media_cfg.load()["voice"]
                         narration.set_options(C.song_dir(sl), {"narrate": "eleven", "voice": v})
-                return self._send(200, {"rc": 0, "slug": sl})
+                return self._send(200, {"rc": 0, "slug": sl, "publish_at": self._schedule_new(sl, at)})
             if p == "/api/import":
                 import suno_import
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 au = body.get("audio") if isinstance(body.get("audio"), dict) else None
                 if not str(body.get("url") or "").strip(): return self._send(400, {"error": "Add the Suno link: the title, lyrics and style are read from it."})
+                try: at = self._publish_at(body)
+                except ValueError as e: return self._send(400, {"error": str(e)})
                 try:   # the link gives the words; the sound is your file when you add one, else the video the Suno page itself lists. All of it is read and checked before anything is created, so a private song, one with no lyrics or a bad download is refused first.
                     info = suno_import.read_page(body.get("url", ""))
                     if au and au.get("data"): name, data = au.get("name"), str(au.get("data") or "")
@@ -938,7 +951,7 @@ class H(BaseHTTPRequestHandler):
                     suno_import.save_upload(sl, name, data)
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
-                return self._send(200, {"slug": sl, "started": start_job(sl, True)})
+                return self._send(200, {"slug": sl, "publish_at": self._schedule_new(sl, at), "started": start_job(sl, True)})
             if p == "/api/suno/audio":
                 import suno_import
                 if not SLUG.match(slug) or not os.path.isdir(C.song_dir(slug)): return self._send(404, {"error": "no such song"})

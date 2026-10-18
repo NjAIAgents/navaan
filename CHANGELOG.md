@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-18
+
+### Added
+- When you start a song or an inspiration (from an idea, from a Suno link, or by importing a Suno song), the form asks when it should be published: when the pipeline finishes, after your approvals (the default), or on a date and time you pick, in US Central Time (CST or CDT, whichever applies that day). A chosen time schedules both YouTube and Instagram for then; the approvals are still yours, and either time can be changed later on the item's Publishing schedule card. A time in the past is refused before anything is created.
+
 ## [0.41.1] - 2026-10-18
 
 ### Changed
@@ -548,7 +553,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.41.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/NjAIAgents/navaan/compare/v0.41.1...v0.42.0
 [0.41.1]: https://github.com/NjAIAgents/navaan/compare/v0.41.0...v0.41.1
 [0.41.0]: https://github.com/NjAIAgents/navaan/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/NjAIAgents/navaan/compare/v0.39.0...v0.40.0

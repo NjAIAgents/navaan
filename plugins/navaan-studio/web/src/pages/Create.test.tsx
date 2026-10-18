@@ -35,6 +35,20 @@ describe("New song and New inspiration", () => {
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Maybe you are not behind" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText(/inspiration pipeline is planned \(ref req-8\)/)).toBeInTheDocument(); expect(posts(f, "/api/new")[0]).toEqual({ type: "inspiration", idea: "Maybe you are not behind", narrate: "eleven", voice: "suno1" });   // narration is a standard step: on unless unticked
   });
+  it("asks when to publish at the first step, for a song and an inspiration: when the pipeline finishes by default, or a date and time in Central Time", async () => {
+    const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/new": () => ({ slug: "insp-009" }), "/api/songs": () => [], "/api/inspirations": () => [], "/api/song/": () => detail({ slug: "song-008" }), "/api/settings": () => ({}) });
+    at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));
+    expect(screen.getByRole("radio", { name: /When the pipeline finishes/ })).toBeChecked(); expect(screen.queryByLabelText(/Central Time/)).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });
+    fireEvent.click(screen.getByRole("radio", { name: /On a date and time/ })); fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Pick the date and time to publish"); expect(posts(f, "/api/import")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText(/Central Time/), { target: { value: "2030-12-01T18:30" } }); fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    await waitFor(() => expect(posts(f, "/api/import")).toEqual([{ url: "https://suno.com/s/1K4BKj0pldFbnlkF", publish_at_ct: "2030-12-01T18:30" }]));
+    cleanup(); at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    fireEvent.change(screen.getByLabelText(/Quote or idea/), { target: { value: "Hope" } }); fireEvent.click(screen.getByRole("radio", { name: /On a date and time/ }));
+    fireEvent.change(screen.getByLabelText(/Central Time/), { target: { value: "2030-12-02T09:00" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")[0]).toMatchObject({ type: "inspiration", publish_at_ct: "2030-12-02T09:00" }));
+  });
   it("needs the Suno link, takes the sound from the Suno page unless an audio file is added, and refuses a too big file", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
     at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));
