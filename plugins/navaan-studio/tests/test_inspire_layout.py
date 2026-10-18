@@ -24,5 +24,13 @@ class Layout(unittest.TestCase):
         open(os.path.join(d, "brief.md"), "w").write("## Options\n\n- layout: stack\n"); self.assertEqual(P.opt(d, "layout", "single"), "stack")
 
 
+class Hook(unittest.TestCase):
+    def test_a_quote_with_no_voice_starts_at_once_and_runs_seven_to_fifteen_seconds(self):
+        i, d = P.plain_timing(8.0, 5.6); self.assertEqual(i, 0.2); self.assertAlmostEqual(d, 13.8)   # as long as the words need
+        self.assertEqual(P.plain_timing(20.0, 5.6)[1], 15.0)   # a long quote is held to fifteen seconds
+        self.assertEqual(P.plain_timing(0.5, 2.2)[1], 7.0)   # and a tiny one is not shorter than seven
+        self.assertEqual(P.plain_timing(8.0, 5.6)[0], P.HOOK_INTRO); self.assertLess(P.HOOK_INTRO, 2.0)   # the first line is on screen within the first two seconds
+        self.assertEqual(P.plain_timing(8.0, 5.6, "25"), (0.2, 25.0)); self.assertEqual(P.plain_timing(8.0, 5.6, "99")[1], 30.0); self.assertEqual(P.plain_timing(8.0, 5.6, "3")[1], 7.0)   # a duration in the brief wins, within 7 to 30
+
 if __name__ == "__main__":
     unittest.main()

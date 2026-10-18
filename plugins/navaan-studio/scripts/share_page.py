@@ -81,9 +81,10 @@ a.go:focus-visible{{outline:2px solid #F2EEE7;outline-offset:3px}}
 <p class="pass"><button id="sh" type="button" hidden data-title="{E(title)}" data-page="{url}" data-vid="/c/{E(token)}.mp4" data-name="{E(slug)}-clip.mp4">Share this clip</button><a href="/c/{E(token)}.mp4" download="{E(slug)}-clip.mp4">Download the clip</a></p>
 </main>
 <script>
-(function(){{var b=document.getElementById("sh");if(!b||!navigator.share)return;b.hidden=false;
-b.onclick=function(){{var d=b.dataset,t=d.title+" on NAVAAN. Hear the full song: "+d.page+" #NAVAAN #NewMusic";
-fetch(d.vid).then(function(r){{return r.blob()}}).then(function(x){{var f=new File([x],d.name,{{type:"video/mp4"}});
-return navigator.canShare&&navigator.canShare({{files:[f]}})?navigator.share({{files:[f],text:t}}):navigator.share({{title:d.title,text:t,url:d.page}})}}).catch(function(){{}})}}}})();
+(function(){{var b=document.getElementById("sh");if(!b||!navigator.share)return;b.hidden=false;b.disabled=true;
+var d=b.dataset,t=d.title+" on NAVAAN. Hear the full song: "+d.page+" #NAVAAN #NewMusic",file=null;
+/* the clip is fetched now, not when Share is pressed: an iPhone only opens the share sheet from inside the tap itself */
+fetch(d.vid).then(function(r){{return r.blob()}}).then(function(x){{file=new File([x],d.name,{{type:"video/mp4"}})}}).catch(function(){{}}).then(function(){{b.disabled=false}});
+b.onclick=function(){{var p=file&&navigator.canShare&&navigator.canShare({{files:[file]}})?navigator.share({{files:[file],text:t}}):navigator.share({{title:d.title,text:t,url:d.page}});if(p&&p.catch)p.catch(function(){{}})}}}})();
 </script></body></html>
 """

@@ -283,7 +283,7 @@ def alerts():
 
 def status(force=False):
     if not force and _cache["data"] and time.time() - _cache["at"] < 600:
-        d = dict(_cache["data"]); d["yt_job"] = dict(YT); d["claude"] = claude_status(); d["media"] = media_cfg.status(); d["gates"] = __import__("gate_cfg").status()["gates"]; return d
+        d = dict(_cache["data"]); d["yt_job"] = dict(YT); d["claude"] = claude_status(); d["media"] = media_cfg.status(); d["gates"] = __import__("gate_cfg").status()["gates"]; d["licence"] = __import__("licence_cfg").status(); return d
     types = ["music"] + sorted(k for k in (C.cfg("accounts") or {}).keys() if k != "music")
     accounts = []
     for t in types:
@@ -297,7 +297,7 @@ def status(force=False):
     data = {"accounts": accounts, "cloud": {"provider": C.cfg("storage.cloud_provider", "none"), "bucket": C.cfg("storage.cloud_bucket", ""), "region": C.cfg("storage.cloud_region", "")},
             "secret_present": os.path.exists(os.path.join(HOME, "youtube_client_secret.json")), "checked_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     _cache.update(at=time.time(), data=data)
-    d = dict(data); d["yt_job"] = dict(YT); d["claude"] = claude_status(); d["media"] = media_cfg.status(); d["gates"] = __import__("gate_cfg").status()["gates"]; return d
+    d = dict(data); d["yt_job"] = dict(YT); d["claude"] = claude_status(); d["media"] = media_cfg.status(); d["gates"] = __import__("gate_cfg").status()["gates"]; d["licence"] = __import__("licence_cfg").status(); return d
 
 
 def ig_refresh(ctype, kind="login"):
@@ -409,6 +409,12 @@ def gates_save(updates):
     import gate_cfg
     gate_cfg.save(updates)
     return {"gates": gate_cfg.status()["gates"]}
+
+
+def licence_save(auto, statement, by):
+    """Automatic licence confirmation: on or off, with the owner's statement. Returns the new state."""
+    import licence_cfg
+    return {"licence": (licence_cfg.save(bool(auto), statement, by), licence_cfg.status())[1]}
 
 
 def media_save(updates):

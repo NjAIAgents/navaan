@@ -6,6 +6,30 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-17
+
+### Added
+- A failed or stuck song or inspiration can be deleted. The Delete button is on the failure message and on the item's Activity tab; it asks first and says what happens: the item leaves the list and its files are moved to a _deleted folder inside songs (with a note of who deleted it and when), not erased. A published item cannot be deleted from here, and the page says why: take it down from YouTube, Instagram, the bucket and the site first. It is refused while a run is going.
+
+### Added
+- "End each Reel with a reason to send it" now reaches the video, not only the caption. When that recommendation is put to work, the quote step (inspirations) and the shot-list step (songs) write one short line naming who it is for ("Send this to someone far from home"). It is drawn in the brand's warm handwritten font and gold, with a short gold rule above it, on the last seconds of the finished video, the inspiration and the song's Reel, whichever way the video was rendered, and the Instagram and caption steps use the same line word for word. Without the rule nothing is written or drawn, and the video is untouched. If drawing it fails the video stays as it was rendered.
+
+### Added
+- Licence of new songs can be confirmed for you. In Settings, on the Automation tab, "Licence of new songs" has a switch and a box for your statement in your own words ("every song I publish is made on a paid Suno plan"). With it on, a song you publish is confirmed automatically, so it shows on navaan.online without a manual step; the statement is recorded as the reason and "owner (auto-confirm setting)" as who decided. A song you marked not allowed is never changed, a song that is not published yet is left alone, and it is off until you switch it on.
+- A command to find songs with no language (language_backfill.py): it lists them, and with --apply fills in the ones whose lyrics are in Latin letters as English and syncs the site. Devanagari lyrics are left for you, since they could be Hindi, Maithili or another language.
+
+### Fixed
+- Share the clip on an iPhone: the clip is now loaded as soon as it is made (and on the shared clip's page as soon as it opens), so pressing Share opens the share sheet straight away. Before, it downloaded the clip after the press, and an iPhone refuses to open the sheet once the press has passed, so it showed "Could not open the share sheet". The button waits, saying so, until the clip is ready, and shares the link if the clip cannot be loaded.
+
+### Changed
+- An inspiration video without a voice now follows the "open with the key line" recommendation: its first line is on screen from the first frame (it used to appear after a second), and the video runs 7 to 15 seconds (it ran 10 to 30), as long as the words need within that. A duration written in the brief still wins, up to 30 seconds, and a narrated short still follows its voice. The quote step is told to put the strongest line first, since that line is now the opening.
+- Importing a song from Suno now needs only the link. The sound is taken from the video the public Suno page lists (on Suno's own servers, the same file and the same checks as an inspiration's voice: it must decode all the way through, have sound and not be silent, up to ten minutes and 80 MB). An audio file is still accepted and wins when you add one, and it is the way out when the page lists no video or the download fails a check; nothing is created in that case.
+- Album names are suggested as titles of a record, not as playlist names: each comes from an image, a line or one idea that runs through the songs, in the language of the songs, with a sentence on that idea. Names that read like a playlist (mix, vibes, hits, best of, collection, a year or "Top 10") are dropped from the suggestions.
+
+### Fixed
+- The approval switches on the steps were drawn as huge 44 px ticks. They are small switches now; the tap area is still 44 px.
+- A finished publish step no longer says "This step did not save a file you can open here" when it shows where it published, and a finished step says an approval was asked "before it ran" rather than "needs your approval before it runs".
+
 ## [0.37.0] - 2026-10-17
 
 ### Fixed
@@ -474,7 +498,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.38.0...HEAD
+[0.38.0]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...v0.36.0

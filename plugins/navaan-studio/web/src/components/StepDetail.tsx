@@ -41,7 +41,7 @@ export function StepDetail({ d, id, events, onBack, done = () => undefined, setG
       {s.spends_what && <p className="mu">Spends: {s.spends_what}</p>}
       {gates.map(([when, g]) => (
         <div key={g} className="stack" style={{ gap: 4 }}>
-          <p className="mu">Needs your approval {when === "before" ? "before it runs" : "after it runs"}: {gateTitle(g)}.</p>
+          <p className="mu">{s.done ? "Asked for your approval" : "Needs your approval"} {when === "before" ? (s.done ? "before it ran" : "before it runs") : (s.done ? "after it ran" : "after it runs")}: {gateTitle(g)}.</p>
           {setGate && <GateSwitch gate={g} when={when} off={off.includes(g)} busy={busy} setGate={setGate} />}
         </div>
       ))}
@@ -64,7 +64,7 @@ export function StepDetail({ d, id, events, onBack, done = () => undefined, setG
           </div>
         </div>
       )}
-      {!made.length && !texts.length && !view && (
+      {!made.length && !texts.length && !view && !(s.links ?? []).length && (
         <p className="mu">{live ? "Running now. What it makes appears here when it finishes." : s.done ? "This step did not save a file you can open here." : ranBefore ? `It ran before (${ranBefore.at}). Something it depends on changed, so it will run again.` : "It has not run yet."}</p>
       )}
       {!s.done && !live && <Draft d={d} id={id} />}

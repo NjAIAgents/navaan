@@ -32,6 +32,17 @@ class Albums(Base):
         with self.assertRaises(ValueError): self.A.suggest_names(["song-001"], runner=runner)
         with self.assertRaises(RuntimeError): self.A.suggest_names(["song-001", "song-002"], runner=lambda p: "no json here")
 
+    def test_names_are_asked_for_as_album_titles_not_playlist_names_and_playlist_like_ones_are_dropped(self):
+        seen = {}
+        def runner(prompt): seen["p"] = prompt; return json.dumps({"names": [{"name": "Chill Vibes", "why": "x"}, {"name": "Late Night Mix", "why": "x"}, {"name": "Best of 2026", "why": "x"}, {"name": "Rumours of Rain", "why": "the weather the songs share"}, {"name": "Dhoop Ke Baad", "why": "light after"}, {"name": "Songs for Dusk", "why": "x"}]})
+        out = self.A.suggest_names(["song-001", "song-002"], runner=runner)
+        self.assertEqual([o["name"] for o in out], ["Rumours of Rain", "Dhoop Ke Baad"])   # only the record-like titles are kept
+        for w in ("naming a record", "not the name of a playlist", "point of view", "Do NOT use playlist words", "Do not name the genre"): self.assertIn(w, seen["p"])
+        out = self.A.suggest_names(["song-001", "song-002"], runner=lambda p: json.dumps({"names": [{"name": "Chill Mix", "why": "x"}]}))
+        self.assertEqual([o["name"] for o in out], ["Chill Mix"])   # nothing else came back, so the owner still gets something to pick from or rewrite
+        for bad in ("Chill Vibes", "Greatest Hits", "Best of NAVAAN", "Playlist One", "Rain Songs", "Vol. 2", "2026", "Top 10"): self.assertTrue(self.A.playlist_like(bad), bad)
+        for good in ("25", "21", "1989 Skies".replace("1989 ", "Nine "), "Rumours", "Kind of Blue", "Dil Ki Baat", "Raat Ke Baad", "Mixed Feelings, Clear Skies".replace("Mixed", "Tangled"), "Hits Different".replace("Hits", "Struck")): self.assertFalse(self.A.playlist_like(good), good)
+
     def test_the_cover_prompt_starts_from_the_album_and_is_what_gets_sent(self):
         st = self.A.cover_state(self.slug)
         self.assertIn("Raat Ke Baad", st["prompt"]); self.assertIn("Tere Hone Se", st["prompt"]); self.assertIn("dusk", st["prompt"]); self.assertIn("No text", st["prompt"]); self.assertFalse(st["has"])

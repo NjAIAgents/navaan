@@ -232,7 +232,7 @@ def parse_video_url(html_text):
     return u if urllib.parse.urlparse(u).hostname in VIDEO_HOSTS else ""
 
 
-def fetch_voice(video_url, tmp):
+def fetch_voice(video_url, tmp, max_seconds=VOICE_SECONDS[1], max_bytes=MAX_VOICE_BYTES):
     """Download the page's own video into the folder `tmp`, check it is a real, whole, playable file with sound, and return the path of its audio (the aac stream copied out, nothing re-encoded).
     Raises ValueError with a sentence for a wrong host, a wrong type, a file that is too big, damaged, silent or the wrong length."""
     import urllib.request, urllib.error
@@ -241,12 +241,12 @@ def fetch_voice(video_url, tmp):
     try:
         with urllib.request.urlopen(urllib.request.Request(video_url, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
             if not str(r.headers.get("Content-Type", "")).startswith(("video/", "audio/")): raise ValueError(f"Suno sent {r.headers.get('Content-Type')} instead of a video, so I did not use it.")
-            if int(r.headers.get("Content-Length") or 0) > MAX_VOICE_BYTES: raise ValueError("The Suno video is over 40 MB, so I did not use it.")
+            if int(r.headers.get("Content-Length") or 0) > max_bytes: raise ValueError(f"The Suno video is over {max_bytes >> 20} MB, so I did not use it.")
             with open(src, "wb") as f:
                 n = 0
                 while chunk := r.read(1 << 20):
                     n += len(chunk)
-                    if n > MAX_VOICE_BYTES: raise ValueError("The Suno video is over 40 MB, so I did not use it.")
+                    if n > max_bytes: raise ValueError(f"The Suno video is over {max_bytes >> 20} MB, so I did not use it.")
                     f.write(chunk)
     except (urllib.error.URLError, OSError) as e: raise ValueError(f"I could not download the Suno video ({getattr(e, 'reason', e)}).") from None
     pr = subprocess.run([tool("ffprobe"), "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", src], capture_output=True, text=True)
@@ -255,7 +255,7 @@ def fetch_voice(video_url, tmp):
     kinds = [x.get("codec_type") for x in j.get("streams", [])]
     if pr.returncode or "audio" not in kinds: raise ValueError("The downloaded Suno file has no sound track, so I did not use it.")
     secs = float((j.get("format") or {}).get("duration") or 0)
-    if not VOICE_SECONDS[0] <= secs <= VOICE_SECONDS[1]: raise ValueError(f"The Suno file is {secs:.0f} seconds long, which does not look like the song. I did not use it.")
+    if not VOICE_SECONDS[0] <= secs <= max_seconds: raise ValueError(f"The Suno file is {secs:.0f} seconds long, which does not look like the song. I did not use it.")
     bad = subprocess.run([tool("ffmpeg"), "-v", "error", "-i", src, "-f", "null", "-"], capture_output=True, text=True)   # a whole decode: a cut-off or damaged download fails here
     if bad.returncode or bad.stderr.strip(): raise ValueError("The downloaded Suno file is damaged (" + (bad.stderr.strip().splitlines() or ["it does not decode"])[0][:120] + "), so I did not use it.")
     out = os.path.join(tmp, "voice.m4a")
@@ -265,6 +265,23 @@ def fetch_voice(video_url, tmp):
     m = re.search(r"max_volume:\s*(-?[\d.]+) dB", sil)
     if not m or float(m.group(1)) < -50: raise ValueError("The downloaded Suno file is silent, so I did not use it.")
     return out
+
+
+SONG_SECONDS, SONG_BYTES = 600.0, 80 * 1024 * 1024   # a whole song: up to ten minutes, and its video up to 80 MB
+
+
+def page_audio(info):
+    """The sound of a public Suno song, taken from the video its page lists (the same file, the same checks as an inspiration's voice): (file name, base64) ready for save_upload.
+    ValueError with a sentence when the page lists no video or the download fails a check; the caller then asks for the audio file instead."""
+    import base64, tempfile, shutil
+    if not info.get("video_url"): raise ValueError("That Suno page lists no video to take the sound from. Add the song's audio file instead.")
+    tmp = tempfile.mkdtemp(prefix="navaan-suno-")
+    try:
+        path = fetch_voice(info["video_url"], tmp, max_seconds=SONG_SECONDS, max_bytes=SONG_BYTES)
+        raw = open(path, "rb").read()
+    finally: shutil.rmtree(tmp, ignore_errors=True)
+    if len(raw) > MAX_UPLOAD: raise ValueError("The song's sound is over 22 MB, too big to take from the page. Add the song's audio file instead.")
+    return (clean_title(info.get("title") or "suno song") or "suno song") + ".m4a", base64.b64encode(raw).decode()
 
 
 def voice_lines(info):
