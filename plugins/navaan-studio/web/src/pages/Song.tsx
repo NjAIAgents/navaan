@@ -14,7 +14,7 @@ import { PosterCard } from "../components/PosterCard";
 import { VisualsCard } from "../components/VisualsCard";
 import { SongAnalytics } from "../components/SongAnalytics";
 import { ScheduleCard } from "../components/SchedulePanel";
-import { MediaCard, MusicCard, NarrationCard, ShotsEditor, TextEditors } from "../components/SongEditors";
+import { MediaCard, MusicCard, NarrationCard, PostTextEditor, ShotsEditor, TextEditors } from "../components/SongEditors";
 import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
@@ -27,7 +27,7 @@ type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
 // The videos at "Review the videos", in the order they are looked at, with what each is called and what it is for. The key is what the server calls it when feedback is about that one video.
 const VIDEOS: [string, string, string][] = [["final_16x9.mp4", "full", "Full video"], ["final_reel_9x16.mp4", "reel", "Reel without lyrics"], ["final_reel_9x16_cap.mp4", "reel_lyrics", "Reel with lyrics"]];
 
-function GateCard({ d, gate, act, busy, running = false, stopping = false, onStop }: { d: SongDetail; gate: string; act: Act; busy: boolean; running?: boolean; stopping?: boolean; onStop?: () => void }) {
+function GateCard({ d, gate, act, busy, running = false, stopping = false, onStop, reload }: { d: SongDetail; gate: string; act: Act; busy: boolean; running?: boolean; stopping?: boolean; onStop?: () => void; reload?: () => Promise<unknown> | void }) {
   const [confirm, setConfirm] = useState(false);
   const [changing, setChanging] = useState(false);
   const [note, setNote] = useState("");
@@ -108,7 +108,9 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       )}
       {songs.map((n) => <audio key={n} controls preload="none" src={url(n)} aria-label={n} />)}
       {gate === "shots" && <ShotsPreview d={d} />}
-      {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
+      {gate === "instagram_caption" && <PostTextEditor d={d} kind="instagram" done={reload ?? (() => undefined)} />}
+      {gate === "publish_youtube" && <PostTextEditor d={d} kind="youtube" done={reload ?? (() => undefined)} />}
+      {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && gate !== "instagram_caption" && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
     </section>
   );
 }
@@ -209,7 +211,7 @@ function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: b
 const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
 
 // After the videos are approved, YouTube and Instagram each have a lane of their own: each shows its own next step or approval, and neither waits for the other.
-function LanesView({ d, act, busy, pending, running, stopping, onStop }: { d: SongDetail; act: Act; busy: boolean; pending: boolean; running: boolean; stopping: boolean; onStop: () => void }) {
+function LanesView({ d, act, busy, pending, running, stopping, onStop, reload }: { d: SongDetail; act: Act; busy: boolean; pending: boolean; running: boolean; stopping: boolean; onStop: () => void; reload: () => Promise<unknown> | void }) {
   const lanes = d.lanes ?? {};
   // The approval cards get `pending` (a request in flight), not `busy`: a run waiting at an approval counts as running, and it must not lock the button it is waiting for.
   return (
@@ -220,7 +222,7 @@ function LanesView({ d, act, busy, pending, running, stopping, onStop }: { d: So
           <section key={l} className="stack lane" aria-labelledby={`lane-${l}`}>
             <div className="row"><h2 id={`lane-${l}`}>{LANE_TITLE[l]}</h2><span className="n">{done}/{mine.length}</span></div>
             {nx.type === "gate" && nx.gate
-              ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={pending} running={running} stopping={stopping} onStop={onStop} />
+              ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={pending} running={running} stopping={stopping} onStop={onStop} reload={reload} />
               : <section className="card stack live"><StepStatus kind={running ? "later" : "next"} /><h3>{stepLabel(nx.step)}</h3>
                   <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { step: nx.step })}>Run {stepLabel(nx.step)}</button></div>
                   <p className="mu">Only this lane moves. The {l === "youtube" ? "Instagram" : "YouTube"} lane keeps its own place.</p></section>}
@@ -330,7 +332,7 @@ export default function Song() {
   : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
   : hasLanes ? (running && !d.status_text?.startsWith("waiting for you") ? runCard : null)   // a run waiting at an approval shows that approval, not a spinner saying Running
   : running && !gate ? runCard : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
-  : gate ? <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} running={running} stopping={stopping} onStop={() => void stop()} />
+  : gate ? <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} running={running} stopping={stopping} onStop={() => void stop()} reload={load} />
   : d.next.type === "run" ? (
     <section className="card stack live"><StepStatus kind={ranBefore(d.next.step ?? "") ? "stale" : "next"} /><h2>{stepLabel(d.next.step ?? "")}</h2>
       {ranBefore(d.next.step ?? "") && <p className="mu">It ran before ({ranBefore(d.next.step ?? "")}). Something it depends on changed, so it will run again.</p>}
@@ -362,7 +364,7 @@ export default function Song() {
         {tab === "pipeline" && (
           <div className="pl-grid">
             <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} setGate={setGate} />
-            <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
+            <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
           </div>
         )}
         {tab === "content" && (<>

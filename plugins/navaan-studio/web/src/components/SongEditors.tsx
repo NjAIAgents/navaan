@@ -44,13 +44,57 @@ function FileEditor({ slug, name, label, saved, done }: { slug: string; name: st
   );
 }
 
+const IG_MAX = 2200; const YT_TITLE = 100; const YT_DESC_BYTES = 5000;
+type YtText = { title?: string; description?: string; tags?: string[]; [k: string]: unknown };
+const parseYt = (raw?: string): YtText | null => { try { const y = raw ? JSON.parse(raw) : null; return y && typeof y === "object" && !Array.isArray(y) ? y as YtText : null; } catch { return null; } };   // expected: a half-written file shows nothing
+
+// The words that go out with the video: the Instagram caption and the YouTube title, description and tags. Written by the agent, changed here. An edit is checked on the server for what
+// each platform accepts; a changed Instagram caption is approved again, since the approval is for the exact words.
+export function PostTextEditor({ d, kind, done }: { d: SongDetail; kind: "instagram" | "youtube"; done: Done }) {
+  const ig = kind === "instagram"; const raw = d.text?.[ig ? "instagram.txt" : "youtube.json"];
+  const y = ig ? null : parseYt(raw);
+  const savedBody = ig ? (raw ?? "") : (y?.description ?? ""); const savedTitle = y?.title ?? ""; const savedTags = (y?.tags ?? []).join(", ");
+  const [body, setBody] = useState(savedBody); const [title, setTitle] = useState(savedTitle); const [tags, setTags] = useState(savedTags);
+  const [seen, setSeen] = useState(`${savedBody}\u0000${savedTitle}\u0000${savedTags}`);
+  const now = `${savedBody}\u0000${savedTitle}\u0000${savedTags}`;
+  if (now !== seen) { setSeen(now); setBody(savedBody); setTitle(savedTitle); setTags(savedTags); }   // the saved text changed on the server (a new draft): show it
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [ok, setOk] = useState(false);
+  const dirty = body !== savedBody || title !== savedTitle || tags !== savedTags;
+  if (!raw || (!ig && !y)) return <p className="mu">{ig ? "The Instagram caption" : "The YouTube text"} is not written yet. Run its step first.</p>;
+  const bytes = new TextEncoder().encode(body).length;
+  const save = async () => {
+    setBusy(true); setErr(""); setOk(false);
+    try {
+      const content = ig ? body : JSON.stringify({ ...y, title: title.trim(), description: body, tags: tags.split(",").map((t) => t.trim()).filter(Boolean) }, null, 2) + "\n";
+      await postJSON("/api/save", { slug: d.slug, file: ig ? "instagram.txt" : "youtube.json", content }); await done(); setOk(true);
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  const id = `pt-${kind}`; const label = ig ? "Instagram caption" : "YouTube description";
+  return (
+    <div className="stack" role="group" aria-label={ig ? "Instagram caption" : "YouTube title, description and tags"}>
+      {!ig && (<><label htmlFor={`${id}-t`}>YouTube title</label><input id={`${id}-t`} className="field" value={title} onChange={(e) => { setTitle(e.target.value); setOk(false); }} /><span className={title.length > YT_TITLE ? "chip bad" : "mu"}>{title.length} of {YT_TITLE}</span></>)}
+      <label htmlFor={`${id}-b`}>{label}</label>
+      <textarea id={`${id}-b`} className="field" rows={ig ? 8 : 10} value={body} onChange={(e) => { setBody(e.target.value); setOk(false); }} spellCheck />
+      <span className={(ig ? body.length > IG_MAX : bytes > YT_DESC_BYTES) ? "chip bad" : "mu"}>{ig ? `${body.length.toLocaleString()} of ${IG_MAX.toLocaleString()} characters` : `${bytes.toLocaleString()} of ${YT_DESC_BYTES.toLocaleString()} bytes`}</span>
+      {!ig && (<><label htmlFor={`${id}-g`}>Tags (separated by commas)</label><input id={`${id}-g`} className="field" value={tags} onChange={(e) => { setTags(e.target.value); setOk(false); }} /></>)}
+      <div className="row">
+        <button className="btn p" disabled={busy || !dirty} aria-busy={busy} onClick={() => void save()}>{busy ? "Saving…" : `Save the ${ig ? "caption" : "YouTube text"}`}</button>
+        {dirty && !busy && <button className="btn g" onClick={() => { setBody(savedBody); setTitle(savedTitle); setTags(savedTags); }}>Discard changes</button>}
+        {ok && !dirty && <span className="mu" role="status">Saved{ig ? ". Approve the caption again: the approval is for the exact words." : ""}</span>}
+      </div>
+      {err && <p role="alert" className="mu">{err}</p>}
+    </div>
+  );
+}
+
 export function TextEditors({ d, done }: { d: SongDetail; done: Done }) {
   const shown = FILES.filter(([n]) => n in d.text);
-  if (!shown.length) return null;
+  if (!shown.length && !parseYt(d.text?.["youtube.json"])) return null;
   return (
     <section className="sec" aria-labelledby="tx-h">
       <div className="sh"><h2 id="tx-h">Words and settings</h2></div>
       {shown.map(([n, l]) => <FileEditor key={`${d.slug}${n}`} slug={d.slug} name={n} label={l} saved={d.text[n]} done={done} />)}
+      {parseYt(d.text?.["youtube.json"]) && <details className="card stack"><summary><b>YouTube title, description and tags</b></summary><PostTextEditor d={d} kind="youtube" done={done} /></details>}
     </section>
   );
 }

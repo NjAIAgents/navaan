@@ -346,6 +346,27 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     await waitFor(() => expect(posts(f, "/api/approve")).toEqual([{ slug: "song-007", gate: "instagram_caption" }]));
     expect(within(screen.getByRole("region", { name: "YouTube" })).getByRole("button", { name: "Approve" })).toBeEnabled();
   });
+  it("lets you change the Instagram caption and the YouTube text at their approvals, saves them, and counts what each platform allows", async () => {
+    const yt = JSON.stringify({ title: "Porch Light", description: "A song about waiting.", tags: ["folk", "country"], category: "10" });
+    const f = route(OWNER, { "/api/save": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate publish_youtube",
+      text: { "title.txt": "Porch Light", "instagram.txt": "Who kept the porch light on?", "youtube.json": yt },
+      lanes: { youtube: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, instagram: { type: "gate", step: "instagram_caption", gate: "instagram_caption" } },
+      steps: [step("video", { done: true, status: "done" }), step("publish_youtube", { status: "waiting for approval", needs_gate: "publish_youtube", gate_before: "publish_youtube", lane: "youtube" }),
+              step("instagram_caption", { status: "waiting for approval", needs_gate: "instagram_caption", gate_after: "instagram_caption", lane: "instagram" })] }) });
+    at(A);
+    const ig = await screen.findByRole("region", { name: "Instagram" }); const ytc = screen.getByRole("region", { name: "YouTube" });
+    const cap = within(ig).getByLabelText("Instagram caption", { selector: "textarea" }); expect(cap).toHaveValue("Who kept the porch light on?"); expect(within(ig).getByText("28 of 2,200 characters")).toBeInTheDocument();
+    expect(within(ig).getByRole("button", { name: "Save the caption" })).toBeDisabled();
+    fireEvent.change(cap, { target: { value: "Who kept the porch light on? #folk" } }); fireEvent.click(within(ig).getByRole("button", { name: "Save the caption" }));
+    await waitFor(() => expect(posts(f, "/api/save")).toEqual([{ slug: "song-007", file: "instagram.txt", content: "Who kept the porch light on? #folk" }]));
+    fireEvent.change(within(ytc).getByLabelText("YouTube title"), { target: { value: "Porch Light (official video)" } });
+    fireEvent.change(within(ytc).getByLabelText("YouTube description"), { target: { value: "A song about waiting for someone." } });
+    fireEvent.change(within(ytc).getByLabelText(/^Tags/), { target: { value: "folk, country, porch light" } });
+    fireEvent.click(within(ytc).getByRole("button", { name: "Save the YouTube text" }));
+    await waitFor(() => expect(posts(f, "/api/save")).toHaveLength(2));
+    const sent = posts(f, "/api/save")[1] as { file: string; content: string }; expect(sent.file).toBe("youtube.json");
+    expect(JSON.parse(sent.content)).toEqual({ title: "Porch Light (official video)", description: "A song about waiting for someone.", tags: ["folk", "country", "porch light"], category: "10" });   // what else the file holds is kept
+  });
   it("offers to delete a failed item with a confirmation, deletes it and goes back to the list; a published one shows why it cannot be deleted", async () => {
     const f = route(OWNER, { "/api/delete": () => ({ ok: true, moved_to: "_deleted/song-007-x" }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-007", failure: { step: "video", error: "boom", ref: "r1", plain: "The video could not be built." }, deletable: { ok: true, why: "" }, steps: [step("video")] }) });
     at(A);

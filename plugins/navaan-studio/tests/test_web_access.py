@@ -227,6 +227,23 @@ class Access(unittest.TestCase):
             code, body = self.call("/api/visuals/prompts", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug))
         self.assertEqual((code, json.loads(body)["error"]), (400, "no key"))
 
+    def test_the_youtube_text_and_the_instagram_caption_are_edited_in_the_studio_within_what_each_platform_accepts(self):
+        import navaan_common as C
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
+        save = lambda name, content, tok="owner-tok", csrf="csrf-owner": self.call("/api/save", tok, csrf, post=True, body=dict(slug=slug, file=name, content=content))
+        good = json.dumps({"title": "Porch Light", "description": "d", "tags": ["folk", "country"]})
+        self.assertEqual(save("youtube.json", good)[0], 200); self.assertEqual(json.load(open(os.path.join(D, "youtube.json")))["title"], "Porch Light")
+        for bad, why in ((json.dumps({"title": " ", "description": "d"}), "cannot be empty"), (json.dumps({"title": "x" * 101, "description": "d"}), "100 characters"),
+                         (json.dumps({"title": "t", "description": "\u0915" * 1700}), "5,000 bytes"), (json.dumps({"title": "t", "description": "d", "tags": ["x" * 300, "y" * 300]}), "500 characters"),
+                         (json.dumps({"title": "t", "description": "d", "tags": "folk"}), "list of words"), (json.dumps([1]), "not valid")):
+            code, body = save("youtube.json", bad); self.assertEqual(code, 400, why); self.assertIn(why, json.loads(body)["error"])
+        self.assertEqual(json.load(open(os.path.join(D, "youtube.json")))["title"], "Porch Light")   # a refused edit changes nothing
+        self.assertEqual(save("instagram.txt", "a" * 2200)[0], 200)
+        code, body = save("instagram.txt", "a" * 2201); self.assertEqual(code, 400); self.assertIn("2,200 characters", json.loads(body)["error"])
+        import navaan; navaan.edit_meta(slug, lambda m: m.setdefault("published", {}).update(youtube_items=[{"file": "final_16x9.mp4", "id": "abc"}]))
+        code, body = save("youtube.json", good); self.assertEqual(code, 400); self.assertIn("already on YouTube", json.loads(body)["error"])   # once it is up, YouTube Studio is the place
+        self.assertEqual(save("youtube.json", good, "lis-tok", "csrf-lis")[0], 403)   # a listener has no say
+
     def test_feedback_at_the_video_review_names_one_video_and_only_that_one_is_made_again(self):
         import navaan, navaan_common as C, reel_lyrics
         code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
