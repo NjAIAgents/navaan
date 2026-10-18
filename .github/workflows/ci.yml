@@ -1,7 +1,8 @@
 name: ci
 # Free plan minutes are limited (a full run is about 16 minutes, 12 of them the browser checks), so a change is checked in two steps:
 #   - a pull request into develop runs the FAST checks (unit tests, web tests, build, about 4 minutes); a draft pull request and a docs-only change run nothing; a newer push cancels the older run
-#   - the production deploy (a push to main) and a manual run ("Run workflow", or `gh workflow run ci.yml --ref <branch>`) also run the BROWSER checks (Playwright, Lighthouse)
+#   - the production deploy (a push to main) runs the BUILD and the BROWSER checks (Playwright, Lighthouse) only: the unit and web tests already passed on the pull request for the same code, so they are not run twice
+#   - a manual run ("Run workflow", or `gh workflow run ci.yml --ref <branch>`) runs everything
 # Nothing runs on a push to develop or on the release pull request into main: that code was checked when it was a pull request, and the deploy gate runs everything again before anything is released.
 on:
   pull_request:
@@ -35,20 +36,30 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: .github/workflows/ci.yml
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: New app (tests, colour-literal check, build)
+          cache: npm
+          cache-dependency-path: |
+            plugins/navaan-studio/web/package-lock.json
+            plugins/navaan-studio/web/e2e/package-lock.json
+      - name: New app (install and build)
         working-directory: plugins/navaan-studio/web
         run: |
           npm ci
-          npm test
           npm run build
+      - name: New app (tests, colour-literal check)
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        working-directory: plugins/navaan-studio/web
+        run: npm test
       - name: ffmpeg and a Devanagari font, as in the production image (the share preview and the renderer tests need them; without ffmpeg those tests are skipped and the browser checks cannot seed audio)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-noto-core
       - name: Python packages the tests may use
         run: pip install cryptography pillow numpy opencv-python-headless "psycopg[binary]"
       - name: Unit tests (against the Postgres service above)
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         env:
           NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
         run: python -m unittest discover -s plugins/navaan-studio/tests -p 'test_*.py'
@@ -57,6 +68,7 @@ jobs:
         working-directory: plugins/navaan-studio/web/e2e
         env:
           NAVAAN_DATABASE_URL: postgresql://postgres:test@localhost:5432/navaan
+          LH_RUNS: "2"   # two Lighthouse runs per page are enough for the median (three took minutes more)
         run: |
           npm ci
           command -v google-chrome >/dev/null || npx playwright install --with-deps chrome

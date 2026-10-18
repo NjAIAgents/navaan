@@ -295,8 +295,20 @@ def _asset(slug, role):
 
 
 def cover_asset(slug): return _asset(slug, "cover")
+def poster_asset(slug): return _asset(slug, "poster")
 def audio_asset(slug): return _asset(slug, "audio")
 def preview_asset(slug): return _asset(slug, "audio_preview")
+
+
+def set_picture(slug, role, key, mime, size):
+    """Register (or replace) a picture of a track that is already in the bucket, for example its poster. False when the catalog has no such track."""
+    def go(c):
+        t = c.execute("SELECT id FROM tracks WHERE slug = ?", (slug,)).fetchone()
+        if not t: return False
+        c.execute("INSERT INTO assets (owner_kind, owner_id, role, storage_key, mime, bytes) VALUES ('track', ?::uuid, ?, ?, ?, ?) "
+                  "ON CONFLICT (owner_kind, owner_id, role, storage_key) DO UPDATE SET bytes = excluded.bytes", (str(t["id"]), role, key, mime, size))
+        return True
+    return _tx(go)
 
 
 def auto_confirm(slug):
