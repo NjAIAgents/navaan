@@ -152,7 +152,7 @@ def music_source(D, dur, lib_name="inspire_music"):
         q = os.path.expanduser(mode)
         if os.path.exists(q): return q, "brief"
         sys.exit(f"navaan: music file not found: {q}")
-    lib = os.path.join(os.path.expanduser(C.cfg("storage.local_dir", "") or ""), lib_name)
+    lib = os.path.join(os.path.expanduser(C.cfg("storage.local_dir", "") or "~/.local/share/navaan"), lib_name)   # without a local_dir (the server): the kept state folder, mounted in both containers
     tracks = sorted(p for p in glob.glob(os.path.join(lib, "*")) if os.path.splitext(p)[1].lower() in (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")) if os.path.isdir(lib) else []
     if tracks:
         h = int(hashlib.sha1(os.path.basename(D).encode()).hexdigest(), 16)
