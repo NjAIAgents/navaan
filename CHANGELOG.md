@@ -6,6 +6,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-18
+
+### Changed
+- A clip is chosen with two sliders, a start and an end, and can be 5 to 90 seconds long (it was 15 or 30). Moving one slider pushes the other so the clip stays inside the song and within those limits; "Start where it is now" takes the playing position as the start, and "Hear this part" plays the song from the start to the end so you hear what will be cut. The song's length is read from its file, so the sliders are there before you press play. A link to a clip made before still works.
+- Save, Add to a playlist, Share a clip and "What did you think?" are a row of icons at the top of a song's page, under Play, instead of three cards down the page. Save is a heart you press at once; the others open a sheet. Someone who is not signed in presses the same icons and is told what an account gives.
+- The bar at the bottom now shows the time played and the length under its seek bar, not only play mode and the song page.
+
+### Fixed
+- Share on a song no longer ends in "forbidden": if the link cannot be made, the song's own page is shared, as a visitor's Share always did. A page that was loaded under an older session now fetches the right token and tries the save again once, instead of every save answering "forbidden" until the page is reloaded.
+- A clip starts at the second you chose: it is cut by decoding the song to that point and trimming, which is exact for any file, instead of seeking inside the file, which a file without a seek table can get wrong by seconds. Clips are kept in the cache up to the newest 500.
+
 ### Added
 - The song page shows where you are in the song: a bar you can drag, with the time played and the length beside it (the full-screen player had this already). The clip card's "start at" time can now be read straight off it.
 - Click a lyric line to play from there. Each timed line is a button that shows when it starts ("Play from 1:08"); it works before the song has started (the song starts at that line), while it plays (it jumps) and while it is paused (it jumps and plays). It is offered in the song page and in full-screen play mode, for songs with measured timing, or while the song plays when the line times are only estimated (the page then says a jump may land a little off).
@@ -527,7 +538,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.40.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.41.0...HEAD
+[0.41.0]: https://github.com/NjAIAgents/navaan/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/NjAIAgents/navaan/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/NjAIAgents/navaan/compare/v0.38.1...v0.39.0
 [0.38.1]: https://github.com/NjAIAgents/navaan/compare/v0.38.0...v0.38.1

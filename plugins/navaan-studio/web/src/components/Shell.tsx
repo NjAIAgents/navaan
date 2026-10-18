@@ -8,8 +8,8 @@ import { useMobile } from "./useMobile";
 import { useTheme } from "../theme/useTheme";
 import { getJSON } from "../lib/api";
 import { MeProvider, useMe } from "../lib/me";
-import { PlayerProvider, usePlayer, usePosition } from "../lib/player";
-import { mmss } from "../lib/lyrics";
+import { PlayerProvider, usePlayer } from "../lib/player";
+import { SeekBar } from "./SeekBar";
 import { Cover } from "./Cover";
 import { Transport } from "./Transport";
 import { Volume } from "./Volume";
@@ -42,7 +42,7 @@ export function titleFor(path: string): string {
 }
 
 function NowPlaying() {
-  const p = usePlayer(); const { position, duration } = usePosition();
+  const p = usePlayer();
   if (!p.slug && !p.error) return null;
   return (
     <div className="np card" role="region" aria-label="Now playing">
@@ -53,8 +53,7 @@ function NowPlaying() {
         </button>
         <Transport />
         <Volume />
-        <label className="sr" htmlFor="np-seek">Seek</label>
-        <input id="np-seek" className="np-seek" type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1} value={Math.min(Math.floor(position), Math.max(1, Math.floor(duration)))} aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} onChange={(e) => p.seek(Number(e.target.value))} />
+        <SeekBar id="np-seek" compact />   {/* the time played and the length are here too, not only in play mode */}
       </> : <span role="alert" className="tx">{p.error}</span>}
     </div>
   );

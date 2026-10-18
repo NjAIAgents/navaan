@@ -7,7 +7,7 @@ Description: clip-and-share: a short vertical video of a song (15 or 30 seconds)
   make(slug, start, length)   the clip as a file in the cache: the cover, the title, "Hear the full song" and the site over a still picture, the song's audio from `start` with a short fade
   parse(token)                "<slug>-<start>-<length>" back into its parts (the token is the whole recipe, so a clip can be made again if the cache was emptied)
 
-Only a song a visitor may play (published, licence confirmed) can be clipped, only the lengths in LENGTHS, only a start inside the song. The audio is cut in memory from the bucket copy.
+Only a song a visitor may play (published, licence confirmed) can be clipped, only a length of 5 to 90 seconds, only a start inside the song. The audio is cut in memory from the bucket copy.
 """
 import os, re, io, subprocess, tempfile, threading
 sys_path = os.path.dirname(os.path.abspath(__file__))
@@ -19,11 +19,12 @@ from PIL import Image, ImageDraw, ImageFilter
 from make_cover import latin
 LOG = L.get("clip_share")
 
-LENGTHS = (15, 30)
+MIN_LENGTH, MAX_LENGTH = 5, 90   # seconds a clip may last; the two sliders on the page keep inside this
+KEEP_CLIPS = 500   # the newest clips kept in the cache; any other is made again from its token when asked for
 MAX_START = 3600
 W, H = 1080, 1920
 _LOCK = threading.Lock()   # one clip is cut at a time: a clip is a few seconds of one core, and a crowd must not stack them up
-TOKEN = re.compile(r"^([A-Za-z0-9_-]{1,40})-(\d{1,4})-(15|30)$")
+TOKEN = re.compile(r"^([A-Za-z0-9_-]{1,40})-(\d{1,4})-(\d{1,3})$")
 
 
 def parse(token):
@@ -43,7 +44,7 @@ def path_for(slug, start, length): return os.path.join(cache_dir(), token(slug, 
 
 
 def check(slug, start, length):
-    if length not in LENGTHS: raise ValueError("a clip is 15 or 30 seconds")
+    if not MIN_LENGTH <= int(length) <= MAX_LENGTH: raise ValueError(f"a clip is {MIN_LENGTH} to {MAX_LENGTH} seconds")
     if not 0 <= int(start) <= MAX_START: raise ValueError("the clip must start inside the song")
     if not K.play_key(slug, confirmed_only=True): raise LookupError("no such song to clip")
 
@@ -61,6 +62,14 @@ def frame(slug, title, artist):
     d.text((W // 2, 1640), "Hear the full song", font=latin(46), fill=(255, 246, 228), anchor="ms")
     d.text((W // 2, 1710), "navaan.online", font=latin(38), fill=P.GOLD, anchor="ms")
     return bg
+
+
+def _trim_cache():
+    """Any start and length is a different clip, so the cache is kept to the newest KEEP_CLIPS files."""
+    d = cache_dir(); fs = sorted((os.path.join(d, f) for f in os.listdir(d) if f.endswith(".mp4")), key=os.path.getmtime)
+    for f in fs[:-KEEP_CLIPS]:
+        try: os.remove(f)
+        except OSError: pass   # expected: another request removed or is reading it
 
 
 def make(slug, start, length):
@@ -82,12 +91,13 @@ def make(slug, start, length):
             except ValueError: raise RuntimeError("could not read the song's length") from None
             if start >= whole - 2: raise ValueError("the clip must start before the end of the song (%d seconds long)" % int(whole))
             tmp = out + f".{os.getpid()}.tmp.mp4"
-            r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "25", "-i", png, "-ss", str(start), "-t", str(length), "-i", src,
-                                "-map", "0:v:0", "-map", "1:a:0", "-vf", "format=yuv420p", "-af", f"afade=t=in:d=0.4,afade=t=out:st={length - 1.5}:d=1.5", "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",
+            r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "25", "-i", png, "-i", src,
+                                "-map", "0:v:0", "-map", "1:a:0", "-vf", "format=yuv420p", "-af", f"atrim=start={start}:end={start + length},asetpts=PTS-STARTPTS,afade=t=in:d=0.4,afade=t=out:st={length - 1.5}:d=1.5", "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",
                                 "-c:a", "aac", "-b:a", "128k", "-shortest", "-t", str(length), "-movflags", "+faststart", "-f", "mp4", tmp], capture_output=True, timeout=180)
             if r.returncode or not os.path.isfile(tmp) or os.path.getsize(tmp) < 2000:
                 if os.path.isfile(tmp): os.remove(tmp)
                 raise RuntimeError("could not make the clip: " + r.stderr.decode(errors="replace")[:200])
             os.replace(tmp, out)   # atomic: another request never reads half a file
+            _trim_cache()
         L.event(LOG, "info", "clip_made", item=slug, start=start, seconds=length)
     return out

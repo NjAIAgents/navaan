@@ -84,6 +84,7 @@ describe("a song for a listener", () => {
     const audio = document.querySelector("audio")!; now = 9; fireEvent.timeUpdate(audio);
     const bar = (await screen.findAllByRole("slider", { name: "Seek" }))[0] as HTMLInputElement; expect(bar.max).toBe("200"); expect(bar.value).toBe("9"); expect(bar).toHaveAttribute("aria-valuetext", "0:09 of 3:20");
     expect(screen.getAllByText("0:09").length).toBeGreaterThan(0); expect(screen.getAllByText("3:20").length).toBeGreaterThan(0);   // the time played and the length, in the page
+    const bottom = screen.getByRole("region", { name: "Now playing" }); expect(within(bottom).getByText("0:09")).toBeInTheDocument(); expect(within(bottom).getByText("3:20")).toBeInTheDocument();   // and in the bar at the bottom, not only in play mode
     fireEvent.click(screen.getByRole("button", { name: "Play from 0:14: line three" })); expect(now).toBe(14);   // playing: it just jumps
     paused = true; fireEvent.click(screen.getByRole("button", { name: "Play from 0:02: line one" })); await waitFor(() => expect(paused).toBe(false)); expect(now).toBe(2);   // paused: it jumps and plays
     now = 100; fireEvent.change(bar, { target: { value: "100" } }); fireEvent.timeUpdate(audio); expect(bar.value).toBe("100");
@@ -108,6 +109,30 @@ describe("a song for a listener", () => {
     const on = screen.getByRole("list", { name: "Share on" });   // the platforms, each a link that opens that service's own share page
     for (const [name, host] of [["WhatsApp", "wa.me"], ["X", "twitter.com"], ["Facebook", "facebook.com"], ["Threads", "threads.net"], ["Telegram", "t.me"], ["LinkedIn", "linkedin.com"]]) expect(within(on).getByRole("link", { name: new RegExp(`^${name}`) }).getAttribute("href")).toContain(host);
     expect(within(on).getByRole("link", { name: /^WhatsApp/ }).getAttribute("href")).toContain(encodeURIComponent("https://navaan.example/s/tok")); expect(within(on).getByRole("button", { name: "Copy link" })).toBeInTheDocument();
+  });
+  it("keeps Save, Add to a playlist, Share a clip and What did you think? as a row of icons at the top, the playlist and the clip in sheets", async () => {
+    const f = route(LISTENER, { ...pageRoutes, "/api/library/save": () => ({ ok: true }), "/api/playlists/add": () => ({ ok: true }), "/api/playlists": () => [{ id: "p1", name: "Evening", description: "", visibility: "private", tracks: 0, updated_at: "" }] }); at("/song/song-001");
+    const row = await screen.findByRole("group", { name: /Do more with/ });
+    for (const n of ["Save song", "Add to a playlist", "Share a clip", "What did you think?"]) expect(within(row).getByRole("button", { name: n })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Share a clip" })).toBeNull(); expect(screen.queryByRole("button", { name: "Make the clip" })).toBeNull();   // not a card of their own down the page
+    fireEvent.click(within(row).getByRole("button", { name: "Add to a playlist" })); const dlg = await screen.findByRole("dialog", { name: "Add to a playlist" });
+    fireEvent.click(within(dlg).getByRole("button", { name: "Add to playlist" })); expect(await within(dlg).findByText('Added to "Evening".')).toBeInTheDocument(); expect(posts(f, "/api/playlists/add")).toEqual([{ id: "p1", slug: "song-001" }]);
+    fireEvent.click(within(dlg).getByRole("button", { name: "Close" })); expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: "Share a clip" })); const clip = await screen.findByRole("dialog", { name: "Share a clip" }); expect(within(clip).getByRole("button", { name: "Make the clip" })).toBeInTheDocument(); expect(within(clip).getByRole("spinbutton", { name: "End at (seconds)" })).toBeInTheDocument();   // the length is not known in a test: jsdom reads no audio header
+  });
+  it("answers a stale page token by fetching the session's own and trying the save once more, and shares the song's page when sharing is refused", async () => {
+    let tries = 0; document.head.insertAdjacentHTML("beforeend", '<meta name="navaan-token" content="old">');
+    const f = vi.fn((u: string, init?: RequestInit) => {
+      if (u.startsWith("/api/me")) return Promise.resolve(json({ ...LISTENER, csrf: "fresh" }));
+      if (u === "/api/library/save") { tries++; return Promise.resolve((init?.headers as Record<string, string>)["X-Navaan-Token"] === "fresh" ? json({ ok: true }) : json({ error: "forbidden" }, 403)); }
+      if (u === "/api/share") return Promise.resolve(json({ error: "forbidden" }, 403));
+      if (u.startsWith("/api/catalog/track/")) return Promise.resolve(json(track({})));
+      return Promise.resolve(json([]));
+    }); vi.stubGlobal("fetch", f); at("/song/song-001");
+    fireEvent.click(await screen.findByRole("button", { name: "Save song" })); await screen.findByRole("button", { name: "Saved" }); expect(tries).toBe(2);   // refused with the old token, accepted with the fresh one
+    fireEvent.click(screen.getByRole("button", { name: "Share" }));
+    expect(await screen.findByLabelText(/can listen, free/)).toHaveValue(`${location.origin}/app/song/song-001`);   // no "forbidden" dead end: the page itself is the link
+    document.head.querySelector('meta[name="navaan-token"]')?.remove();
   });
 });
 

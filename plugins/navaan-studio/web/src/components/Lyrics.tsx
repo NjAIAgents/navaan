@@ -13,6 +13,6 @@ export function Lyrics({ plain, timed, position, follow, duration = 0, onPick }:
     ref.current.scrollIntoView?.({ block: "center", behavior: calm ? "auto" : "smooth" });
   }, [cur, follow]);
   if (lines) return <><ol className="lyrics" aria-label="Lyrics">{lines.map(([sec, line], i) => <li key={i} ref={i === cur ? ref : undefined} className={i === cur ? "now" : i < cur ? "past" : ""} aria-current={i === cur ? "true" : undefined}>
-    {onPick ? <button type="button" className="ly-line" onClick={() => onPick(sec)} aria-label={`Play from ${mmss(sec)}: ${line}`}><span className="ly-t">{mmss(sec)}</span><span>{line}</span></button> : line}</li>)}</ol>{guess && <p className="mu" style={{ fontSize: 13 }}>Lines follow the song approximately{onPick ? ", so a jump may land a little off" : ""}.</p>}</>;
+    {onPick ? <button type="button" className="ly-line" onClick={() => onPick(sec)}><span className="sr">{`Play from ${mmss(sec)}: ${line}`}</span><span className="ly-t" aria-hidden="true">{mmss(sec)}</span><span aria-hidden="true">{line}</span></button> : line}</li>)}</ol>{guess && <p className="mu" style={{ fontSize: 13 }}>Lines follow the song approximately{onPick ? ", so a jump may land a little off" : ""}.</p>}</>;
   return plain.trim() ? <p className="lyrics plain" aria-label="Lyrics">{plain}</p> : <p className="mu">No lyrics for this song.</p>;
 }

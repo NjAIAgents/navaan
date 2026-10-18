@@ -5,12 +5,21 @@ export class ApiError extends Error {
   constructor(public status: number, message: string, public requestId?: string) { super(message); }
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+// A page can outlive the session it was loaded under (signed in again elsewhere, the session renewed): the portal then answers "forbidden" to every save. The current token is asked for once and the save is tried again.
+async function freshToken(): Promise<string> {
+  try { const me = await (await fetch("/api/me", { credentials: "same-origin" })).json() as { csrf?: string }; return me?.csrf ?? ""; } catch { return ""; }   // expected: no answer means no retry
+}
+
+async function call<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const r = await fetch(path, { credentials: "same-origin", ...init });
   const requestId = r.headers.get("X-Request-Id") ?? undefined;
   if (r.status === 401) { location.reload(); throw new ApiError(401, "signed out", requestId); }   // the portal shows its sign-in page
   let body: unknown = null;
   try { body = await r.json(); } catch { /* not JSON: an nginx error page, say */ }
+  if (r.status === 403 && init?.method === "POST" && !retried && (body as { error?: string } | null)?.error === "forbidden") {
+    const t = await freshToken();
+    if (t && t !== token()) { document.querySelector<HTMLMetaElement>('meta[name="navaan-token"]')?.setAttribute("content", t); return call<T>(path, { ...init, headers: { ...(init.headers as Record<string, string>), "X-Navaan-Token": t } }, true); }
+  }
   if (!r.ok) throw new ApiError(r.status, (body as { error?: string } | null)?.error ?? `Request failed (${r.status})`, requestId);
   return body as T;
 }

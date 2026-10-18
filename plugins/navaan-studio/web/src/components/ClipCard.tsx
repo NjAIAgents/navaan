@@ -1,18 +1,36 @@
 import { useEffect, useState } from "react";
-import { postJSON } from "../lib/api";
+import { getJSON, postJSON } from "../lib/api";
 import { errText } from "../lib/songs";
 import { mmss } from "../lib/lyrics";
+import { usePlayer, usePosition } from "../lib/player";
 
 type Made = { url: string; page: string };
+const MIN_LEN = 5; const MAX_LEN = 90;   // seconds; the server accepts the same
 // What travels with a shared clip: the song, the way back to the full song, and the tag that makes the next person find it.
 export const clipCaption = (title: string, page: string) => `${title} on NAVAAN. Hear the full song: ${page} #NAVAAN #NewMusic`;
 
-// A clip of the song to share: 15 or 30 seconds from where you choose, as a vertical video with the cover, the title and "Hear the full song". It is shared (the phone's share sheet, so Instagram and WhatsApp are there), not handed over as a download, and it carries the way back to the whole song.
-export function ClipCard({ slug, title, position, duration }: { slug: string; title: string; position: number | null; duration: number }) {
-  const [start, setStart] = useState(0); const [length, setLength] = useState<15 | 30>(15);
+// A clip of the song to share: 5 to 90 seconds between the two points you choose, as a vertical video with the cover, the title and "Hear the full song". It is shared (the phone's share sheet, so Instagram and WhatsApp are there), not handed over as a download, and it carries the way back to the whole song.
+export function ClipCard({ slug, title, position, duration: playing, bare = false }: { slug: string; title: string; position: number | null; duration: number; bare?: boolean }) {   // bare: inside a sheet, which has its own frame and title
+  // The song's length: from the player when the song is loaded there, else read from the audio file's header without playing it, so the sliders are there before the song has been played.
+  const [read, setRead] = useState(0); const duration = playing > 20 ? playing : read;
+  useEffect(() => {
+    if (playing > 20) return; let live = true; const a = new Audio(); a.preload = "metadata";
+    getJSON<{ url?: string }>(`/api/play?slug=${encodeURIComponent(slug)}`).then((r) => { if (!live || typeof r?.url !== "string") return; a.onloadedmetadata = () => { if (live && Number.isFinite(a.duration)) setRead(a.duration); }; a.src = r.url; }).catch(() => undefined);   // expected: without it the start and end are typed
+    return () => { live = false; a.onloadedmetadata = null; a.removeAttribute("src"); };
+  }, [slug, playing]);
+  const [start, setStart] = useState(0); const [end, setEnd] = useState(30);
   const [made, setMade] = useState<Made | null>(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [note, setNote] = useState("");
-  const max = duration > 20 ? Math.floor(duration) - 2 : 3600;
-  const make = async () => { setBusy(true); setErr(""); setNote(""); setMade(null); try { setMade(await postJSON<Made>("/api/clip", { slug, start, length })); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const known = duration > 20; const whole = known ? Math.floor(duration) : 3600;   // the length is unknown until the song has loaded: then numbers are typed instead of dragged
+  const length = end - start;
+  // The two points keep to 5 to 90 seconds apart and inside the song: moving one pushes the other.
+  const moveStart = (v: number) => { const a = Math.max(0, Math.min(whole - MIN_LEN, Math.floor(v) || 0)); setStart(a); setEnd(Math.max(a + MIN_LEN, Math.min(end, a + MAX_LEN, whole))); };
+  const moveEnd = (v: number) => { const b = Math.max(MIN_LEN, Math.min(whole, Math.floor(v) || 0)); setEnd(b); setStart(Math.min(b - MIN_LEN, Math.max(start, b - MAX_LEN, 0))); };
+  const slide = (a: number, b: number) => { setMade(null); setStart(a); setEnd(b); };
+  // Hear exactly the part that will be cut: the song plays from the first point and stops at the second.
+  const pl = usePlayer(); const pos = usePosition().position; const [hearing, setHearing] = useState(false);
+  useEffect(() => { if (hearing && pl.slug === slug && pos >= end) { setHearing(false); if (pl.playing) void pl.toggle(slug, title); } }, [hearing, pos, end, pl, slug, title]);
+  const hear = async () => { setHearing(true); if (pl.slug !== slug || !pl.playing) await pl.toggle(slug, title); pl.seek(start); };
+  const make = async () => { setBusy(true); setErr(""); setNote(""); setMade(null); try { setMade(await postJSON<Made>("/api/clip", { slug, start, length: end - start })); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   const copyText = async (text: string, ok: string) => { try { await navigator.clipboard.writeText(text); setNote(ok); } catch { setNote("Copy failed. Select the text by hand."); } };   // expected: clipboard can be blocked
   const copy = () => copyText(made!.page, "Link copied.");
   const phone = typeof navigator !== "undefined" && typeof navigator.canShare === "function";   // a phone's share sheet takes the video itself; a computer does not
@@ -34,23 +52,25 @@ export function ClipCard({ slug, title, position, duration }: { slug: string; ti
     } catch (e) { failed(e); }
   };
   return (
-    <section className="card stack" aria-labelledby="clip-h">
-      <h2 id="clip-h">Share a clip</h2>
-      <p className="mu">Pick where the clip starts and how long it is. It is a video with the cover and a way back to the full song.</p>
-      <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-          <label htmlFor="clip-start">Start at (seconds)</label><br />
-          {duration > 20 ? (   // the song's length is known: drag to where the clip should begin
-            <>
-              <input id="clip-start" type="range" min={0} max={max} step={1} value={start} aria-valuetext={mmss(start)} style={{ width: "100%" }} onChange={(e) => setStart(Math.max(0, Math.min(max, Number(e.target.value) || 0)))} />
-              <output htmlFor="clip-start" className="mu">Starts at {mmss(start)}, ends at {mmss(Math.min(start + length, duration))} of {mmss(duration)}</output>
-            </>
-          ) : <input id="clip-start" className="field sel" type="number" min={0} max={max} value={start} onChange={(e) => setStart(Math.max(0, Math.min(max, Number(e.target.value) || 0)))} />}
+    <Frame bare={bare}>
+      <p className="mu">Move the two points to choose the part of the song, up to 90 seconds. It becomes a video with the cover and a way back to the full song.</p>
+      {known ? (
+        <div className="stack">
+          <div><label htmlFor="clip-start">Start at (seconds)</label><br />
+            <input id="clip-start" type="range" min={0} max={whole - MIN_LEN} step={1} value={start} aria-valuetext={mmss(start)} style={{ width: "100%" }} onChange={(e) => { moveStart(Number(e.target.value)); setMade(null); }} /></div>
+          <div><label htmlFor="clip-end">End at (seconds)</label><br />
+            <input id="clip-end" type="range" min={MIN_LEN} max={whole} step={1} value={end} aria-valuetext={mmss(end)} style={{ width: "100%" }} onChange={(e) => { moveEnd(Number(e.target.value)); setMade(null); }} /></div>
         </div>
-        {position != null && <button className="btn g" onClick={() => setStart(Math.min(max, Math.floor(position)))}>Use where it is now ({mmss(position)})</button>}
-      </div>
-      <div className="seg" role="group" aria-label="Length" style={{ alignSelf: "flex-start" }}>
-        {([15, 30] as const).map((n) => <button key={n} aria-pressed={length === n} onClick={() => setLength(n)}>{n} seconds</button>)}
+      ) : (
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <div><label htmlFor="clip-start">Start at (seconds)</label><br /><input id="clip-start" className="field sel" type="number" min={0} max={whole} value={start} onChange={(e) => moveStart(Number(e.target.value))} /></div>
+          <div><label htmlFor="clip-end">End at (seconds)</label><br /><input id="clip-end" className="field sel" type="number" min={MIN_LEN} max={whole} value={end} onChange={(e) => moveEnd(Number(e.target.value))} /></div>
+        </div>
+      )}
+      <output className="mu" role="status">Clip from {mmss(start)} to {mmss(end)}, {length} seconds{known ? ` of ${mmss(duration)}` : ""}</output>
+      <div className="row" style={{ flexWrap: "wrap" }}>
+        {position != null && <button className="btn g" onClick={() => { const a = Math.floor(position); slide(Math.max(0, Math.min(whole - MIN_LEN, a)), Math.max(MIN_LEN, Math.min(whole, a + length))); }}>Start where it is now ({mmss(position)})</button>}
+        <button className="btn g" onClick={() => void hear()} aria-pressed={hearing}>{hearing ? "Playing the part…" : "Hear this part"}</button>
       </div>
       <div className="row"><button className="btn p" disabled={busy} onClick={() => void make()}>{busy ? "Making the clip…" : "Make the clip"}</button></div>
       {made && (
@@ -64,6 +84,8 @@ export function ClipCard({ slug, title, position, duration }: { slug: string; ti
       )}
       {note && <p role="status" className="mu">{note}</p>}
       {err && <p role="alert" style={{ color: "var(--bad)" }}>{err}</p>}
-    </section>
+    </Frame>
   );
 }
+
+const Frame = ({ bare, children }: { bare: boolean; children: React.ReactNode }) => bare ? <div className="stack">{children}</div> : <section className="card stack" aria-labelledby="clip-h"><h2 id="clip-h">Share a clip</h2>{children}</section>;

@@ -23,12 +23,13 @@ test("a visitor plays a whole song with its lyrics, shares it, and is told what 
   expect(await page.evaluate(() => document.querySelectorAll("audio[controls]").length)).toBe(0);   // no browser player with a download item
   await page.getByRole("button", { name: "Share", exact: true }).click(); await expect(page.getByLabel(/Anyone with this link can listen/)).toHaveValue(/\/app\/song\/song-011$/);
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Add to playlist" }).click(); await expect(page.getByText(/Accounts are coming soon/)).toBeVisible();
+  await page.getByRole("button", { name: "Add to a playlist" }).click(); await expect(page.getByText(/Accounts are coming soon/)).toBeVisible();
 });
 
 test("a visitor makes a clip of a song, plays it, and the page for it leads back to the whole song", async ({ page, request }) => {
   await page.goto("/app/song/song-011");
-  await page.getByLabel("Start at (seconds)").fill("1"); await page.getByRole("button", { name: "Make the clip" }).click();
+  await page.getByRole("button", { name: "Share a clip" }).click();   // the clip is made in a sheet the icon at the top opens
+  await page.getByLabel("Start at (seconds)").fill("1"); await page.getByLabel("End at (seconds)").fill("16"); await page.getByRole("button", { name: "Make the clip" }).click();
   const video = page.getByLabel(/^Clip of /); await expect(video).toBeVisible({ timeout: 60_000 });
   const src = (await video.getAttribute("src"))!; expect(src).toMatch(/^\/c\/song-011-1-15\.mp4$/);
   const r = await request.get(src, { headers: { Range: "bytes=0-99" } }); expect(r.status()).toBe(206); expect(r.headers()["content-type"]).toBe("video/mp4");   // Safari plays video only with ranges
@@ -38,6 +39,7 @@ test("a visitor makes a clip of a song, plays it, and the page for it leads back
 test("a visitor reacts to a song and sends feedback, and the owner sees both", async ({ page, request }, info) => {
   const note = `Feedback from the ${info.project.name} check ${Date.now()}`;
   await page.goto("/app/song/song-011"); await expect(page.getByRole("heading", { name: "Pata Hi Na Chala", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "What did you think?" }).click();   // the reactions are in the sheet the icon at the top opens
   await page.getByRole("button", { name: /Love it/ }).click(); await expect(page.getByRole("button", { name: /Love it/ })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Thumbs up", exact: true }).click(); await expect(page.getByRole("button", { name: "Thumbs up", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: /Send feedback/ }).click(); await page.getByLabel("Your message").fill(note); await page.getByRole("button", { name: "Send", exact: true }).click(); await expect(page.getByText(/Thank you/)).toBeVisible();
