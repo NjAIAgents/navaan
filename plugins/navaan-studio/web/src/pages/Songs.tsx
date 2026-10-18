@@ -24,7 +24,7 @@ export function ItemList({ type, title, blurb, noun }: { type: string; title: st
   return (
     <>
       <div className="ph"><h1 className="disp">{title}</h1><p>{blurb}</p></div>
-      {me.studio && (type === "music" || type === "inspiration") && <NewItem type={type} />}
+      {me.studio && (type === "music" || type === "inspiration" || type === "aha") && <NewItem type={type} />}
       <div className="seg" role="group" aria-label={`Filter ${noun}s`} style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
         {FILTERS.map(([k, label]) => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{label}{rows && k !== "all" ? <span className="mu"> {rows.filter((s) => s.status === k).length}</span> : null}</button>)}
       </div>

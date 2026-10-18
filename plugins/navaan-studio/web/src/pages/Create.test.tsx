@@ -49,6 +49,17 @@ describe("New song and New inspiration", () => {
     fireEvent.change(screen.getByLabelText(/Central Time/), { target: { value: "2030-12-02T09:00" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(posts(f, "/api/new")[0]).toMatchObject({ type: "inspiration", publish_at_ct: "2030-12-02T09:00" }));
   });
+  it("has The Aha-lorithm as its own list, starting a short from an idea or from nothing, never a Suno link (NAV-67)", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ slug: "aha-001" }), "/api/songs": () => [{ slug: "aha-001", type: "aha", title: "AI knows your weekday", state: "draft", status: "production", steps_done: 2, steps_total: 13, public: false, published: false, scheduled: "", album: "" }, { slug: "insp-004", type: "inspiration", title: "Tired", state: "published", status: "done", steps_done: 14, steps_total: 14, public: true, published: true, scheduled: "", album: "" }], "/api/song/": () => detail({ slug: "aha-001", meta: { type: "aha", state: "draft", history: [] } }), "/api/settings": () => ({}) });
+    at("/studio/aha");
+    expect(await screen.findByRole("heading", { name: "The Aha-lorithm", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByText("AI knows your weekday")).toBeInTheDocument(); expect(screen.queryByText("Tired")).toBeNull();   // only its own items
+    fireEvent.click(screen.getByRole("button", { name: "New Aha-lorithm short" }));
+    expect(screen.queryByLabelText(/Suno link/)).toBeNull();   // the narration is ElevenLabs reading the script
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));   // an empty idea is allowed: Claude picks the topic
+    await waitFor(() => expect(posts(f, "/api/new")[0]).toMatchObject({ type: "aha", idea: "" })); expect(posts(f, "/api/new")[0]).not.toHaveProperty("suno_url");
+    expect(await screen.findByRole("link", { name: "The Aha-lorithm" })).toHaveAttribute("href", "/studio/aha");   // the back link from the new short names the channel list
+  });
   it("needs the Suno link, takes the sound from the Suno page unless an audio file is added, and refuses a too big file", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
     at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));
@@ -352,6 +363,20 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     expect(document.getElementById("step-publish_youtube")).toHaveTextContent("YouTube lane"); expect(document.getElementById("step-instagram_caption")).toHaveTextContent("Instagram lane");
     fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
     await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
+  });
+  it("lets you skip Instagram for one song so the pipeline finishes without it, and turn it back on", async () => {
+    const f = route(OWNER, { "/api/skip_lane": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-008", next: { type: "run", step: "publish_instagram" },
+      lanes: { instagram: { type: "run", step: "publish_instagram" } }, steps: [step("publish_youtube", { done: true, status: "done", lane: "youtube" }), step("publish_instagram", { lane: "instagram" })] }) });
+    at("/studio/songs/song-008");
+    fireEvent.click(await screen.findByRole("button", { name: "Don't post to Instagram" }));
+    await waitFor(() => expect(posts(f, "/api/skip_lane")).toEqual([{ slug: "song-008", lane: "instagram", skip: true }]));
+  });
+  it("says a skipped Instagram plainly and offers to post after all", async () => {
+    const f = route(OWNER, { "/api/skip_lane": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-008", meta: { type: "music", state: "published", history: [], skip: { instagram: true } } }) });
+    at("/studio/songs/song-008");
+    expect(await screen.findByText(/Not posted to Instagram: you skipped it/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Post to Instagram after all" }));
+    await waitFor(() => expect(posts(f, "/api/skip_lane")).toEqual([{ slug: "song-008", lane: "instagram", skip: false }]));
   });
   it("lets you approve in a lane while the run is waiting at that very approval (the run counts as running and must not lock its own button)", async () => {
     const f = route(OWNER, { "/api/approve": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate publish_youtube",

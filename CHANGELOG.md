@@ -6,6 +6,20 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-18
+
+### Added
+- The Aha-lorithm (NAV-67): a second short-form channel, for YouTube Shorts on @TheAhalorithm: AI explained in seconds. It has its own list under Studio (Aha-lorithm) and its own items (aha-001, aha-002 …). A short starts from an idea, from your own narration (kept word for word), or from nothing, in which case Claude picks the topic; never from a Suno link.
+- Each short is a narrated scene video of 20 to 25 seconds. Claude writes a script of 6 to 9 beats (hook, explanation, the aha), each with its spoken line, a short on-screen caption and a picture prompt. A fact-check step then checks every claim on the web. After your spend approval, OpenAI makes one picture per beat (about 4 ¢ each; the pictures never contain words). ElevenLabs reads the script at normal speed (narration only). Each beat's picture fades in as its line starts, and the caption appears in bold white in the middle of the screen, with the key phrase in muted gold. A quiet ambient bed from the channel's own music library plays about 20 dB under the voice and drops back while the aha line lands. The end card shows "The Aha-lorithm · AI explained in seconds" and @TheAhalorithm. The YouTube description ends with a follow line and the channel's hashtags.
+- The channel publishes only to YouTube: the Short upload and making it public, on the channel's own YouTube account.
+- To use it, add the account in Settings › Accounts (type aha, YouTube channel @TheAhalorithm) and sign in to YouTube for it there; it shows only the YouTube rows, since the channel has no Instagram.
+- Music for it comes from the `aha_music` folder: `<local_dir>/aha_music`, or `~/.local/share/navaan/aha_music` on the server, which has no local_dir. Put a few quiet ambient tracks there.
+
+### Fixed
+- Popups on the song page (Share a clip, Add to playlist, feedback) showed only a strip at the bottom of the screen on a phone. They used the header's class name and inherited its 64-pixel height. They now open in full.
+- On a phone the song's cover is centred above its title.
+- A song or inspiration already posted to YouTube could not finish without Instagram: there was no way to skip the Reel, and a failed post stayed on the page. Its Instagram lane now has "Don't post to Instagram", which takes the caption and post steps out of that item's pipeline and clears the failed post. "Post to Instagram after all" brings them back.
+
 ## [0.44.0] - 2026-10-18
 
 ### Changed
@@ -582,7 +596,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.45.0...HEAD
+[0.45.0]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/NjAIAgents/navaan/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/NjAIAgents/navaan/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/NjAIAgents/navaan/compare/v0.41.1...v0.42.0

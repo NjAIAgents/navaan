@@ -228,7 +228,7 @@ body.lock { overflow: hidden; }
   .pm-lyrics { grid-area: lyr; height: min(80vh, 800px); -webkit-mask-image: linear-gradient(transparent, black 14%, black 86%, transparent); mask-image: linear-gradient(transparent, black 14%, black 86%, transparent); }
   .pm-lyrics .lyrics { font-size: clamp(24px, 2.5vw, 38px); gap: 20px; text-align: left; align-items: flex-start; padding: 34vh 0; } .pm-lyrics .lyrics li { transform-origin: left; }
 }
-.scrim.top { z-index: 50; } .dlg.top { z-index: 60; }   /* a sheet opens over play mode too */
+.scrim.over { z-index: 50; } .dlg.over { z-index: 60; }   /* a sheet opens over play mode too (not .top: that is the header, 64px tall) */
 .tools { gap: 6px 10px; } .tool { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: var(--mu); } .tool .btn[aria-pressed="true"] + span { color: var(--ac); }
 .clipbar { position: relative; height: var(--tap); } .clipbar input[type="range"] { position: absolute; left: 0; top: 0; width: 100%; height: var(--tap); margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
 .clipbar input[type="range"]::-webkit-slider-runnable-track { background: none; } .clipbar input[type="range"]::-moz-range-track { background: none; }
@@ -237,7 +237,7 @@ body.lock { overflow: hidden; }
 .clipbar .trk { position: absolute; left: 13px; right: 13px; top: calc(50% - 3px); height: 6px; border-radius: 99px; background: var(--s3); } .clipbar .sel { position: absolute; top: 0; bottom: 0; border-radius: 99px; background: var(--ac); opacity: .7; }
 .pm-bar.sm { flex: 0 0 100%; } .pm-bar.sm input[type="range"] { min-height: 20px; margin: 0; } .pm-bar.sm .pm-times { font-size: 11px; line-height: 1.2; padding: 0 2px 2px; }   /* the bottom bar: a slim bar with the times under it */
 .pm-bar { width: 100%; } .pm-bar input[type="range"] { width: 100%; min-height: var(--tap); accent-color: var(--ac); } .pm-times { display: flex; justify-content: space-between; font-size: 13px; }
-@media (max-width: 899px) { .hero-tx h1 { font-size: 30px; } .hero { gap: 16px; } }
+@media (max-width: 899px) { .hero-tx h1 { font-size: 30px; } .hero { gap: 16px; } .hero .cover { margin-inline: auto; } }   /* on a phone the cover sits alone on its row: centred */
 
 /* a dialog that is a card: centred on a wide screen, a sheet from the bottom on a phone */
 .dlg { position: fixed; z-index: 30; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow-y: auto; box-shadow: var(--shadow), var(--hi); background: var(--sheet); }

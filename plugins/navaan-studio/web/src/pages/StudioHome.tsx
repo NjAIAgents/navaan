@@ -4,7 +4,7 @@ import { getJSON, type SongRow } from "../lib/api";
 import { STUDIO_SUB } from "../components/Shell";
 
 const BLURB: Record<string, string> = {
-  "/studio/songs": "Every song: write, approve, edit, publish.", "/studio/inspiration": "Quote shorts and their narration.", "/studio/approvals": "Everything waiting for your yes.",
+  "/studio/songs": "Every song: write, approve, edit, publish.", "/studio/inspiration": "Quote shorts and their narration.", "/studio/aha": "AI-awareness Shorts for @TheAhalorithm.", "/studio/approvals": "Everything waiting for your yes.",
   "/studio/schedule": "When things publish, and when they should.", "/studio/analytics": "Numbers, advice and what people said.", "/studio/cloud": "What is archived in the bucket.",
 };
 
@@ -16,6 +16,7 @@ export default function StudioHome() {
   const count: Record<string, string | null> = {
     "/studio/songs": rows ? `${n((r) => r.type === "music")} songs` : null,
     "/studio/inspiration": rows ? `${n((r) => r.type === "inspiration")} shorts` : null,
+    "/studio/aha": rows ? `${n((r) => r.type === "aha")} shorts` : null,
     "/studio/approvals": rows ? `${n((r) => r.status === "approval")} waiting` : null,
     "/studio/schedule": rows ? `${n((r) => !!r.scheduled)} scheduled` : null,
   };

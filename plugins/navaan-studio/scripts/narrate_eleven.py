@@ -19,7 +19,7 @@ import media_cfg as M, narration, tts_eleven as T
 def quote_text(D):
     """The words to speak: the quote's lines, one per row (a short pause between them). Never the author."""
     q = C.load_json(os.path.join(D, "quote.json"), default=None) or {}
-    lines = [" ".join(str(l).split()) for l in (q.get("lines") or []) if str(l).strip()] or ([" ".join(str(q.get("text") or "").split())] if str(q.get("text") or "").strip() else [])
+    lines = [" ".join(C.plain(l).split()) for l in (q.get("lines") or []) if str(l).strip()] or ([" ".join(C.plain(q.get("text") or "").split())] if str(q.get("text") or "").strip() else [])
     if not lines: raise ValueError("there is no quote yet: write or pick the quote first")
     if len(lines) == 1: lines = re.split(r"(?<=[.!?])\s+", lines[0])   # a quote kept as one sentence-run: a pause after each sentence
     return "\n\n".join(lines)   # a blank row between the lines: the voice leaves a pause, so the words can keep pace with the text on screen
@@ -61,8 +61,9 @@ def chosen_voice(D):
 
 def chosen_pace(D):
     """slow (default), calm or normal: a reflective quote is read slowly so each line can sit on screen while it is spoken."""
-    p = narration.get_option(D, "pace", "slow").lower()
-    return p if p in T.PACES else "slow"
+    dflt = "normal" if C.item_type(C.load_json(os.path.join(D, "meta.json"), default={}) or {}) == "aha" else "slow"   # an Aha-lorithm explainer is spoken at normal speed
+    p = narration.get_option(D, "pace", dflt).lower()
+    return p if p in T.PACES else dflt
 
 
 def info(D):

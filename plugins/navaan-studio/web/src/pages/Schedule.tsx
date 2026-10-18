@@ -38,7 +38,7 @@ export default function Schedule() {
       {open ? (
         <>
           <label htmlFor="sp-type">Kind of item</label>
-          <select id="sp-type" className="field" value={type} onChange={(e) => setType(e.target.value)}><option value="music">Song</option><option value="inspiration">Inspiration</option></select>
+          <select id="sp-type" className="field" value={type} onChange={(e) => setType(e.target.value)}><option value="music">Song</option><option value="aha">Aha-lorithm</option><option value="inspiration">Inspiration</option></select>
           <SchedulePanel key={type} type={type} slug={q.get("slug") ?? ""} onDone={() => { setOpen(false); setQ({}); void load(); }} onCancel={() => { setOpen(false); setQ({}); }} />
         </>
       ) : <div className="row"><button className="btn p" onClick={() => setOpen(true)}>Schedule publishing</button></div>}

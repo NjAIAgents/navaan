@@ -8,7 +8,7 @@ type Mode = "idea" | "import";
 
 // Start something new: a song from an idea (or none), a song imported from Suno (its link; the sound from the Suno page, or your own audio file), or an inspiration short from a quote or idea.
 // Creating an item runs nothing; an import starts the pipeline, as the classic page does, so it says so.
-export function NewItem({ type }: { type: "music" | "inspiration" }) {
+export function NewItem({ type }: { type: "music" | "inspiration" | "aha" }) {
   const go = useNavigate();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("idea");
@@ -19,7 +19,7 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [later, setLater] = useState(false); const [at, setAt] = useState("");   // publish when the pipeline finishes (default) or at a set time, US Central
-  const song = type === "music";
+  const song = type === "music"; const aha = type === "aha";   // an Aha-lorithm short starts from an idea, your own narration, or nothing (Claude picks the topic); never from Suno
   const [nar, setNar] = useState<{ key: boolean; voices: Record<string, string> } | null>(null); const [narrate, setNarrate] = useState(true); const [voice, setVoice] = useState("suno1");
   useEffect(() => {   // an inspiration can start with the quote narrated by ElevenLabs: on by default when a key is saved
     if (!open || song) return;
@@ -30,7 +30,7 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
   const done = (slug: string) => go(itemPath(type, slug) ?? "/");
   const create = async (e: React.FormEvent) => {
     e.preventDefault(); setErr("");
-    if (!song && !idea.trim() && !sunoUrl.trim()) return setErr("Write the quote or the idea first, or paste a Suno link.");
+    if (!song && !aha && !idea.trim() && !sunoUrl.trim()) return setErr("Write the quote or the idea first, or paste a Suno link.");
     if (later && !at) return setErr("Pick the date and time to publish, or choose to publish when the pipeline finishes.");
     setBusy(true);
     try { const r = await postJSON<{ slug: string }>("/api/new", { type, ...when, idea: !song && sunoUrl.trim() ? "" : idea.trim(), ...(song ? {} : { ...(useNarr ? { narrate: "eleven", voice } : { narrate: "none" }), ...(sunoUrl.trim() ? { suno_url: sunoUrl.trim() } : {}) }) }); done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
@@ -46,10 +46,10 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
       const r = await postJSON<{ slug: string }>("/api/import", body); done(r.slug);
     } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
-  if (!open) return <div className="row"><button className="btn p" onClick={() => setOpen(true)}>{song ? "New song" : "New inspiration"}</button></div>;
+  if (!open) return <div className="row"><button className="btn p" onClick={() => setOpen(true)}>{song ? "New song" : type === "aha" ? "New Aha-lorithm short" : "New inspiration"}</button></div>;
   return (
     <section className="card stack" aria-labelledby="new-h">
-      <h2 id="new-h">{song ? "New song" : "New inspiration"}</h2>
+      <h2 id="new-h">{song ? "New song" : type === "aha" ? "New Aha-lorithm short" : "New inspiration"}</h2>
       {song && (
         <div className="seg" role="group" aria-label="How to start" style={{ alignSelf: "flex-start" }}>
           <button aria-pressed={mode === "idea"} onClick={() => setMode("idea")}>Start from an idea</button>
@@ -58,18 +58,18 @@ export function NewItem({ type }: { type: "music" | "inspiration" }) {
       )}
       {mode === "idea" || !song ? (
         <form className="stack" onSubmit={(e) => void create(e)}>
-          {!song && (
+          {!song && !aha && (
             <>
               <label htmlFor="ni-suno">Suno link (optional)</label>
               <input id="ni-suno" className="field" type="url" value={sunoUrl} onChange={(e) => setSunoUrl(e.target.value)} placeholder="https://suno.com/s/…" autoComplete="off" />
               <p className="mu">With a link, the words and the voice come from that Suno song, and the quote below is not needed. Without one, the quote is narrated by ElevenLabs.</p>
             </>
           )}
-          <label htmlFor="ni-idea">{song ? "Idea (optional)" : "Quote or idea"}</label>
-          <textarea id="ni-idea" className="field" rows={3} value={idea} disabled={!song && !!sunoUrl.trim()} onChange={(e) => setIdea(e.target.value)} placeholder={song ? "A line about what the song is about" : "The quote, or what the short should say"} />
+          <label htmlFor="ni-idea">{song ? "Idea (optional)" : aha ? "Idea, topic or your narration (optional)" : "Quote or idea"}</label>
+          <textarea id="ni-idea" className="field" rows={3} value={idea} disabled={!song && !!sunoUrl.trim()} onChange={(e) => setIdea(e.target.value)} placeholder={song ? "A line about what the song is about" : aha ? "Leave empty and Claude picks the topic. Your own narration is kept word for word." : "The quote, or what the short should say"} />
           {!song && (
             <div className="stack" role="group" aria-label="Narration">
-              <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} /> {sunoUrl.trim() ? "Keep ElevenLabs as the backup voice" : "Narrate the quote with ElevenLabs"}</label>
+              <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} /> {sunoUrl.trim() ? "Keep ElevenLabs as the backup voice" : aha ? "Narrate the script with ElevenLabs" : "Narrate the quote with ElevenLabs"}</label>
               {narrate && nar && <><label htmlFor="ni-voice">Voice</label><select id="ni-voice" className="field sel" value={voice} onChange={(e) => setVoice(e.target.value)}>{Object.entries(nar.voices).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></>}
               {narrate && nar && !nar.key && !sunoUrl.trim() && <p className="mu" role="status">Paste an ElevenLabs key in Settings before this step runs. Untick the box to make this short with music and text only.</p>}
             </div>

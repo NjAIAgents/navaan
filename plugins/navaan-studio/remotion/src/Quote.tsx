@@ -1,7 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Img, Easing, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 
-export type Line = {text: string; start: number; end: number};
+export type Line = {text: string; start: number; end: number; bg?: string; aha?: boolean};   // bg: this line's own picture (an Aha-lorithm beat), else the one background; aha: the takeaway, the music drops back under it
 export type QuoteProps = {
   width: number;
   height: number;
@@ -17,7 +17,7 @@ export type QuoteProps = {
   camera: 'push_in' | 'pull_out' | 'pan_left' | 'pan_right' | 'drift';
   transition: 'rise' | 'fade' | 'blur';
   layout?: 'single' | 'stack';   // single (default): one line on screen at a time; stack: every line stays
-  style: {color: string; accent: string; dim: number};
+  style: {color: string; accent: string; dim: number; font?: 'sans' | 'serif'; place?: 'center'; music?: number; title?: string; tagline?: string};   // place center: a short bold caption wrapped in the safe area (aha); title and tagline: the channel's end card   // place top: bold words wrap at the top (aha); music: bed volume under a voice
   watermark: string;
 };
 
@@ -28,6 +28,7 @@ export const defaultProps: QuoteProps = {
 };
 
 const FONT = `"Kohinoor Devanagari","Noto Serif Devanagari","Noto Sans Devanagari","Georgia","Noto Serif","DejaVu Serif",serif`;
+const SANS = `"Inter","Avenir Next","Helvetica Neue","Noto Sans Devanagari","Noto Sans","DejaVu Sans",sans-serif`;   // The Aha-lorithm's look (style.font: 'sans')
 const ease = Easing.bezier(0.22, 1, 0.36, 1);
 const smooth = Easing.inOut(Easing.cubic);
 
@@ -41,13 +42,20 @@ const cameraStyle = (cam: QuoteProps['camera'], p: number): React.CSSProperties 
   return {transform: `translate(${x}%, ${y}%) scale(${s})`};
 };
 
+// *marked* words in the accent colour; the marks themselves are never drawn
+const marked = (text: string, accent: string) => text.split(/(\*[^*]+\*)/).filter(Boolean).map((part, i) =>
+  part.startsWith('*') && part.endsWith('*') ? <span key={i} style={{color: accent}}>{part.slice(1, -1)}</span> : <React.Fragment key={i}>{part}</React.Fragment>);
+
 export const Quote: React.FC<QuoteProps> = (props) => {
+  const face = props.style.font === 'sans' ? SANS : FONT;
   const frame = useCurrentFrame();
   const {fps, durationInFrames, width, height} = useVideoConfig();
   const t = frame / fps;
   const p = interpolate(frame, [0, durationInFrames], [0, 1], {easing: smooth, extrapolateRight: 'clamp'});
   const dev = props.lines.some((l) => /[ऀ-ॿ]/.test(l.text));
-  const longest = Math.max(...props.lines.map((l) => Array.from(l.text).length));
+  const longest = Math.max(...props.lines.map((l) => Array.from(l.text.replace(/\*/g, '')).length));
+  const top = props.style.place === 'center';   // the caption look
+  const beats = props.lines.some((l) => l.bg);
   const size = Math.min(dev ? 92 : 104, Math.floor((width - 192) / (longest * (dev ? 0.5 : 0.52))));
   const lh = Math.round(size * 1.42);
   const single = (props.layout ?? 'single') === 'single';
@@ -69,26 +77,41 @@ export const Quote: React.FC<QuoteProps> = (props) => {
   return (
     <AbsoluteFill style={{backgroundColor: '#000', opacity: master}}>
       <AbsoluteFill style={{overflow: 'hidden'}}>
-        <Img src={staticFile(props.background)} style={{width: '100%', height: '100%', objectFit: 'cover', ...cameraStyle(props.camera, p)}} />
+        {beats ? props.lines.map((l, i) => {   // each beat's picture fades in as its line starts and slowly pushes in while it is on screen
+          const from = i === 0 ? 0 : l.start - 0.25, to = i === props.lines.length - 1 ? props.duration : props.lines[i + 1].start;
+          if (t < from - 0.1 || t > to + 0.5) return null;
+          const k = i === 0 ? 1 : interpolate(t, [from, from + 0.5], [0, 1], {easing: smooth, extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          const q = interpolate(t, [from, to + 0.5], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          return <Img key={i} src={staticFile(l.bg ?? props.background)} style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: k, transform: `scale(${1.04 + 0.08 * q})`}} />;
+        }) : <Img src={staticFile(props.background)} style={{width: '100%', height: '100%', objectFit: 'cover', ...cameraStyle(props.camera, p)}} />}
       </AbsoluteFill>
-      <AbsoluteFill style={{background: `linear-gradient(180deg, rgba(0,0,0,${props.style.dim * 0.7}) 0%, rgba(0,0,0,${props.style.dim * 1.15}) 45%, rgba(0,0,0,${props.style.dim * 1.3}) 100%)`}} />
-      {props.lines.map((l, i) => (
+      <AbsoluteFill style={{background: top
+        ? `radial-gradient(ellipse 90% 34% at 50% 44%, rgba(0,0,0,${props.style.dim * 0.9}) 0%, rgba(0,0,0,${props.style.dim * 0.35}) 70%, rgba(0,0,0,${props.style.dim * 0.5}) 100%)`
+        : `linear-gradient(180deg, rgba(0,0,0,${props.style.dim * 0.7}) 0%, rgba(0,0,0,${props.style.dim * 1.15}) 45%, rgba(0,0,0,${props.style.dim * 1.3}) 100%)`}} />
+      {top ? props.lines.map((l, i) => (   // the aha look: one or two short bold lines, centred in the safe area (clear of the Shorts buttons and title)
+        <div key={i} style={{position: 'absolute', left: 120, width: width - 240, top: Math.round(height * 0.3), height: Math.round(height * 0.28), display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', ...enter(l.start), opacity: (enter(l.start).opacity as number) * gone(l, i)}}>
+          <span style={{fontFamily: face, fontSize: Array.from(l.text).length > 26 ? 76 : 92, lineHeight: 1.12, fontWeight: 800, letterSpacing: -0.5, color: props.style.color, textShadow: shadow}}>{marked(l.text, props.style.accent)}</span>
+        </div>
+      )) : props.lines.map((l, i) => (
         <div key={i} style={{position: 'absolute', left: 0, width, top: blockTop + (single ? 0 : i * lh), height: lh, display: 'flex', alignItems: 'center', justifyContent: 'center', ...enter(l.start), opacity: (enter(l.start).opacity as number) * gone(l, i)}}>
-          <span style={{fontFamily: FONT, fontSize: size, fontWeight: dev ? 600 : 400, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{l.text}</span>
+          <span style={{fontFamily: face, fontSize: size, fontWeight: dev ? 600 : 400, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{marked(l.text, props.style.accent)}</span>
         </div>
       ))}
       {props.author ? (
         <div style={{position: 'absolute', left: 0, width, top: blockTop + lh * (single ? 1 : props.lines.length) + 36, display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: interpolate(t, [props.author.start, props.author.start + 0.7], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) * holdOut}}>
           <div style={{height: 4, width: accentW, background: props.style.accent, marginBottom: 30, borderRadius: 2}} />
-          <span style={{fontFamily: FONT, fontSize: Math.round(size * 0.5), color: 'rgba(255,255,255,0.92)', textShadow: shadow}}>{props.author.text}</span>
+          <span style={{fontFamily: face, fontSize: Math.round(size * 0.5), color: 'rgba(255,255,255,0.92)', textShadow: shadow}}>{props.author.text}</span>
         </div>
       ) : null}
       {props.brand ? (() => {
         const k = interpolate(t, [props.brand.start, props.brand.start + 0.9], [0, 1], {easing: ease, extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
         const bs = Math.min(76, Math.floor((width - 260) / (Array.from(props.brand.text).length * 0.62)));
         const ic = Math.round(bs * 0.95);
-        return (
+        return (<>
+          {top ? <AbsoluteFill style={{background: '#05070D', opacity: k * 0.7}} /> : null}
           <div style={{position: 'absolute', left: 0, width, top: Math.round(height * 0.44 - bs), height: bs * 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: k, transform: `translateY(${(1 - k) * 30}px)`}}>
+            {props.style.title ? <div style={{fontFamily: face, fontSize: 112, fontWeight: 800, letterSpacing: -2, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{marked(props.style.title, props.style.accent)}</div> : null}
+            {props.style.tagline ? <div style={{fontFamily: face, fontSize: 34, fontWeight: 600, letterSpacing: 6, textTransform: 'uppercase', color: 'rgba(255,255,255,0.88)', marginTop: 18, marginBottom: 40}}>{props.style.tagline}</div> : null}
             <div style={{height: 4, width: 90 * k, background: props.style.accent, marginBottom: 34, borderRadius: 2}} />
             <div style={{display: 'flex', alignItems: 'center', gap: Math.round(bs * 0.38)}}>
               {props.brand.icon === 'instagram' ? (
@@ -97,16 +120,24 @@ export const Quote: React.FC<QuoteProps> = (props) => {
                   <circle cx="12" cy="12" r="4.1" />
                   <circle cx="17.3" cy="6.7" r="0.6" fill={props.style.color} />
                 </svg>
+              ) : props.brand.icon === 'youtube' ? (
+                <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none" stroke={props.style.color} strokeWidth={1.9} strokeLinejoin="round" style={{filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.6))'}}>
+                  <rect x="2.5" y="5" width="19" height="14" rx="4.5" />
+                  <path d="M10 9.2v5.6l4.8-2.8z" fill={props.style.color} />
+                </svg>
               ) : null}
-              <span style={{fontFamily: FONT, fontSize: bs, letterSpacing: 3, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{props.brand.text}</span>
+              <span style={{fontFamily: face, fontSize: bs, letterSpacing: 3, color: props.style.color, textShadow: shadow, whiteSpace: 'nowrap'}}>{props.brand.text}</span>
             </div>
           </div>
-        );
+        </>);
       })() : null}
-      {props.brand ? null : <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: FONT, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
+      {props.brand ? null : <div style={{position: 'absolute', left: 0, width, bottom: 470, textAlign: 'center', fontFamily: face, fontSize: 42, letterSpacing: props.watermark.startsWith('@') ? 2 : 14, color: 'rgba(255,255,255,0.88)', opacity: interpolate(t, [0.4, 1.1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
         {props.watermark.startsWith('@') ? props.watermark : props.watermark.toUpperCase()}
       </div>}
-      {props.music ? <Audio src={staticFile(props.music)} volume={props.voiceover ? 0.35 : 0.9} /> : null}
+      {props.music ? <Audio src={staticFile(props.music)} volume={(f) => {   // under a voice the bed stays far back, and drops back further while the aha line lands
+        const base = props.voiceover ? props.style.music ?? 0.35 : 0.9, a = props.lines.find((l) => l.aha), s = f / fps;
+        return a && props.voiceover ? base * interpolate(s, [a.start - 0.4, a.start, a.end, a.end + 0.6], [1, 0.45, 0.45, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) : base;
+      }} /> : null}
       {props.voiceover ? <Audio src={staticFile(props.voiceover)} volume={1} /> : null}
     </AbsoluteFill>
   );
