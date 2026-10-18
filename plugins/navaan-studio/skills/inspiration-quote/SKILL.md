@@ -19,3 +19,5 @@ Content type `inspiration` is a 7 to 15 second vertical video (longer only with 
    `author` for an original line is empty unless the brief names the account or person to credit.
 5. Write `title.txt`: a short title for the library, 60 characters at most, no hashtags.
 6. Print the quote and the author in your final message, then stop. Do not approve any gate. The user reads and edits the quote at the `quote` gate; any edit after approval asks for a new approval.
+
+   Send line: if `<local_dir>/standing_rules.json` has a rule for this account in the category engagement that asks for a reason to send the video ("send this to someone who..."), also write `send_line.txt` in the item's folder: ONE short line, under 70 characters, that names who this quote is for, in the language of the quote (for example "Send this to someone far from home"). The renderer draws it on the last seconds of the video. If there is no such rule, do not write the file.

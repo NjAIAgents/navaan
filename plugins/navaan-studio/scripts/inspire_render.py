@@ -231,6 +231,11 @@ def main(slug, engine="auto"):
     if os.path.exists(part): os.remove(part)
     print(f"rendering {T['duration']}s with {engine} ...", flush=True)
     (render_remotion if engine == "remotion" else render_ffmpeg)(D, T, part)
+    import send_line
+    try:
+        said = send_line.apply(part, D, y_frac=0.56)   # the "send this to someone who..." line under the end card, when there is one
+        if said: print(f"send line drawn: {said}", flush=True)
+    except RuntimeError as e: print("warning:", e, flush=True)   # the video stays as rendered, without the line
     info = probe(part); errs, warns = validate(info, T)
     for w in warns: print("warning:", w)
     if errs:
