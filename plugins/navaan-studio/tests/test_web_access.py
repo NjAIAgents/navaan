@@ -169,12 +169,16 @@ class Access(unittest.TestCase):
         code, body = up(name="Calm Piano.mp3", audio=b64); self.assertEqual(code, 200); self.assertEqual(json.loads(body)["redo"], "Plan the typography"); self.assertTrue(os.path.exists(os.path.join(D, "timing.json")))   # an approved video keeps its sound and is told what to redo
         self.assertEqual(self.call("/api/music/upload", "lis-tok", "csrf-lis", post=True, body=dict(slug=slug, name="a.mp3", audio=b64))[0], 403)   # a listener has no say
 
-    def test_importing_a_song_needs_both_the_suno_link_and_the_audio_file_and_reads_the_link_first(self):
+    def test_importing_a_song_needs_the_suno_link_takes_the_sound_from_your_file_or_the_page_and_reads_the_link_first(self):
         import base64, suno_import
         audio = {"name": "The Streets.mp3", "data": base64.b64encode(b"\0" * 60000).decode()}
         imp = lambda **b: self.call("/api/import", "owner-tok", "csrf-owner", post=True, body=b)
         code, body = imp(audio=audio); self.assertEqual(code, 400); self.assertIn("Add the Suno link", json.loads(body)["error"])   # the file alone is no longer enough
-        code, body = imp(url="https://suno.com/s/1K4BKj0pldFbnlkF"); self.assertEqual(code, 400); self.assertIn("Add the song's audio file", json.loads(body)["error"])   # nor the link alone
+        info0 = {"title": "The Streets We Carry", "lyrics": "[Verse]\nline one\nline two", "style": "soft pop", "video_url": ""}
+        with mock.patch.object(suno_import, "read_page", return_value=info0):   # the link alone, and the page lists no video: asked for the file instead, nothing created
+            code, body = imp(url="https://suno.com/s/1K4BKj0pldFbnlkF"); self.assertEqual(code, 400); self.assertIn("Add the song's audio file instead", json.loads(body)["error"])
+        with mock.patch.object(suno_import, "read_page", return_value={**info0, "video_url": "https://cdn1.suno.ai/x.mp4"}), mock.patch.object(suno_import, "fetch_voice", side_effect=ValueError("The downloaded Suno file is damaged, so I did not use it.")):
+            code, body = imp(url="https://suno.com/s/1K4BKj0pldFbnlkF"); self.assertEqual(code, 400); self.assertIn("damaged", json.loads(body)["error"])   # a bad download is refused before anything is made
         with mock.patch.object(suno_import, "read_page", side_effect=ValueError("I could not find lyrics on that Suno page. Check that the song is public.")):
             code, body = imp(url="https://suno.com/song/25dbc87e-adf4-46a6-a532-080437def045", audio=audio); self.assertEqual(code, 400); self.assertIn("could not find lyrics", json.loads(body)["error"])
         self.assertEqual(self.call("/api/songs", "owner-tok", "csrf-owner")[0], 200)   # nothing was created by the refused imports
@@ -183,6 +187,22 @@ class Access(unittest.TestCase):
             code, body = imp(url="https://suno.com/song/25dbc87e-adf4-46a6-a532-080437def045", audio=audio)
         self.assertEqual(code, 200); import navaan_common as C; D = C.song_dir(json.loads(body)["slug"])
         self.assertEqual(open(os.path.join(D, "lyrics.txt")).read().strip(), info["lyrics"]); self.assertEqual(open(os.path.join(D, "style.txt")).read().strip(), "soft pop, cinematic"); self.assertTrue(os.path.isfile(os.path.join(D, "takes", "upload.mp3")))   # the words from the link, the sound from the file
+
+    def test_a_song_import_with_only_the_link_takes_the_sound_from_the_suno_page_video(self):
+        import shutil as _sh, subprocess as _sp, tempfile as _tf, suno_import, navaan_common as C
+        if not (_sh.which("ffmpeg") and _sh.which("ffprobe")): self.skipTest("ffmpeg is needed")
+        t = _tf.mkdtemp(); self.addCleanup(_sh.rmtree, t, True); m4a = os.path.join(t, "v.m4a")
+        _sp.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=330:duration=30", "-c:a", "aac", "-b:a", "192k", m4a], check=True)
+        info = {"title": "The Streets We Carry", "lyrics": "[Verse 1]\nThere was a quiet in those little streets,", "style": "soft pop", "video_url": "https://cdn1.suno.ai/x.mp4"}
+        seen = {}
+        def fake_fetch(url, tmp, max_seconds=0, max_bytes=0): seen.update(url=url, secs=max_seconds, mb=max_bytes >> 20); return m4a
+        imp = lambda **b: self.call("/api/import", "owner-tok", "csrf-owner", post=True, body=b)
+        with mock.patch.object(suno_import, "read_page", return_value=info), mock.patch.object(suno_import, "fetch_voice", fake_fetch), mock.patch.object(suno_import, "fetch", lambda slug, dest=None: False), mock.patch.object(U, "start_job", lambda sl, all_=True: True):
+            code, body = imp(url="https://suno.com/s/abc12345")
+        self.assertEqual(code, 200); D = C.song_dir(json.loads(body)["slug"])
+        self.assertEqual((seen["url"], seen["secs"], seen["mb"]), ("https://cdn1.suno.ai/x.mp4", 600.0, 80))   # a whole song is allowed up to ten minutes
+        self.assertTrue(os.path.isfile(os.path.join(D, "takes", "upload.m4a"))); self.assertEqual(open(os.path.join(D, "lyrics.txt")).read().strip(), info["lyrics"])   # the sound from the page, the words from the link
+        self.assertEqual(open(os.path.join(D, "title.txt")).read().strip(), "The Streets We Carry")
 
     def test_the_picture_plan_is_edited_on_the_step_page_and_a_bad_edit_changes_nothing(self):
         import navaan, navaan_common as C

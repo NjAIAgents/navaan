@@ -35,17 +35,18 @@ describe("New song and New inspiration", () => {
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Maybe you are not behind" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText(/inspiration pipeline is planned \(ref req-8\)/)).toBeInTheDocument(); expect(posts(f, "/api/new")[0]).toEqual({ type: "inspiration", idea: "Maybe you are not behind", narrate: "eleven", voice: "suno1" });   // narration is a standard step: on unless unticked
   });
-  it("needs BOTH the Suno link (the words) and the audio file (the sound), and refuses a too big file", async () => {
+  it("needs the Suno link, takes the sound from the Suno page unless an audio file is added, and refuses a too big file", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
     at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));
-    expect(screen.getByLabelText(/Suno link \(required\)/)).toBeRequired(); expect(screen.getByLabelText(/Audio file \(required/)).toBeRequired();
+    expect(screen.getByLabelText(/Suno link \(required\)/)).toBeRequired(); expect(screen.getByLabelText(/Audio file \(optional/)).not.toBeRequired();   // the file is optional now
     fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("Add the Suno link: the title, lyrics and style are read from it.");
-    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });   // the link alone is not enough
-    fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("Add the song's audio file"); expect(posts(f, "/api/import")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });   // the link alone is enough: the sound comes from the Suno page
+    fireEvent.click(screen.getByRole("button", { name: "Import" })); await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(1)); expect(posts(f, "/api/import")[0]).toEqual({ url: "https://suno.com/s/1K4BKj0pldFbnlkF" });   // no audio sent
+    cleanup(); at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" })); fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });
     const big = new File([new Uint8Array(1)], "big.mp3", { type: "audio/mpeg" }); Object.defineProperty(big, "size", { value: 23 * 1024 * 1024 });
-    fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [big] } }); fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("over 22 MB"); expect(posts(f, "/api/import")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [big] } }); fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("over 22 MB"); expect(posts(f, "/api/import")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [new File(["abc"], "song.mp3", { type: "audio/mpeg" })] } }); fireEvent.click(screen.getByRole("button", { name: "Import" }));
-    await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(1)); const b = posts(f, "/api/import")[0]; expect(b.url).toBe("https://suno.com/s/1K4BKj0pldFbnlkF"); expect(b.audio).toEqual({ name: "song.mp3", data: "YWJj" });
+    await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(2)); const b = posts(f, "/api/import")[1]; expect(b.url).toBe("https://suno.com/s/1K4BKj0pldFbnlkF"); expect(b.audio).toEqual({ name: "song.mp3", data: "YWJj" });
   });
   it("is not offered to a listener", async () => { route(LISTENER, { "/api/catalog/tracks": () => [] }); at("/"); await screen.findByRole("heading", { name: "Browse", level: 1 }); expect(screen.queryByRole("button", { name: "New song" })).toBeNull(); });
 });

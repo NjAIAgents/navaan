@@ -264,7 +264,7 @@ def inspiration_steps(slug, D):
         *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
              done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),
-        dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 10 to 30 s)", kind="script", sets_after="media_ready",
+        dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 7 to 15 s without a voice)", kind="script", sets_after="media_ready",
              cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "music.mp3", "voiceover.*"]), after="media", sets="approved"),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube Shorts title, description and tags", kind="claude", skill="inspiration-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),

@@ -5,7 +5,7 @@ description: Write or pick the quote for an inspiration short and save it as quo
 
 # Inspiration quote
 
-Content type `inspiration` is a 10 to 30 second vertical video: one quote over a cinematic background. This step decides the words. Everything after it (originality check, picture, timing) depends on this file, so keep it tight.
+Content type `inspiration` is a 7 to 15 second vertical video (longer only with a voice): one quote over a cinematic background. Its first line is on screen from the first frame, so put the strongest line of the quote FIRST, the one that makes someone stay. This step decides the words. Everything after it (originality check, picture, timing) depends on this file, so keep it tight.
 
 1. Read `brief.md` (the idea, and the options block) and `navaan.config.json` (artist voice, default language). If `quote_feedback.txt` exists, apply exactly what it says, then delete it.
 2. Choose the path:

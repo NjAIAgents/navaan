@@ -924,13 +924,14 @@ class H(BaseHTTPRequestHandler):
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 au = body.get("audio") if isinstance(body.get("audio"), dict) else None
                 if not str(body.get("url") or "").strip(): return self._send(400, {"error": "Add the Suno link: the title, lyrics and style are read from it."})
-                if not au or not au.get("data"): return self._send(400, {"error": "Add the song's audio file (mp3, wav or m4a): the sound comes from your file."})
-                try:   # both are required: the link gives the words, the file gives the sound. The link is read first, so a private or lyric-less song is refused before anything is created.
-                    suno_import.check_upload(au.get("name"), str(au.get("data") or ""))
+                try:   # the link gives the words; the sound is your file when you add one, else the video the Suno page itself lists. All of it is read and checked before anything is created, so a private song, one with no lyrics or a bad download is refused first.
                     info = suno_import.read_page(body.get("url", ""))
+                    if au and au.get("data"): name, data = au.get("name"), str(au.get("data") or "")
+                    else: name, data = suno_import.page_audio(info)
+                    suno_import.check_upload(name, data)
                     sl = suno_import.init(body.get("url", ""), slug or None)
                     suno_import.apply_page(sl, info)
-                    suno_import.save_upload(sl, au.get("name"), str(au.get("data") or ""))
+                    suno_import.save_upload(sl, name, data)
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
                 return self._send(200, {"slug": sl, "started": start_job(sl, True)})

@@ -11,6 +11,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Added
 - A failed or stuck song or inspiration can be deleted. The Delete button is on the failure message and on the item's Activity tab; it asks first and says what happens: the item leaves the list and its files are moved to a _deleted folder inside songs (with a note of who deleted it and when), not erased. A published item cannot be deleted from here, and the page says why: take it down from YouTube, Instagram, the bucket and the site first. It is refused while a run is going.
 
+### Changed
+- An inspiration video without a voice now follows the "open with the key line" recommendation: its first line is on screen from the first frame (it used to appear after a second), and the video runs 7 to 15 seconds (it ran 10 to 30), as long as the words need within that. A duration written in the brief still wins, up to 30 seconds, and a narrated short still follows its voice. The quote step is told to put the strongest line first, since that line is now the opening.
+- Importing a song from Suno now needs only the link. The sound is taken from the video the public Suno page lists (on Suno's own servers, the same file and the same checks as an inspiration's voice: it must decode all the way through, have sound and not be silent, up to ten minutes and 80 MB). An audio file is still accepted and wins when you add one, and it is the way out when the page lists no video or the download fails a check; nothing is created in that case.
+- Album names are suggested as titles of a record, not as playlist names: each comes from an image, a line or one idea that runs through the songs, in the language of the songs, with a sentence on that idea. Names that read like a playlist (mix, vibes, hits, best of, collection, a year or "Top 10") are dropped from the suggestions.
+
 ### Fixed
 - The approval switches on the steps were drawn as huge 44 px ticks. They are small switches now; the tap area is still 44 px.
 - A finished publish step no longer says "This step did not save a file you can open here" when it shows where it published, and a finished step says an approval was asked "before it ran" rather than "needs your approval before it runs".

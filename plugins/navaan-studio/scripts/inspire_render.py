@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """inspire_render.py <slug> [--engine auto|remotion|ffmpeg]  render the vertical inspiration video from timing.json.
 
-Output: final_reel_9x16.mp4 (1080x1920, 30 fps, h264 + aac, 10 to 30 s), thumb_9x16.jpg, render_report.json.
+Output: final_reel_9x16.mp4 (1080x1920, 30 fps, h264 + aac, 7 to 15 s without a voice), thumb_9x16.jpg, render_report.json.
 
 Engines:
   remotion  React typography and transitions rendered in headless Chrome. Best text, handles Hindi shaping. Needs `npm install` in the plugin's remotion folder.
