@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Equaliser } from "../components/Equaliser";
 import { KeepCard } from "../components/KeepCard";
 import { ShareCard } from "../components/ShareCard";
@@ -189,6 +189,23 @@ const when = (h: NonNullable<SongDetail["meta"]["history"]>[number]) => {
   return Number.isNaN(ms) ? { at: "", text: h } : { at: new Date(ms).toLocaleString(), text: rest.join(" ") };
 };
 
+// Delete an item that is not published: asked twice, and said in words what happens (its files are moved, not erased). A published item shows why it cannot be deleted instead.
+function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: boolean; onGone: () => void }) {
+  const [ask, setAsk] = useState(false);
+  const del = d.deletable;
+  if (!del) return null;
+  if (!del.ok) return <p className="mu" role="note">Cannot be deleted. {del.why}</p>;
+  return ask ? (
+    <div className="stack" role="alertdialog" aria-label={`Confirm deleting ${d.slug}`}>
+      <p>Delete {d.slug}? It disappears from the list and nothing runs for it any more. Its files are moved to a _deleted folder inside songs, not erased, but the app has no way to bring it back.</p>
+      <div className="row">
+        <button className="btn p" disabled={busy} onClick={() => void act("/api/delete", {}).then((ok) => { if (ok) onGone(); })}>Yes, delete {d.slug}</button>
+        <button className="btn g" onClick={() => setAsk(false)}>Keep it</button>
+      </div>
+    </div>
+  ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : "song"}</button></div>;
+}
+
 const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
 
 // After the videos are approved, YouTube and Instagram each have a lane of their own: each shows its own next step or approval, and neither waits for the other.
@@ -222,6 +239,7 @@ const sayFor = (path: string, b: Record<string, unknown>): [string, string] => {
     case "/api/redo": return [`Starting the redo of ${st}…`, `Redo started: ${st}.`];
     case "/api/restart": return [`Restarting from ${st}…`, `Restarting from ${st}.`];
     case "/api/run": return ["Starting…", b.all ? "Running to the next approval." : "Running one step."];
+    case "/api/delete": return ["Deleting…", `Deleted ${String(b.slug ?? "")}.`];
     case "/api/stop": return ["Stopping…", "Stop requested. The step ends in a moment."];
     case "/api/revoke": return ["Taking the approval back…", `Approval taken back: ${g}.`];
     case "/api/answer": return ["Sending your answer…", "Answer sent. The run carries on."];
@@ -233,6 +251,7 @@ const STARTS = new Set(["/api/run", "/api/redo", "/api/restart"]);
 
 export default function Song() {
   const { slug = "" } = useParams();
+  const go = useNavigate();
   const [sp, setSp] = useSearchParams();
   const [d, setD] = useState<SongDetail | null>(null);
   const [err, setErr] = useState("");
@@ -252,7 +271,7 @@ export default function Song() {
   useEffect(() => { if (!running) setStopping(false); }, [running]);   // the run really ended: the button goes back to normal
   const stop = async () => { setStopping(true); if (!(await act("/api/stop", {}))) setStopping(false); };
   const act: Act = async (path, body) => {
-    const [doing, did] = sayFor(path, body);
+    const [doing, did] = sayFor(path, { slug, ...body });
     setPending(true); setNotice(doing);
     try {
       const r = await postJSON<{ started?: boolean }>(path, { slug, ...body }); setErr(""); await load();
@@ -299,6 +318,7 @@ export default function Song() {
           : <button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
         <a className="btn g" href={classic(slug)}>Full log in the classic view <Icon name="external" /></a>
       </div>
+      <DeleteItem d={d} act={act} busy={busy} onGone={() => go(list)} />
       <details><summary>The raw error, for the log</summary>
         {d.failure.error && <pre className="art" tabIndex={0}>{d.failure.error}</pre>}
         <p className="mu">Log reference <code>{d.failure.ref}</code> (search it in the app log as <code>job_id</code>).</p>
@@ -369,6 +389,7 @@ export default function Song() {
         </>)}
         {tab === "activity" && (<>
           <Approvals d={d} act={act} busy={busy} />
+          <section className="sec" aria-labelledby="del-h"><div className="sh"><h2 id="del-h">Delete</h2></div><div className="card stack"><DeleteItem d={d} act={act} busy={busy} onGone={() => go(list)} /></div></section>
           <section className="sec" aria-labelledby="hist-h">
             <div className="sh"><h2 id="hist-h">History</h2></div>
             <ul className="card hist">

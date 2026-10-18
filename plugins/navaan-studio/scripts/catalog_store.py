@@ -79,7 +79,16 @@ MOODS = ("dawn", "dusk", "night", "quiet")   # the mood pictures of the player (
 
 
 def sync_item(slug):
-    """Make the catalog match one studio item. Returns the track slug, or None when the item is not a song."""
+    """Make the catalog match one studio item, then (only when the owner switched it on in Settings) confirm its licence. Returns the track slug, or None when the item is not a song."""
+    track = _sync_item(slug)
+    if track:
+        try: auto_confirm(track)
+        except Exception: L.exc(LOG, "auto_confirm_failed", item=slug)   # the track stays unconfirmed, which is the safe side; the owner can still confirm it
+    return track
+
+
+def _sync_item(slug):
+    """The sync itself: it never changes license_status."""
     m = C.item_load(slug, None)
     if not m or C.item_type(m) != "music": return None
     D = C.song_dir(slug)
@@ -288,6 +297,42 @@ def _asset(slug, role):
 def cover_asset(slug): return _asset(slug, "cover")
 def audio_asset(slug): return _asset(slug, "audio")
 def preview_asset(slug): return _asset(slug, "audio_preview")
+
+
+def auto_confirm(slug):
+    """When the owner has switched on automatic confirmation (licence_cfg), confirm a published track whose licence is still unconfirmed, with the owner's statement as the reason and the setting as who decided.
+    A track the owner already decided (confirmed or not_allowed) is never touched. True when this call confirmed it."""
+    import licence_cfg
+    cfg = licence_cfg.load()
+    if not cfg["auto"]: return False
+    r = _tx(lambda c: c.execute("SELECT status, license_status FROM tracks WHERE slug = ?", (slug,)).fetchone())
+    if not r or r["status"] != "published" or r["license_status"] != "unconfirmed": return False
+    return bool(set_license(slug, "confirmed", "owner (auto-confirm setting)", cfg["statement"], cfg["plan"]))
+
+
+def tracks_without_language():
+    """Tracks (published or not) that have no language, so they are missing from every language filter: [{slug, studio_slug, title, lyrics}]."""
+    rows = _tx(lambda c: c.execute("SELECT slug, studio_slug, title, lyrics_text FROM tracks WHERE language IS NULL OR btrim(language) = '' ORDER BY slug").fetchall())
+    return [{"slug": r["slug"], "studio_slug": r["studio_slug"] or r["slug"], "title": r["title"], "lyrics": r["lyrics_text"] or ""} for r in rows]
+
+
+def set_language(slug, language):
+    """Set a track's language directly (for a track whose studio folder is gone). False when there is no such track."""
+    return _tx(lambda c: c.execute("UPDATE tracks SET language = ?, updated_at = now() WHERE slug = ? RETURNING id", (str(language).strip(), slug)).fetchone()) is not None
+
+
+def delete_draft(slug):
+    """Remove the catalog row of a track that was never published (with its pictures and files list, search entry and share links). A published track is refused: ValueError. False when there was no such row."""
+    def go(c):
+        t = c.execute("SELECT id::text AS id, status FROM tracks WHERE slug = ?", (slug,)).fetchone()
+        if not t: return False
+        if t["status"] == "published": raise ValueError("this track is published on the site; take it off the site first")
+        c.execute("DELETE FROM assets WHERE owner_kind = 'track' AND owner_id = ?::uuid", (t["id"],))
+        c.execute("DELETE FROM share_links WHERE subject_kind = 'track' AND subject_id = ?::uuid", (t["id"],))
+        _unindex(c, "track", t["id"])
+        c.execute("DELETE FROM tracks WHERE id = ?::uuid", (t["id"],))   # genres, album entries and reactions go with it
+        return True
+    return _tx(go)
 
 
 def set_cover_facts(asset_id, width, height, colour):

@@ -5,7 +5,7 @@ description: Write or pick the quote for an inspiration short and save it as quo
 
 # Inspiration quote
 
-Content type `inspiration` is a 10 to 30 second vertical video: one quote over a cinematic background. This step decides the words. Everything after it (originality check, picture, timing) depends on this file, so keep it tight.
+Content type `inspiration` is a 7 to 15 second vertical video (longer only with a voice): one quote over a cinematic background. Its first line is on screen from the first frame, so put the strongest line of the quote FIRST, the one that makes someone stay. This step decides the words. Everything after it (originality check, picture, timing) depends on this file, so keep it tight.
 
 1. Read `brief.md` (the idea, and the options block) and `navaan.config.json` (artist voice, default language). If `quote_feedback.txt` exists, apply exactly what it says, then delete it.
 2. Choose the path:
@@ -19,3 +19,5 @@ Content type `inspiration` is a 10 to 30 second vertical video: one quote over a
    `author` for an original line is empty unless the brief names the account or person to credit.
 5. Write `title.txt`: a short title for the library, 60 characters at most, no hashtags.
 6. Print the quote and the author in your final message, then stop. Do not approve any gate. The user reads and edits the quote at the `quote` gate; any edit after approval asks for a new approval.
+
+   Send line: if `<local_dir>/standing_rules.json` has a rule for this account in the category engagement that asks for a reason to send the video ("send this to someone who..."), also write `send_line.txt` in the item's folder: ONE short line, under 70 characters, that names who this quote is for, in the language of the quote (for example "Send this to someone far from home"). The renderer draws it on the last seconds of the video. If there is no such rule, do not write the file.

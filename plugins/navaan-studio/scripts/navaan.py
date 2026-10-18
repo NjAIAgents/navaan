@@ -170,7 +170,7 @@ def music_steps(slug, D):
         *([cap_step] if CAPR else []),
         dict(id="reel", outputs=["final_reel_9x16.mp4", "final_reel_9x16_cap.mp4", "thumb_9x16.jpg", "reel_report.json", "reel_audio.mp3", "reel_props.json"], label="Render the vertical reel for Instagram and the Short from the hook" + (" and burn the lyrics onto it" if CAPR else "") + " (redo this alone to remake only the reel)", kind="script",
              cmds=[sc("shots_render.py", slug, "--reel")] + ([sc("caption_clips.py", slug, "own")] if CAPR else []),
-             done=lambda m: fresh(D, ["final_reel_9x16.mp4"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", "images/vert/*", ".cache/motion/*.mp4", "reel_start.json"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json", "reel_lyrics.json"] if CAPR else []))),
+             done=lambda m: fresh(D, ["final_reel_9x16.mp4"] + (["final_reel_9x16_cap.mp4"] if CAPR else []), ["visuals.json", "images/*", "images/vert/*", ".cache/motion/*.mp4", "reel_start.json", "send_line.txt"] + ([] if own_static else ["shots.json"]) + (["caption_cues.json", "reel_lyrics.json"] if CAPR else []))),
         dict(id="video", outputs=["final_16x9.mp4", "final_tagged.mp3", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg", "render_report.json"], label="Render the full video here from your pictures and tag the mp3", kind="script", sets_after="media_ready",
              cmds=[sc("shots_render.py", slug), sc("tag_mp3.py", slug)],
              done=lambda m: fresh(D, ["final_16x9.mp4", "final_tagged.mp3"], ["visuals.json", "images/*", ".cache/motion/*.mp4"] + ([] if own_static else ["shots.json"])), after="media", sets="approved"),
@@ -264,8 +264,8 @@ def inspiration_steps(slug, D):
         *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
              done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),
-        dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 10 to 30 s)", kind="script", sets_after="media_ready",
-             cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "music.mp3", "voiceover.*"]), after="media", sets="approved"),
+        dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 7 to 15 s without a voice)", kind="script", sets_after="media_ready",
+             cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "music.mp3", "voiceover.*", "send_line.txt"]), after="media", sets="approved"),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube Shorts title, description and tags", kind="claude", skill="inspiration-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
         dict(id="publish_youtube", outputs=["published.json"], redo=False, label="Upload to YouTube as a Short (API, private)", kind="script", before="publish_youtube",
@@ -937,6 +937,36 @@ def ig_reel_candidates(slug):
     import reel_lyrics
     cands = ["final_reel_9x16_cap.mp4", "final_reel_9x16.mp4"] + (["final_reel_cap.mp4"] if cfg("captions.enabled", False) else []) + ["final_reel_sync.mp4", "short.mp4"]
     return cands if reel_lyrics.on(meta(slug)) else [c for c in cands if "_cap" not in c]
+
+
+def deletable(slug):
+    """(ok, why): whether an item may be deleted from the studio. A published item may not: deleting it here would leave its posts and its page on the site behind."""
+    m = meta(slug)
+    if C.published_links(m) or (m.get("cloud") or {}).get("uploaded_at") or m.get("state") == "published":
+        return False, "It is published (on YouTube, Instagram, the cloud bucket or the site). Take it down there first; deleting it here would leave those behind."
+    try:
+        import catalog_store
+        if catalog_store.track_view(slug, all_licences=True): return False, "It is on the site. Take it off the site first."   # the catalog lists published tracks only
+    except Exception as _e: L.soft(LOG, "deletable_catalog_check")   # a catalog that cannot be read does not block deleting an item that is not published
+    return True, ""
+
+
+def delete_item(slug, by):
+    """Delete an item that is not published: it leaves the list, and its folder is moved to songs/_deleted/<slug>-<time>/ with a note of who deleted it and when, so nothing is erased from disk. Raises SystemExit with a sentence when it may not be deleted."""
+    import shutil, studio_store
+    ok, why = deletable(slug)
+    if not ok: sys.exit(why)
+    D = song_dir(slug); m = meta(slug); stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dest = os.path.join(songs_root(), "_deleted", f"{slug}-{stamp}"); os.makedirs(os.path.dirname(dest), exist_ok=True)
+    try:
+        import catalog_store; catalog_store.delete_draft(slug)
+    except ValueError as e: sys.exit(str(e))
+    except Exception: L.exc(LOG, "delete_catalog_failed", item=slug)   # a draft row left behind is not shown anywhere; the item is still deleted
+    studio_store.delete(slug)
+    shutil.move(D, dest)
+    with open(os.path.join(dest, "deleted.json"), "w", encoding="utf-8") as f: json.dump({"slug": slug, "deleted_at": stamp, "by": by, "state": m.get("state"), "type": item_type(m), "meta": m}, f, indent=2, default=str); f.write("\n")
+    L.event(LOG, "info", "item_deleted", item=slug, by=by, moved_to=dest)
+    return dest
 
 
 def request_changes(slug, gate, note, via, about=""):

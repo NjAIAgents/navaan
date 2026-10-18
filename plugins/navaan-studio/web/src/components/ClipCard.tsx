@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { postJSON } from "../lib/api";
 import { errText } from "../lib/songs";
 import { mmss } from "../lib/lyrics";
@@ -16,15 +16,22 @@ export function ClipCard({ slug, title, position, duration }: { slug: string; ti
   const copyText = async (text: string, ok: string) => { try { await navigator.clipboard.writeText(text); setNote(ok); } catch { setNote("Copy failed. Select the text by hand."); } };   // expected: clipboard can be blocked
   const copy = () => copyText(made!.page, "Link copied.");
   const phone = typeof navigator !== "undefined" && typeof navigator.canShare === "function";   // a phone's share sheet takes the video itself; a computer does not
-  const share = async () => {
+  // The clip is fetched as soon as it is made, not when Share is pressed: an iPhone only opens the share sheet from inside the tap itself, and waiting for a download first made it refuse.
+  const [file, setFile] = useState<File | null | "failed">(null);
+  useEffect(() => {
+    if (!made) return; setFile(null); let live = true;
+    fetch(made.url).then((r) => r.blob()).then((b) => { if (live) setFile(new File([b], `${slug}-clip.mp4`, { type: "video/mp4" })); }).catch(() => { if (live) setFile("failed"); });   // expected: without the file Share sends the link instead
+    return () => { live = false; };
+  }, [made, slug]);
+  const failed = (e: unknown) => { if ((e as { name?: string }).name !== "AbortError") setNote("Could not open the share sheet. Copy the link instead."); };
+  const share = () => {   // nothing is awaited before navigator.share: it must be called inside the tap
     if (!made) return; setNote("");
+    const text = clipCaption(title, made.page); const f = file instanceof File ? file : null;
     try {
-      const blob = await (await fetch(made.url)).blob(); const file = new File([blob], `${slug}-clip.mp4`, { type: "video/mp4" });
-      const text = clipCaption(title, made.page);
-      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
-      if (navigator.share) { await navigator.share({ title, text: `${title} on NAVAAN`, url: made.page }); return; }
-      await copy();
-    } catch (e) { if ((e as { name?: string }).name !== "AbortError") setNote("Could not open the share sheet. Copy the link instead."); }
+      if (f && navigator.canShare?.({ files: [f] })) void navigator.share({ files: [f], text }).catch(failed);
+      else if (navigator.share) void navigator.share({ title, text: `${title} on NAVAAN`, url: made.page }).catch(failed);
+      else void copy();
+    } catch (e) { failed(e); }
   };
   return (
     <section className="card stack" aria-labelledby="clip-h">
@@ -49,8 +56,9 @@ export function ClipCard({ slug, title, position, duration }: { slug: string; ti
       {made && (
         <div className="stack">
           <video controls playsInline preload="metadata" src={made.url} style={{ width: "min(280px, 100%)", borderRadius: 12 }} aria-label={`Clip of ${title}`} />
-          <div className="row"><button className="btn p" onClick={() => void share()}>Share the clip</button><a className="btn" href={made.url} download={`${slug}-clip.mp4`}>Download the clip</a></div>
+          <div className="row"><button className="btn p" disabled={file === null} onClick={share}>Share the clip</button><a className="btn" href={made.url} download={`${slug}-clip.mp4`}>Download the clip</a></div>
           <div className="row"><button className="btn" onClick={() => void copyText(clipCaption(title, made.page), "Caption copied.")}>Copy caption</button><button className="btn" onClick={() => void copy()}>Copy link</button></div>
+          {file === null && <p className="mu" role="status">Getting the clip ready so it opens straight in the share sheet…</p>}
           {!phone && <p className="mu">On a computer: download the clip, then post it from the Instagram app on your phone, with the caption and link copied here.</p>}
         </div>
       )}

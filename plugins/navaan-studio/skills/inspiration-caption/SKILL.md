@@ -18,3 +18,5 @@ Write `instagram.txt`. The caption is reviewed and approved by the user, and any
 3. Save the file, print the caption, and stop. Do not approve the gate and do not publish.
 
    Standing rules: if `<local_dir>/standing_rules.json` exists (next to the songs folder, written when the user presses Implement on a recommendation), apply every rule for this account whose category is caption, hook, hashtags, engagement, packaging or format, and say which ones you applied.
+
+   Send line: if `send_line.txt` exists in the item's folder, it is the line drawn at the end of the video that names who it is for. Use that same line in the caption (as the call to action), word for word, so the video and the caption say the same thing.

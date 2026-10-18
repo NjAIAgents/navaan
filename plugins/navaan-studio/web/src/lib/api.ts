@@ -46,6 +46,7 @@ export type SongDetail = {
   prompt_pack?: { aspect?: string; concept?: string; character?: string; style_line: string; look?: Record<string, unknown>; prompts: { n: number; section: string; lyric?: string; prompt: string; camera?: string; motion?: string }[] } | null;
   run?: { step?: string; attempt?: number; attempts?: number; elapsed?: number; quiet_s?: number; pct?: number; done?: number; total?: number; label?: string; failed?: string | null };
   lanes?: Record<string, { type: "gate" | "run"; step: string; gate?: string }>;
+  deletable?: { ok: boolean; why: string };
   gates_off?: string[]; reel_lyrics?: { on: boolean; offset: number };
   try?: { running?: boolean; error?: string; files?: string[]; v?: number }; vertical?: { running?: boolean; error?: string; done?: number[] };
   visuals_problems?: string[];
@@ -108,6 +109,7 @@ export type SettingsData = {
   claude: { credential: string; state: string; headless: boolean };
   media: { settings: Record<string, string | number>; keys: Record<string, boolean>; usage: { month?: string; eleven_seconds?: number; openai_usd?: number }; voices: Record<string, string>; choices: Record<string, string[]> };
   gates: { id: string; on: boolean; types: string[] }[];
+  licence?: { auto: boolean; statement: string; suggested: string; set_by: string; set_at: string };
 };
 export type Alert = { id: string; kind: string; title: string; message: string; command?: string; where?: string };
 

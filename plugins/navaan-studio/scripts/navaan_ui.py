@@ -235,7 +235,7 @@ def detail(slug):
     failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
-            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "reel_lyrics": reel_lyrics.view(D, m),
+            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "deletable": dict(zip(("ok", "why"), navaan.deletable(slug))), "reel_lyrics": reel_lyrics.view(D, m),
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
@@ -827,6 +827,9 @@ class H(BaseHTTPRequestHandler):
                     if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
                     if act == "claude_save": return self._send(200, settings_api.claude_save(str(body.get("token") or "")))
                     if act == "gates_save": return self._send(200, settings_api.gates_save(body.get("gates") or {}))
+                    if act == "licence_save":
+                        r = settings_api.licence_save(body.get("auto"), body.get("statement"), sess.get("user") or "owner"); auth._audit("licence_setting", user=sess.get("user"), ip=self._ip(), auto=bool(body.get("auto")))
+                        return self._send(200, r)
                     if act == "media_save": return self._send(200, settings_api.media_save(body.get("settings") or {}))
                     if act == "media_key": return self._send(200, settings_api.media_key_save(str(body.get("provider") or ""), str(body.get("token") or "")))
                     if act == "yt_oauth_start": return self._send(200, settings_api.yt_oauth_start(ct, str(body.get("which") or "publish")))
@@ -924,13 +927,14 @@ class H(BaseHTTPRequestHandler):
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 au = body.get("audio") if isinstance(body.get("audio"), dict) else None
                 if not str(body.get("url") or "").strip(): return self._send(400, {"error": "Add the Suno link: the title, lyrics and style are read from it."})
-                if not au or not au.get("data"): return self._send(400, {"error": "Add the song's audio file (mp3, wav or m4a): the sound comes from your file."})
-                try:   # both are required: the link gives the words, the file gives the sound. The link is read first, so a private or lyric-less song is refused before anything is created.
-                    suno_import.check_upload(au.get("name"), str(au.get("data") or ""))
+                try:   # the link gives the words; the sound is your file when you add one, else the video the Suno page itself lists. All of it is read and checked before anything is created, so a private song, one with no lyrics or a bad download is refused first.
                     info = suno_import.read_page(body.get("url", ""))
+                    if au and au.get("data"): name, data = au.get("name"), str(au.get("data") or "")
+                    else: name, data = suno_import.page_audio(info)
+                    suno_import.check_upload(name, data)
                     sl = suno_import.init(body.get("url", ""), slug or None)
                     suno_import.apply_page(sl, info)
-                    suno_import.save_upload(sl, au.get("name"), str(au.get("data") or ""))
+                    suno_import.save_upload(sl, name, data)
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
                 return self._send(200, {"slug": sl, "started": start_job(sl, True)})
@@ -974,6 +978,12 @@ class H(BaseHTTPRequestHandler):
                 if body.get("offset") is not None: reel_lyrics.save_offset(C.song_dir(slug), nudge); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"reel lyrics nudged by {nudge} s via {who}"))
                 return self._send(200, {"ok": True, **reel_lyrics.view(C.song_dir(slug), navaan.meta(slug))})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, f"ui:{sess.get('user') or 'owner'}"); return self._send(200, {"ok": True})   # the history says who took the approval back
+            if p == "/api/delete":   # an item that is not published goes to songs/_deleted (nothing is erased); a published one is refused with the reason
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this item. Press Stop first."})
+                try: dest = navaan.delete_item(slug, f"ui:{sess.get('user') or 'owner'}")
+                except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
+                auth._audit("item_delete", user=sess.get("user"), ip=self._ip(), slug=slug)
+                return self._send(200, {"ok": True, "moved_to": os.path.relpath(dest, C.songs_root())})
             if p == "/api/redo":
                 if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})

@@ -71,6 +71,26 @@ function YouTube({ a, which, act, busy }: { a: SettingsAccount; which: "publish"
   );
 }
 
+// Songs you publish are shown on the site only once their licence is confirmed. With this on they are confirmed for you, with your statement as the reason; off, you confirm each one.
+function Licence({ d, act, busy }: { d: SettingsData; act: Do; busy: boolean }) {
+  const l = d.licence; const [text, setText] = useState(l?.statement || l?.suggested || ""); const [err, setErr] = useState("");
+  if (!l) return null;
+  const set = async (auto: boolean) => { setErr(""); if (auto && !text.trim()) return setErr("Write the statement first."); await act("licence_save", { auto, statement: text }); };
+  return (
+    <section className="sec" aria-labelledby="lic-h">
+      <div className="sh"><h2 id="lic-h">Licence of new songs</h2></div>
+      <div className="card stack">
+        <p className="mu">A song is shown to listeners only when its licence is confirmed. Switch this on and every song you publish is confirmed automatically, with the statement below recorded as the reason and "owner (auto-confirm setting)" as who decided. A song you marked not allowed is never changed. Off, you confirm each one yourself.</p>
+        <label htmlFor="lic-text">Your statement (in your own words)</label>
+        <textarea id="lic-text" className="field" rows={3} maxLength={400} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+        <label className="row" style={{ gap: 10 }}><input type="checkbox" role="switch" checked={l.auto} disabled={busy} onChange={(e) => void set(e.target.checked)} /> Confirm the licence of songs I publish automatically</label>
+        {l.auto && <p className="mu" role="status">On since {l.set_at ? new Date(l.set_at).toLocaleString() : "now"}{l.set_by ? ` by ${l.set_by}` : ""}.</p>}
+        {err && <p role="alert" style={{ color: "var(--bad)" }}>{err}</p>}
+      </div>
+    </section>
+  );
+}
+
 function Gates({ d, act, busy }: { d: SettingsData; act: Do; busy: boolean }) {
   const [ask, setAsk] = useState<{ id: string; on: boolean } | null>(null);
   return (
@@ -261,7 +281,7 @@ export default function Settings() {
       <div id="st-panel" role="tabpanel" aria-labelledby={`st-${tab}`} className="stack">
         {tab === "accounts" && <AccountsTab d={d} act={act} save={save} busy={busy} open={open} toggle={toggle} />}
         {tab === "ai" && <AiTab d={d} act={act} save={save} busy={busy} open={open} toggle={toggle} />}
-        {tab === "automation" && <Gates d={d} act={act} busy={busy} />}
+        {tab === "automation" && <><Gates d={d} act={act} busy={busy} /><Licence d={d} act={act} busy={busy} /></>}
         {tab === "storage" && <StorageTab d={d} />}
       </div>
     </>

@@ -52,6 +52,15 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     fireEvent.click(screen.getByRole("switch", { name: /Upload the video to YouTube|publish_youtube|YouTube/ })); expect(await screen.findByRole("alertdialog")).toHaveTextContent("approve itself"); expect(posts(f, "/api/settings/gates_save")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Yes, approve it automatically" })); await waitFor(() => expect(posts(f, "/api/settings/gates_save")[1]).toEqual({ gates: { publish_youtube: false } }));
   });
+  it("switches automatic licence confirmation on with the owner's statement, and needs the statement first", async () => {
+    const f = route({ "/api/settings/licence_save": () => ({ licence: {} }), "/api/settings": () => ({ ...DATA, licence: { auto: false, statement: "", suggested: "Every song I publish is made on a paid Suno plan.", set_by: "", set_at: "" } }) });
+    at(); fireEvent.click(await screen.findByRole("tab", { name: "Automation" }));
+    const box = await screen.findByLabelText("Your statement (in your own words)") as HTMLTextAreaElement; expect(box.value).toContain("paid Suno plan");   // the suggestion is there to edit, not saved
+    const sw = screen.getByRole("switch", { name: /Confirm the licence of songs I publish automatically/ }); expect(sw).not.toBeChecked();
+    fireEvent.change(box, { target: { value: "" } }); fireEvent.click(sw); expect(await screen.findByRole("alert")).toHaveTextContent("Write the statement first"); expect(posts(f, "/api/settings/licence_save")).toHaveLength(0);
+    fireEvent.change(box, { target: { value: "All my songs are on a paid plan." } }); fireEvent.click(sw);
+    await waitFor(() => expect(posts(f, "/api/settings/licence_save")).toEqual([{ auto: true, statement: "All my songs are on a paid plan." }]));
+  });
   it("shows the server's refusal under the box", async () => {
     route({ "/api/settings/claude_save": () => json({ error: "that token was refused" }, 400), "/api/settings": () => DATA });
     at(); fireEvent.click(await screen.findByRole("tab", { name: "AI services" })); await open(/^Claude/);

@@ -73,6 +73,23 @@ class Download(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE, "ffmpeg is needed")
+class WholeSong(unittest.TestCase):
+    def test_a_song_may_be_longer_than_a_voice_and_the_page_audio_is_ready_to_save(self):
+        d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d, True); big = os.path.join(d, "long.mp4")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=32x32:d=200:r=1", "-f", "lavfi", "-i", "sine=frequency=330:duration=200", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest", big], check=True)
+        data = open(big, "rb").read(); work = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, work, True)
+        with mock.patch("urllib.request.urlopen", lambda req, timeout=0: Resp(data)):
+            with self.assertRaises(ValueError) as c: S.fetch_voice(URL, work)   # a voice is at most 180 seconds
+            self.assertIn("does not look like the song", str(c.exception))
+            out = S.fetch_voice(URL, work, max_seconds=S.SONG_SECONDS, max_bytes=S.SONG_BYTES); self.assertTrue(os.path.getsize(out) > 50000)   # a song may be ten minutes
+            info = {"title": "The Streets We Carry", "video_url": URL}
+            name, b64 = S.page_audio(info)
+        self.assertEqual(name, "The Streets We Carry.m4a"); raw, ext = S.check_upload(name, b64); self.assertEqual(ext, ".m4a")   # exactly what save_upload takes
+        with self.assertRaises(ValueError) as c: S.page_audio({"title": "x", "video_url": ""})
+        self.assertIn("Add the song's audio file instead", str(c.exception))
+
+
+@unittest.skipUnless(HAVE, "ffmpeg is needed")
 class Attach(unittest.TestCase):
     def test_the_lyrics_become_the_quote_the_sound_the_voice_and_the_title_is_suno_s(self):
         D = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, D, True)

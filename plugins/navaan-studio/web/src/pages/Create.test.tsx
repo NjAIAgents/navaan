@@ -35,17 +35,18 @@ describe("New song and New inspiration", () => {
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Maybe you are not behind" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText(/inspiration pipeline is planned \(ref req-8\)/)).toBeInTheDocument(); expect(posts(f, "/api/new")[0]).toEqual({ type: "inspiration", idea: "Maybe you are not behind", narrate: "eleven", voice: "suno1" });   // narration is a standard step: on unless unticked
   });
-  it("needs BOTH the Suno link (the words) and the audio file (the sound), and refuses a too big file", async () => {
+  it("needs the Suno link, takes the sound from the Suno page unless an audio file is added, and refuses a too big file", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
     at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));
-    expect(screen.getByLabelText(/Suno link \(required\)/)).toBeRequired(); expect(screen.getByLabelText(/Audio file \(required/)).toBeRequired();
+    expect(screen.getByLabelText(/Suno link \(required\)/)).toBeRequired(); expect(screen.getByLabelText(/Audio file \(optional/)).not.toBeRequired();   // the file is optional now
     fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("Add the Suno link: the title, lyrics and style are read from it.");
-    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });   // the link alone is not enough
-    fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("Add the song's audio file"); expect(posts(f, "/api/import")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });   // the link alone is enough: the sound comes from the Suno page
+    fireEvent.click(screen.getByRole("button", { name: "Import" })); await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(1)); expect(posts(f, "/api/import")[0]).toEqual({ url: "https://suno.com/s/1K4BKj0pldFbnlkF" });   // no audio sent
+    cleanup(); at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" })); fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });
     const big = new File([new Uint8Array(1)], "big.mp3", { type: "audio/mpeg" }); Object.defineProperty(big, "size", { value: 23 * 1024 * 1024 });
-    fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [big] } }); fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("over 22 MB"); expect(posts(f, "/api/import")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [big] } }); fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("over 22 MB"); expect(posts(f, "/api/import")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [new File(["abc"], "song.mp3", { type: "audio/mpeg" })] } }); fireEvent.click(screen.getByRole("button", { name: "Import" }));
-    await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(1)); const b = posts(f, "/api/import")[0]; expect(b.url).toBe("https://suno.com/s/1K4BKj0pldFbnlkF"); expect(b.audio).toEqual({ name: "song.mp3", data: "YWJj" });
+    await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(2)); const b = posts(f, "/api/import")[1]; expect(b.url).toBe("https://suno.com/s/1K4BKj0pldFbnlkF"); expect(b.audio).toEqual({ name: "song.mp3", data: "YWJj" });
   });
   it("is not offered to a listener", async () => { route(LISTENER, { "/api/catalog/tracks": () => [] }); at("/"); await screen.findByRole("heading", { name: "Browse", level: 1 }); expect(screen.queryByRole("button", { name: "New song" })).toBeNull(); });
 });
@@ -331,5 +332,22 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     expect(document.getElementById("step-publish_youtube")).toHaveTextContent("YouTube lane"); expect(document.getElementById("step-instagram_caption")).toHaveTextContent("Instagram lane");
     fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
     await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
+  });
+  it("offers to delete a failed item with a confirmation, deletes it and goes back to the list; a published one shows why it cannot be deleted", async () => {
+    const f = route(OWNER, { "/api/delete": () => ({ ok: true, moved_to: "_deleted/song-007-x" }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-007", failure: { step: "video", error: "boom", ref: "r1", plain: "The video could not be built." }, deletable: { ok: true, why: "" }, steps: [step("video")] }) });
+    at(A);
+    expect(await screen.findByText("The video could not be built.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete this song" }));
+    expect(screen.getByRole("alertdialog", { name: "Confirm deleting song-007" })).toHaveTextContent("moved to a _deleted folder inside songs, not erased"); expect(posts(f, "/api/delete")).toEqual([]);   // nothing yet
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" })); expect(screen.queryByRole("alertdialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Delete this song" })); fireEvent.click(screen.getByRole("button", { name: "Yes, delete song-007" }));
+    await waitFor(() => expect(posts(f, "/api/delete")).toEqual([{ slug: "song-007" }]));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Songs" })).toBeInTheDocument());   // back on the list
+  });
+
+  it("does not offer deleting a published item and says why", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "song-007", deletable: { ok: false, why: "It is published (on YouTube, Instagram, the cloud bucket or the site). Take it down there first; deleting it here would leave those behind." }, steps: [step("video", { done: true, status: "done" })] }) });
+    at(`${A}?tab=activity`);
+    expect(await screen.findByText(/Cannot be deleted\. It is published/)).toBeInTheDocument(); expect(screen.queryByRole("button", { name: /Delete this/ })).toBeNull();
   });
 });
