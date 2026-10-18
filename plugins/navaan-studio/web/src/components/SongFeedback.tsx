@@ -15,8 +15,9 @@ function B({ r, mine, press, label, children }: { r: Reaction; mine: Reaction | 
 
 // Thumbs up, thumbs down, and double thumbs up ("Love it") on a song, and a way to write to us. Pressing the same one again takes it back. Only counts reach the server, nothing about the visitor;
 // the choice is remembered in the browser so the button stays pressed. Nobody sees the totals here: they are for the owner.
-export function SongFeedback({ slug, title }: { slug: string; title: string }) {
+export function SongFeedback({ slug, title, bare = false, onForm }: { slug: string; title: string; bare?: boolean; onForm?: () => void }) {   // bare: inside a sheet; onForm: the sheet opens the message form itself, so two dialogs never stack
   const [mine, setMine] = useState<Reaction | null>(() => remembered(slug)); const [err, setErr] = useState(""); const [form, setForm] = useState(false); const [hint, setHint] = useState(false);
+  const openForm = () => (onForm ? onForm() : setForm(true));
   useEffect(() => { setMine(remembered(slug)); setHint(false); }, [slug]);
   const press = async (r: Reaction) => {
     setErr(""); const next = mine === r ? null : r;
@@ -26,18 +27,18 @@ export function SongFeedback({ slug, title }: { slug: string; title: string }) {
     } catch (e) { setErr(e instanceof ApiError ? e.message : errText(e)); }
   };
   return (
-    <section className="card stack" aria-labelledby="fb-h">
-      <h2 id="fb-h">What did you think?</h2>
+    <div className={bare ? "stack" : "card stack"} {...(bare ? {} : { role: "region", "aria-labelledby": "fb-h" })}>
+      {!bare && <h2 id="fb-h">What did you think?</h2>}
       <div className="row" role="group" aria-label={`React to ${title}`}>
         <B r="up" mine={mine} press={press} label="Thumbs up"><Icon name="thumb" /></B>
         <B r="love" mine={mine} press={press} label="Love it (double thumbs up)"><span className="dbl" aria-hidden="true"><Icon name="thumb" /><Icon name="thumb" /></span></B>
         <B r="down" mine={mine} press={press} label="Thumbs down"><span style={{ display: "flex", transform: "scaleY(-1)" }}><Icon name="thumb" /></span></B>
-        <button className="btn g" onClick={() => setForm(true)}><Icon name="mail" /> Send feedback</button>
+        <button className="btn g" onClick={openForm}><Icon name="mail" /> Send feedback</button>
       </div>
-      {hint && <p className="mu" role="status">Sorry it missed. <button className="linkish" onClick={() => setForm(true)}>Tell us what to improve</button> (optional).</p>}
+      {hint && <p className="mu" role="status">Sorry it missed. <button className="linkish" onClick={openForm}>Tell us what to improve</button> (optional).</p>}
       {err && <p role="alert" className="mu">{err}</p>}
       {form && <FeedbackForm slug={slug} title={title} onClose={() => setForm(false)} />}
-    </section>
+    </div>
   );
 }
 

@@ -225,6 +225,7 @@ body.lock { overflow: hidden; }
   .pm-lyrics { grid-area: lyr; height: min(80vh, 800px); -webkit-mask-image: linear-gradient(transparent, black 14%, black 86%, transparent); mask-image: linear-gradient(transparent, black 14%, black 86%, transparent); }
   .pm-lyrics .lyrics { font-size: clamp(24px, 2.5vw, 38px); gap: 20px; text-align: left; align-items: flex-start; padding: 34vh 0; } .pm-lyrics .lyrics li { transform-origin: left; }
 }
+.pm-bar.sm { flex: 0 0 100%; } .pm-bar.sm input[type="range"] { min-height: 20px; margin: 0; } .pm-bar.sm .pm-times { font-size: 11px; line-height: 1.2; padding: 0 2px 2px; }   /* the bottom bar: a slim bar with the times under it */
 .pm-bar { width: 100%; } .pm-bar input[type="range"] { width: 100%; min-height: var(--tap); accent-color: var(--ac); } .pm-times { display: flex; justify-content: space-between; font-size: 13px; }
 @media (max-width: 899px) { .hero-tx h1 { font-size: 30px; } .hero { gap: 16px; } }
 
@@ -303,3 +304,4 @@ body.lock { overflow: hidden; }
 
 /* YouTube and Instagram each have a lane of their own once the videos are approved: side by side on a wide screen, stacked on a phone. */
 .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; } .lane > .row { align-items: baseline; }
+.ly-line { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; display: inline-flex; gap: 12px; align-items: center; min-height: var(--tap); border-radius: 6px; } .ly-line:hover span:last-child { text-decoration: underline; text-underline-offset: 4px; } .ly-line:focus-visible { outline: 2px solid var(--ac); outline-offset: 3px; } .ly-t { font-size: .6em; font-variant-numeric: tabular-nums; color: var(--dim); min-width: 2.6em; }

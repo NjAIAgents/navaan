@@ -26,15 +26,18 @@ class Token(unittest.TestCase):
 
     def test_a_token_is_the_whole_recipe_and_nothing_else_parses(self):
         self.assertEqual(CS.parse(CS.token("song-002", 45, 15)), ("song-002", 45, 15)); self.assertEqual(CS.parse("a-b-c-0-30"), ("a-b-c", 0, 30))
-        for bad in ("", "song-002", "song-002-45-20", "song-002-45-15.mp4", "../x-1-15"):
+        self.assertEqual(CS.parse("song-002-45-90"), ("song-002", 45, 90))   # any length the sliders allow; links of 15 and 30 made before still work
+        for bad in ("", "song-002", "song-002-45-15.mp4", "../x-1-15", "song-002-45-1234"):
             with self.assertRaises(ValueError, msg=bad): CS.parse(bad)
 
 
 class Rules(unittest.TestCase):
-    def test_only_15_or_30_seconds_inside_the_song_of_a_song_a_visitor_may_play(self):
+    def test_only_5_to_90_seconds_inside_the_song_of_a_song_a_visitor_may_play(self):
         with mock.patch.object(CS.K, "play_key", lambda s, confirmed_only=False: "k" if s == "song-001" else None):
             CS.check("song-001", 0, 15); CS.check("song-001", 120, 30)
-            with self.assertRaises(ValueError): CS.check("song-001", 0, 20)
+            CS.check("song-001", 0, 5); CS.check("song-001", 10, 90); CS.check("song-001", 0, 20)
+            with self.assertRaises(ValueError): CS.check("song-001", 0, 4)
+            with self.assertRaises(ValueError): CS.check("song-001", 0, 91)
             with self.assertRaises(ValueError): CS.check("song-001", -1, 15)
             with self.assertRaises(ValueError): CS.check("song-001", 99999, 15)
             with self.assertRaises(LookupError): CS.check("song-002", 0, 15)   # not published or not confirmed
@@ -63,6 +66,23 @@ class Make(unittest.TestCase):
         self.assertEqual((v["width"], v["height"]), (1080, 1920)); self.assertEqual(a["codec_name"], "aac"); self.assertAlmostEqual(float(j["format"]["duration"]), 15, delta=0.5)
         self.assertLess(os.path.getsize(out), 4_000_000)
         self.assertEqual(CS.make("song-001", 5, 15), out); self.assertEqual(len(self.gets), 1)   # the second ask is the cache
+
+    def test_the_clip_starts_exactly_where_it_was_asked_even_from_an_mp3_without_a_seek_table(self):
+        # 20 s of silence then a tone, as a VBR mp3 with no Xing header: seeking the input lands seconds early on such a file, so a clip asked for at 0:20 began in the silence
+        p = os.path.join(tempfile.mkdtemp(), "b.mp3")
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "aevalsrc=if(lt(t\\,20)\\,0\\,0.5*sin(2*PI*440*t)):d=60:s=44100", "-c:a", "libmp3lame", "-q:a", "5", "-write_xing", "0", p], check=True)
+        self.audio = open(p, "rb").read()
+        def level(out, a, b):
+            r = subprocess.run(["ffmpeg", "-v", "info", "-ss", str(a), "-t", str(b - a), "-i", out, "-vn", "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True).stderr
+            return float(r.split("mean_volume:")[1].split("dB")[0])
+        self.assertGreater(level(CS.make("song-001", 20, 10), 0.5, 3), -30)   # the tone is there from the start
+        self.assertLess(level(CS.make("song-001", 12, 15), 0.5, 6), -60)      # eight silent seconds first, then the tone
+        self.assertGreater(level(CS.make("song-001", 12, 15), 9, 13), -30)
+
+    def test_a_clip_can_last_90_seconds_and_the_cache_keeps_only_the_newest(self):
+        out = CS.make("song-001", 0, 35); self.assertAlmostEqual(float(self.probe(out)["format"]["duration"]), 35, delta=0.6)
+        with mock.patch.object(CS, "KEEP_CLIPS", 1): CS.make("song-001", 1, 6)
+        self.assertEqual(len([f for f in os.listdir(CS.cache_dir()) if f.endswith(".mp4")]), 1)
 
     def test_a_clip_that_starts_past_the_end_is_refused_not_made_silent(self):
         with self.assertRaises(ValueError): CS.make("song-001", 3000, 15)

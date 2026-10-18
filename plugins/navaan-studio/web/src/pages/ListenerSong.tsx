@@ -3,18 +3,17 @@ import { Link, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { Equaliser } from "../components/Equaliser";
 import { Icon } from "../components/Icon";
-import { KeepCard } from "../components/KeepCard";
-import { SongFeedback } from "../components/SongFeedback";
-import { ClipCard } from "../components/ClipCard";
+import { SongTools } from "../components/SongTools";
 import { Lyrics } from "../components/Lyrics";
 import { ShareDialog } from "../components/ShareCard";
+import { SeekBar } from "../components/SeekBar";
 import { Transport } from "../components/Transport";
 import { getJSON, type TrackView } from "../lib/api";
 import { usePlayer, usePosition } from "../lib/player";
 import { errText } from "../lib/songs";
 import { Loading } from "../components/Loading";
 
-// A song as a listener sees it: the big cover, one round Play button, who and what it is, the lyrics (following the song when timing exists), keep and share.
+// A song as a listener sees it: the big cover, one round Play button, who and what it is, the lyrics (following the song when timing exists), keep, share, clip and feedback as a row of icons.
 export default function ListenerSong() {
   const { slug = "" } = useParams();
   const [t, setT] = useState<TrackView | null>(null);
@@ -37,13 +36,12 @@ export default function ListenerSong() {
             {mine && <button className="btn g sq" onClick={() => pl.setExpanded(true)} aria-label="Open play mode"><Icon name="expand" /></button>}
             <button className="btn sq" onClick={() => setSharing(true)} aria-label="Share"><Icon name="share" /></button>
           </div>
+          <SongTools slug={slug} title={t.title} position={mine ? position : null} duration={mine ? duration : 0} />
+          {mine && <SeekBar id="song-seek" />}
           {pl.error && mine === false && <p role="alert" className="mu">{pl.error}</p>}
         </div>
       </section>
-      <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} /></section>
-      <KeepCard slug={slug} />
-      <ClipCard slug={slug} title={t.title} position={mine ? position : null} duration={mine ? duration : 0} />
-      <SongFeedback slug={slug} title={t.title} />
+      <section className="card" aria-labelledby="ly-h"><h2 id="ly-h">Lyrics</h2><Lyrics plain={t.lyrics} timed={t.timed_lines} position={mine ? position : 0} duration={mine ? duration : 0} follow={playing} onPick={t.timed_lines || (mine && duration > 0) ? (s) => void pl.playAt(slug, t.title, s) : undefined} /></section>
       {sharing && <ShareDialog slug={slug} title={t.title} onClose={() => setSharing(false)} />}
     </>
   );
