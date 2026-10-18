@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import _pgenv  # noqa: F401
 import auth, core_store as CS
 import navaan_ui as U
+import navaan_common as C
 
 
 class Access(unittest.TestCase):
@@ -251,6 +252,17 @@ class Access(unittest.TestCase):
         import navaan; navaan.edit_meta(slug, lambda m: m.setdefault("published", {}).update(youtube_items=[{"file": "final_16x9.mp4", "id": "abc"}]))
         code, body = save("youtube.json", good); self.assertEqual(code, 400); self.assertIn("already on YouTube", json.loads(body)["error"])   # once it is up, YouTube Studio is the place
         self.assertEqual(save("youtube.json", good, "lis-tok", "csrf-lis")[0], 403)   # a listener has no say
+
+    def test_a_publishing_time_given_at_creation_in_central_time_schedules_both_platforms_and_a_bad_one_creates_nothing(self):
+        import navaan, publish_schedule as P
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain", publish_at_ct="2030-12-01T18:30"))
+        self.assertEqual((code, json.loads(body)["publish_at"]), (200, "2030-12-02T00:30:00Z")); slug = json.loads(body)["slug"]
+        sc = navaan.meta(slug)["schedule"]; self.assertEqual((sc["youtube_at"], sc["instagram_at"]), ("2030-12-02T00:30:00Z", "2030-12-02T00:30:00Z"))
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="inspiration", idea="hope"))
+        self.assertIsNone(json.loads(body)["publish_at"]); self.assertNotIn("schedule", navaan.meta(json.loads(body)["slug"]))   # no time: it publishes when the pipeline finishes
+        before = len(os.listdir(os.path.dirname(C.song_dir(slug))))
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="x", publish_at_ct="2001-01-01T10:00"))
+        self.assertEqual(code, 400); self.assertIn("future", json.loads(body)["error"]); self.assertEqual(len(os.listdir(os.path.dirname(C.song_dir(slug)))), before)   # nothing created
 
     def test_feedback_at_the_video_review_names_one_video_and_only_that_one_is_made_again(self):
         import navaan, navaan_common as C, reel_lyrics

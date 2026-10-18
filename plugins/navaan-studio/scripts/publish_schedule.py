@@ -43,6 +43,19 @@ def parse(s):
 def get(m): return (m or {}).get("schedule") or None
 
 
+CENTRAL = "America/Chicago"   # the owner's clock: a time typed in the new-item form is US Central (CST or CDT, whichever is in force that day)
+
+
+def from_central(text):
+    """'YYYY-MM-DDTHH:MM' read as US Central time -> ISO UTC ('...Z'). ValueError with a sentence for a bad or past time."""
+    from zoneinfo import ZoneInfo
+    try: local = datetime.datetime.strptime(str(text or "").strip()[:16], "%Y-%m-%dT%H:%M")
+    except ValueError: raise ValueError("pick a publishing date and time") from None
+    t = local.replace(tzinfo=ZoneInfo(CENTRAL)).astimezone(UTC)
+    if t < now() + datetime.timedelta(minutes=MIN_LEAD_MIN): raise ValueError("pick a publishing time in the future (Central Time)")
+    return iso(t)
+
+
 def when(m, sid):
     """ISO time an unfinished step waits for, or None."""
     s = get(m)
