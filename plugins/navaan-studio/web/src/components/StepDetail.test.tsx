@@ -21,7 +21,7 @@ describe("StepDetail", () => {
   it("shows what a step made (pictures, audio) with the size in the address, what it spends, its log and its history", () => {
     const events = [{ at: "10/17/2026, 5:56 AM", text: "step background done (attempt 1)" }];
     render(<StepDetail d={d({ logs: { background: "wrote background.png" } })} id="background" events={events} onBack={vi.fn()} />);
-    expect(screen.getByText("Spends: OpenAI: the background picture")).toBeInTheDocument(); expect(screen.getByText(/Asked for your approval before it ran: Spending credits/)).toBeInTheDocument();
+    expect(screen.getByText("Spends: OpenAI: the background picture")).toBeInTheDocument(); expect(screen.getByText(/Asked for your approval before it ran: Approve the spend/)).toBeInTheDocument();
     expect(screen.getByAltText("background.png")).toHaveAttribute("src", "/media/insp-004/background.png?v=99"); expect(screen.getByAltText("images~a.png")).toHaveAttribute("src", "/media/insp-004/images~a.png?v=5");
     expect(screen.getByLabelText("Log of Make the background")).toHaveTextContent("wrote background.png"); expect(screen.getByText("step background done (attempt 1)")).toBeInTheDocument();
     cleanup(); render(<StepDetail d={d()} id="narrate" events={[]} onBack={vi.fn()} />);

@@ -102,6 +102,11 @@ def spend_what(s):
     """One line for the credits approval: the service and what it makes. The pictures step already carries its own count and price in its label."""
     if s["id"] in ("pictures", "poster"): return s["label"]   # these carry their own count and price in the label
     if s["id"] == "background" and "(Flow)" in s.get("label", ""): return "Flow: the background picture"
+    if s["id"] == "background":   # the price beside it, as the pictures step has, so the approval says what it costs
+        try:
+            import media_cfg, image_openai as IO
+            mc = media_cfg.load(); return "OpenAI: the background picture (about $%.2f at %s)" % (IO.estimate(mc["image_quality"], mc["image_size"], IO.model_name(mc)), mc["image_quality"])
+        except Exception: L.soft(LOG, "spend_price_unavailable")   # expected: no settings yet, the line goes without a price
     return SPEND_WHAT.get(s["id"], s["label"])
 
 

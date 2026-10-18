@@ -33,6 +33,7 @@ test("a song goes from the list to an approved gate", async ({ page }, info) => 
 test("a finished step can be opened to see what it made, and you can go back to what needs you", async ({ page }, info) => {
   const slug = info.project.name === "mobile" ? "song-001" : "song-004";   // the same drafted songs the other checks use; this one only reads
   await page.goto(`/app/studio/songs/${slug}`); await ready(page);
+  if (info.project.name === "mobile") await page.getByRole("button", { name: /^Steps/ }).click();   // a phone shows what needs you first; the steps are one tap away
   const first = page.locator(".rail .lb-btn").first(); await expect(first).toBeVisible();   // every step in the list can be opened, finished or not
   await first.click();
   await expect(page.getByRole("button", { name: "Close this step" })).toBeVisible();
@@ -43,11 +44,11 @@ test("a finished step can be opened to see what it made, and you can go back to 
 test("a song and an inspiration can be started from the lists and open at their first step", async ({ page }, info) => {
   await page.goto("/app/studio/songs"); await page.getByRole("button", { name: "New song" }).click();
   await page.getByLabel("Idea (optional)").fill(`A song made in the ${info.project.name} check`); await page.getByRole("button", { name: "Create" }).click();
-  await expect(page).toHaveURL(/\/app\/studio\/songs\/song-\d+/); await expect(page.getByRole("heading", { name: "Steps", level: 2 })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/studio\/songs\/song-\d+/); await expect(page.getByRole("tab", { name: "Pipeline" })).toBeVisible();
   await page.goto("/app/studio/inspiration"); await page.getByRole("button", { name: "New inspiration" }).click();
   await page.getByRole("button", { name: "Create" }).click(); await expect(page.getByText("Write the quote or the idea first, or paste a Suno link.")).toBeVisible();   // an inspiration needs words
   await page.getByLabel("Quote or idea").fill("Maybe you are not behind, maybe you are on your own road"); await page.getByRole("button", { name: "Create" }).click();
-  await expect(page).toHaveURL(/\/app\/studio\/inspiration\/insp-\d+/); await expect(page.getByRole("heading", { name: "Steps", level: 2 })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/studio\/inspiration\/insp-\d+/); await expect(page.getByRole("tab", { name: "Pipeline" })).toBeVisible();
 });
 
 test("a song's words can be edited, saved, and are still there after a reload (and an unsaved edit is flagged)", async ({ page }, info) => {

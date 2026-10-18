@@ -176,6 +176,7 @@ describe("the pipeline page: one thing that needs you, honest words, sections in
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: [] }, next: { type: "run", step: "narrate" }, steps: [step("quote", { done: true, status: "done" }), step("narrate"), step("render")] }) });
     at("/studio/inspiration/insp-004");
     expect(await screen.findByRole("heading", { name: "Narrate the quote (ElevenLabs)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^\d+ done/ }));   // finished steps are folded into one line
     const rows = screen.getAllByRole("listitem").filter((li) => li.id.startsWith("step-")); expect(rows.map((r) => r.id)).toEqual(["step-quote", "step-narrate", "step-render"]);   // in order, each with the anchor
     expect(rows[0]).toHaveTextContent("done: Write the quote"); expect(rows[1]).toHaveAttribute("aria-current", "step"); expect(rows[2]).toHaveTextContent("later: Render the video");
     expect(screen.getByRole("tab", { name: "Pipeline" })).toHaveAttribute("aria-selected", "true"); expect(screen.queryByRole("heading", { name: "Narration" })).toBeNull();   // the editors are under Content
@@ -221,6 +222,7 @@ describe("opening a step from the pipeline", () => {
       steps: [step("background_prompt", { done: true, status: "done", texts: [{ name: "scenes/background.txt", text: "A quiet harbour at dusk." }] }), step("render", { done: true, status: "waiting for approval", needs_gate: "media" })] }) });
     at("/studio/inspiration/insp-004");
     expect(await screen.findByRole("heading", { name: "Review the videos" })).toBeInTheDocument();   // what needs you first
+    fireEvent.click(screen.getByRole("button", { name: /^\d+ done/ }));   // finished steps are folded into one line
     fireEvent.click(screen.getByRole("button", { name: /done: Write the background prompt/ }));
     expect(await screen.findByLabelText("scenes/background.txt")).toHaveTextContent("A quiet harbour at dusk."); expect(screen.getByRole("heading", { name: "Review the videos" })).toBeInTheDocument();   // what needs you stays in front while a step is open
     expect(screen.getByText(/step background_prompt done \(attempt 1\)/)).toBeInTheDocument();   // its own history
@@ -236,6 +238,7 @@ describe("the shot list approval", () => {
     at("/studio/songs/song-001");
     expect(await screen.findByAltText("Picture for Instrumental 1")).toHaveAttribute("src", "/media/song-001/images~pic_01.png");
     expect(screen.getByText("The raw shot list").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: /^\d+ done/ }));   // finished steps are folded into one line
     for (const name of [/: Write the picture plan$/, /: Create the pictures$/, /: Plan the shots$/, /: Plan what moves$/]) expect(screen.getByRole("button", { name })).toBeInTheDocument();   // not "prompts", "pictures", "shots", "motion plan"
   });
 });
@@ -291,13 +294,16 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
 
   it("puts the approval switch on the step: a risky one asks first and applies to every song, and the switch is read back from the server", async () => {
     const f = route(OWNER, { "/api/settings/gates_save": () => ({ gates: [] }), "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "youtube_meta" }, gates_off: ["instagram_caption"], steps: [step("youtube_meta", { done: true, status: "done" }), step("publish_youtube", { gate_before: "publish_youtube" }), step("instagram_caption", { gate_after: "instagram_caption" })] }) });
-    at(A);
+    at(`${A}?step=instagram_caption`);   // the switches are on the opened step, not on every row of the list
+    expect(await screen.findByRole("switch", { name: /Ask me after it runs/ })).not.toBeChecked();   // switched off in Settings
+    cleanup(); route(OWNER, { "/api/settings/gates_save": () => ({ gates: [] }), "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "youtube_meta" }, gates_off: ["instagram_caption"], steps: [step("youtube_meta", { done: true, status: "done" }), step("publish_youtube", { gate_before: "publish_youtube" }), step("instagram_caption", { gate_after: "instagram_caption" })] }) });
+    at(`${A}?step=publish_youtube`);
     const yt = await screen.findByRole("switch", { name: /Ask me before it runs/ }); expect(yt).toBeChecked();
-    expect(screen.getByRole("switch", { name: /Ask me after it runs/ })).not.toBeChecked();   // switched off in Settings
+    const saves = () => (vi.mocked(fetch).mock.calls as unknown as [string, RequestInit?][]).filter(([u]) => u === "/api/settings/gates_save").map(([, i]) => JSON.parse(String(i?.body)));
     fireEvent.click(yt); expect(await screen.findByRole("alertdialog", { name: /Confirm switching off/ })).toHaveTextContent("for every song");
-    fireEvent.click(screen.getByRole("button", { name: "Keep asking me" })); expect(posts(f, "/api/settings/gates_save")).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Keep asking me" })); expect(saves()).toEqual([]);
     fireEvent.click(yt); fireEvent.click(await screen.findByRole("button", { name: "Yes, approve it automatically" }));
-    await waitFor(() => expect(posts(f, "/api/settings/gates_save")).toEqual([{ gates: { publish_youtube: false } }]));
+    await waitFor(() => expect(saves()).toEqual([{ gates: { publish_youtube: false } }])); void f;
   });
 
   it("lets the picture plan be edited on its step and sends only what changed in words", async () => {
@@ -315,7 +321,7 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     let started = true;
     const f = route(OWNER, { "/api/approve": () => ({ ok: true, started: false }), "/api/redo": () => ({ started }), "/api/stop": () => ({ stopped: true }),
       "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "video", gate: "media" }, steps: [step("captions", { done: true, status: "done" }), step("video", { done: true, status: "waiting for approval", needs_gate: "media" })] }) });
-    at(A);
+    at(`${A}?step=captions`);   // Redo is on the opened step
     fireEvent.click(await screen.findByRole("button", { name: "Redo Sync the captions" })); fireEvent.click(screen.getByRole("button", { name: "Yes, redo it" }));
     expect(await screen.findByText("Redo started: Sync the captions.")).toBeInTheDocument(); expect(posts(f, "/api/redo")).toEqual([{ slug: "song-007", step: "captions" }]);
     started = false; fireEvent.click(screen.getByRole("button", { name: "Redo Sync the captions" })); fireEvent.click(screen.getByRole("button", { name: "Yes, redo it" }));
@@ -380,6 +386,30 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     await waitFor(() => expect(posts(f, "/api/save")).toHaveLength(2));
     const sent = posts(f, "/api/save")[1] as { file: string; content: string }; expect(sent.file).toBe("youtube.json");
     expect(JSON.parse(sent.content)).toEqual({ title: "Porch Light (official video)", description: "A song about waiting for someone.", tags: ["folk", "country", "porch light"], category: "10" });   // what else the file holds is kept
+  });
+  it("names the scheduled time on a publish approval instead of saying now, and keeps the lanes visible under a failure", async () => {
+    const at6 = "2030-12-02T00:00:00Z";   // 6:00 pm CST on Dec 1
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-006", meta: { type: "inspiration", state: "approved", history: [] }, next: { type: "run", step: "go_public" },
+      failure: { step: "", error: "", ref: "r1", plain: "A step did not finish." },
+      lanes: { youtube: { type: "gate", step: "go_public", gate: "go_public" }, instagram: { type: "gate", step: "publish_instagram", gate: "publish_instagram" } },
+      steps: [step("render", { done: true, status: "done" }), step("go_public", { status: "waiting for approval", needs_gate: "go_public", gate_before: "go_public", lane: "youtube", scheduled_for: at6 }),
+              step("publish_instagram", { status: "waiting for approval", needs_gate: "publish_instagram", gate_before: "publish_instagram", lane: "instagram", scheduled_for: at6 })] }) });
+    at("/studio/inspiration/insp-006");
+    const ig = await screen.findByRole("region", { name: "Instagram" }); const yt = screen.getByRole("region", { name: "YouTube" });   // shown although the item carries a failure
+    expect(ig).toHaveTextContent("Post the Reel to Instagram Sun, Dec 1 6:00 pm CT, as scheduled. Approving now does not post now."); expect(ig).not.toHaveTextContent("Publish to Instagram now");
+    expect(yt).toHaveTextContent("public Sun, Dec 1 6:00 pm CT, as scheduled"); expect(within(ig).getByRole("button", { name: "Approve" })).toBeEnabled();
+  });
+  it("says All set with the time and the YouTube link when only the publishing time is left, and shows when it goes out top right", async () => {
+    const at6 = "2030-12-02T00:00:00Z";
+    route(OWNER, { "/api/song/": () => detail({ slug: "insp-006", meta: { type: "inspiration", state: "approved", history: [], schedule: { youtube_at: at6, instagram_at: at6, done: false }, published: { youtube_items: [{ id: "dUq", url: "https://youtu.be/dUq", privacy: "private" }] } }, next: { type: "run", step: "go_public" },
+      lanes: { youtube: { type: "run", step: "go_public" }, instagram: { type: "run", step: "publish_instagram" } },
+      steps: [step("render", { done: true, status: "done" }), step("go_public", { lane: "youtube", scheduled_for: at6 }), step("publish_instagram", { lane: "instagram", scheduled_for: at6 })] }) });
+    at("/studio/inspiration/insp-006");
+    const card = await screen.findByRole("region", { name: /Goes out Sun, Dec 1 6:00 pm CT/ }); expect(card).toHaveTextContent("All set");
+    expect(within(card).getByRole("link", { name: /youtu\.be\/dUq/ })).toHaveAttribute("href", "https://youtu.be/dUq");
+    expect(screen.queryByRole("region", { name: "YouTube" })).toBeNull();   // no lanes with Run buttons that would only wait anyway
+    expect(screen.getByRole("button", { name: /^Goes out Sun, Dec 1 6:00 pm CT YouTube \+ Instagram · Change$/ })).toBeInTheDocument();   // top right
+    expect(screen.getByText(/Videos approved/)).toBeInTheDocument(); expect(document.body.textContent).not.toContain("· approved ·");   // plain words, not the state name
   });
   it("offers to delete a failed item with a confirmation, deletes it and goes back to the list; a published one shows why it cannot be deleted", async () => {
     const f = route(OWNER, { "/api/delete": () => ({ ok: true, moved_to: "_deleted/song-007-x" }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-007", failure: { step: "video", error: "boom", ref: "r1", plain: "The video could not be built." }, deletable: { ok: true, why: "" }, steps: [step("video")] }) });
