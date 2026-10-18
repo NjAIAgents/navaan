@@ -7,7 +7,7 @@ import { usePlayer, usePosition } from "../lib/player";
 type Made = { url: string; page: string };
 const MIN_LEN = 5; const MAX_LEN = 90;   // seconds; the server accepts the same
 // What travels with a shared clip: the song, the way back to the full song, and the tag that makes the next person find it.
-export const clipCaption = (title: string, page: string) => `${title} on NAVAAN. Hear the full song: ${page} #NAVAAN #NewMusic`;
+export const clipCaption = (title: string, page: string) => `${title} on NAVAAN 🎧\nHear the full song: ${page}\n\n#NAVAAN #NewMusic #IndieMusic #NowPlaying`;
 
 // A clip of the song to share: 5 to 90 seconds between the two points you choose, as a vertical video with the cover, the title and "Hear the full song". It is shared (the phone's share sheet, so Instagram and WhatsApp are there), not handed over as a download, and it carries the way back to the whole song.
 export function ClipCard({ slug, title, position, duration: playing, bare = false }: { slug: string; title: string; position: number | null; duration: number; bare?: boolean }) {   // bare: inside a sheet, which has its own frame and title
@@ -45,6 +45,7 @@ export function ClipCard({ slug, title, position, duration: playing, bare = fals
   const share = () => {   // nothing is awaited before navigator.share: it must be called inside the tap
     if (!made) return; setNote("");
     const text = clipCaption(title, made.page); const f = file instanceof File ? file : null;
+    void navigator.clipboard?.writeText(text).then(() => setNote("Caption with the link and hashtags copied: paste it into the post.")).catch(() => undefined);   // Instagram drops text handed to it with a video, so the caption is on the clipboard to paste; expected: clipboard can be blocked
     try {
       if (f && navigator.canShare?.({ files: [f] })) void navigator.share({ files: [f], text }).catch(failed);
       else if (navigator.share) void navigator.share({ title, text: `${title} on NAVAAN`, url: made.page }).catch(failed);
@@ -53,13 +54,14 @@ export function ClipCard({ slug, title, position, duration: playing, bare = fals
   };
   return (
     <Frame bare={bare}>
-      <p className="mu">Move the two points to choose the part of the song, up to 90 seconds. It becomes a video with the cover and a way back to the full song.</p>
+      <p className="mu">Drag the two handles to choose the part of the song, up to 90 seconds. It becomes a video with the cover and a way back to the full song.</p>
       {known ? (
-        <div className="stack">
-          <div><label htmlFor="clip-start">Start at (seconds)</label><br />
-            <input id="clip-start" type="range" min={0} max={whole - MIN_LEN} step={1} value={start} aria-valuetext={mmss(start)} style={{ width: "100%" }} onChange={(e) => { moveStart(Number(e.target.value)); setMade(null); }} /></div>
-          <div><label htmlFor="clip-end">End at (seconds)</label><br />
-            <input id="clip-end" type="range" min={MIN_LEN} max={whole} step={1} value={end} aria-valuetext={mmss(end)} style={{ width: "100%" }} onChange={(e) => { moveEnd(Number(e.target.value)); setMade(null); }} /></div>
+        <div className="clipbar">   {/* one bar with a handle at each end of the clip */}
+          <div className="trk" aria-hidden="true"><span className="sel" style={{ left: `${(start / whole) * 100}%`, right: `${100 - (end / whole) * 100}%` }} /></div>
+          <label className="sr" htmlFor="clip-start">Start at (seconds)</label>
+          <input id="clip-start" type="range" min={0} max={whole} step={1} value={start} aria-valuetext={mmss(start)} onChange={(e) => { moveStart(Number(e.target.value)); setMade(null); }} />
+          <label className="sr" htmlFor="clip-end">End at (seconds)</label>
+          <input id="clip-end" type="range" min={0} max={whole} step={1} value={end} aria-valuetext={mmss(end)} onChange={(e) => { moveEnd(Number(e.target.value)); setMade(null); }} />
         </div>
       ) : (
         <div className="row" style={{ flexWrap: "wrap" }}>

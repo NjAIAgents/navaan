@@ -29,6 +29,7 @@ test("browse shows only confirmed songs, with no studio in sight", async ({ page
 test("a song plays, its lyrics follow it, and play mode opens and closes", async ({ page }) => {
   await page.goto("/app/song/song-010");
   await expect(page.getByRole("heading", { name: "Tere Hone Se", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Lyrics", exact: true }).click();   // the lyrics are folded until asked for
   await page.getByRole("button", { name: "Play", exact: true }).first().click();
   await expect.poll(() => page.evaluate(() => document.querySelector("audio")!.currentTime), { timeout: 15_000 }).toBeGreaterThan(1.5);
   await expect(page.locator('.lyrics li[aria-current="true"]').first()).toBeVisible();   // the current line is marked
