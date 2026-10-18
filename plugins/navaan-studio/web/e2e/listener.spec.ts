@@ -70,7 +70,7 @@ test("the free plan stops at three playlists with a clear way on, and a person c
 test("a playlist can be filled from a song page and the library songs can be filtered", async ({ page }, info) => {
   const name = `Fill ${info.project.name}`;
   await page.goto("/app/library"); await newPlaylist(page, name); await expect(page.getByRole("link", { name: new RegExp(name) })).toBeVisible();
-  await page.goto("/app/song/song-010"); await page.getByLabel("Playlist").selectOption({ label: name }); await page.getByRole("button", { name: "Add to playlist" }).click(); await expect(page.getByText(`Added to "${name}".`)).toBeVisible();
+  await page.goto("/app/song/song-010"); await page.getByRole("button", { name: "Add to a playlist" }).click(); await page.getByLabel("Playlist", { exact: true }).selectOption({ label: name }); await page.getByRole("button", { name: "Add to playlist" }).click(); await expect(page.getByText(`Added to "${name}".`)).toBeVisible();
   await page.goto("/app/library"); await page.getByRole("link", { name: new RegExp(name) }).click(); await expect(page.getByRole("link", { name: "Tere Hone Se" })).toBeVisible();
   await page.getByRole("button", { name: "Delete playlist" }).click(); await page.getByRole("button", { name: "Yes, delete" }).click();
   await page.goto("/app/library"); await page.getByRole("tab", { name: "Songs" }).click();

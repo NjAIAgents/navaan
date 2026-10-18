@@ -335,11 +335,12 @@ class H(BaseHTTPRequestHandler):
         out = {"user": sess.get("user"), "roles": sess.get("roles", []), "permissions": sess.get("permissions", [])}
         sh = os.environ.get("NAVAAN_STUDIO_HOST", "").strip().lower(); lh = (LISTENER_HOSTS() or [""])[0]
         if sess.get("guest"): out["guest"] = True
+        elif sess.get("csrf"): out["csrf"] = sess["csrf"]   # this session's token, so a page loaded under an older one can pick up the right one and carry on instead of every save answering "forbidden"
         if sh and (sess.get("guest") or sess.get("_studio")): out["studio_url"] = f"https://{sh}"   # a guest gets it as the place to sign in, the studio's owner as the way to the studio
         if lh and not self._public_host() and auth.can(sess, "studio.access"): out["public_url"] = f"https://{lh}"
         return out
     def _clip_reply(self, body):
-        """A clip of a song to share: 15 or 30 seconds from where they choose; made once and kept. The same for a visitor and a signed in person."""
+        """A clip of a song to share: 5 to 90 seconds from where they choose; made once and kept. The same for a visitor and a signed in person."""
         try:
             if not rate_ok(SITE_CLIP, self._ip(), 20, 3600): return self._send(429, {"error": "that is a lot of clips, try again later"})
             start, length = int(body.get("start") or 0), int(body.get("length") or 15); slug = str(body.get("slug") or "")

@@ -5,12 +5,12 @@ import { errText } from "./songs";
 export type QItem = { slug: string; title: string };
 type Player = {
   slug: string | null; title: string; playing: boolean; error: string; expanded: boolean; hasNext: boolean; hasPrev: boolean;
-  toggle: (slug: string, title: string, queue?: QItem[]) => Promise<void>; next: () => void; prev: () => void; seek: (seconds: number) => void; setExpanded: (on: boolean) => void;
+  toggle: (slug: string, title: string, queue?: QItem[]) => Promise<void>; playAt: (slug: string, title: string, seconds: number) => Promise<void>; next: () => void; prev: () => void; seek: (seconds: number) => void; setExpanded: (on: boolean) => void;
   volume: number; muted: boolean; setVolume: (v: number) => void; toggleMute: () => void;
   shuffle: boolean; setShuffle: (on: boolean) => void;
 };
 const noop = async () => undefined;
-const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", expanded: false, hasNext: false, hasPrev: false, volume: 1, muted: false, setVolume: () => undefined, toggleMute: () => undefined, shuffle: false, setShuffle: () => undefined, toggle: noop, next: () => undefined, prev: () => undefined, seek: () => undefined, setExpanded: () => undefined });
+const Ctx = createContext<Player>({ slug: null, title: "", playing: false, error: "", expanded: false, hasNext: false, hasPrev: false, volume: 1, muted: false, setVolume: () => undefined, toggleMute: () => undefined, shuffle: false, setShuffle: () => undefined, toggle: noop, playAt: noop, next: () => undefined, prev: () => undefined, seek: () => undefined, setExpanded: () => undefined });
 const PosCtx = createContext<{ position: number; duration: number }>({ position: 0, duration: 0 });
 export const usePlayer = () => useContext(Ctx);
 /** The playing position, apart from the rest so that only what shows time re-renders four times a second. */
@@ -42,10 +42,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     a.src = r.url; if (at) a.currentTime = at;
     await a.play();
   }, []);
-  const begin = useCallback(async (slug: string, title: string) => {
-    setError(""); setCur({ slug, title }); setPos({ position: 0, duration: 0 }); retried.current = false;
+  const begin = useCallback(async (slug: string, title: string, at = 0) => {
+    setError(""); setCur({ slug, title }); setPos({ position: at, duration: 0 }); retried.current = false;
     if (played.current[played.current.length - 1] !== slug) played.current.push(slug);
-    try { await start(slug); } catch (e) { setCur({ slug: null, title: "" }); setError(errText(e)); }
+    try { await start(slug, at); } catch (e) { setCur({ slug: null, title: "" }); setError(errText(e)); }
   }, [start]);
   const toggle = useCallback(async (slug: string, title: string, q?: QItem[]) => {
     const a = audio.current; if (!a) return;
@@ -92,7 +92,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       ms.setActionHandler("nexttrack", hasNext ? next : null); ms.setActionHandler("previoustrack", prev);
     } catch (e) { void e; }   // expected: a browser without these controls
   }, [cur, hasNext, next, prev]);
-  const value = useMemo(() => ({ ...cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, setExpanded, volume, muted, setVolume, toggleMute, shuffle, setShuffle }), [cur, playing, error, expanded, hasNext, hasPrev, toggle, next, prev, seek, volume, muted, setVolume, toggleMute, shuffle, setShuffle]);
+  // Play this song from a given second: a lyric line was picked. The song already playing (or paused) just jumps; another song starts there.
+  const playAt = useCallback(async (slug: string, title: string, seconds: number) => {
+    const a = audio.current; if (!a) return; setError("");
+    if (cur.slug === slug) { a.currentTime = Math.max(0, seconds); setPos((p) => ({ ...p, position: Math.max(0, seconds) })); if (a.paused) await a.play().catch((e) => setError(errText(e))); return; }
+    if (!queue.some((x) => x.slug === slug)) setQueue([{ slug, title }]);
+    await begin(slug, title, Math.max(0, seconds));
+  }, [cur.slug, queue, begin]);
+  const value = useMemo(() => ({ ...cur, playing, error, expanded, hasNext, hasPrev, toggle, playAt, next, prev, seek, setExpanded, volume, muted, setVolume, toggleMute, shuffle, setShuffle }), [cur, playing, error, expanded, hasNext, hasPrev, toggle, playAt, next, prev, seek, volume, muted, setVolume, toggleMute, shuffle, setShuffle]);
   const tick = () => { const a = audio.current; if (a) setPos({ position: a.currentTime || 0, duration: Number.isFinite(a.duration) ? a.duration : 0 }); };
   const ended = () => { setPlaying(false); if (hasNext) next(); };
   return (

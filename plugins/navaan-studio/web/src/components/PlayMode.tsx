@@ -3,9 +3,9 @@ import { Cover } from "./Cover";
 import { Icon } from "./Icon";
 import { Lyrics } from "./Lyrics";
 import { Transport } from "./Transport";
+import { SeekBar } from "./SeekBar";
 import { Volume } from "./Volume";
 import { getJSON, type TrackView } from "../lib/api";
-import { mmss } from "../lib/lyrics";
 import { usePlayer, usePosition } from "../lib/player";
 
 // Full screen play mode: the mini player grown to the whole screen and back. A fixed layout (the cover, the lyrics window and the controls have their sizes before anything loads), so opening it moves nothing.
@@ -39,13 +39,9 @@ export function PlayMode() {
           <Cover slug={p.slug} title={p.title} size={240} art={t?.art} />
           <h2 className="disp">{p.title}</h2>
         </div>
-        {lyrics && <div className="pm-lyrics" id="pm-lyrics"><Lyrics plain={t?.lyrics ?? ""} timed={t?.timed_lines ?? null} position={position} duration={duration} follow={p.playing} /></div>}
+        {lyrics && <div className="pm-lyrics" id="pm-lyrics"><Lyrics plain={t?.lyrics ?? ""} timed={t?.timed_lines ?? null} position={position} duration={duration} follow={p.playing} onPick={(s) => void p.playAt(p.slug!, p.title, s)} /></div>}
         <div className="pm-ctl">
-          <div className="pm-bar">
-            <label className="sr" htmlFor="pm-seek">Seek</label>
-            <input id="pm-seek" type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1} value={Math.min(Math.floor(position), Math.max(1, Math.floor(duration)))} aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} onChange={(e) => p.seek(Number(e.target.value))} />
-            <div className="pm-times mu"><span>{mmss(position)}</span><span>{mmss(duration)}</span></div>
-          </div>
+          <SeekBar id="pm-seek" />
           <Transport big />
           <Volume />
           <button className="btn g" aria-pressed={lyrics} onClick={flipLyrics}>Lyrics</button>

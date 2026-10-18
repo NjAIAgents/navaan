@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
-import { postJSON } from "../lib/api";
+import { ApiError, postJSON } from "../lib/api";
 import { errText } from "../lib/songs";
 import { useMe } from "../lib/me";
 
@@ -67,7 +67,7 @@ export function ShareDialog({ slug, title, onClose }: { slug: string; title: str
   const x = useRef<HTMLButtonElement>(null);
   const { guest } = useMe();
   useEffect(() => { if (guest) { setLink({ token: "", url: `${location.origin}/app/song/${slug}` }); return; }   // a visitor shares the page itself
-    postJSON<Link>("/api/share", { slug }).then(setLink).catch((e) => setErr(errText(e))); }, [slug, guest]);
+    postJSON<Link>("/api/share", { slug }).then(setLink).catch((e) => { if (e instanceof ApiError && e.status === 403) setLink({ token: "", url: `${location.origin}/app/song/${slug}` }); else setErr(errText(e)); }); }, [slug, guest]);   // refused (403): share the song's page itself, as a visitor does, rather than a dead end
   useEffect(() => {
     x.current?.focus(); const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", key); return () => document.removeEventListener("keydown", key);

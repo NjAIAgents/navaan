@@ -51,6 +51,13 @@ class Access(unittest.TestCase):
             self.assertIn("studio.access", json.loads(self.call("/api/me", "owner-tok", host=studio)[1])["permissions"])
             self.assertEqual(self.call("/api/me", "owner-tok", host="evil.example")[0], 403)     # a host that is not on the list is refused outright
 
+    def test_me_gives_a_signed_in_person_their_sessions_token_so_a_stale_page_can_carry_on_and_never_gives_one_to_a_guest(self):
+        env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online", "NAVAAN_STUDIO_HOST": "studio.navaan.online"}
+        with mock.patch.dict(os.environ, env):
+            for tok, csrf in (("lis-tok", "csrf-lis"), ("owner-tok", "csrf-owner")):
+                code, body = self.call("/api/me", tok, host="navaan.online"); self.assertEqual((code, json.loads(body)["csrf"]), (200, csrf))
+            code, body = self.call("/api/me", host="navaan.online"); self.assertNotIn("csrf", json.loads(body))   # a guest has none
+
     def test_the_public_host_needs_no_sign_in_and_gives_a_guest_the_catalogue_and_nothing_else(self):
         env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online", "NAVAAN_STUDIO_HOST": "studio.navaan.online"}
         with mock.patch.dict(os.environ, env):
@@ -106,14 +113,15 @@ class Access(unittest.TestCase):
             post = lambda body, host="navaan.online": self.call("/api/clip", None, None, post=True, body=body, host=host)
             code, body = post({"slug": "song-001", "start": 5, "length": 15}); d = json.loads(body)
             self.assertEqual((code, d["token"], d["url"]), (200, "song-001-5-15", "/c/song-001-5-15.mp4")); self.assertTrue(d["page"].endswith("/c/song-001-5-15"))
-            self.assertEqual(post({"slug": "song-001", "start": 5, "length": 20})[0], 400)   # 15 or 30 only
+            self.assertEqual(post({"slug": "song-001", "start": 5, "length": 4})[0], 400)   # 5 to 90 seconds
+            self.assertEqual(post({"slug": "song-001", "start": 5, "length": 91})[0], 400)
             self.assertEqual(post({"slug": "song-001", "start": "x"})[0], 400); self.assertEqual(post({"slug": "ghost", "start": 0, "length": 15})[0], 404)
             st, h, b = self.raw("/c/song-001-5-15"); page = b.decode()
             self.assertEqual(st, 200); self.assertIn('property="og:video"', page); self.assertIn("/app/song/song-001", page); self.assertIn("Hear the full song", page); self.assertNotIn("<Hone>", page)
             st, h, b = self.raw("/c/song-001-5-15.mp4"); self.assertEqual((st, h["Content-Type"], h["Accept-Ranges"], len(b)), (200, "video/mp4", "bytes", 1024))
             st, h, b = self.raw("/c/song-001-5-15.mp4", headers={"Range": "bytes=0-99"}); self.assertEqual((st, h["Content-Range"], len(b)), (206, "bytes 0-99/1024", 100))   # Safari asks for ranges
             st, h, b = self.raw("/c/song-001-5-15.mp4", headers={"Range": "bytes=-24"}); self.assertEqual((st, h["Content-Range"]), (206, "bytes 1000-1023/1024"))
-            self.assertEqual(self.raw("/c/song-001-5-20")[0], 404); self.assertEqual(self.raw("/c/ghost-5-15")[0], 404)
+            self.assertEqual(self.raw("/c/song-001-5-4")[0], 404); self.assertEqual(self.raw("/c/song-001-5-91")[0], 404); self.assertEqual(self.raw("/c/ghost-5-15")[0], 404)
             for i in range(21): last = post({"slug": "song-001", "start": 5, "length": 15})[0]
             self.assertEqual(last, 429)   # twenty clips an hour from one address
 
