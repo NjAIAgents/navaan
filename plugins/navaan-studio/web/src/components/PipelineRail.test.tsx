@@ -10,7 +10,9 @@ afterEach(cleanup);
 describe("PipelineRail", () => {
   it("lists every step in order with its state in words, the one you are at, and what waits for you", () => {
     render(<PipelineRail d={d()} act={vi.fn()} busy={false} />);
-    const rows = screen.getAllByRole("listitem");
+    expect(screen.queryByText("done: Write the quote")).toBeNull();   // finished steps fold into one line
+    fireEvent.click(screen.getByRole("button", { name: /^1 done/ })); expect(screen.getByRole("button", { name: /^1 done/ })).toHaveAttribute("aria-expanded", "true");
+    const rows = screen.getAllByRole("listitem").filter((r) => r.id);
     expect(rows.map((r) => r.id)).toEqual(["step-quote", "step-narrate", "step-render", "step-youtube_meta"]);
     expect(rows[0]).toHaveTextContent("done: Write the quote"); expect(rows[1]).toHaveTextContent("later: Narrate the quote (ElevenLabs)"); expect(rows[1]).toHaveTextContent("spends credits");   // not the approval in front of you: later
     expect(rows[2]).toHaveTextContent("waiting for you: Render the video"); expect(rows[3]).toHaveTextContent("later: Write the YouTube text");
@@ -19,10 +21,15 @@ describe("PipelineRail", () => {
   });
   it("marks the failed step and asks before redoing one", async () => {
     const act = vi.fn(() => Promise.resolve(true));
-    render(<PipelineRail d={d({ failure: { step: "narrate", error: "x", ref: "r" } })} act={act} busy={false} />);
+    render(<PipelineRail d={d({ failure: { step: "narrate", error: "x", ref: "r" } })} act={act} busy={false} selected="quote" />);   // Redo is on the opened step
     expect(document.getElementById("step-narrate")).toHaveTextContent("failed: Narrate the quote");
     fireEvent.click(screen.getByRole("button", { name: "Redo Write the quote" })); expect(act).not.toHaveBeenCalled();   // a confirmation first
     fireEvent.click(screen.getByRole("button", { name: "Yes, redo it" })); await waitFor(() => expect(act).toHaveBeenCalledWith("/api/redo", { step: "quote" }));
+  });
+  it("keeps Redo off the list until a step is opened", () => {
+    const { rerender } = render(<PipelineRail d={d()} act={vi.fn()} busy={false} />);
+    expect(screen.queryByRole("button", { name: /^Redo/ })).toBeNull(); expect(screen.queryByRole("switch")).toBeNull();
+    rerender(<PipelineRail d={d()} act={vi.fn()} busy={false} selected="quote" />); expect(screen.getByRole("button", { name: "Redo Write the quote" })).toBeInTheDocument();
   });
   it("makes a step something you can open, finished or not, and marks the open one", () => {
     const pick = vi.fn();

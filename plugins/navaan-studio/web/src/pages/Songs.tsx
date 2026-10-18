@@ -8,6 +8,7 @@ import { useMe } from "../lib/me";
 import { usePlayer } from "../lib/player";
 import { getJSON, type SongRow } from "../lib/api";
 import { errText, itemPath, nextAction } from "../lib/songs";
+import { fmtCentral } from "../lib/datetime";
 import { Loading } from "../components/Loading";
 
 const FILTERS = [["all", "All"], ["approval", "Needs you"], ["production", "In production"], ["done", "Done"]] as const;
@@ -34,8 +35,9 @@ export function ItemList({ type, title, blurb, noun }: { type: string; title: st
           {shown.length ? shown.map((s) => (
             <Link key={s.slug} className="q" to={itemPath(type, s.slug) ?? "/studio"}>
               <Cover slug={s.slug} title={s.title} art={s.art} />
-              <span className="tx"><b>{s.title || s.slug}</b><span className="s">{s.state ?? "new"} · {nextAction(s)}</span></span>
-              {pl.slug === s.slug && pl.playing && <Equaliser />}<span className={"chip " + (s.status === "approval" ? "wn" : s.published ? "ok" : "")} title="steps done">{s.steps_done}/{s.steps_total}</span>
+              <span className="tx"><b>{s.title || s.slug}</b><span className="s">{nextAction(s)}</span></span>
+              {pl.slug === s.slug && pl.playing && <Equaliser />}
+              <span className={"chip " + (s.status === "approval" ? "wn" : s.published || s.schedule_at ? "ok" : "")} title={`${s.steps_done} of ${s.steps_total} steps done`}>{s.status === "approval" ? "Needs you" : s.published ? "Published" : s.schedule_at ? `Scheduled · ${fmtCentral(s.schedule_at)}` : `${s.steps_done}/${s.steps_total}`}</span>
               <Icon name="chevron" />
             </Link>
           )) : <p className="empty">{rows.length ? `No ${noun}s in this view.` : `No ${noun}s yet.`}</p>}

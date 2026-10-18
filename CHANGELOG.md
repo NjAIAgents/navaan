@@ -6,6 +6,23 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-18
+
+### Fixed
+- An item scheduled to publish no longer says "A step failed" once its publish approvals are given. The run stops at the step that waits for its time, and that is now recorded as finished, with "scheduled: it publishes at the set time".
+- The YouTube and Instagram lanes stay on the page under a failure message, so an approval waiting in them can always be given. Before, a failure hid them, and the Approvals page did not list them either.
+- A publish approval on a scheduled item says when it goes out ("Post the Reel to Instagram today 6:00 pm CT, as scheduled. Approving now does not post now") instead of "now". The YouTube one no longer says the Reel waits for it.
+
+### Changed
+- The item page is simpler to read. Top right it says when the item goes out: the scheduled time in Central Time with a Change button, "When it finishes" with Set a time, or Published. A song shows its cover beside the title (an inspiration its reel's first frame), and the status is in words ("Videos approved") instead of internal names.
+- Finished steps fold into one line ("8 done") that opens on a tap. Redo and Restart show on the step you open, and the approval switches inside an opened step, so the list stays short.
+- When everything is approved and only the publishing time is left, one "All set" card says when it goes out on each platform, with the YouTube link, instead of lanes with Run buttons.
+- The quote and the originality check are shown as text to read (the two lines of the quote; "Clear: no earlier use of these words found" with the links), with the raw file folded under them.
+- The spend approval is called "Approve the spend" and shows the price of an inspiration's background picture, as the pictures step already did.
+- Lists of songs and inspirations show the next action in words and a pill: Needs you, Scheduled with its time, or Published.
+- On a phone the pipeline shows either what needs you or the steps (a Now / Steps switch), and the player and the tab bar join into one block at the bottom.
+- Greyer text is a little lighter for contrast, and secondary buttons have an outline, so the three kinds of button (gold, outlined, plain) are easy to tell apart.
+
 ## [0.42.0] - 2026-10-18
 
 ### Added
@@ -553,7 +570,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.42.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.43.0...HEAD
+[0.43.0]: https://github.com/NjAIAgents/navaan/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/NjAIAgents/navaan/compare/v0.41.1...v0.42.0
 [0.41.1]: https://github.com/NjAIAgents/navaan/compare/v0.41.0...v0.41.1
 [0.41.0]: https://github.com/NjAIAgents/navaan/compare/v0.40.0...v0.41.0

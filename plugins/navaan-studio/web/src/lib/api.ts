@@ -30,7 +30,7 @@ export const postJSON = <T,>(path: string, body: unknown = {}) =>
 
 export type SongRow = {
   slug: string; type: string; title: string; state: string | null; status: "approval" | "done" | "production";
-  album: string; steps_done: number; steps_total: number; public: boolean; published: boolean; scheduled: string;
+  album: string; steps_done: number; steps_total: number; public: boolean; published: boolean; scheduled: string; schedule_at?: string;
   next: { type: string; step?: string; gate?: string; label?: string };
   art?: { colour: string | null } | null;
 };
@@ -42,7 +42,7 @@ export type Step = {
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
-  meta: { type?: string; state?: string; album?: string; mood?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown }; step_seconds?: Record<string, number> };
+  meta: { type?: string; state?: string; album?: string; mood?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown; youtube?: unknown; youtube_items?: { id?: string; url?: string; file?: string; privacy?: string }[] }; step_seconds?: Record<string, number> };
   files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;

@@ -7,7 +7,7 @@
   --bg: #0B1020;
   --s1: rgba(23, 36, 58, .58); --s2: rgba(36, 52, 80, .62); --s3: rgba(56, 74, 106, .62);
   --ln: rgba(242, 238, 231, .13);
-  --tx: #F2EEE7; --mu: #B7BCCB; --dim: #8E96AA;
+  --tx: #F2EEE7; --mu: #C3C8D6; --dim: #9BA3B6;   /* lifted for contrast on glass and busy backgrounds */
   --ac: #D6B477; --vi: #A96F52; --g1: #E4C88F; --g2: #C9A056; --ab: #D6B477; --on-action: #0B1020;
   --ok: #6FD3A8; --wn: #F0B964; --bad: #F08A7E;
   --bar: rgba(11, 16, 32, .64); --sheet: rgba(17, 26, 46, .88);
