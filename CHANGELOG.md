@@ -18,6 +18,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Fixed
 - Popups on the song page (Share a clip, Add to playlist, feedback) showed only a strip at the bottom of the screen on a phone. They used the header's class name and inherited its 64-pixel height. They now open in full.
 - On a phone the song's cover is centred above its title.
+- A song or inspiration already posted to YouTube could not finish without Instagram: there was no way to skip the Reel, and a failed post stayed on the page. Its Instagram lane now has "Don't post to Instagram", which takes the caption and post steps out of that item's pipeline and clears the failed post. "Post to Instagram after all" brings them back.
 
 ## [0.44.0] - 2026-10-18
 

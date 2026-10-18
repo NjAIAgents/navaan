@@ -273,7 +273,8 @@ function LanesView({ d, act, busy, pending, running, stopping, onStop, reload }:
         const nx = lanes[l]; const mine = d.steps.filter((x) => x.lane === l); const done = mine.filter((x) => x.done && x.status === "done").length;
         return (
           <section key={l} className="stack lane" aria-labelledby={`lane-${l}`}>
-            <div className="row"><h2 id={`lane-${l}`}>{LANE_TITLE[l]}</h2><span className="n">{done}/{mine.length}</span></div>
+            <div className="row"><h2 id={`lane-${l}`}>{LANE_TITLE[l]}</h2><span className="n">{done}/{mine.length}</span>
+              {l === "instagram" && <button className="btn g" style={{ marginLeft: "auto" }} disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: true })}>Don't post to Instagram</button>}</div>
             {nx.type === "gate" && nx.gate
               ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={pending} running={running} stopping={stopping} onStop={onStop} reload={reload} />
               : <section className="card stack live"><StepStatus kind={running ? "later" : "next"} /><h3>{stepLabel(nx.step)}</h3>
@@ -299,6 +300,7 @@ const sayFor = (path: string, b: Record<string, unknown>): [string, string] => {
     case "/api/stop": return ["Stopping…", "Stop requested. The step ends in a moment."];
     case "/api/revoke": return ["Taking the approval back…", `Approval taken back: ${g}.`];
     case "/api/answer": return ["Sending your answer…", "Answer sent. The run carries on."];
+    case "/api/skip_lane": return b.skip ? ["Skipping Instagram…", "Instagram skipped for this one. The pipeline can finish without it."] : ["Turning Instagram back on…", "Instagram is back: its caption and post steps are in the pipeline again."];
     case "/api/reel/lyrics": return ["Saving…", "Saved."];
     default: return ["Working…", "Done."];
   }
@@ -432,7 +434,7 @@ export default function Song() {
               </div>
             )}
             {(!mobile || pane === "steps") && <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={(id) => { pick(id); if (mobile) setPane("now"); }} />}
-            {(!mobile || pane === "now") && <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
+            {(!mobile || pane === "now") && <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{d.meta.skip?.instagram && <p className="mu row" role="status">Not posted to Instagram: you skipped it for this one.<button className="btn g" disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: false })}>Post to Instagram after all</button></p>}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
           </div>
         )}
         {tab === "content" && (<>

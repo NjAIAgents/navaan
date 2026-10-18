@@ -364,6 +364,20 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
     await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
   });
+  it("lets you skip Instagram for one song so the pipeline finishes without it, and turn it back on", async () => {
+    const f = route(OWNER, { "/api/skip_lane": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-008", next: { type: "run", step: "publish_instagram" },
+      lanes: { instagram: { type: "run", step: "publish_instagram" } }, steps: [step("publish_youtube", { done: true, status: "done", lane: "youtube" }), step("publish_instagram", { lane: "instagram" })] }) });
+    at("/studio/songs/song-008");
+    fireEvent.click(await screen.findByRole("button", { name: "Don't post to Instagram" }));
+    await waitFor(() => expect(posts(f, "/api/skip_lane")).toEqual([{ slug: "song-008", lane: "instagram", skip: true }]));
+  });
+  it("says a skipped Instagram plainly and offers to post after all", async () => {
+    const f = route(OWNER, { "/api/skip_lane": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-008", meta: { type: "music", state: "published", history: [], skip: { instagram: true } } }) });
+    at("/studio/songs/song-008");
+    expect(await screen.findByText(/Not posted to Instagram: you skipped it/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Post to Instagram after all" }));
+    await waitFor(() => expect(posts(f, "/api/skip_lane")).toEqual([{ slug: "song-008", lane: "instagram", skip: false }]));
+  });
   it("lets you approve in a lane while the run is waiting at that very approval (the run counts as running and must not lock its own button)", async () => {
     const f = route(OWNER, { "/api/approve": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate publish_youtube",
       lanes: { youtube: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, instagram: { type: "gate", step: "instagram_caption", gate: "instagram_caption" } },

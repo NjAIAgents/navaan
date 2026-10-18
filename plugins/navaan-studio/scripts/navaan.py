@@ -236,6 +236,7 @@ def brief_opt(D, key, default=""):
 def ig_enabled(m):
     """Instagram steps are on when the profile names a handle. Inspiration always shows them: it has its own account, checked before any post."""
     if item_type(m) in C.NO_INSTAGRAM: return False   # The Aha-lorithm posts YouTube Shorts only
+    if (m.get("skip") or {}).get("instagram"): return False   # the owner chose not to post this item to Instagram (Skip Instagram on its page); undone the same way
     return item_type(m) == "inspiration" or bool(cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
 
 

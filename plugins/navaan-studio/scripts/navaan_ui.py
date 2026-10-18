@@ -232,6 +232,7 @@ def detail(slug):
     nolyr = C.item_type(m) == "music" and not C.lyric_lines(D)
     ferr = jv.get("error", "") or next((l.strip() for l in reversed((logs.get(fstep) or "").splitlines()) if l.strip()), "")   # the job row has no text when a step printed its reason and exited: the last line of its log is that reason
     stale = bool(fstep) and any(r["id"] == fstep and r["done"] for r in rows)   # the step that failed has since succeeded: the pipeline moved on, so the failure is history, not news
+    stale = stale or (bool(fstep) and not any(r["id"] == fstep for r in rows))   # the step is no longer part of this item (Instagram skipped): nothing to run again
     failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6, 7) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
@@ -966,6 +967,13 @@ class H(BaseHTTPRequestHandler):
                 if sid and body["gate"] == "credits":
                     navaan.edit_meta(slug, lambda d: d.pop("redo_pending", None)); started = start_job(slug, False, sid)
                 return self._send(200, {"ok": True, "started": started})
+            if p == "/api/skip_lane":   # post this item to Instagram or not: the lane's steps leave the pipeline, so it can finish without them
+                if body.get("lane") != "instagram": return self._send(400, {"error": "only the Instagram lane can be skipped"})
+                on = bool(body.get("skip")); who = sess.get("user") or "owner"
+                if on and navaan.ig_done(navaan.meta(slug)): return self._send(400, {"error": "It is already posted to Instagram."})
+                navaan.edit_meta(slug, lambda d: (d.setdefault("skip", {}).__setitem__("instagram", True) if on else (d.get("skip") or {}).pop("instagram", None),
+                                                   navaan.log_hist(d, f"Instagram {'skipped' if on else 'back on'} for this item (via ui:{who})")))
+                return self._send(200, {"ok": True})
             if p == "/api/answer":
                 qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
                 return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
