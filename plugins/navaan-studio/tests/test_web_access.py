@@ -217,6 +217,16 @@ class Access(unittest.TestCase):
         self.assertEqual(json.load(open(os.path.join(D, "prompt_pack.json")))["character"], "A lone man.")
         self.assertEqual(save("lis-tok", "csrf-lis", character="x")[0], 403)   # a listener has no say
 
+    def test_write_the_prompt_for_pictures_reaches_the_prompt_pack_and_does_not_fail_with_an_internal_error(self):
+        # a local `import prompt_pack` in another branch of the same handler once made the name unbound here: the button answered 500
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]
+        with mock.patch.object(U.prompt_pack, "make", lambda sl, count=None: {"slug": sl, "count": count}):
+            code, body = self.call("/api/visuals/prompts", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, count=4))
+        self.assertEqual((code, json.loads(body)), (200, {"ok": True, "pack": {"slug": slug, "count": 4}}))
+        with mock.patch.object(U.prompt_pack, "make", mock.Mock(side_effect=RuntimeError("no key"))):
+            code, body = self.call("/api/visuals/prompts", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug))
+        self.assertEqual((code, json.loads(body)["error"]), (400, "no key"))
+
     def test_feedback_at_the_video_review_names_one_video_and_only_that_one_is_made_again(self):
         import navaan, navaan_common as C, reel_lyrics
         code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)
@@ -424,7 +434,13 @@ class Access(unittest.TestCase):
         st, h, b = self.raw("/img/song-001/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"]); self.assertTrue(b[:4] == b"RIFF")
         self.assertEqual(self.raw("/img/song-001/320.webp", headers={"If-None-Match": h["ETag"]})[0], 304)
         self.assertEqual(self.raw("/img/song-001/999.webp")[0], 404); self.assertEqual(self.raw("/img/ghost/320.webp")[0], 404)
-        code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [1])   # the page was opened once; the preview does not count
+        self.assertEqual(self.raw("/img/song-001/poster-320.webp")[0], 404); self.assertIn("/img/song-001/1280.jpg", self.raw("/s/" + tok)[2].decode())   # no poster yet: the cover is the preview
+        K.set_picture("song-001", "poster", pre + "poster_2x3.png", "image/png", len(cover))   # the owner put the poster on share links
+        st, h2, b2 = self.raw("/img/song-001/poster-320.webp"); self.assertEqual((st, h2["Content-Type"]), (200, "image/webp")); self.assertNotEqual(h2["ETag"], h["ETag"])   # its own picture and cache entry, not the cover's
+        self.assertEqual(self.raw("/img/ghost/poster-320.webp")[0], 404)
+        self.assertEqual(post("lis-tok", "csrf-lis", "/api/poster/publish", slug="song-001")[0], 403); self.assertEqual(post("owner-tok", "csrf-owner", "/api/poster/publish", slug="song-001")[0], 400)   # a listener has no say; the owner is told there is no poster yet
+        page = self.raw("/s/" + tok)[2].decode(); self.assertIn("/img/song-001/poster-1280.jpg", page); self.assertNotIn("/img/song-001/1280.jpg", page)   # the poster replaces the cover in the link preview
+        code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [3])   # the page was opened three times (once, then before and after the poster was put on it); the preview does not count
         rows = json.loads(self.call("/api/songs", "owner-tok")[1]); self.assertEqual(rows[0]["art"], {"colour": "#c82828"})   # the list is told the cover exists and its colour (set by the first resize above)
         st, h, b = self.raw("/api/play?slug=song-001", "lis-tok"); self.assertEqual((st, json.loads(b)["url"]), (200, "https://bucket.example/navaan/songs/song-001/final.mp3"))
         self.assertEqual(self.raw("/api/play?slug=ghost", "lis-tok")[0], 404); self.assertEqual(self.raw("/api/play?slug=song-001")[0], 401)

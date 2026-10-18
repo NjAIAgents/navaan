@@ -43,12 +43,12 @@ def _original(asset):
     return objstore.get(asset["storage_key"])
 
 
-def variant(slug, size, fmt):
-    """(bytes, etag, mime) of a cover in one size and format, or None when there is no such cover. Raises ValueError for a size or format that does not exist."""
-    if size not in SIZES or fmt not in FORMATS: raise ValueError("no such size or format")
-    a = K.cover_asset(slug)
+def variant(slug, size, fmt, role="cover"):
+    """(bytes, etag, mime) of a track's picture (its cover, or its poster) in one size and format, or None when there is no such picture. Raises ValueError for a size or format that does not exist."""
+    if size not in SIZES or fmt not in FORMATS or role not in ("cover", "poster"): raise ValueError("no such size or format")
+    a = K.cover_asset(slug) if role == "cover" else K.poster_asset(slug)
     if not a: return None
-    name = f"{a['id']}-{a['bytes']}-{size}.{fmt}"; path = os.path.join(cache_dir(), name)
+    name = f"{a['id']}-{a['bytes']}-{size}.{fmt}" if role == "cover" else f"{role}-{a['id']}-{a['bytes']}-{size}.{fmt}"; path = os.path.join(cache_dir(), name)
     etag = '"' + hashlib.sha1(name.encode()).hexdigest()[:20] + '"'
     mime = FORMATS[fmt][1]
     if os.path.isfile(path):
@@ -56,7 +56,7 @@ def variant(slug, size, fmt):
     from PIL import Image
     im = Image.open(io.BytesIO(_original(a)))
     im.load()
-    if not a.get("dominant_colour"): K.set_cover_facts(a["id"], im.width, im.height, dominant_colour(im))
+    if role == "cover" and not a.get("dominant_colour"): K.set_cover_facts(a["id"], im.width, im.height, dominant_colour(im))
     out = im.convert("RGB"); out.thumbnail((size, size), Image.LANCZOS)
     pil, _, opts = FORMATS[fmt]; buf = io.BytesIO(); out.save(buf, pil, **opts)
     data = buf.getvalue(); tmp = path + f".{os.getpid()}.tmp"

@@ -20,6 +20,21 @@ describe("PosterCard", () => {
     rerender(<PosterCard d={d({ has: true, v: 5 })} done={done} />);
     expect(screen.getByRole("button", { name: "Redraw the title (free)" })).toBeInTheDocument(); expect(screen.getByAltText("Poster")).toBeInTheDocument();
   });
+  it("puts the poster on share links with one button, and says what is shown, stale, or not possible yet", async () => {
+    const f = vi.fn(() => Promise.resolve(new Response("{}", { headers: { "Content-Type": "application/json" } }))); vi.stubGlobal("fetch", f); const done = vi.fn();
+    const { rerender } = render(<PosterCard d={d({ has: true, v: 2, can_publish: true, published: false })} done={done} />);
+    expect(screen.getByText(/shows the cover in its preview/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use this poster for share links" }));
+    await waitFor(() => expect(f).toHaveBeenCalled()); const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit]; expect(url).toBe("/api/poster/publish"); expect(JSON.parse(String(init.body))).toEqual({ slug: "song-001" });
+    await waitFor(() => expect(done).toHaveBeenCalled());
+    rerender(<PosterCard d={d({ has: true, v: 2, can_publish: true, published: true, stale: false })} done={done} />);
+    expect(screen.getByRole("status")).toHaveTextContent("show this poster"); expect(screen.queryByRole("button", { name: /share links/ })).toBeNull();   // nothing to do
+    rerender(<PosterCard d={d({ has: true, v: 3, can_publish: true, published: true, stale: true })} done={done} />);
+    expect(screen.getByRole("button", { name: "Update the poster on share links" })).toBeEnabled(); expect(screen.getByRole("status")).toHaveTextContent("earlier one");
+    rerender(<PosterCard d={d({ has: true, v: 3, can_publish: false, published: false })} done={done} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Put the song in the bucket first"); expect(screen.queryByRole("button", { name: /share links/ })).toBeNull();
+    rerender(<PosterCard d={d()} done={done} />); expect(screen.queryByText("Share links")).toBeNull();   // no poster, nothing to publish
+  });
   it("cannot generate without an OpenAI key", () => {
     render(<PosterCard d={d({ key: false })} done={vi.fn()} />);
     expect(screen.getByRole("button", { name: /Make poster/ })).toBeDisabled(); expect(screen.getByRole("status")).toHaveTextContent("OpenAI key");

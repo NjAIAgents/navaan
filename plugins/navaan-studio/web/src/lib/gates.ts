@@ -25,7 +25,7 @@ const STEP: Record<string, string> = {
   go_public: "Make it public", publish_instagram: "Post the Reel", archive: "Archive to the cloud", cleanup: "Clean up local files", quote: "Write the quote", originality: "Check originality",
   narrate: "Narrate the quote (ElevenLabs)", narration: "Time the narration to the voice", background_prompt: "Write the background prompt",
   background: "Make the background", typeset: "Plan the typography", render: "Render the video",
-  prompts: "Write the picture plan", pictures: "Create the pictures", shots: "Plan the shots", motion_plan: "Plan what moves", motion_clips: "Make the moving pictures", reel: "Build the vertical reel",
+  prompts: "Write the picture plan", pictures: "Create the pictures", poster: "Make the poster", shots: "Plan the shots", motion_plan: "Plan what moves", motion_clips: "Make the moving pictures", reel: "Build the vertical reel",
 };
 export const stepLabel = (id: string) => STEP[id] ?? id.replace(/_/g, " ");
 export const gateTitle = (g: string) => GATE_TITLE[g] ?? g.replace(/_/g, " ");
@@ -33,7 +33,7 @@ export const gateTitle = (g: string) => GATE_TITLE[g] ?? g.replace(/_/g, " ");
 // What a step does, in one plain sentence, shown on a step that has not run yet.
 const WHAT: Record<string, string> = {
   suno_import: "Brings the song's words and sound in from Suno.", visuals_mode: "You choose how the video gets its pictures.", prompts: "The director writes the story, the character and one picture prompt for each shot.",
-  pictures: "Paints the pictures from the plan with OpenAI.", shots: "Lays the pictures along the song: when each appears and how the camera moves.", motion_plan: "Marks what moves in each picture (steam, cloth, flames); the rest stays still.",
+  pictures: "Paints the pictures from the plan with OpenAI.", poster: "Makes the poster, a portrait picture with the title drawn over it, from a prompt written from the song. You can read and change that prompt on the Media tab first.", shots: "Lays the pictures along the song: when each appears and how the camera moves.", motion_plan: "Marks what moves in each picture (steam, cloth, flames); the rest stays still.",
   motion_clips: "Makes a short moving loop for each picture that has something marked to move.", captions: "Times every lyric line to the singing.", reel: "Builds the vertical reel from the best part of the song.",
   video: "Builds the full video from the pictures, their moves and the captions.", youtube_meta: "Writes the YouTube title, description and tags. Nothing is sent.", publish_youtube: "Uploads the video to YouTube as private.",
   youtube_short: "Uploads the reel to YouTube as a private Short.", go_public: "Makes the YouTube video and Short public.", instagram_caption: "Writes the Instagram caption for you to review.",

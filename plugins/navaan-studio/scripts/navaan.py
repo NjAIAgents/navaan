@@ -100,7 +100,7 @@ SPEND_WHAT = {"suno": "Suno: makes the song from your lyrics (from your plan's c
 
 def spend_what(s):
     """One line for the credits approval: the service and what it makes. The pictures step already carries its own count and price in its label."""
-    if s["id"] == "pictures": return s["label"]
+    if s["id"] in ("pictures", "poster"): return s["label"]   # these carry their own count and price in the label
     if s["id"] == "background" and "(Flow)" in s.get("label", ""): return "Flow: the background picture"
     return SPEND_WHAT.get(s["id"], s["label"])
 
@@ -113,11 +113,17 @@ def song_picture_steps(slug, D, mc):
     n = len(pack["prompts"]) if pack and pack.get("prompts") else 0
     label = "Create the pictures with OpenAI"
     if n: label += " (%d pictures, about $%.2f at %s)" % (n, SI.total_cost(n, mc["image_quality"], mc["image_size_landscape"], IO.model_name(mc)), mc["image_quality"])
+    import poster as POSTER
+    plabel = "Make the poster with OpenAI (1 picture, about $%.2f at %s)" % (IO.estimate(mc["image_quality"], POSTER.SIZE, IO.model_name(mc)), mc["image_quality"])
     return [
         dict(id="prompts", outputs=["prompt_pack.json"], label="Director writes the picture plan: story, character, places, motion", kind="script",
              cmds=[sc("prompt_pack.py", slug)], done=lambda m: bool((prompt_pack.load(D) or {}).get("prompts")) or len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),   # read the folder when asked, not when the step list was built
         dict(id="pictures", outputs=["images/*"], label=label, kind="script", before="credits",
              cmds=[sc("song_images_openai.py", slug)], done=lambda m: len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),
+        # the poster: portrait art from the song's own words (the prompt is on the Media tab's Poster card, where it can be changed first), with the title drawn over it.
+        # Done once it exists, or once the videos were approved, so a song made before this step existed is not sent back to make one (and spend) on its next run.
+        dict(id="poster", outputs=["poster_2x3.png", "poster_art.png"], label=plabel, kind="script", before="credits", cmds=[sc("poster.py", slug)],
+             done=lambda m: has(D, "poster_2x3.png") or bool((m.get("approvals") or {}).get("media"))),
     ]
 
 
@@ -1031,15 +1037,15 @@ def main(argv):
         if a and ("--suggest" in a or "--accept" in a):
             sg = PS.suggest(a[0])
             if not sg: print("no timing suggestion: nothing left to schedule, or no analytics timing data yet. Run collect, or use --at."); return 1
-            loc = lambda t: PS.parse(t).astimezone().strftime("%a %b %d %H:%M") if t else "auto, 15 minutes before the Reel"
+            loc = lambda t: PS.parse(t).astimezone().strftime("%a %b %d %H:%M") if t else "not scheduled (left for you)"
             print(f"suggested: YouTube public {loc(sg['youtube_at'])}, Reel {loc(sg['instagram_at'])}  (confidence {sg['confidence']}; {', '.join(sg['basis']) or 'followers online'}) {sg['note']}")
             if "--accept" not in a: print(f"Schedule these times: navaan.py schedule {a[0]} --accept   (approvals stay yours)"); return 0
             try: s = PS.accept(a[0])
             except ValueError as e: L.ignored(LOG, "main: ValueError (optional or expected)", e); sys.exit(f"navaan: {e}")
             print("scheduled:", PS.status_text({"schedule": s}), "\nStill needed from you before then: approve go_public, instagram_caption and publish_instagram. Keep the portal or `navaan.py schedule-run --loop` running."); return 0
-        if not a or not opt("--at"): sys.exit('usage: navaan.py schedule <slug> --at "2026-10-16 18:30" [--youtube-at "2026-10-16 18:15"] | --suggest | --accept   (your computer\'s local time)')
+        if not a or not (opt("--at") or opt("--youtube-at")): sys.exit('usage: navaan.py schedule <slug> [--at "2026-10-16 18:30"] [--youtube-at "2026-10-16 18:15"] | --suggest | --accept   (--at is the Instagram Reel, --youtube-at the YouTube video; give one or both, each stands alone; your computer\'s local time)')
         def utc(x): return PS.iso(datetime.datetime.strptime(x.replace("T", " "), "%Y-%m-%d %H:%M").astimezone())
-        try: s = PS.set_schedule(a[0], utc(opt("--at")), utc(opt("--youtube-at")) if opt("--youtube-at") else None)
+        try: s = PS.set_schedule(a[0], utc(opt("--at")) if opt("--at") else None, utc(opt("--youtube-at")) if opt("--youtube-at") else None)
         except ValueError as e: L.ignored(LOG, "main: ValueError (optional or expected)", e); sys.exit(f"navaan: {e}")
         print("scheduled:", PS.status_text({"schedule": s}), "\nStill needed from you before then: approve go_public, instagram_caption and publish_instagram. Keep the portal or `navaan.py schedule-run --loop` running."); return 0
     if c == "schedule-clear": PS.clear(a[0]); print("cleared"); return 0
