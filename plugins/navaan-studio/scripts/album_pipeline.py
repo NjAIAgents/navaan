@@ -20,9 +20,20 @@ from make_cover import cover_scale, shade, latin
 SIZE = "1024x1024"
 W = 1080
 FINISH = " Square album cover composition with a calm open area in the lower third. No text, no letters, no logos, no watermarks."
-SUGGEST = ("You name albums for NAVAAN, an independent music label. Songs on this album (title; mood; language; first lines):\n{songs}\n\n"
-           "Suggest {n} album names. Each is short (one to four words), memorable, fits all the songs together, and is in the language of the songs (Hindi in Devanagari with its Roman spelling in brackets when the songs are Hindi). "
-           "Do not reuse a song title. Reply as JSON only: {{\"names\": [{{\"name\": \"...\", \"why\": \"one short sentence\"}}]}}")
+SUGGEST = ("You are naming a record. NAVAAN, an independent artist, is releasing an album and needs its title: the kind an artist chooses for a new release, not the name of a playlist. "
+           "Songs on this album (title; mood; language; first lines):\n{songs}\n\n"
+           "Suggest {n} album titles. A real album title has a point of view: it comes from an image, a line, a place, a feeling or one idea that runs through all the songs, and it reads like something a listener would remember a record by "
+           "(think 'Rumours', 'Blue', 'Kind of Blue', 'Lemonade', 'Unplugged in the rain', 'Dil Ki Baat'; never 'Chill Vibes', 'Late Night Mix' or 'Best of 2026'). "
+           "One to five words, a title, not a description. Do NOT use playlist words: mix, vibes, hits, best of, collection, playlist, essentials, songs, tracks, volume, vol, chill, lofi, mood, years or 'Top N'. "
+           "Do not name the genre or the mood outright; hint at it. Do not reuse a song title. Write it in the language of the songs (Hindi in Devanagari with its Roman spelling in brackets when the songs are Hindi). "
+           "In `why`, one short sentence on the idea that ties the songs together. Reply as JSON only: {{\"names\": [{{\"name\": \"...\", \"why\": \"one short sentence\"}}]}}")
+PLAYLIST_WORDS = ("mix", "vibes", "vibe", "hits", "best of", "collection", "playlist", "essentials", "songs", "tracks", "volume", "vol.", "lofi", "lo-fi", "chill", "mood")
+
+
+def playlist_like(name):
+    """True for a name that reads like a playlist, not a record: it carries one of the playlist words or a year or 'Top N'."""
+    t = " " + re.sub(r"[^\w\s.\-]", " ", str(name or "").lower()) + " "
+    return any((" " + w + " ") in t or t.rstrip().endswith(" " + w) for w in PLAYLIST_WORDS) or bool(re.search(r"(?<!\w)(19|20)\d\d(?!\w)|(?<!\w)top\s*\d+(?!\w)", t))
 
 
 def _read(D, name):
@@ -53,7 +64,8 @@ def suggest_names(slugs, n=5, runner=None):
         name = " ".join(str((x.get("name") if isinstance(x, dict) else x) or "").split())[:80]
         if name and name not in [o["name"] for o in out]: out.append({"name": name, "why": " ".join(str(x.get("why") or "").split())[:160] if isinstance(x, dict) else ""})
     if not out: raise RuntimeError("no names came back, try again")
-    return out[:n]
+    real = [o for o in out if not playlist_like(o["name"])]   # a playlist-style name that slipped through is dropped, unless nothing else is left
+    return (real or out)[:n]
 
 
 def album_dir(slug):

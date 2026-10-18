@@ -27,13 +27,13 @@ export type SongRow = {
 };
 
 export type Step = {
-  id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean; spends_what?: string | null; gate_before?: string | null; gate_after?: string | null; outputs?: string[]; made?: { name: string; size: number }[]; texts?: { name: string; text: string }[];
-  status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null;
+  id: string; label: string; kind: string; done: boolean; redo: boolean; restart: boolean; spends: boolean; spends_what?: string | null; gate_before?: string | null; gate_after?: string | null; outputs?: string[]; made?: { name: string; size: number }[]; texts?: { name: string; text: string }[]; links?: { where: string; url: string; privacy: string }[];
+  status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null; lane?: "youtube" | "instagram";
 };
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
-  meta: { type?: string; state?: string; album?: string; mood?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown } };
+  meta: { type?: string; state?: string; album?: string; mood?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; schedule?: Schedule; published?: { instagram?: unknown }; step_seconds?: Record<string, number> };
   files: Record<string, number>;
   approvals: Record<string, { at: string; via: string }>;
   job: { running: boolean; queued: boolean; rc: number | null }; status_text: string;
@@ -43,11 +43,15 @@ export type SongDetail = {
   question: Question | null; needs_you: string;
   cameras: string[]; cloud: boolean; images: string[];
   visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; openai_pictures?: boolean;
-  prompt_pack?: { aspect?: string; style_line: string; prompts: { n: number; section: string; prompt: string }[] } | null;
+  prompt_pack?: { aspect?: string; concept?: string; character?: string; style_line: string; look?: Record<string, unknown>; prompts: { n: number; section: string; lyric?: string; prompt: string; camera?: string; motion?: string }[] } | null;
+  run?: { step?: string; attempt?: number; attempts?: number; elapsed?: number; quiet_s?: number; pct?: number; done?: number; total?: number; label?: string; failed?: string | null };
+  lanes?: Record<string, { type: "gate" | "run"; step: string; gate?: string }>;
+  deletable?: { ok: boolean; why: string };
+  gates_off?: string[]; reel_lyrics?: { on: boolean; offset: number };
   try?: { running?: boolean; error?: string; files?: string[]; v?: number }; vertical?: { running?: boolean; error?: string; done?: number[] };
   visuals_problems?: string[];
   music?: { file: string; name: string; added: string; seconds: number } | null;
-  narrate?: { on: boolean; voice: string; voices: Record<string, string>; pace?: string; paces?: Record<string, string>; estimate_s: number; script?: string; script_custom?: boolean; used_s: number; cap_s: number; key: boolean } | null;
+  narrate?: { on: boolean; voice: string; voices: Record<string, string>; pace?: string; paces?: Record<string, string>; estimate_s: number; script?: string; script_custom?: boolean; from_suno?: boolean; used_s: number; cap_s: number; key: boolean } | null;
   poster?: { style: string; styles: string[]; prompt: string; default?: string; published?: boolean; stale?: boolean; can_publish?: boolean; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
 };
 
@@ -105,6 +109,7 @@ export type SettingsData = {
   claude: { credential: string; state: string; headless: boolean };
   media: { settings: Record<string, string | number>; keys: Record<string, boolean>; usage: { month?: string; eleven_seconds?: number; openai_usd?: number }; voices: Record<string, string>; choices: Record<string, string[]> };
   gates: { id: string; on: boolean; types: string[] }[];
+  licence?: { auto: boolean; statement: string; suggested: string; set_by: string; set_at: string };
 };
 export type Alert = { id: string; kind: string; title: string; message: string; command?: string; where?: string };
 

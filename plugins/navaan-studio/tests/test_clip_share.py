@@ -18,6 +18,7 @@ class Token(unittest.TestCase):
         import share_page
         h = share_page.render_clip("song-001", 'Tere "Hone" Se', "song-001-42-15", "https://navaan.online")
         self.assertIn('href="/c/song-001-42-15.mp4" download="song-001-clip.mp4"', h)   # a plain link: works with no script, on a computer too
+        js = h.split("<script>")[1].split("</script>")[0]; self.assertLess(js.index("fetch(d.vid)"), js.index("b.onclick")); self.assertNotIn("fetch", js.split("b.onclick")[1])   # the clip is fetched on load; pressing Share awaits nothing, so an iPhone opens the sheet
         self.assertIn('id="sh"', h); self.assertIn("hidden", h.split('id="sh"')[1].split(">")[0])   # the Share button is shown only by the script, where navigator.share exists
         self.assertIn('data-page="https://navaan.online/c/song-001-42-15"', h); self.assertIn("&quot;Hone&quot;", h)   # the title is escaped into the attribute
         self.assertIn('og:video" content="https://navaan.online/c/song-001-42-15.mp4"', h); self.assertIn('property="og:image"', h)   # the link preview still works

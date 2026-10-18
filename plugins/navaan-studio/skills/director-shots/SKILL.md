@@ -22,3 +22,5 @@ The video is stitched locally from the user's pictures in `images/` with slow ca
 6. Write `shots.json` as `{"duration": ..., "shots": [{"id", "label", "start", "end", "image", "camera", "focus", "scene", "lyric"}], "notes": "..."}` and print one line: how many shots, which pictures, anything uncertain. Do not approve gates and do not render.
 
    Standing rules: if `<local_dir>/standing_rules.json` exists (next to the songs folder, written when the user presses Implement on a recommendation), apply every rule for this account whose category is format, hook or packaging, and say which ones you applied.
+
+   Send line: if `<local_dir>/standing_rules.json` has a rule for this account in the category engagement that asks for a reason to send the video ("send this to someone who..."), also write `send_line.txt` in the item's folder: ONE short line, under 70 characters, that names who this song is for, in the language of the lyrics (for example "Send this to someone far from home"). The renderer draws it on the last seconds of the video. If there is no such rule, do not write the file.

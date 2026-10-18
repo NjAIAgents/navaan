@@ -7,7 +7,7 @@ Lines that are only sustained vowels (alaap) are left out of the captions.
 """
 import os, sys, json, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, tool, cfg, lyric_lines, NO_LYRICS
+from navaan_common import song_dir, tool, cfg, lyric_lines, NO_LYRICS, progress
 import setup_captions as S
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -43,21 +43,22 @@ def main(slug):
     env = dict(os.environ, NAVAAN_WORK=work, NAVAAN_VOC_MODEL=S.VOC, NAVAAN_WHISPER_DIR=S.MODELS)
     env["PATH"] = os.path.dirname(tool("ffmpeg")) + os.pathsep + env.get("PATH", "")
     mono = os.path.join(work, "mono.wav")
+    progress(0, 5, "preparing the audio")
     subprocess.check_call([tool("ffmpeg"), "-y", "-v", "error", "-i", os.path.join(D, "final.mp3"), "-ac", "1", "-ar", "44100", mono])
     tag = slug
     if not os.path.exists(f"{work}/{tag}_voc.npy"):
-        print("separating vocals ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "sep.py"), tag, mono], env=env)
+        progress(1, 5, "separating the voice (the slow part)"); print("separating vocals ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "sep.py"), tag, mono], env=env)
     lang = (cfg("music.default_language") or "hi").lower()[:2]
     lang = lang if lang in ("hi", "en") else "hi"  # Maithili is sung in Devanagari, Hindi model is the closest
     hj = f"{work}/{tag}_hi.json"
     if not os.path.exists(hj):
-        print("transcribing windows ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "asr.py"), tag, "small", "hi", hj], env=env)
+        progress(2, 5, "listening to the singing"); print("transcribing windows ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "asr.py"), tag, "small", "hi", hj], env=env)
     ej = f"{work}/{tag}_asren.json"
     if has_latin_lines(os.path.join(D, "lyrics.txt")) and not os.path.exists(ej):
-        print("transcribing windows (English) ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "asr.py"), tag, "small", "en", ej], env=env)   # English lines are matched to this
+        progress(3, 5, "listening for the English lines"); print("transcribing windows (English) ...", flush=True); subprocess.check_call([py, os.path.join(HERE, "asr.py"), tag, "small", "en", ej], env=env)   # English lines are matched to this
     lyr = os.path.join(work, "lyrics_clean.txt"); n = clean_lyrics(os.path.join(D, "lyrics.txt"), lyr)
     if n: print(f"left {n} alaap line(s) out of the captions")
-    print("aligning lines ...", flush=True)
+    progress(4, 5, "matching the lyrics to the singing"); print("aligning lines ...", flush=True)
     subprocess.check_call([py, os.path.join(HERE, "align.py"), tag, lyr, os.path.join(D, "caption_cues.json"), "{}"], env=env)
     cues = json.load(open(os.path.join(D, "caption_cues.json")))
     if not cues: sys.exit("navaan: no cues were produced")

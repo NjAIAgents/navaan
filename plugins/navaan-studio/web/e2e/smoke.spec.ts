@@ -35,9 +35,9 @@ test("a finished step can be opened to see what it made, and you can go back to 
   await page.goto(`/app/studio/songs/${slug}`); await ready(page);
   const first = page.locator(".rail .lb-btn").first(); await expect(first).toBeVisible();   // every step in the list can be opened, finished or not
   await first.click();
-  await expect(page.getByRole("button", { name: /Back to what needs you/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close this step" })).toBeVisible();
   await page.screenshot({ path: `/tmp/step-detail-${info.project.name}.png`, fullPage: true });
-  await page.getByRole("button", { name: /Back to what needs you/ }).click(); await expect(page.getByRole("button", { name: /Back to what needs you/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Close this step" }).click(); await expect(page.getByRole("button", { name: "Close this step" })).toHaveCount(0);
 });
 
 test("a song and an inspiration can be started from the lists and open at their first step", async ({ page }, info) => {
@@ -45,7 +45,7 @@ test("a song and an inspiration can be started from the lists and open at their 
   await page.getByLabel("Idea (optional)").fill(`A song made in the ${info.project.name} check`); await page.getByRole("button", { name: "Create" }).click();
   await expect(page).toHaveURL(/\/app\/studio\/songs\/song-\d+/); await expect(page.getByRole("heading", { name: "Steps", level: 2 })).toBeVisible();
   await page.goto("/app/studio/inspiration"); await page.getByRole("button", { name: "New inspiration" }).click();
-  await page.getByRole("button", { name: "Create" }).click(); await expect(page.getByText("Write the quote or the idea first.")).toBeVisible();   // an inspiration needs words
+  await page.getByRole("button", { name: "Create" }).click(); await expect(page.getByText("Write the quote or the idea first, or paste a Suno link.")).toBeVisible();   // an inspiration needs words
   await page.getByLabel("Quote or idea").fill("Maybe you are not behind, maybe you are on your own road"); await page.getByRole("button", { name: "Create" }).click();
   await expect(page).toHaveURL(/\/app\/studio\/inspiration\/insp-\d+/); await expect(page.getByRole("heading", { name: "Steps", level: 2 })).toBeVisible();
 });

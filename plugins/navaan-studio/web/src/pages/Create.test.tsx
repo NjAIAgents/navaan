@@ -31,21 +31,22 @@ describe("New song and New inspiration", () => {
   it("needs a quote for an inspiration and shows the server's refusal", async () => {
     const f = route(OWNER, { "/api/new": () => json({ error: "the inspiration pipeline is planned" }, 400), "/api/songs": () => [] });
     at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create" })); expect(await screen.findByRole("alert")).toHaveTextContent("Write the quote or the idea first."); expect(posts(f, "/api/new")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Create" })); expect(await screen.findByRole("alert")).toHaveTextContent("Write the quote or the idea first, or paste a Suno link."); expect(posts(f, "/api/new")).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Maybe you are not behind" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText(/inspiration pipeline is planned \(ref req-8\)/)).toBeInTheDocument(); expect(posts(f, "/api/new")[0]).toEqual({ type: "inspiration", idea: "Maybe you are not behind", narrate: "eleven", voice: "suno1" });   // narration is a standard step: on unless unticked
   });
-  it("needs BOTH the Suno link (the words) and the audio file (the sound), and refuses a too big file", async () => {
+  it("needs the Suno link, takes the sound from the Suno page unless an audio file is added, and refuses a too big file", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
     at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));
-    expect(screen.getByLabelText(/Suno link \(required\)/)).toBeRequired(); expect(screen.getByLabelText(/Audio file \(required/)).toBeRequired();
+    expect(screen.getByLabelText(/Suno link \(required\)/)).toBeRequired(); expect(screen.getByLabelText(/Audio file \(optional/)).not.toBeRequired();   // the file is optional now
     fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("Add the Suno link: the title, lyrics and style are read from it.");
-    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });   // the link alone is not enough
-    fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("Add the song's audio file"); expect(posts(f, "/api/import")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });   // the link alone is enough: the sound comes from the Suno page
+    fireEvent.click(screen.getByRole("button", { name: "Import" })); await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(1)); expect(posts(f, "/api/import")[0]).toEqual({ url: "https://suno.com/s/1K4BKj0pldFbnlkF" });   // no audio sent
+    cleanup(); at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" })); fireEvent.change(screen.getByLabelText(/Suno link/), { target: { value: "https://suno.com/s/1K4BKj0pldFbnlkF" } });
     const big = new File([new Uint8Array(1)], "big.mp3", { type: "audio/mpeg" }); Object.defineProperty(big, "size", { value: 23 * 1024 * 1024 });
-    fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [big] } }); fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("over 22 MB"); expect(posts(f, "/api/import")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [big] } }); fireEvent.click(screen.getByRole("button", { name: "Import" })); expect(await screen.findByRole("alert")).toHaveTextContent("over 22 MB"); expect(posts(f, "/api/import")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText(/Audio file/), { target: { files: [new File(["abc"], "song.mp3", { type: "audio/mpeg" })] } }); fireEvent.click(screen.getByRole("button", { name: "Import" }));
-    await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(1)); const b = posts(f, "/api/import")[0]; expect(b.url).toBe("https://suno.com/s/1K4BKj0pldFbnlkF"); expect(b.audio).toEqual({ name: "song.mp3", data: "YWJj" });
+    await waitFor(() => expect(posts(f, "/api/import")).toHaveLength(2)); const b = posts(f, "/api/import")[1]; expect(b.url).toBe("https://suno.com/s/1K4BKj0pldFbnlkF"); expect(b.audio).toEqual({ name: "song.mp3", data: "YWJj" });
   });
   it("is not offered to a listener", async () => { route(LISTENER, { "/api/catalog/tracks": () => [] }); at("/"); await screen.findByRole("heading", { name: "Browse", level: 1 }); expect(screen.queryByRole("button", { name: "New song" })).toBeNull(); });
 });
@@ -111,6 +112,14 @@ describe("narration offered for an inspiration", () => {
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Stay soft." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "Stay soft.", narrate: "none" }]));
   });
+  it("takes the voice and words from a Suno link when one is pasted, with ElevenLabs kept as the backup", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-006" }), "/api/songs": () => [], "/api/settings": () => SET(true), "/api/song/": () => detail({ slug: "insp-006" }) });
+    at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    fireEvent.change(await screen.findByLabelText("Suno link (optional)"), { target: { value: "https://suno.com/s/hhExPklJS2a69Wv1" } });
+    expect(screen.getByLabelText("Quote or idea")).toBeDisabled(); expect(screen.getByLabelText(/Keep ElevenLabs as the backup voice/)).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "", narrate: "eleven", voice: "frank", suno_url: "https://suno.com/s/hhExPklJS2a69Wv1" }]));
+  });
   it("is mentioned on the quote and the video approvals when the short has no voice", async () => {
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", next: { type: "gate", step: "render", gate: "media" }, meta: { type: "inspiration", state: "quote_ok", history: [] }, narrate: { on: false, voice: "frank", voices: {}, estimate_s: 12, used_s: 0, cap_s: 1500, key: true } }) });
     at("/studio/inspiration/insp-004");
@@ -152,7 +161,7 @@ describe("the pipeline page: one thing that needs you, honest words, sections in
   it("lists the steps top to bottom with their state, and shows only the Pipeline section by default", async () => {
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: [] }, next: { type: "run", step: "narrate" }, steps: [step("quote", { done: true, status: "done" }), step("narrate"), step("render")] }) });
     at("/studio/inspiration/insp-004");
-    expect(await screen.findByRole("heading", { name: "Next: Narrate the quote (ElevenLabs)" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Narrate the quote (ElevenLabs)" })).toBeInTheDocument();
     const rows = screen.getAllByRole("listitem").filter((li) => li.id.startsWith("step-")); expect(rows.map((r) => r.id)).toEqual(["step-quote", "step-narrate", "step-render"]);   // in order, each with the anchor
     expect(rows[0]).toHaveTextContent("done: Write the quote"); expect(rows[1]).toHaveAttribute("aria-current", "step"); expect(rows[2]).toHaveTextContent("later: Render the video");
     expect(screen.getByRole("tab", { name: "Pipeline" })).toHaveAttribute("aria-selected", "true"); expect(screen.queryByRole("heading", { name: "Narration" })).toBeNull();   // the editors are under Content
@@ -183,7 +192,7 @@ describe("what an approval asks you to review is on the approval", () => {
   it("shows the videos on the 'Review the videos' card, not a tab away, and the song on 'Listen'", async () => {
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "media_ready", history: [] }, next: { type: "gate", step: "render", gate: "media" }, files: { "final_reel_9x16.mp4": 5916178, "clips~a.mp4": 10, "voiceover.mp3": 99 } }) });
     at("/studio/inspiration/insp-004");
-    const v = await screen.findByLabelText("final_reel_9x16.mp4"); expect(v.tagName).toBe("VIDEO"); expect(v).toHaveAttribute("src", "/media/insp-004/final_reel_9x16.mp4?v=5916178");   // the size stops an old cached video from playing
+    const v = await screen.findByLabelText("Reel without lyrics"); expect(v.tagName).toBe("VIDEO"); expect(v).toHaveAttribute("src", "/media/insp-004/final_reel_9x16.mp4?v=5916178");   // the size stops an old cached video from playing
     expect(screen.queryByLabelText("clips~a.mp4")).toBeNull(); expect(screen.queryByLabelText("voiceover.mp3")).toBeNull();
     cleanup(); route(OWNER, { "/api/song/": () => detail({ next: { type: "gate", step: "suno", gate: "listen" }, files: { "final.mp3": 4000, "final_16x9.mp4": 7 } }) });
     at("/studio/songs/song-001");
@@ -192,16 +201,16 @@ describe("what an approval asks you to review is on the approval", () => {
 });
 
 describe("opening a step from the pipeline", () => {
-  it("shows the opened step's detail in place of what needs you, keeps it in the address, and goes back", async () => {
+  it("shows the opened step's detail under what needs you, keeps it in the address, and closes", async () => {
     const step = (id: string, o: object = {}) => ({ id, label: id, kind: "script", done: false, redo: true, restart: false, spends: false, status: "ready", needs_gate: null, scheduled_for: null, made: [], texts: [], ...o });
     route(OWNER, { "/api/song/": () => detail({ slug: "insp-004", meta: { type: "inspiration", state: "quote_ok", history: ["2026-10-17T05:56:08Z step background_prompt done (attempt 1)"] }, next: { type: "gate", step: "render", gate: "media" },
       steps: [step("background_prompt", { done: true, status: "done", texts: [{ name: "scenes/background.txt", text: "A quiet harbour at dusk." }] }), step("render", { done: true, status: "waiting for approval", needs_gate: "media" })] }) });
     at("/studio/inspiration/insp-004");
     expect(await screen.findByRole("heading", { name: "Review the videos" })).toBeInTheDocument();   // what needs you first
     fireEvent.click(screen.getByRole("button", { name: /done: Write the background prompt/ }));
-    expect(await screen.findByLabelText("scenes/background.txt")).toHaveTextContent("A quiet harbour at dusk."); expect(screen.queryByRole("heading", { name: "Review the videos" })).toBeNull();
+    expect(await screen.findByLabelText("scenes/background.txt")).toHaveTextContent("A quiet harbour at dusk."); expect(screen.getByRole("heading", { name: "Review the videos" })).toBeInTheDocument();   // what needs you stays in front while a step is open
     expect(screen.getByText(/step background_prompt done \(attempt 1\)/)).toBeInTheDocument();   // its own history
-    fireEvent.click(screen.getByRole("button", { name: /Back to what needs you/ })); expect(await screen.findByRole("heading", { name: "Review the videos" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close this step" })); await waitFor(() => expect(screen.queryByLabelText("scenes/background.txt")).toBeNull()); expect(screen.getByRole("heading", { name: "Review the videos" })).toBeInTheDocument();
   });
 });
 
@@ -223,5 +232,122 @@ describe("a song with no lyrics", () => {
     at("/studio/songs/song-001");
     const note = await screen.findByRole("note"); expect(note).toHaveTextContent("This song has no lyrics saved");
     fireEvent.click(screen.getByRole("button", { name: "Open Content" })); expect(screen.getByRole("tab", { name: "Content" })).toHaveAttribute("aria-selected", "true"); expect(screen.queryByRole("note")).toBeNull();   // the notice belongs to the Pipeline tab
+  });
+});
+
+describe("the live pipeline page: a running step, the videos, the gate switch and the picture plan", () => {
+  const step = (id: string, o: object = {}) => ({ id, label: id, kind: "script", done: false, redo: true, restart: false, spends: false, status: "ready", needs_gate: null, scheduled_for: null, made: [], texts: [], ...o });
+  const A = "/studio/songs/song-007";
+
+  it("shows the step that is really running, with a moving state, a bar, how long it has run and when it last did anything, and the rail row spins", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "video" }, job: { running: true, queued: false, rc: null }, status_text: "running reel", meta: { type: "music", state: "drafted", history: [], step_seconds: { video: 540 } },
+      run: { step: "video", attempt: 1, attempts: 3, elapsed: 151, quiet_s: 4, pct: 40, label: "joining the pictures" }, steps: [step("reel", { done: true, status: "done" }), step("video")] }) });
+    at(A);
+    expect(await screen.findByRole("heading", { name: "Build the video" })).toBeInTheDocument();   // from the run, not the status text that still says reel
+    expect(screen.getByText("Running")).toBeInTheDocument(); expect(screen.getAllByRole("progressbar", { name: "joining the pictures" })[0]).toHaveAttribute("aria-valuenow", "40");   // one on the card, a thin one on the row
+    expect(screen.getByText(/joining the pictures \(40%\) · running for 2 min 31 s · attempt 1 of 3 · last activity 4 s ago · usually about 9 min/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    const row = document.getElementById("step-video") as HTMLElement; expect(row.className).toContain("run"); expect(row.querySelector(".spin")).not.toBeNull(); expect(row).toHaveTextContent("running for 2 min 31 s, 40%");
+  });
+
+  it("shows the videos side by side with their names, the approval above them, and the Instagram reel can go without lyrics", async () => {
+    const f = route(OWNER, { "/api/reel/lyrics": () => ({ ok: true, on: false, offset: 0 }), "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "video", gate: "media" }, files: { "final_16x9.mp4": 10, "final_reel_9x16.mp4": 20, "final_reel_9x16_cap.mp4": 30 }, reel_lyrics: { on: true, offset: 0 },
+      steps: [step("video", { done: true, status: "waiting for approval", needs_gate: "media" })] }) });
+    at(A);
+    const videos = await screen.findAllByLabelText(/^(Full video|Reel without lyrics|Reel with lyrics)$/); expect(videos.map((v) => v.getAttribute("aria-label"))).toEqual(["Full video", "Reel without lyrics", "Reel with lyrics"]);
+    const approve = screen.getByRole("button", { name: "Approve" }); expect(approve.compareDocumentPosition(videos[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();   // the button is above the videos
+    expect(screen.getByRole("radio", { name: "With lyrics" })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /Without lyrics/ }));
+    await waitFor(() => expect(posts(f, "/api/reel/lyrics")).toEqual([{ slug: "song-007", on: false }]));
+  });
+
+  it("asks which video the feedback is about, needs it before it can be sent, and sends the video and the nudge so only that one is made again", async () => {
+    const f = route(OWNER, { "/api/request-changes": () => ({ ok: true, started: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "video", gate: "media" }, files: { "final_16x9.mp4": 10, "final_reel_9x16.mp4": 20, "final_reel_9x16_cap.mp4": 30 },
+      steps: [step("video", { done: true, status: "waiting for approval", needs_gate: "media" })] }) });
+    at(A);
+    fireEvent.click(await screen.findByRole("button", { name: "Request changes" }));
+    expect(screen.getByText("Which video is this about?")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("What should change?"), { target: { value: "The lyrics are late." } });
+    const send = screen.getByRole("button", { name: "Send back and make that video again" }); expect(send).toBeDisabled();   // no video chosen yet
+    fireEvent.click(screen.getByRole("radio", { name: "Reel with lyrics" })); expect(send).toBeEnabled();
+    fireEvent.change(screen.getByLabelText(/Lyrics early or late/), { target: { value: "-1.5" } });
+    fireEvent.click(send);
+    await waitFor(() => expect(posts(f, "/api/request-changes")).toEqual([{ slug: "song-007", gate: "media", note: "The lyrics are late.", video: "reel_lyrics", offset: -1.5 }]));
+  });
+
+  it("puts the approval switch on the step: a risky one asks first and applies to every song, and the switch is read back from the server", async () => {
+    const f = route(OWNER, { "/api/settings/gates_save": () => ({ gates: [] }), "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "youtube_meta" }, gates_off: ["instagram_caption"], steps: [step("youtube_meta", { done: true, status: "done" }), step("publish_youtube", { gate_before: "publish_youtube" }), step("instagram_caption", { gate_after: "instagram_caption" })] }) });
+    at(A);
+    const yt = await screen.findByRole("switch", { name: /Ask me before it runs/ }); expect(yt).toBeChecked();
+    expect(screen.getByRole("switch", { name: /Ask me after it runs/ })).not.toBeChecked();   // switched off in Settings
+    fireEvent.click(yt); expect(await screen.findByRole("alertdialog", { name: /Confirm switching off/ })).toHaveTextContent("for every song");
+    fireEvent.click(screen.getByRole("button", { name: "Keep asking me" })); expect(posts(f, "/api/settings/gates_save")).toEqual([]);
+    fireEvent.click(yt); fireEvent.click(await screen.findByRole("button", { name: "Yes, approve it automatically" }));
+    await waitFor(() => expect(posts(f, "/api/settings/gates_save")).toEqual([{ gates: { publish_youtube: false } }]));
+  });
+
+  it("lets the picture plan be edited on its step and sends only what changed in words", async () => {
+    const pk = { concept: "A quiet ache.", character: "A woman.", style_line: "Rain.", prompts: [{ n: 1, section: "Verse", lyric: "line", prompt: "First picture." }, { n: 2, section: "Chorus", prompt: "Second picture." }] };
+    const f = route(OWNER, { "/api/plan/save": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "pictures" }, prompt_pack: pk, images: [], steps: [step("prompts", { done: true, status: "done", texts: [{ name: "prompt_pack.json", text: "{}" }] }), step("pictures")] }) });
+    at(`${A}?step=prompts`);
+    const save = await screen.findByRole("button", { name: "Save the plan" }); expect(save).toBeDisabled();   // nothing changed
+    fireEvent.change(screen.getByLabelText("The character"), { target: { value: "A lone man seen from behind." } });
+    fireEvent.change(screen.getByLabelText("Prompt for picture 2"), { target: { value: "The same street, empty." } });
+    expect(save).toBeEnabled(); fireEvent.click(save);
+    await waitFor(() => expect(posts(f, "/api/plan/save")).toEqual([{ slug: "song-007", concept: "A quiet ache.", character: "A lone man seen from behind.", style_line: "Rain.", prompts: [{ n: 1, prompt: "First picture." }, { n: 2, prompt: "The same street, empty." }] }]));
+    expect(await screen.findByText(/Pictures already made keep their old prompt/)).toBeInTheDocument();
+  });
+  it("answers every click in words: what is being done, what was done, and when nothing started", async () => {
+    let started = true;
+    const f = route(OWNER, { "/api/approve": () => ({ ok: true, started: false }), "/api/redo": () => ({ started }), "/api/stop": () => ({ stopped: true }),
+      "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "video", gate: "media" }, steps: [step("captions", { done: true, status: "done" }), step("video", { done: true, status: "waiting for approval", needs_gate: "media" })] }) });
+    at(A);
+    fireEvent.click(await screen.findByRole("button", { name: "Redo Sync the captions" })); fireEvent.click(screen.getByRole("button", { name: "Yes, redo it" }));
+    expect(await screen.findByText("Redo started: Sync the captions.")).toBeInTheDocument(); expect(posts(f, "/api/redo")).toEqual([{ slug: "song-007", step: "captions" }]);
+    started = false; fireEvent.click(screen.getByRole("button", { name: "Redo Sync the captions" })); fireEvent.click(screen.getByRole("button", { name: "Yes, redo it" }));
+    expect(await screen.findByText(/Nothing started: a run is already going/)).toBeInTheDocument();   // it does not claim a redo that did not start
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByText("Approved: Review the videos.")).toBeInTheDocument();
+  });
+
+  it("says Stop was asked for, and shows where a publish step put it as that stage's output", async () => {
+    const f = route(OWNER, { "/api/stop": () => ({ stopped: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "go_public" }, job: { running: true, queued: false, rc: null }, run: { step: "go_public", elapsed: 3 },
+      steps: [step("publish_youtube", { done: true, status: "done", made: [{ name: "published.json", size: 120 }], links: [{ where: "YouTube video", url: "https://youtu.be/abc123", privacy: "private" }] }), step("go_public")] }) });
+    at(`${A}?step=publish_youtube`);
+    expect(await screen.findByRole("heading", { name: "Published" })).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "https://youtu.be/abc123" }); expect(link).toHaveAttribute("href", "https://youtu.be/abc123"); expect(screen.getByText(/YouTube video/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "published.json" })).toBeInTheDocument();   // and the file the stage made
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(await screen.findByText("Stop requested. The step ends in a moment.")).toBeInTheDocument(); expect(posts(f, "/api/stop")).toEqual([{ slug: "song-007" }]);
+  });
+  it("shows YouTube and Instagram as two lanes once the videos are approved, each with its own approval or Run button, and runs just that lane's step", async () => {
+    const f = route(OWNER, { "/api/run": () => ({ started: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "run", step: "instagram_caption" },
+      lanes: { youtube: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, instagram: { type: "run", step: "instagram_caption" } },
+      steps: [step("video", { done: true, status: "done" }), step("youtube_meta", { done: true, status: "done", lane: "youtube" }), step("publish_youtube", { status: "waiting for approval", needs_gate: "publish_youtube", gate_before: "publish_youtube", lane: "youtube" }),
+              step("instagram_caption", { lane: "instagram" }), step("publish_instagram", { lane: "instagram", gate_before: "publish_instagram" })] }) });
+    at(A);
+    const yt = await screen.findByRole("region", { name: "YouTube" }); const ig = screen.getByRole("region", { name: "Instagram" });
+    expect(yt).toHaveTextContent("Upload the video to YouTube (private)"); expect(yt.querySelector("button")).not.toBeNull();   // its own approval
+    expect(ig).toHaveTextContent("Write the Instagram caption"); expect(ig).toHaveTextContent("Only this lane moves");
+    expect(document.getElementById("step-publish_youtube")).toHaveTextContent("YouTube lane"); expect(document.getElementById("step-instagram_caption")).toHaveTextContent("Instagram lane");
+    fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
+    await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
+  });
+  it("offers to delete a failed item with a confirmation, deletes it and goes back to the list; a published one shows why it cannot be deleted", async () => {
+    const f = route(OWNER, { "/api/delete": () => ({ ok: true, moved_to: "_deleted/song-007-x" }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-007", failure: { step: "video", error: "boom", ref: "r1", plain: "The video could not be built." }, deletable: { ok: true, why: "" }, steps: [step("video")] }) });
+    at(A);
+    expect(await screen.findByText("The video could not be built.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete this song" }));
+    expect(screen.getByRole("alertdialog", { name: "Confirm deleting song-007" })).toHaveTextContent("moved to a _deleted folder inside songs, not erased"); expect(posts(f, "/api/delete")).toEqual([]);   // nothing yet
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" })); expect(screen.queryByRole("alertdialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Delete this song" })); fireEvent.click(screen.getByRole("button", { name: "Yes, delete song-007" }));
+    await waitFor(() => expect(posts(f, "/api/delete")).toEqual([{ slug: "song-007" }]));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Songs" })).toBeInTheDocument());   // back on the list
+  });
+
+  it("does not offer deleting a published item and says why", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "song-007", deletable: { ok: false, why: "It is published (on YouTube, Instagram, the cloud bucket or the site). Take it down there first; deleting it here would leave those behind." }, steps: [step("video", { done: true, status: "done" })] }) });
+    at(`${A}?tab=activity`);
+    expect(await screen.findByText(/Cannot be deleted\. It is published/)).toBeInTheDocument(); expect(screen.queryByRole("button", { name: /Delete this/ })).toBeNull();
   });
 });

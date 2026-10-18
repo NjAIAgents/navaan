@@ -8,7 +8,7 @@ quote.json: {"text": "...", "lines": ["optional manual line breaks"], "author": 
 brief.md options (a line like `music: auto`):
   music:      auto (default) | none | <path to an audio file>   auto uses music.* in the folder, then <local_dir>/inspire_music, then a generated soft piano with distant rain\n  bed:        piano (default) | piano_dry | drone   which generated bed to use when no music file is found
   voiceover:  none (default) | file   with `file`, voiceover.mp3 in the folder sets the length and the text follows the voice
-  duration:   target seconds, 10 to 30 (default: from the length of the text)
+  duration:   target seconds, 7 to 30 (default: from the length of the text, 7 to 15 without a voice)
   camera:     push_in | pull_out | pan_left | pan_right | drift (default: picked from the slug)
   transition: rise | fade | blur (default rise)
   layout:     single (default: one line on screen at a time) | stack (every line stays until the end)
@@ -18,7 +18,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 
 W, H, FPS = 1080, 1920, 30
-MIN_S, MAX_S = 10.0, 30.0
+MIN_S, MAX_S = 7.0, 30.0   # the shortest a quote runs, and the longest anything may run (a duration written in the brief, or a voice)
+HOOK_INTRO, HOOK_MAX_S = 0.2, 15.0   # a quote with no voice: its first line is on screen from the first frame, and it runs 7 to 15 seconds (short Reels hold people better, and the opening seconds decide retention)
+
+
+def plain_timing(body, tail_hold, want=""):
+    """(intro, duration) of a quote with no voice. The first line starts at once, and the video runs as long as the words need but 7 to 15 seconds; a duration written in the brief wins (up to 30)."""
+    if str(want).replace(".", "", 1).isdigit(): return HOOK_INTRO, min(MAX_S, max(MIN_S, float(want)))
+    return HOOK_INTRO, min(HOOK_MAX_S, max(MIN_S, HOOK_INTRO + body + tail_hold))
 
 
 def opt(D, key, default=""):
@@ -236,10 +243,8 @@ def main(slug):
     elif voice:
         vd = probe_dur(voice); body = max(3.0, vd); dur = min(MAX_S, max(MIN_S, intro + body + tail_hold))
     else:
-        want = opt(D, "duration", "")
         body = sum(1.1 + 0.42 * w for w in words)
-        dur = float(want) if want.replace(".", "", 1).isdigit() else intro + body + tail_hold
-        dur = min(MAX_S, max(MIN_S, dur))
+        intro, dur = plain_timing(body, tail_hold, opt(D, "duration", ""))
     if not narr: span = dur - intro - tail_hold  # time the lines have between them
     tot_w = sum(words) or 1
     # music first, so the lines can follow its beats

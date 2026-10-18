@@ -220,6 +220,11 @@ def render_reel(slug):
     part = os.path.join(D, "final_reel.part.mp4"); out = os.path.join(D, REEL_OUT)
     if os.path.exists(part): os.remove(part)
     render_any(D, props, pp, part, f"the {dur}s reel starting at {start}s with {len(ps)} shots")
+    import send_line
+    try:
+        said = send_line.apply(part, D, y_frac=0.78)   # the "send this to someone who..." line on the last seconds of the reel, when there is one
+        if said: print(f"send line drawn: {said}", flush=True)
+    except RuntimeError as e: print("warning:", e, flush=True)   # the reel stays as rendered, without the line
     info = R.probe(part); errs = []
     if (info["width"], info["height"]) != (RW, RH): errs.append(f"size is {info['width']}x{info['height']}, need {RW}x{RH}")
     if info["codec"] != "h264": errs.append(f"codec is {info['codec']}")

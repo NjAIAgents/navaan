@@ -21,7 +21,7 @@ describe("StepDetail", () => {
   it("shows what a step made (pictures, audio) with the size in the address, what it spends, its log and its history", () => {
     const events = [{ at: "10/17/2026, 5:56 AM", text: "step background done (attempt 1)" }];
     render(<StepDetail d={d({ logs: { background: "wrote background.png" } })} id="background" events={events} onBack={vi.fn()} />);
-    expect(screen.getByText("Spends: OpenAI: the background picture")).toBeInTheDocument(); expect(screen.getByText(/Needs your approval before it runs: Spending credits/)).toBeInTheDocument();
+    expect(screen.getByText("Spends: OpenAI: the background picture")).toBeInTheDocument(); expect(screen.getByText(/Asked for your approval before it ran: Spending credits/)).toBeInTheDocument();
     expect(screen.getByAltText("background.png")).toHaveAttribute("src", "/media/insp-004/background.png?v=99"); expect(screen.getByAltText("images~a.png")).toHaveAttribute("src", "/media/insp-004/images~a.png?v=5");
     expect(screen.getByLabelText("Log of Make the background")).toHaveTextContent("wrote background.png"); expect(screen.getByText("step background done (attempt 1)")).toBeInTheDocument();
     cleanup(); render(<StepDetail d={d()} id="narrate" events={[]} onBack={vi.fn()} />);
@@ -29,7 +29,7 @@ describe("StepDetail", () => {
   });
   it("says a step that has not run yet has nothing to show, and goes back", () => {
     const back = vi.fn(); render(<StepDetail d={d()} id="render" events={[]} onBack={back} />);
-    expect(screen.getByText("Next")).toBeInTheDocument(); expect(screen.getByText(/has not run yet, so there is nothing to show/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Back to what needs you/ })); expect(back).toHaveBeenCalled();
+    expect(screen.getByText("Next")).toBeInTheDocument(); expect(screen.getByText(/It has not run yet/)).toBeInTheDocument(); expect(screen.getByText("Renders the vertical video.")).toBeInTheDocument();   // and what it will do
+    fireEvent.click(screen.getByRole("button", { name: "Close this step" })); expect(back).toHaveBeenCalled();
   });
 });

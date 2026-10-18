@@ -1,6 +1,6 @@
 """Local web UI for NAVAAN Studio. Bound to 127.0.0.1 unless NAVAAN_BIND says otherwise. Standard library only.
 Create songs, edit and review text, play media, approve gates (human clicks only), and start the next step."""
-import os, re, json, glob, gzip, hashlib, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging
+import os, re, json, glob, gzip, hashlib, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging, shutil
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
@@ -9,7 +9,7 @@ import clip_share as CLIP, poster as POST, album_pipeline as ALB, visuals_cfg as
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
-import media, objstore, share_page
+import media, objstore, share_page, reel_lyrics
 import library_store, entitlements, uuid, pgconn
 import navaan_log as L
 LOG = L.get("web")
@@ -85,8 +85,9 @@ TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
 ALBUM_COVER = {}  # album slug -> {"running": bool, "error": str}, the album cover being made
 POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
+VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json"}
-READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "youtube.json", "shots.json", "visuals.json"}
+READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "motion.json", "caption_cues.json"}
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
@@ -200,8 +201,11 @@ def detail(slug):
     D = C.song_dir(slug)
     try: navaan.auto_gates(slug)   # gates switched off in Settings approve themselves
     except Exception as _e: L.soft(LOG, "detail_error"); pass
-    m = navaan.meta(slug); rows, nxt = navaan.plan(slug)
-    for r in rows: r["made"] = made_files(D, r.get("outputs")); r["texts"] = made_texts(D, r.get("outputs"))   # what each step produced and said, so a finished step can be opened
+    m = navaan.meta(slug); rows, nxt, lanes = navaan.plan_lanes(slug)
+    links = C.published_links(m)
+    for r in rows:
+        r["made"] = made_files(D, r.get("outputs")); r["texts"] = made_texts(D, r.get("outputs"))   # what each step produced and said, so a finished step can be opened
+        r["links"] = [l for l in links if l["step"] == r["id"] or (r["id"] == "go_public" and l["privacy"] == "public")]   # where a publish step put it: shown as the stage's output
     fl = {}
     for f in sorted(os.listdir(D)):
         p = os.path.join(D, f)
@@ -221,6 +225,8 @@ def detail(slug):
     rn = dict(jv["progress"] or {})
     if rn.get("started"): rn["elapsed"] = int(__import__("time").time() - rn["started"])
     rn.pop("started", None)
+    if rn.get("activity_at"): rn["quiet_s"] = max(0, int(__import__("time").time() - rn["activity_at"]))   # seconds since the step last printed anything: the sign of life
+    rn.pop("activity_at", None)
     # rc 5 and 6 are "waiting for you", not failures. The ref is the job id every log line of the run carries (job_id in app.jsonl).
     fstep = rn.get("failed") or ""
     nolyr = C.item_type(m) == "music" and not C.lyric_lines(D)
@@ -229,7 +235,7 @@ def detail(slug):
     failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
-            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn,
+            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "deletable": dict(zip(("ok", "why"), navaan.deletable(slug))), "reel_lyrics": reel_lyrics.view(D, m),
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
@@ -821,6 +827,9 @@ class H(BaseHTTPRequestHandler):
                     if act == "yt_signin": return self._send(200, {"started": settings_api.yt_signin(ct)})
                     if act == "claude_save": return self._send(200, settings_api.claude_save(str(body.get("token") or "")))
                     if act == "gates_save": return self._send(200, settings_api.gates_save(body.get("gates") or {}))
+                    if act == "licence_save":
+                        r = settings_api.licence_save(body.get("auto"), body.get("statement"), sess.get("user") or "owner"); auth._audit("licence_setting", user=sess.get("user"), ip=self._ip(), auto=bool(body.get("auto")))
+                        return self._send(200, r)
                     if act == "media_save": return self._send(200, settings_api.media_save(body.get("settings") or {}))
                     if act == "media_key": return self._send(200, settings_api.media_key_save(str(body.get("provider") or ""), str(body.get("token") or "")))
                     if act == "yt_oauth_start": return self._send(200, settings_api.yt_oauth_start(ct, str(body.get("which") or "publish")))
@@ -890,7 +899,22 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/new":
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "slug: letters, digits, dash, underscore"})
                 import new_song
-                sl = new_song.create(slug or None, body.get("type") or "music", str(body.get("idea") or ""))
+                suno_url = str(body.get("suno_url") or "").strip() if (body.get("type") or "music") == "inspiration" else ""
+                voice_file = voice_tmp = info = None
+                if suno_url:   # the primary voice: the Suno song's own sound and words. Everything is read and checked before the item is created, so a bad link leaves nothing behind.
+                    import suno_import, tempfile
+                    voice_tmp = tempfile.mkdtemp(prefix="navaan-suno-")
+                    try:
+                        info = suno_import.read_page(suno_url); suno_import.voice_lines(info)
+                        if not info.get("video_url"): raise ValueError("That Suno page lists no video to take the sound from. Leave the Suno link empty to narrate with ElevenLabs instead.")
+                        voice_file = suno_import.fetch_voice(info["video_url"], voice_tmp)
+                    except ValueError as e:
+                        shutil.rmtree(voice_tmp, ignore_errors=True); return self._send(400, {"error": str(e)})
+                sl = new_song.create(slug or None, body.get("type") or "music", str(body.get("idea") or (info or {}).get("lyrics") or ""))
+                if voice_file:
+                    try: suno_import.attach_voice(C.song_dir(sl), info, voice_file)
+                    finally: shutil.rmtree(voice_tmp, ignore_errors=True)
+                    navaan.edit_meta(sl, lambda m: navaan.log_hist(m, f"voice taken from the Suno song {suno_url} (via ui); narrating with ElevenLabs instead stays possible"))
                 if (body.get("type") or "music") == "inspiration":   # the quote is narrated by ElevenLabs unless this short skips it; the spend is still approved at the credits gate
                     import narration, media_cfg
                     if body.get("narrate") == "none": narration.set_options(C.song_dir(sl), {"narrate": "none"})
@@ -903,13 +927,14 @@ class H(BaseHTTPRequestHandler):
                 if slug and not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
                 au = body.get("audio") if isinstance(body.get("audio"), dict) else None
                 if not str(body.get("url") or "").strip(): return self._send(400, {"error": "Add the Suno link: the title, lyrics and style are read from it."})
-                if not au or not au.get("data"): return self._send(400, {"error": "Add the song's audio file (mp3, wav or m4a): the sound comes from your file."})
-                try:   # both are required: the link gives the words, the file gives the sound. The link is read first, so a private or lyric-less song is refused before anything is created.
-                    suno_import.check_upload(au.get("name"), str(au.get("data") or ""))
+                try:   # the link gives the words; the sound is your file when you add one, else the video the Suno page itself lists. All of it is read and checked before anything is created, so a private song, one with no lyrics or a bad download is refused first.
                     info = suno_import.read_page(body.get("url", ""))
+                    if au and au.get("data"): name, data = au.get("name"), str(au.get("data") or "")
+                    else: name, data = suno_import.page_audio(info)
+                    suno_import.check_upload(name, data)
                     sl = suno_import.init(body.get("url", ""), slug or None)
                     suno_import.apply_page(sl, info)
-                    suno_import.save_upload(sl, au.get("name"), str(au.get("data") or ""))
+                    suno_import.save_upload(sl, name, data)
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
                 return self._send(200, {"slug": sl, "started": start_job(sl, True)})
@@ -930,11 +955,35 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/answer":
                 qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
                 return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
-            if p == "/api/request-changes":
-                try: navaan.request_changes(slug, body.get("gate"), body.get("note"), f"ui:{sess.get('user') or 'owner'}")
-                except SystemExit as e: return self._send(400, {"error": str(e)})
-                return self._send(200, {"ok": True})
+            if p == "/api/request-changes":   # at the video review the note is about ONE video, and only that video is made again
+                video = body.get("video") if body.get("gate") == "media" else None
+                if video is not None and video not in VIDEO_STEP: return self._send(400, {"error": "say which video: " + ", ".join(VIDEO_STEP)})
+                if video and jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song. Press Stop first."})
+                try:
+                    nudge = reel_lyrics.check_offset(body["offset"]) if video and body.get("offset") not in (None, "") else None   # checked before anything changes
+                    navaan.request_changes(slug, body.get("gate"), body.get("note"), f"ui:{sess.get('user') or 'owner'}", about=VIDEO_STEP[video][1] if video else "")
+                    if nudge is not None: reel_lyrics.save_offset(C.song_dir(slug), nudge)
+                except (SystemExit, ValueError) as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
+                return self._send(200, {"ok": True, "started": start_job(slug, False, VIDEO_STEP[video][0], redo=True) if video else False})
+            if p == "/api/reel/lyrics":   # the reel's lyrics: use it or not (Instagram then takes the reel without lyrics), and a nudge in seconds when they are early or late
+                who = f"ui:{sess.get('user') or 'owner'}"
+                if body.get("offset") is not None: nudge = reel_lyrics.check_offset(body["offset"])   # a bad number is refused before anything is saved
+                if "on" in body:
+                    on = bool(body["on"])
+                    def put(m):
+                        if on: m.pop("reel_lyrics", None)
+                        else: m["reel_lyrics"] = "off"
+                        navaan.log_hist(m, f"Instagram reel {'with' if on else 'without'} lyrics via {who}")
+                    navaan.edit_meta(slug, put)
+                if body.get("offset") is not None: reel_lyrics.save_offset(C.song_dir(slug), nudge); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"reel lyrics nudged by {nudge} s via {who}"))
+                return self._send(200, {"ok": True, **reel_lyrics.view(C.song_dir(slug), navaan.meta(slug))})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, f"ui:{sess.get('user') or 'owner'}"); return self._send(200, {"ok": True})   # the history says who took the approval back
+            if p == "/api/delete":   # an item that is not published goes to songs/_deleted (nothing is erased); a published one is refused with the reason
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this item. Press Stop first."})
+                try: dest = navaan.delete_item(slug, f"ui:{sess.get('user') or 'owner'}")
+                except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
+                auth._audit("item_delete", user=sess.get("user"), ip=self._ip(), slug=slug)
+                return self._send(200, {"ok": True, "moved_to": os.path.relpath(dest, C.songs_root())})
             if p == "/api/redo":
                 if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})
@@ -943,7 +992,9 @@ class H(BaseHTTPRequestHandler):
                 try: navaan.redo_from(slug, body.get("step"))
                 except SystemExit as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"started": start_job(slug, True)})
-            if p == "/api/run": return self._send(200, {"started": start_job(slug, bool(body.get("all")))})
+            if p == "/api/run":   # all: run to the next approval; step: run just that step (a publishing lane's own next step)
+                if body.get("step") and body["step"] not in {r["id"] for r in navaan.plan(slug)[0]}: return self._send(400, {"error": "no such step"})
+                return self._send(200, {"started": start_job(slug, bool(body.get("all")), body.get("step") or None)})
             if p == "/api/stop": return self._send(200, {"stopped": jobs.request_cancel(slug)})
             if p == "/api/mood":   # the song's mood picks the background of the full screen player; empty clears it
                 mood = str(body.get("mood") or "").strip().lower()
@@ -1095,6 +1146,11 @@ class H(BaseHTTPRequestHandler):
                 json.dump({"duration": dur or out[-1]["end"], "shots": out, "notes": str(body.get("notes", ""))[:600]}, open(os.path.join(D, "shots.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
                 open(os.path.join(D, "shots.json"), "a").write("\n")
                 navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"shot list edited via ui:{sess.get('user') or 'owner'}"))
+                return self._send(200, {"ok": True})
+            if p == "/api/plan/save":   # the words of the picture plan, edited on the step's page: the idea, the character, the look, and each picture's prompt
+                import prompt_pack
+                prompt_pack.apply_edits(C.song_dir(slug), {k: body[k] for k in ("concept", "character", "style_line", "prompts") if k in body})
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"picture plan edited via ui:{sess.get('user') or 'owner'}"))
                 return self._send(200, {"ok": True})
             if p == "/api/save":
                 n = body.get("file")

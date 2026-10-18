@@ -23,7 +23,7 @@ Shorts need no special flag: a vertical video of 60 seconds or less is treated a
 """
 import os, sys, json, argparse, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, cfg, load_json, require_approval, item_load, item_update, item_exists
+from navaan_common import song_dir, cfg, load_json, require_approval, item_load, item_update, item_exists, write_published, with_site_link
 import navaan_log as L
 LOG = L.get("publish_youtube")
 
@@ -119,6 +119,7 @@ def upload(a):
     if not os.path.exists(f): sys.exit(f"navaan: missing {f}")
     if "_cap" not in os.path.basename(f) and cfg("captions.enabled", False):
         print("warning: file name has no _cap, captions may be missing. Check before publishing.")
+    meta["description"] = with_site_link(meta.get("description"), a.slug if (item_load(a.slug, {}) or {}).get("type", "music") == "music" else None)   # every upload points to the site
     body = body_from(meta, a.privacy)
     if a.publish_at:
         if a.privacy != "private": sys.exit("navaan: --publish-at needs --privacy private (YouTube schedules private videos)")
@@ -150,8 +151,8 @@ def upload(a):
     if item_exists(a.slug):
         def rec(m):
             m.setdefault("published", {}).setdefault("youtube_items", []).append({"id": vid, "url": url, "privacy": a.privacy, "file": os.path.basename(f)})
-            m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_upload {vid} {a.privacy}")
-        item_update(a.slug, rec)
+            m.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} youtube_upload {vid} {a.privacy} {url}")
+        item_update(a.slug, rec); write_published(a.slug); print("published", url, flush=True)
 
 
 def update(a):
@@ -206,14 +207,14 @@ def go_public(a):
                 if it.get("id") in priv: it["privacy"] = priv[it["id"]]
             cur.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} {note}")
         item_update(a.slug, edit)
-    if not todo: save("youtube public check: all already public"); print("nothing to change"); return
+    if not todo: save("youtube public check: all already public"); write_published(a.slug); print("nothing to change"); return
     if not a.yes: print("\nDRY RUN. Nothing changed. Re-run with --yes after you approve the go_public gate."); return
     require_approval(a.slug, "go_public")
     for n, i in todo:
         yt.videos().update(part="status", body={"id": i["id"], "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": bool(cfg("publish.made_for_kids", False)),
                                                                           "containsSyntheticMedia": bool(cfg("publish.ai_disclosure", True))}}).execute()
         i["privacy"] = "public"; print(f"{n} {i['id']} is public")
-    save("youtube public " + ",".join(i["id"] for _, i in todo))
+    save("youtube public " + ", ".join(f"{i['id']} {i.get('url', '')}".strip() for _, i in todo)); write_published(a.slug)
 
 
 def stats(a):

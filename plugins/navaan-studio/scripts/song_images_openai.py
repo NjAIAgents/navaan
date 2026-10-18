@@ -176,6 +176,7 @@ def main(argv):
         media_cfg.add_usage(openai_usd=spent)  # spent now, whatever happens to the file
         with open(os.path.join(imgdir, nm(i)), "wb") as f: f.write(raw)
         print("picture %d of %d saved" % (i, len(items)), flush=True)
+        C.progress(sum(os.path.exists(os.path.join(imgdir, nm(j))) for j in range(1, len(items) + 1)), len(items), "pictures saved")
     if not os.path.exists(ref): sys.exit("navaan: picture 1 is missing, so the others cannot match it. Run the step again.")
     with ThreadPoolExecutor(WORKERS) as ex: list(ex.map(work, todo))
     if failed:

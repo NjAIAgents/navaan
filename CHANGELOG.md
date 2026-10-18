@@ -10,6 +10,64 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - Making the poster is a step of a song's pipeline, right after the pictures and behind the same spending approval (which now lists it with its price, about 7 cents). It paints from the prompt saved on the Media tab's Poster card when there is one, else from a prompt written from the song, and it is finished once the poster exists. A song whose videos were already approved is not sent back to make one, so nothing is spent on older songs without you asking; for those the Poster card still makes it.
 - A song's poster can be the picture a shared link shows. On the song's Poster card, "Use this poster for share links" puts the poster in the song's bucket folder; from then on the link you share (the song page and a shared clip) previews the poster, in portrait, instead of the square cover, in WhatsApp, Instagram messages and the like. If you make a new poster later, the card says shared links still show the earlier one and offers "Update the poster on share links". It needs the song to be in the bucket already; before that the card says so. The cover is still the cover everywhere else.
 
+## [0.38.0] - 2026-10-17
+
+### Added
+- A failed or stuck song or inspiration can be deleted. The Delete button is on the failure message and on the item's Activity tab; it asks first and says what happens: the item leaves the list and its files are moved to a _deleted folder inside songs (with a note of who deleted it and when), not erased. A published item cannot be deleted from here, and the page says why: take it down from YouTube, Instagram, the bucket and the site first. It is refused while a run is going.
+
+### Added
+- "End each Reel with a reason to send it" now reaches the video, not only the caption. When that recommendation is put to work, the quote step (inspirations) and the shot-list step (songs) write one short line naming who it is for ("Send this to someone far from home"). It is drawn in the brand's warm handwritten font and gold, with a short gold rule above it, on the last seconds of the finished video, the inspiration and the song's Reel, whichever way the video was rendered, and the Instagram and caption steps use the same line word for word. Without the rule nothing is written or drawn, and the video is untouched. If drawing it fails the video stays as it was rendered.
+
+### Added
+- Licence of new songs can be confirmed for you. In Settings, on the Automation tab, "Licence of new songs" has a switch and a box for your statement in your own words ("every song I publish is made on a paid Suno plan"). With it on, a song you publish is confirmed automatically, so it shows on navaan.online without a manual step; the statement is recorded as the reason and "owner (auto-confirm setting)" as who decided. A song you marked not allowed is never changed, a song that is not published yet is left alone, and it is off until you switch it on.
+- A command to find songs with no language (language_backfill.py): it lists them, and with --apply fills in the ones whose lyrics are in Latin letters as English and syncs the site. Devanagari lyrics are left for you, since they could be Hindi, Maithili or another language.
+
+### Fixed
+- Share the clip on an iPhone: the clip is now loaded as soon as it is made (and on the shared clip's page as soon as it opens), so pressing Share opens the share sheet straight away. Before, it downloaded the clip after the press, and an iPhone refuses to open the sheet once the press has passed, so it showed "Could not open the share sheet". The button waits, saying so, until the clip is ready, and shares the link if the clip cannot be loaded.
+
+### Changed
+- An inspiration video without a voice now follows the "open with the key line" recommendation: its first line is on screen from the first frame (it used to appear after a second), and the video runs 7 to 15 seconds (it ran 10 to 30), as long as the words need within that. A duration written in the brief still wins, up to 30 seconds, and a narrated short still follows its voice. The quote step is told to put the strongest line first, since that line is now the opening.
+- Importing a song from Suno now needs only the link. The sound is taken from the video the public Suno page lists (on Suno's own servers, the same file and the same checks as an inspiration's voice: it must decode all the way through, have sound and not be silent, up to ten minutes and 80 MB). An audio file is still accepted and wins when you add one, and it is the way out when the page lists no video or the download fails a check; nothing is created in that case.
+- Album names are suggested as titles of a record, not as playlist names: each comes from an image, a line or one idea that runs through the songs, in the language of the songs, with a sentence on that idea. Names that read like a playlist (mix, vibes, hits, best of, collection, a year or "Top 10") are dropped from the suggestions.
+
+### Fixed
+- The approval switches on the steps were drawn as huge 44 px ticks. They are small switches now; the tap area is still 44 px.
+- A finished publish step no longer says "This step did not save a file you can open here" when it shows where it published, and a finished step says an approval was asked "before it ran" rather than "needs your approval before it runs".
+
+## [0.37.0] - 2026-10-17
+
+### Fixed
+- An English song imported from a Suno link had no language, so it did not appear under English on navaan.online (the import left the song's tags empty). The import now fills the language and genre; a song written in Devanagari is left without a language until you say which (Hindi, Maithili or other), instead of getting the placeholder text it used to get.
+
+### Added
+- A running step now looks alive. Its chip and its row in the step list show a moving icon, a progress bar fills as the step reports how far it has got (pictures made, the lyrics being timed, the video being joined) or moves when it reports nothing, and under it: how long it has run, which attempt of how many, when it last did anything, and how long it usually takes. The step it names is the one really running (the old text could lag a step behind).
+- Opening a step no longer hides what needs you: the approval, the running card or the failure stays at the top and the step opens under it. The right side stays in view while you scroll the list.
+- Every click is answered: approve, send back, redo, restart, run, stop, take an approval back, answer, and the approval switches each show a message saying what is being done and then what was done, and say so when nothing started because a run was already going.
+- At "Review the videos" the approve and change buttons are above the videos, not below them. The full video, the reel without lyrics and the reel with lyrics sit side by side, each with its name.
+- Feedback at the video review asks which video it is about and makes only that one again (the full video, or the reel). For the reel with lyrics you can also move the lyrics earlier or later by up to 10 seconds. The Instagram reel can go without lyrics: choose "Without lyrics" beside the approval while the lyrics are out of sync; the YouTube Short never had lyrics.
+- Each step shows its data laid out for reading instead of as JSON: the picture plan (its idea, character, look and every picture's prompt, which you can edit and save), the shot list, which pictures move and where, the captions as a table, and the facts of a finished video. A step that has not run says what it will do and what it spends, and shows a draft where one exists. A step that ran before but must run again says so and when it last ran, and a running step marks the old files as the previous version.
+- The approval a step asks for has a switch on the step ("Ask me before it runs"). It is the same setting as Settings, Approvals that approve themselves, so it applies to every song; switching off one that spends, publishes or deletes asks first.
+- A publish step shows where it published: the YouTube video, the Short and the Instagram Reel, each with its link and whether it is private or public, and writes them to published.json. The history line of the step carries the links.
+
+### Changed
+- YouTube and Instagram are separate lanes once the videos are approved. Each lane has its own next step and its own approvals, they show side by side on the song's page, and neither waits for the other: the Instagram caption can be written and approved, and the Reel posted, before the YouTube video is uploaded or public, and the other way round. Archive and clean up wait until both lanes are finished. The Instagram caption no longer needs the YouTube link; the song's page on navaan.online is added to it instead. A run still does one step at a time, but it carries on with the other lane instead of stopping at an approval the first lane is waiting for.
+- Every YouTube description and every Instagram caption now ends with the site address: the song's page on navaan.online for a song, navaan.online for an inspiration. It is added when posting, only if it is not already there.
+
+## [0.36.1] - 2026-10-17
+
+### Fixed
+- Release 0.36.0 did not go out: the deploy checks failed because a browser test still expected the old wording of the message shown when you press Create on a new inspiration with nothing typed. Nothing changed in production. The message ("Write the quote or the idea first, or paste a Suno link.") and the test now agree, and the browser and speed checks were run before this release. Everything listed under 0.36.0 ships here.
+
+## [0.36.0] - 2026-10-17
+
+### Changed
+- The small mark on every video, the wide one and the reel, now says navaan.online instead of the Instagram handle. A mark set in the profile (video.watermark, or "off") still wins. Videos made before keep the old mark until their video step is redone.
+
+### Added
+- The site has a tagline: "Every new sound carries an old emotion." It sits under the Browse heading, on the sign-in page, and in the page description that search results and link previews read.
+- A new inspiration can take its voice from a Suno song. Paste the song's Suno link when you create the inspiration: its lyric lines become the quote, its title becomes the title, and the sound is taken from the video file that the public Suno page itself lists (on Suno's own servers, nothing is decrypted and no third-party site is used). The download is checked before anything is created: it must come from Suno's servers, be a video file of a sensible size and length, decode all the way through, have a sound track, and not be silent. A link that fails any check is refused with a sentence and creates nothing. The pipeline then times the lines to that voice, makes the background picture, and renders the reel as usual; the voice already holds the song's music, so no background track is added unless you add one.
+- ElevenLabs narration stays as the backup. Without a Suno link an inspiration is narrated by ElevenLabs exactly as before. On a short whose voice came from Suno, the Narration card says so and offers ElevenLabs as the backup, and running "Narrate the quote" again replaces the Suno voice.
+
 ## [0.35.1] - 2026-10-17
 
 ### Fixed
@@ -444,7 +502,11 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.38.0...HEAD
+[0.38.0]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...v0.38.0
+[0.37.0]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...v0.37.0
+[0.36.1]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...v0.36.1
+[0.36.0]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...v0.36.0
 [0.35.1]: https://github.com/NjAIAgents/navaan/compare/v0.35.0...v0.35.1
 [0.35.0]: https://github.com/NjAIAgents/navaan/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/NjAIAgents/navaan/compare/v0.33.1...v0.34.0
