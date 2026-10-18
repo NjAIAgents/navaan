@@ -26,19 +26,33 @@ def read(D):
     return t[:MAX_CHARS].rstrip(" ,;:-") if t else ""
 
 
+FONT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "Kalam-Bold.ttf")   # the brand's warm handwritten face; one font covers Devanagari and Latin
+GOLD = (240, 200, 140)   # the brand gold the poster and the end cards use
+
+
+def _font(text, size):
+    from PIL import ImageFont
+    try: return ImageFont.truetype(FONT_FILE, size)
+    except OSError: return C.font_for(text, size)   # expected: the font file is missing, so the plain system font is used
+
+
 def make_png(text, W, H, path, y_frac=0.78):
-    """A transparent frame with the line centred at y_frac of the height, in the right font for its script, wrapped to two lines when it is long, with a soft shadow so it reads on any picture."""
+    """A transparent frame with the line centred at y_frac of the height: the brand's handwritten font in the brand gold, a short gold rule above it, wrapped to two lines when it is long,
+    with a soft dark shadow so it reads on any picture."""
     from PIL import Image, ImageDraw, ImageFilter
     import caption_clips as CC
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
-    lines, size = CC.fit_lines(text, 62, W, lambda t, s: d.textlength(t, font=C.font_for(t, s)), limit=0.84)
-    lh = round(size * 1.3); y0 = int(H * y_frac) - (len(lines) - 1) * lh // 2
+    lines, size = CC.fit_lines(text, 74, W, lambda t, s: d.textlength(t, font=_font(t, s)), limit=0.84)
+    lh = round(size * 1.28); y0 = int(H * y_frac) - (len(lines) - 1) * lh // 2
     sh = Image.new("RGBA", im.size, (0, 0, 0, 0)); sd = ImageDraw.Draw(sh)
     for k, ln in enumerate(lines):
-        f = C.font_for(ln, size); x = (W - d.textlength(ln, font=f)) / 2; sd.text((x, y0 + k * lh), ln, font=f, fill=(0, 0, 0, 230))
-    im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(7)))
+        f = _font(ln, size); sd.text(((W - d.textlength(ln, font=f)) / 2, y0 + k * lh), ln, font=f, fill=(0, 0, 0, 235), anchor="lm")
+    ry = y0 - size // 2 - 26
+    sd.rectangle((W // 2 - 60, ry, W // 2 + 60, ry + 5), fill=(0, 0, 0, 200))
+    im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(8)))
+    d.rectangle((W // 2 - 60, ry, W // 2 + 60, ry + 4), fill=GOLD + (255,))
     for k, ln in enumerate(lines):
-        f = C.font_for(ln, size); d.text(((W - d.textlength(ln, font=f)) / 2, y0 + k * lh), ln, font=f, fill=(255, 238, 205, 255))
+        f = _font(ln, size); d.text(((W - d.textlength(ln, font=f)) / 2, y0 + k * lh), ln, font=f, fill=GOLD + (255,), anchor="lm")
     im.save(path)
 
 
