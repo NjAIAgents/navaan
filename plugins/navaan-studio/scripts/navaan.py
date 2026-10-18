@@ -235,6 +235,8 @@ def brief_opt(D, key, default=""):
 
 def ig_enabled(m):
     """Instagram steps are on when the profile names a handle. Inspiration always shows them: it has its own account, checked before any post."""
+    if item_type(m) in C.NO_INSTAGRAM: return False   # The Aha-lorithm posts YouTube Shorts only
+    if (m.get("skip") or {}).get("instagram"): return False   # the owner chose not to post this item to Instagram (Skip Instagram on its page); undone the same way
     return item_type(m) == "inspiration" or bool(cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
 
 
@@ -295,7 +297,37 @@ def inspiration_steps(slug, D):
     ]
 
 
-STEPSETS = {"music": music_steps, "inspiration": inspiration_steps}
+AHA_ABOUT = ("This item is for The Aha-lorithm (YouTube @TheAhalorithm), a YouTube Shorts channel about AI awareness and surprising insights: "
+             "what AI is doing in everyday life, what people should know about it, and short 'aha' facts that change how you see things. Not the inspiration channel.")
+
+
+def aha_beats_done(D):
+    """Every beat of the script has its picture (scenes/beat_NN.png)."""
+    n = len([l for l in (load_json(os.path.join(D, "quote.json"), default={}) or {}).get("lines") or [] if str(l).strip()])
+    return n > 0 and all(os.path.exists(os.path.join(D, "scenes", "beat_%02d.png" % (i + 1))) for i in range(n))
+
+
+def aha_steps(slug, D):
+    """The Aha-lorithm (NAV-67): a narrated scene short. A script of 6 to 9 beats (hook, explanation, the aha), a fact check, one picture per beat,
+    ElevenLabs narration, then the inspiration render with a picture per beat and quiet ambient music. YouTube Shorts only: no Instagram caption or post."""
+    out = []
+    for s in inspiration_steps(slug, D):
+        if s["id"] in ("instagram_caption", "publish_instagram", "background_prompt"): continue
+        if s["id"] == "quote": s = {**s, "skill": "aha-script", "label": "Write the script: hook, explanation, the aha (one picture per beat)"}
+        if s["id"] == "originality": s = {**s, "skill": "aha-check", "label": "Fact-check every claim on the web"}
+        if s["id"] == "youtube_meta": s = {**s, "hint": ("Title: the hook, one fitting emoji at most. Description: two or three short plain lines on the insight, the aha line on its own, then "
+                                                         "'Follow The Aha-lorithm for AI explained in seconds.' and the hashtags #AI #ArtificialIntelligence #AIExplained #AIAwareness #TheAhalorithm plus one or two on the topic. " + s.get("hint", "")).strip()}
+        if s["id"] == "background":
+            s = dict(id="background", outputs=["scenes/beat_*.png", "background.png"], label="Make one picture per beat (OpenAI)", kind="script",
+                     cmds=[sc("aha_pictures.py", slug)], before="credits", done=lambda m: aha_beats_done(D))
+        if s.get("kind") == "claude": s = {**s, "hint": (AHA_ABOUT + " " + s.get("hint", "")).strip()}
+        if s["id"] == "publish_youtube": s = {**s, "label": "Upload to The Aha-lorithm on YouTube as a Short (API, private)"}
+        if s["id"] == "go_public": s = {**s, "label": "Make the Short public on The Aha-lorithm"}
+        out.append(s)
+    return out
+
+
+STEPSETS = {"music": music_steps, "inspiration": inspiration_steps, "aha": aha_steps}
 
 
 def steps(slug, D):

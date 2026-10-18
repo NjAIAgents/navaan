@@ -232,6 +232,7 @@ def detail(slug):
     nolyr = C.item_type(m) == "music" and not C.lyric_lines(D)
     ferr = jv.get("error", "") or next((l.strip() for l in reversed((logs.get(fstep) or "").splitlines()) if l.strip()), "")   # the job row has no text when a step printed its reason and exited: the last line of its log is that reason
     stale = bool(fstep) and any(r["id"] == fstep and r["done"] for r in rows)   # the step that failed has since succeeded: the pipeline moved on, so the failure is history, not news
+    stale = stale or (bool(fstep) and not any(r["id"] == fstep for r in rows))   # the step is no longer part of this item (Instagram skipped): nothing to run again
     failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6, 7) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
@@ -240,7 +241,7 @@ def detail(slug):
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "poster": {**POST.state(slug), **POSTER.get(slug, {})},
-            "narrate": (__import__("narrate_eleven").info(D) if C.item_type(m) == "inspiration" else None), "music": (__import__("bg_music").info(D) if C.item_type(m) == "inspiration" else None),
+            "narrate": (__import__("narrate_eleven").info(D) if C.is_short(C.item_type(m)) else None), "music": (__import__("bg_music").info(D) if C.is_short(C.item_type(m)) else None),
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -911,7 +912,7 @@ class H(BaseHTTPRequestHandler):
                 try: at = self._publish_at(body)
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 import new_song
-                suno_url = str(body.get("suno_url") or "").strip() if (body.get("type") or "music") == "inspiration" else ""
+                suno_url = str(body.get("suno_url") or "").strip() if C.is_short(body.get("type") or "music") else ""
                 voice_file = voice_tmp = info = None
                 if suno_url:   # the primary voice: the Suno song's own sound and words. Everything is read and checked before the item is created, so a bad link leaves nothing behind.
                     import suno_import, tempfile
@@ -927,7 +928,7 @@ class H(BaseHTTPRequestHandler):
                     try: suno_import.attach_voice(C.song_dir(sl), info, voice_file)
                     finally: shutil.rmtree(voice_tmp, ignore_errors=True)
                     navaan.edit_meta(sl, lambda m: navaan.log_hist(m, f"voice taken from the Suno song {suno_url} (via ui); narrating with ElevenLabs instead stays possible"))
-                if (body.get("type") or "music") == "inspiration":   # the quote is narrated by ElevenLabs unless this short skips it; the spend is still approved at the credits gate
+                if C.is_short(body.get("type") or "music"):   # the quote is narrated by ElevenLabs unless this short skips it; the spend is still approved at the credits gate
                     import narration, media_cfg
                     if body.get("narrate") == "none": narration.set_options(C.song_dir(sl), {"narrate": "none"})
                     else:
@@ -966,6 +967,13 @@ class H(BaseHTTPRequestHandler):
                 if sid and body["gate"] == "credits":
                     navaan.edit_meta(slug, lambda d: d.pop("redo_pending", None)); started = start_job(slug, False, sid)
                 return self._send(200, {"ok": True, "started": started})
+            if p == "/api/skip_lane":   # post this item to Instagram or not: the lane's steps leave the pipeline, so it can finish without them
+                if body.get("lane") != "instagram": return self._send(400, {"error": "only the Instagram lane can be skipped"})
+                on = bool(body.get("skip")); who = sess.get("user") or "owner"
+                if on and navaan.ig_done(navaan.meta(slug)): return self._send(400, {"error": "It is already posted to Instagram."})
+                navaan.edit_meta(slug, lambda d: (d.setdefault("skip", {}).__setitem__("instagram", True) if on else (d.get("skip") or {}).pop("instagram", None),
+                                                   navaan.log_hist(d, f"Instagram {'skipped' if on else 'back on'} for this item (via ui:{who})")))
+                return self._send(200, {"ok": True})
             if p == "/api/answer":
                 qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
                 return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
@@ -1023,7 +1031,7 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True, "mood": mood})
             if p == "/api/narration/eleven":   # narrate the quote with ElevenLabs as a step of this item: on or off, which voice and how fast (the spend is approved at the credits gate)
                 import narration, narrate_eleven, media_cfg, tts_eleven
-                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
+                if not C.is_short(navaan.meta(slug).get("type")): return self._send(400, {"error": "narration is for inspiration shorts"})
                 D = C.song_dir(slug); on = bool(body.get("on")); voice = str(body.get("voice") or ""); pace = str(body.get("pace") or "")
                 if on and voice not in media_cfg.VOICES: return self._send(400, {"error": "voice must be one of: " + ", ".join(media_cfg.VOICES)})
                 if on and pace and pace not in tts_eleven.PACES: return self._send(400, {"error": "pace must be one of: " + ", ".join(tts_eleven.PACES)})
@@ -1037,7 +1045,7 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True, **narrate_eleven.info(D)})
             if p == "/api/narration/script":   # the words ElevenLabs will read, edited by the owner (empty goes back to the suggestion); the voice made from the old script is stale until the video is approved
                 import narrate_eleven, glob as _g
-                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
+                if not C.is_short(navaan.meta(slug).get("type")): return self._send(400, {"error": "narration is for inspiration shorts"})
                 D = C.song_dir(slug)
                 try: narrate_eleven.save_script(D, str(body.get("text") or ""))
                 except ValueError as e: return self._send(400, {"error": str(e)})
@@ -1048,7 +1056,7 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True, **narrate_eleven.info(D)})
             if p in ("/api/narration/upload", "/api/narration/remove"):  # a ready made narration (audio plus its timed .srt) for an inspiration short
                 import narration
-                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "narration is for inspiration shorts"})
+                if not C.is_short(navaan.meta(slug).get("type")): return self._send(400, {"error": "narration is for inspiration shorts"})
                 D = C.song_dir(slug)
                 try:
                     if p.endswith("remove"): narration.remove(D); r = {}
@@ -1059,7 +1067,7 @@ class H(BaseHTTPRequestHandler):
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p in ("/api/music/upload", "/api/music/remove"):   # the owner's own background track for an inspiration short; the music is fitted by ffmpeg when the typography step runs
                 import bg_music, glob as _g
-                if navaan.meta(slug).get("type") != "inspiration": return self._send(400, {"error": "background music is for inspiration shorts"})
+                if not C.is_short(navaan.meta(slug).get("type")): return self._send(400, {"error": "background music is for inspiration shorts"})
                 D = C.song_dir(slug); approved = bool((navaan.meta(slug).get("approvals") or {}).get("media"))
                 try:
                     if p.endswith("remove"): bg_music.remove(D, drop_stale=not approved); r = {}; note = "background music removed"
