@@ -142,8 +142,8 @@ def make_pad(out, dur, style="piano"):
     C.run([ff, "-y", "-v", "error"] + args + ["-filter_complex", fc, "-map", "[o]", "-t", f"{dur:.2f}", "-c:a", "libmp3lame", "-b:a", "192k", out])
 
 
-def music_source(D, dur):
-    """Return a path to music, or None for silence. Order: music.* in the folder, brief path, library, generated pad."""
+def music_source(D, dur, lib_name="inspire_music"):
+    """Return a path to music, or None for silence. Order: music.* in the folder, brief path, library (<local_dir>/<lib_name>, one per channel), generated pad."""
     mode = opt(D, "music", "auto")
     if mode.lower() == "none": return None, "none"
     for p in sorted(glob.glob(os.path.join(D, "music_src.*")) + glob.glob(os.path.join(D, "music.*"))):
@@ -152,7 +152,7 @@ def music_source(D, dur):
         q = os.path.expanduser(mode)
         if os.path.exists(q): return q, "brief"
         sys.exit(f"navaan: music file not found: {q}")
-    lib = os.path.join(os.path.expanduser(C.cfg("storage.local_dir", "") or ""), "inspire_music")
+    lib = os.path.join(os.path.expanduser(C.cfg("storage.local_dir", "") or ""), lib_name)
     tracks = sorted(p for p in glob.glob(os.path.join(lib, "*")) if os.path.splitext(p)[1].lower() in (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")) if os.path.isdir(lib) else []
     if tracks:
         h = int(hashlib.sha1(os.path.basename(D).encode()).hexdigest(), 16)
@@ -160,9 +160,9 @@ def music_source(D, dur):
     return None, "pad"
 
 
-def narrated_music(narr, mode, src, how):
-    """Under a voice, `auto` means only the owner's own track (music_src.*): no library pick and no generated pad."""
-    if narr and mode.lower() == "auto" and how != "file in folder": return None, "none"
+def narrated_music(narr, mode, src, how, library_ok=False):
+    """Under a voice, `auto` means only the owner's own track (music_src.*): no generated pad, and no library pick unless the channel keeps its own quiet beds (library_ok)."""
+    if narr and mode.lower() == "auto" and how not in (("file in folder", "library") if library_ok else ("file in folder",)): return None, "none"
     return src, how
 
 
@@ -204,7 +204,9 @@ def snap(t, bts, lo, hi, tol=0.4):
 
 # Each short-form channel has its own look, so the two never pass for each other: colours, the font family (serif or sans) and the icon of the end card.
 LOOKS = {"inspiration": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
-         "aha": {"color": "#F4F7FF", "accent": "#3EE0C8", "dim": 0.55, "font": "sans"}}   # The Aha-lorithm: cool white on a darker picture, a teal accent, a clean sans
+         "aha": {"color": "#F4F7FF", "accent": "#E2B75A", "dim": 0.5, "font": "sans", "place": "center", "music": 0.12,
+                 "title": "The *Aha*-lorithm", "tagline": "AI explained in seconds"}}   # The Aha-lorithm: a short bold caption in the safe area, muted gold on the key phrase, a picture per beat, music about 20 dB under the voice
+MUSIC_LIB = {"aha": "aha_music"}   # a channel with its own library of quiet beds (<local_dir>/aha_music), picked even under a voice
 
 
 def handle(t):
@@ -230,11 +232,13 @@ def main(slug):
     q = C.load_json(os.path.join(D, "quote.json"))
     text = (q.get("text") or "").strip()
     if not text: sys.exit("navaan: quote.json has no text")
-    lines = [l.strip() for l in (q.get("lines") or []) if l.strip()] or split_lines(text, q.get("language", ""))
+    lines = [l.strip() for l in (q.get("lines") or []) if l.strip()] or split_lines(text, q.get("language", ""))   # an aha script keeps its *highlight* marks: the renderer colours them
+    beats = [os.path.join("scenes", "beat_%02d.png" % (i + 1)) for i in range(len(lines))] if itype == "aha" else []
+    beats = beats if beats and all(os.path.exists(os.path.join(D, b)) for b in beats) else []   # one picture per line, else the one background
     author = (q.get("author") or "").strip()
     bg = next((os.path.basename(p) for ext in ("jpg", "jpeg", "png", "webp") for p in glob.glob(os.path.join(D, f"background.{ext}"))), None)
     if not bg: sys.exit("navaan: no background image. Run the background step or put background.jpg in the folder.")
-    words = [len(l.split()) for l in lines]
+    words = [len(C.plain(l).split()) for l in lines]
     voice = next((p for p in sorted(glob.glob(os.path.join(D, "voiceover.*"))) if os.path.splitext(p)[1].lower() in (".mp3", ".wav", ".m4a", ".aac")), None)
     if opt(D, "voiceover", "none").lower() == "file" and not voice:
         sys.exit("navaan: brief says voiceover: file but voiceover.mp3 is not in the folder. Add it, or set voiceover: none.")
@@ -257,8 +261,8 @@ def main(slug):
     if not narr: span = dur - intro - tail_hold  # time the lines have between them
     tot_w = sum(words) or 1
     # music first, so the lines can follow its beats
-    mfile = os.path.join(D, "music.mp3"); src, how = music_source(D, dur)
-    src, how = narrated_music(narr, opt(D, "music", "auto"), src, how)
+    mfile = os.path.join(D, "music.mp3"); src, how = music_source(D, dur, MUSIC_LIB.get(itype, "inspire_music"))
+    src, how = narrated_music(narr, opt(D, "music", "auto"), src, how, itype in MUSIC_LIB)
     if how == "none": mfile = None
     elif src: fit_music(src, mfile, dur)
     else: make_pad(mfile, dur, opt(D, "bed", "piano").lower())
@@ -273,13 +277,19 @@ def main(slug):
     hold_end = round(dur - brand_tail - (1.2 if author else 0.8), 2)
     out_lines = [{"text": l, "start": round(s, 2), "end": hold_end} for l, s in zip(lines, starts)]
     if narr:
-        out_lines = [{"text": c["text"], "start": round(max(0.0, c["start"] - 0.1), 2), "end": round(c["end"] if i < len(ncues) - 1 else body_end, 2)} for i, c in enumerate(ncues)]
+        out_lines = [{"text": lines[i] if len(lines) == len(ncues) else c["text"], "start": round(max(0.0, c["start"] - 0.1), 2), "end": round(c["end"] if i < len(ncues) - 1 else body_end, 2)} for i, c in enumerate(ncues)]   # the cue times with the script's own text (its marks)
         hold_end = round(body_end, 2)
         vo = os.path.join(D, "narration.mp3")  # a plain mp3 so every renderer can play it
         C.run([C.tool("ffmpeg"), "-y", "-v", "error", "-i", voice, "-vn", "-ac", "2", "-ar", "44100", "-af", "loudnorm=I=-16:TP=-1.5:LRA=9", "-c:a", "libmp3lame", "-b:a", "192k", vo])
         voice = vo
     layout = opt(D, "layout", "single").lower(); layout = layout if layout in ("single", "stack") else "single"
     apply_layout(out_lines, layout)
+    caps = [str(c).strip() for c in (q.get("captions") or [])]
+    if len(caps) == len(out_lines) and all(caps):   # an aha beat shows its short caption while its full line is spoken
+        for l, c in zip(out_lines, caps): l["text"] = c
+    if isinstance(q.get("aha"), int) and 0 <= q["aha"] < len(out_lines): out_lines[q["aha"]]["aha"] = True   # the music drops back while the takeaway lands
+    if beats and len(beats) == len(out_lines):
+        for l, b in zip(out_lines, beats): l["bg"] = b
     h = int(hashlib.sha1(slug.encode()).hexdigest(), 16)
     presets = ["push_in", "pan_left", "pull_out", "pan_right", "drift"]
     cam = opt(D, "camera", presets[h % len(presets)]).lower()

@@ -303,7 +303,7 @@ def main(a):
         _again_in_venv(a); sys.exit("navaan: numpy is missing. Approve the captions_setup gate, or run setup_captions.py --yes.")
     import navaan_common as C
     D = C.song_dir(a[0]); q = C.load_json(os.path.join(D, "quote.json"), default={}) or {}
-    lines = [l for l in (q.get("lines") or []) if str(l).strip()]
+    lines = [C.plain(l) for l in (q.get("lines") or []) if str(l).strip()]
     flag = os.path.join(D, "narration_sync.json")
     try: info = sync(D, lines, force_whisper="--whisper" in a, force_pauses="--pauses" in a, lang=(q.get("language") or "en")[:2], ffmpeg=C.tool("ffmpeg"))
     except ImportError as _e: L.ignored(LOG, "main: ImportError (optional or expected)", _e); _again_in_venv(a + ["--whisper"] if "--whisper" not in a else a); sys.exit("navaan: Whisper needs the caption tools. Approve the captions_setup gate, or run setup_captions.py --yes.")

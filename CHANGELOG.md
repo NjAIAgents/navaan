@@ -9,8 +9,15 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ## [0.45.0] - 2026-10-18
 
 ### Added
-- The Aha-lorithm (NAV-67): a second short-form channel, for YouTube Shorts on @TheAhalorithm about AI awareness and surprising insights. It has its own list under Studio (Aha-lorithm) and its own items (aha-001, aha-002 …), started like an inspiration from a Suno link (the song's voice and words, ElevenLabs as the backup) with the same choice of when to publish. It runs the inspiration steps without Instagram: the only publishing steps are the Short upload and making it public, on the channel's own YouTube account. The writing steps are told what the channel is about. Its videos have their own look: a clean sans font, cool white text, a teal accent, and an end card with a YouTube mark and @TheAhalorithm.
+- The Aha-lorithm (NAV-67): a second short-form channel, for YouTube Shorts on @TheAhalorithm: AI explained in seconds. It has its own list under Studio (Aha-lorithm) and its own items (aha-001, aha-002 …). A short starts from an idea, from your own narration (kept word for word), or from nothing, in which case Claude picks the topic; never from a Suno link.
+- Each short is a narrated scene video of 20 to 25 seconds. Claude writes a script of 6 to 9 beats (hook, explanation, the aha), each with its spoken line, a short on-screen caption and a picture prompt. A fact-check step then checks every claim on the web. After your spend approval, OpenAI makes one picture per beat (about 4 ¢ each; the pictures never contain words). ElevenLabs reads the script at normal speed (narration only). Each beat's picture fades in as its line starts, and the caption appears in bold white in the middle of the screen, with the key phrase in muted gold. A quiet ambient bed from the channel's own music library plays about 20 dB under the voice and drops back while the aha line lands. The end card shows "The Aha-lorithm · AI explained in seconds" and @TheAhalorithm. The YouTube description ends with a follow line and the channel's hashtags.
+- The channel publishes only to YouTube: the Short upload and making it public, on the channel's own YouTube account.
 - To use it, add the account in Settings › Accounts (type aha, YouTube channel @TheAhalorithm) and sign in to YouTube for it there; it shows only the YouTube rows, since the channel has no Instagram.
+- Music for it comes from `<local_dir>/aha_music` on the server: put a few quiet ambient tracks there.
+
+### Fixed
+- Popups on the song page (Share a clip, Add to playlist, feedback) showed only a strip at the bottom of the screen on a phone. They used the header's class name and inherited its 64-pixel height. They now open in full.
+- On a phone the song's cover is centred above its title.
 
 ## [0.44.0] - 2026-10-18
 

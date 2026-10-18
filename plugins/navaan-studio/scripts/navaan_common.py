@@ -255,6 +255,7 @@ NO_INSTAGRAM = ("aha",)   # The Aha-lorithm (NAV-67) posts YouTube Shorts only
 
 
 def is_short(t): return t in SHORT_TYPES
+def plain(s): return str(s).replace("*", "")   # a script line without its *highlight* marks: what is spoken and timed
 TYPE_GATES = {"music": tuple(g for g in GATES if g not in ("quote", "originality")),
               "inspiration": ("quote", "originality", "credits", "media", "publish_youtube", "instagram_caption", "go_public", "publish_instagram", "cloud_upload", "local_cleanup"),
               "aha": ("quote", "originality", "credits", "media", "publish_youtube", "go_public", "cloud_upload", "local_cleanup")}
