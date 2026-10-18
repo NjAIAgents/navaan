@@ -3,6 +3,7 @@ import { ZoomImage } from "./ZoomImage";
 import { GateSwitch, type SetGate } from "./GateSwitch";
 import { StepStatus, type Kind } from "./StepStatus";
 import { stepView } from "./stepViews";
+import { PostTextEditor } from "./SongEditors";
 import { gateTitle, stepLabel, stepWhat } from "../lib/gates";
 
 const IMG = /\.(png|jpe?g|webp)$/i; const AUD = /\.(mp3|m4a|aac|wav|flac|ogg)$/i; const VID = /\.mp4$/i;
@@ -10,12 +11,10 @@ const IMG = /\.(png|jpe?g|webp)$/i; const AUD = /\.(mp3|m4a|aac|wav|flac|ogg)$/i
 type Ev = { at: string; text: string };
 
 // The words and pictures a draft step has already written, shown before the step runs so there is something to read and nothing to guess.
-function Draft({ d, id }: { d: SongDetail; id: string }) {
-  if (id === "instagram_caption" && d.text?.["instagram.txt"]?.trim()) return <div className="stack"><h3>Draft</h3><pre className="art" tabIndex={0} aria-label="Instagram caption draft">{d.text?.["instagram.txt"]}</pre></div>;
-  if (id === "youtube_meta" && d.text?.["youtube.json"]) {
-    try { const y = JSON.parse(d.text?.["youtube.json"]) as { title?: string; description?: string; tags?: string[] }; return <div className="stack"><h3>Draft</h3><b>{y.title}</b><pre className="art" tabIndex={0} aria-label="YouTube description draft">{y.description}</pre>{y.tags?.length ? <p className="mu">{y.tags.join(", ")}</p> : null}</div>; }
-    catch { return null; }   // expected: not JSON, nothing to show as a draft
-  }
+function Draft({ d, id, reload }: { d: SongDetail; id: string; reload?: () => Promise<unknown> | void }) {
+  const done = reload ?? (() => undefined);
+  if (id === "instagram_caption" && d.text?.["instagram.txt"]?.trim()) return <div className="stack"><h3>Draft</h3><PostTextEditor d={d} kind="instagram" done={done} /></div>;
+  if (id === "youtube_meta" && d.text?.["youtube.json"]) return <div className="stack"><h3>Draft</h3><PostTextEditor d={d} kind="youtube" done={done} /></div>;
   return null;
 }
 
@@ -29,7 +28,9 @@ export function StepDetail({ d, id, events, onBack, done = () => undefined, setG
   const kind: Kind = failed ? "failed" : live ? "running" : waiting ? "waiting" : s.done ? "done" : ranBefore ? "stale" : here ? "next" : "later";
   const url = (n: string, size: number) => `/media/${d.slug}/${n}?v=${size}`;
   const made = s.made ?? []; const log = d.logs?.[id];
-  const view = stepView(d, id, done); const texts = (s.texts ?? []).filter((t) => !view?.raw.includes(t.name)); const raws = (view?.raw ?? []).filter((n) => d.text?.[n]);
+  const view = stepView(d, id, done);
+  const own = !live && ((id === "instagram_caption" && !!d.text?.["instagram.txt"]) || (id === "youtube_meta" && !!d.text?.["youtube.json"]));   // the words that go out are edited here, not shown read-only
+  const texts = (s.texts ?? []).filter((t) => !view?.raw.includes(t.name) && !(own && (t.name === "instagram.txt" || t.name === "youtube.json"))); const raws = (view?.raw ?? []).filter((n) => d.text?.[n]);
   const gates = [s.gate_before && ["before", s.gate_before], s.gate_after && ["after", s.gate_after]].filter(Boolean) as ["before" | "after", string][];
   const off = d.gates_off ?? [];
   return (
@@ -46,6 +47,7 @@ export function StepDetail({ d, id, events, onBack, done = () => undefined, setG
         </div>
       ))}
       {view?.node}
+      {own && <Draft d={d} id={id} reload={done} />}
       {texts.map((t, i) => <details key={t.name} open={!view && i === 0}><summary><b>{t.name}</b></summary><pre className="art" tabIndex={0} aria-label={t.name}>{t.text}</pre></details>)}
       {raws.map((n) => <details key={n}><summary>Raw file: {n}</summary><pre className="art" tabIndex={0} aria-label={`Raw ${n}`}>{d.text?.[n]}</pre></details>)}
       {(s.links ?? []).length > 0 && (
@@ -64,10 +66,9 @@ export function StepDetail({ d, id, events, onBack, done = () => undefined, setG
           </div>
         </div>
       )}
-      {!made.length && !texts.length && !view && !(s.links ?? []).length && (
+      {!made.length && !texts.length && !own && !view && !(s.links ?? []).length && (
         <p className="mu">{live ? "Running now. What it makes appears here when it finishes." : s.done ? "This step did not save a file you can open here." : ranBefore ? `It ran before (${ranBefore.at}). Something it depends on changed, so it will run again.` : "It has not run yet."}</p>
       )}
-      {!s.done && !live && <Draft d={d} id={id} />}
       {log && <details><summary>Log of this step</summary><pre className="art" tabIndex={0} aria-label={`Log of ${stepLabel(id)}`}>{log}</pre></details>}
       {events.length > 0 && <div className="stack"><h3>History of this step</h3><ul className="hist">{events.map((e, i) => <li key={i}><span className="mu">{e.at}</span> {e.text}</li>)}</ul></div>}
     </section>
