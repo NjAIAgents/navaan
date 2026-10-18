@@ -51,7 +51,7 @@ export type SongDetail = {
   failure: { step: string; error: string; ref: string; plain?: string } | null;
   question: Question | null; needs_you: string;
   cameras: string[]; cloud: boolean; images: string[];
-  visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; openai_pictures?: boolean;
+  visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; visuals_suggest?: { camera: string; scene: string }; openai_pictures?: boolean;
   prompt_pack?: { aspect?: string; concept?: string; character?: string; style_line: string; look?: Record<string, unknown>; prompts: { n: number; section: string; lyric?: string; prompt: string; camera?: string; motion?: string }[] } | null;
   run?: { step?: string; attempt?: number; attempts?: number; elapsed?: number; quiet_s?: number; pct?: number; done?: number; total?: number; label?: string; failed?: string | null };
   lanes?: Record<string, { type: "gate" | "run"; step: string; gate?: string }>;

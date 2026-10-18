@@ -73,13 +73,33 @@ def problems(D, v=None):
     return out
 
 
+NOTE_MAX = 600
+DEFAULT_CAMERA = ("Slow, steady moves: a gentle push in on a face or a quiet moment, a slow pull out when the feeling opens up, now and then a slow pan across the place. "
+                  "Begin close and quiet, build with the song and end on a slow pull out. Nothing fast, shaky or showy.")
+
+
+def suggest(D):
+    """The starting point for the camera and look notes, shown in the form so the owner edits it instead of facing an empty box. Once the picture plan is written, the art director's own look and camera
+    style are the suggestion (so a small change and 'Write them again' keeps the rest); before that it is a plain starting point written from the song's style. Never longer than a note may be."""
+    pack = C.load_json(os.path.join(D, "prompt_pack.json"), default=None) or {}
+    look = pack.get("look") if isinstance(pack.get("look"), dict) else {}
+    style = ""
+    try: style = " ".join(open(os.path.join(D, "style.txt"), encoding="utf-8").read().split())[:120]
+    except OSError: pass   # expected: a song with no style file yet gets the plain starting point
+    camera = str(look.get("camera_style") or "").strip() or DEFAULT_CAMERA
+    scene = str(pack.get("style_line") or look.get("style_line") or "").strip() or (
+        "Photorealistic cinematic stills that fit the song" + (f" ({style})" if style else "") + ". Natural, motivated light (practical lamps, window light, dusk or soft overcast), "
+        "muted colour with one warm accent, a 35mm film feel with fine grain, shallow depth of field, real places and weather taken from the lyrics.")
+    return {"camera": camera[:NOTE_MAX], "scene": scene[:NOTE_MAX]}
+
+
 def save(D, mode, layout=None, camera="", scene="", pictures_later=False):
     """pictures_later: the pictures will be made by the OpenAI step, so a video layout can be chosen with no pictures yet."""
     if mode not in ("own", "flow"): raise ValueError("mode must be own or flow")
     v = {"mode": mode}
     if mode == "own":
         if layout not in ("static", "video"): raise ValueError("layout must be static or video")
-        v.update({"layout": layout, "images": own_images(D), "camera": str(camera or "").strip()[:600], "scene": str(scene or "").strip()[:600]})
+        v.update({"layout": layout, "images": own_images(D), "camera": str(camera or "").strip()[:NOTE_MAX], "scene": str(scene or "").strip()[:NOTE_MAX]})
         pr = problems(D, v)
         if pr and not (pictures_later and layout == "video"): raise ValueError(pr[0])
     import datetime

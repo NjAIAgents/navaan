@@ -10,9 +10,9 @@ export const GATE_ASK: Record<string, string> = {
   suno_download: "I allow one Suno download from my plan allowance (needed to import this song).", listen: "I listened and accept this song.",
   shots: "I approve this shot list; render the video from it.", credits: "I approve spending Suno, Flow and OpenAI credits.",
   captions_setup: "I approve a one-time download of the caption tools (about 700 MB from GitHub and PyPI, saved outside the repo).", media: "I reviewed the videos and approve them.",
-  publish_youtube: "Upload the full video to YouTube. It stays private; nobody can see it yet.", publish_short: "Upload the Short to YouTube. It stays private; nobody can see it yet.",
+  publish_youtube: "Upload the video to YouTube, and the Short when there is one. Both stay private; nobody can see them yet.", publish_short: "Upload the Short to YouTube. It stays private; nobody can see it yet.",
   go_public: "Make the YouTube video and Short public now.", instagram_caption: "I approve this Instagram caption.",
-  publish_instagram: "Publish to Instagram now.", cloud_upload: "Upload this finished song to my cloud bucket.",
+  publish_instagram: "Publish to Instagram now.", cloud_upload: "Archive this finished song to my cloud bucket, then delete the local copy. Nothing is deleted unless every file is checked in the bucket first.",
   local_cleanup: "Delete the local media of this song now. The bucket copy is checked file by file first; text and meta stay.",
 };
 // The file that holds what is being approved.

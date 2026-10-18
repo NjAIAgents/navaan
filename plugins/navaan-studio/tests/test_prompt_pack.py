@@ -78,6 +78,30 @@ class Roles(unittest.TestCase):
         self.assertIn("warm dusk film look", p); self.assertIn("exactly 2 prompts", p); self.assertNotIn("<<", p)
         self.assertNotIn("push_in", p)
 
+    def test_story_prompt_makes_the_scene_geometry_explicit(self):
+        # song-008 picture 2: "sits in his idling pickup watching the woman in the wagon ahead" left the driver's side, the camera and who is where to the image model, and it drew the driver wrong
+        p = P.build_prompt(self.CTX, self.SL)
+        for w in ("where the camera stands", "driver sits on the LEFT", "driver sits on the RIGHT", "steering wheel", "A person is in one place only", "at most one per frame"): self.assertIn(w, p)
+        self.assertNotIn("a reflection in glass", p)
+
+    def test_story_prompt_asks_for_a_detailed_scene(self):
+        p = P.build_prompt(self.CTX, self.SL)
+        for w in ("four to six sentences", "70 to 120 words", "The shot:", "The staging:", "The people:", "The place:", "The light:", "The air and texture:", "One telling detail"): self.assertIn(w, p)
+
+    def test_a_long_scene_is_cut_but_the_ending_of_the_picture_prompt_stays(self):
+        import song_images_openai as S
+        pack = {"character": "A man. " * 200, "style_line": "Dusk. " * 100}; item = {"prompt": "A very detailed scene. " * 200}
+        for text in (S.full_prompt(pack, item), S.anchor_prompt(pack, item)):
+            self.assertLessEqual(len(text), 3500); self.assertIn("No text, no letters", text); self.assertIn("Correct anatomy and hands", text)
+        self.assertTrue(S.anchor_prompt(pack, item).endswith("so every later shot can match them."))
+
+    def test_every_picture_prompt_carries_the_plausibility_guard(self):
+        import song_images_openai as S
+        pack = {"character": "A man.", "style_line": "Dusk."}; item = {"prompt": "A man stands by a truck."}
+        for text in (S.full_prompt(pack, item), S.anchor_prompt(pack, item), S.scene_prompt(pack, item)):
+            self.assertIn("Correct anatomy and hands", text); self.assertIn("every reflection shows a person once", text); self.assertIn("No text, no letters", text)
+        self.assertIn("A man stands by a truck.", S.scene_prompt(pack, item)); self.assertNotIn("{", S.scene_prompt(pack, item))
+
     def test_camera_prompt_lists_scenes_and_moves(self):
         p = P.build_camera_prompt(self.CTX, self.SL, [{"prompt": "scene one"}, {"prompt": "scene two"}], {"camera_style": "slow"})
         for w in ("scene one", "scene two", "push_in", "exactly 2 moves", "about 20.0 s"): self.assertIn(w, p)

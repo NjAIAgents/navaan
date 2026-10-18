@@ -21,11 +21,12 @@ LOG = L.get("song_images_openai")
 WORKERS = 3
 VERT_SIZE = "1152x2048"
 PHOTO = "Photorealistic cinematic still, shot as a real photograph. "
-FINISH = " Real skin texture, no heavy retouching, natural expression, subtle film grain. Wide 16:9 cinematic frame with open space for a slow camera move. No text, no letters, no logos, no watermarks."
+SANE = " Correct anatomy and hands. Vehicles, doors, windows and furniture are built and placed as in real life, and every reflection shows a person once."
+FINISH = " Real skin texture, no heavy retouching, natural expression, subtle film grain." + SANE + " Wide 16:9 cinematic frame with open space for a slow camera move. No text, no letters, no logos, no watermarks."
 ANCHOR_RULE = " In this first frame the main people are clearly visible with readable faces, so every later shot can match them."
 REF = ("Use the uploaded image as the exact visual reference for the people in it. Preserve their facial identity, age, hairstyle, skin tone, build and signature clothing. "
        "Create a new shot from the same film, not new people. Scene: {scene} Keep the same cinematic colour grade, realistic skin texture, lighting style and emotional tone. "
-       "Look of the film: {style} Wide 16:9 landscape frame with open space for a slow camera move. No text, no letters, no logos, no watermarks.")
+       "Look of the film: {style}" + SANE + " Wide 16:9 landscape frame with open space for a slow camera move. No text, no letters, no logos, no watermarks.")
 VERT = ("Use the uploaded image as the exact visual reference. Recompose this same moment as a vertical 9:16 frame: the same people, the same place, the same light, the same colour grade. "
         "Keep the people in the lower two thirds and leave the upper third calm and open for lyrics. Do not add text, letters or logos.")
 
@@ -33,14 +34,20 @@ VERT = ("Use the uploaded image as the exact visual reference. Recompose this sa
 def _s(x): return str(x or "").strip()
 
 
-def full_prompt(pack, item):
-    """Words only (no reference): look, people, scene. Used for the first picture and as the fallback when an edit is refused."""
+def _words(pack, item):
     who = ("Main people: " + _s(pack.get("character")) + " ") if _s(pack.get("character")) else ""
-    return (PHOTO + _s(pack.get("style_line")) + " " + who + _s(item.get("prompt")) + FINISH).strip()[:3500]
+    return (PHOTO + _s(pack.get("style_line")) + " " + who + _s(item.get("prompt"))).strip()
+
+
+def full_prompt(pack, item, tail=""):
+    """Words only (no reference): look, people, scene. Used for the first picture and as the fallback when an edit is refused. The scene is cut, never the ending, so a long
+    scene cannot push the no-lettering and plausibility lines out of the prompt."""
+    end = FINISH + tail
+    return (_words(pack, item)[:3500 - len(end)] + end).strip()
 
 
 def anchor_prompt(pack, item):
-    return (full_prompt(pack, item)[:3500 - len(ANCHOR_RULE)] + ANCHOR_RULE).strip()
+    return full_prompt(pack, item, ANCHOR_RULE)
 
 
 def scene_prompt(pack, item):

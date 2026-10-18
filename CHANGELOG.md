@@ -6,6 +6,18 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-18
+
+### Changed
+- Approvals that came straight after each other are given as one. Approving the YouTube upload also uploads the Short (both stay private). Approving the archive to the cloud bucket also allows the clean-up of the local copy, which still deletes nothing unless every file is checked in the bucket first. Choosing the visuals shows what the pictures and poster will cost and approves that spend in the same click ("Save, approve the spend and continue").
+- The picture plan is written in more detail. Each scene is now four to six sentences (about 70 to 120 words) that name the shot and lens, who stands where and faces which way, what the hands and face are doing, at least three things in the place, the light's source, direction and colour, the air and texture, and one telling detail. A long scene is cut before its ending, so the no-lettering and plausibility lines always stay in the prompt.
+- The Camera notes and Look notes boxes start with a suggestion to edit instead of being empty: written from the song's style at first, and the art director's own look and camera style once the picture plan exists. Clearing a box still leaves the choice to the camera operator or the art director.
+- "No pictures yet? Make them with Gemini or ChatGPT" shows one tab per picture. Each prompt can be changed there and saved to the plan, "Copy this prompt" copies the changed text with the style line, and a "Look and people" tab holds the style line and the people description every prompt shares.
+- A button that started a job or a save stays down and shows a thin moving bar along its foot until the work is done, so a second click cannot start it again.
+
+### Fixed
+- Pictures no longer show impossible set-ups such as a driver sitting the wrong way behind the wheel or a second face in a window (song-008, picture 2). The story director now has to state where the camera stands, where each person is and which way they face, and to name the driver's side that matches the country of the song for any scene with a car. Each person is in one place only, a reflection shows the person once, and a scene that could not exist in real life is rewritten. Every picture prompt also asks for correct anatomy and hands and for vehicles and furniture built as in real life. This applies to picture plans written from now on: a plan that is already written keeps its prompts until its "Write the picture plan" step is redone or the prompt is edited on the step's page.
+
 ## [0.43.0] - 2026-10-18
 
 ### Fixed
@@ -570,7 +582,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.43.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...HEAD
+[0.44.0]: https://github.com/NjAIAgents/navaan/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/NjAIAgents/navaan/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/NjAIAgents/navaan/compare/v0.41.1...v0.42.0
 [0.41.1]: https://github.com/NjAIAgents/navaan/compare/v0.41.0...v0.41.1

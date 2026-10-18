@@ -929,6 +929,12 @@ def caption_cmd(slug, a):
     show_gate(slug, "instagram_caption"); return 0
 
 
+# Approvals that came one straight after the other with nothing for you to look at in between are given as one (owner's call, 2026-10-18):
+# uploading the YouTube video also uploads the Short (both private), and archiving to the bucket also allows the clean-up, which itself
+# re-lists the bucket and deletes nothing unless every local file is there with the same size.
+TOGETHER = {"publish_youtube": ("publish_short",), "cloud_upload": ("local_cleanup",)}
+
+
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
     if on and gate in SHA_FILES and not gate_sha(song_dir(slug), gate): sys.exit(f"no {SHA_FILES[gate]} to approve yet. Run that step first.")
@@ -940,6 +946,11 @@ def set_gate(slug, gate, on, via):
         for s in steps(slug, D):
             if on and s.get("after") == gate and s.get("sets"): m["state"] = s["sets"]
         log_hist(m, f"gate {gate} {'approved' if on else 'revoked'} via {via}")
+        for g in TOGETHER.get(gate, ()):   # back-to-back approvals given as one: approving (or revoking) the first does the same to the next
+            if g in C.type_gates(item_type(m)) and (on and g not in ap or not on and g in ap):
+                if on: ap[g] = {"at": now(), "via": f"{via} (with {gate})"}
+                else: ap.pop(g, None)
+                log_hist(m, f"gate {g} {'approved' if on else 'revoked'} with {gate} via {via}")
     edit_meta(slug, put)
 
 
