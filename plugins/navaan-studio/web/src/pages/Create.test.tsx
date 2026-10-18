@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -332,6 +332,19 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     expect(document.getElementById("step-publish_youtube")).toHaveTextContent("YouTube lane"); expect(document.getElementById("step-instagram_caption")).toHaveTextContent("Instagram lane");
     fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
     await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
+  });
+  it("lets you approve in a lane while the run is waiting at that very approval (the run counts as running and must not lock its own button)", async () => {
+    const f = route(OWNER, { "/api/approve": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-007", next: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, job: { running: true, queued: false, rc: null }, status_text: "waiting for you: approve gate publish_youtube",
+      lanes: { youtube: { type: "gate", step: "publish_youtube", gate: "publish_youtube" }, instagram: { type: "gate", step: "instagram_caption", gate: "instagram_caption" } },
+      steps: [step("video", { done: true, status: "done" }), step("publish_youtube", { status: "waiting for approval", needs_gate: "publish_youtube", gate_before: "publish_youtube", lane: "youtube" }),
+              step("instagram_caption", { status: "waiting for approval", needs_gate: "instagram_caption", gate_after: "instagram_caption", lane: "instagram" })] }) });
+    at(A);
+    const ig = await screen.findByRole("region", { name: "Instagram" });
+    expect(screen.queryByText("Running")).toBeNull();   // no spinner saying Running next to the approvals it is waiting for
+    const approve = within(ig).getByRole("button", { name: "Approve" }); expect(approve).toBeEnabled();
+    fireEvent.click(approve);
+    await waitFor(() => expect(posts(f, "/api/approve")).toEqual([{ slug: "song-007", gate: "instagram_caption" }]));
+    expect(within(screen.getByRole("region", { name: "YouTube" })).getByRole("button", { name: "Approve" })).toBeEnabled();
   });
   it("offers to delete a failed item with a confirmation, deletes it and goes back to the list; a published one shows why it cannot be deleted", async () => {
     const f = route(OWNER, { "/api/delete": () => ({ ok: true, moved_to: "_deleted/song-007-x" }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-007", failure: { step: "video", error: "boom", ref: "r1", plain: "The video could not be built." }, deletable: { ok: true, why: "" }, steps: [step("video")] }) });

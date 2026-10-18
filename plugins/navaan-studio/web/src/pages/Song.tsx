@@ -209,8 +209,9 @@ function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: b
 const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
 
 // After the videos are approved, YouTube and Instagram each have a lane of their own: each shows its own next step or approval, and neither waits for the other.
-function LanesView({ d, act, busy, running, stopping, onStop }: { d: SongDetail; act: Act; busy: boolean; running: boolean; stopping: boolean; onStop: () => void }) {
+function LanesView({ d, act, busy, pending, running, stopping, onStop }: { d: SongDetail; act: Act; busy: boolean; pending: boolean; running: boolean; stopping: boolean; onStop: () => void }) {
   const lanes = d.lanes ?? {};
+  // The approval cards get `pending` (a request in flight), not `busy`: a run waiting at an approval counts as running, and it must not lock the button it is waiting for.
   return (
     <div className="lanes" aria-label="Publishing lanes">
       {(["youtube", "instagram"] as const).filter((l) => lanes[l]).map((l) => {
@@ -219,7 +220,7 @@ function LanesView({ d, act, busy, running, stopping, onStop }: { d: SongDetail;
           <section key={l} className="stack lane" aria-labelledby={`lane-${l}`}>
             <div className="row"><h2 id={`lane-${l}`}>{LANE_TITLE[l]}</h2><span className="n">{done}/{mine.length}</span></div>
             {nx.type === "gate" && nx.gate
-              ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={busy} running={running} stopping={stopping} onStop={onStop} />
+              ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={pending} running={running} stopping={stopping} onStop={onStop} />
               : <section className="card stack live"><StepStatus kind={running ? "later" : "next"} /><h3>{stepLabel(nx.step)}</h3>
                   <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { step: nx.step })}>Run {stepLabel(nx.step)}</button></div>
                   <p className="mu">Only this lane moves. The {l === "youtube" ? "Instagram" : "YouTube"} lane keeps its own place.</p></section>}
@@ -327,7 +328,7 @@ export default function Song() {
   ) : d.question ? <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />
   : d.needs_you ? <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>
   : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
-  : hasLanes ? (running ? runCard : null)
+  : hasLanes ? (running && !d.status_text?.startsWith("waiting for you") ? runCard : null)   // a run waiting at an approval shows that approval, not a spinner saying Running
   : running && !gate ? runCard : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
   : gate ? <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} running={running} stopping={stopping} onStop={() => void stop()} />
   : d.next.type === "run" ? (
@@ -361,7 +362,7 @@ export default function Song() {
         {tab === "pipeline" && (
           <div className="pl-grid">
             <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} setGate={setGate} />
-            <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
+            <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
           </div>
         )}
         {tab === "content" && (<>

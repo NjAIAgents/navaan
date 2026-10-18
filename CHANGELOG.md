@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-10-18
+
+### Fixed
+- Approve and every other button did nothing on a song or inspiration whose videos were approved, while its run was waiting at the YouTube or Instagram approval. The waiting run counted as "running" and locked the very button it was waiting for. The approvals in the YouTube and Instagram lanes now work while the run waits, the "Running" spinner no longer appears next to the approval it is waiting for, and a button that cannot be pressed is drawn dimmed.
+
 ## [0.39.0] - 2026-10-18
 
 ### Fixed
@@ -515,7 +520,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.39.1...HEAD
+[0.39.1]: https://github.com/NjAIAgents/navaan/compare/v0.39.0...v0.39.1
 [0.39.0]: https://github.com/NjAIAgents/navaan/compare/v0.38.1...v0.39.0
 [0.38.1]: https://github.com/NjAIAgents/navaan/compare/v0.38.0...v0.38.1
 [0.38.0]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...v0.38.0
