@@ -33,7 +33,7 @@ function Row({ s, state, act, busy, selected, onSelect, live, run, hidden = fals
       {ask && (
         <span className="stack rc" role="group" aria-label={`Confirm ${ask} of ${stepLabel(s.id)}`}>
           <span className="mu">{ask === "redo" ? "Redo only this step? Its current files go to the _prev folder inside the song (nothing is deleted). If the new run fails, the old files are put back." + (s.spends ? " It spends credits, so approve the credits gate again first." : "") : "Restart from here? This step and every step after it will run again, and approvals after it are taken back."}</span>
-          <span className="row"><button className="btn p" disabled={busy} onClick={() => void go()}>{ask === "redo" ? "Yes, redo it" : "Yes, restart"}</button><button className="btn g" onClick={() => setAsk(null)}>Not now</button></span>
+          <span className="row"><button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void go()}>{ask === "redo" ? "Yes, redo it" : "Yes, restart"}</button><button className="btn g" onClick={() => setAsk(null)}>Not now</button></span>
         </span>
       )}
     </li>

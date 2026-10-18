@@ -264,6 +264,15 @@ class Access(unittest.TestCase):
         code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="x", publish_at_ct="2001-01-01T10:00"))
         self.assertEqual(code, 400); self.assertIn("future", json.loads(body)["error"]); self.assertEqual(len(os.listdir(os.path.dirname(C.song_dir(slug)))), before)   # nothing created
 
+    def test_choosing_the_visuals_can_approve_the_spend_in_the_same_click(self):
+        import navaan
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]
+        with mock.patch.dict(os.environ, {"NAVAAN_ROOT": self.tmp.name}):
+            code, body = self.call("/api/visuals/save", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, mode="flow", approve_spend=True))
+        self.assertEqual((code, json.loads(body)["spend_approved"]), (200, True)); self.assertIn("(with the visuals)", navaan.meta(slug)["approvals"]["credits"]["via"])
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="sun")); other = json.loads(body)["slug"]
+        self.call("/api/visuals/save", "owner-tok", "csrf-owner", post=True, body=dict(slug=other, mode="flow")); self.assertNotIn("credits", navaan.meta(other).get("approvals", {}))   # not asked: not approved
+
     def test_feedback_at_the_video_review_names_one_video_and_only_that_one_is_made_again(self):
         import navaan, navaan_common as C, reel_lyrics
         code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)

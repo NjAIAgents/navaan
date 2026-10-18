@@ -116,6 +116,37 @@ describe("choosing the visuals (NAV-23)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Try the first 2 pictures/ })); await waitFor(() => expect(posts(f, "/api/visuals/try")).toHaveLength(1));
     expect(screen.getByText(/OpenAI will make the pictures after you save/)).toBeInTheDocument();
   });
+  it("shows each picture prompt on its own tab, lets the owner change it, saves it to the plan and copies the changed text", async () => {
+    const pack = { aspect: "16:9", style_line: "Cinematic", character: "A man.", prompts: [{ n: 1, section: "Verse 1", prompt: "a lamp" }, { n: 2, section: "Chorus", prompt: "a road" }] };
+    const writeText = vi.fn(() => Promise.resolve()); Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const f = route({ "/api/plan/save": () => ({ ok: true }), "/api/song/": () => gated({ prompt_pack: pack, images: ["a.png"] }) });
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("tab", { name: /^1/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Prompt for picture 1")).toHaveValue("a lamp");
+    expect(screen.getByRole("button", { name: "Save my changes" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Prompt for picture 1"), { target: { value: "a lamp, rain on the glass" } });
+    fireEvent.click(screen.getByRole("button", { name: "Copy prompt 1 with style line" })); await waitFor(() => expect(writeText).toHaveBeenCalledWith("Cinematic a lamp, rain on the glass"));
+    fireEvent.click(screen.getByRole("button", { name: "Save my changes" })); await waitFor(() => expect(posts(f, "/api/plan/save")).toEqual([{ slug: "song-001", prompts: [{ n: 1, prompt: "a lamp, rain on the glass" }] }]));
+    fireEvent.click(screen.getByRole("tab", { name: /^2/ })); expect(screen.getByLabelText("Prompt for picture 2")).toHaveValue("a road");
+    fireEvent.click(screen.getByRole("tab", { name: "Look and people" })); expect(screen.getByLabelText("Style line")).toHaveValue("Cinematic"); expect(screen.getByLabelText(/^The people/)).toHaveValue("A man.");
+  });
+  it("starts the camera and look notes with a suggestion to edit instead of empty boxes, and saves what the owner leaves or changes", async () => {
+    const f = route({ "/api/visuals/save": () => ({ ok: true }), "/api/song/": () => gated({ images: ["a.png"], openai_pictures: true, visuals_suggest: { camera: "Slow pushes, end on a pull out.", scene: "Cinematic stills, warm lamps." } }) });
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByLabelText(/^Camera notes/)).toHaveValue("Slow pushes, end on a pull out.");
+    expect(screen.getByLabelText(/^Look notes/)).toHaveValue("Cinematic stills, warm lamps.");
+    fireEvent.change(screen.getByLabelText(/^Look notes/), { target: { value: "Cinematic stills, cold dawn." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+    await waitFor(() => expect(posts(f, "/api/visuals/save")).toEqual([{ slug: "song-001", mode: "own", layout: "video", camera: "Slow pushes, end on a pull out.", scene: "Cinematic stills, cold dawn." }]));
+  });
+  it("approves the spend it lists in the same click as choosing the visuals", async () => {
+    const st = (id: string, o: object) => ({ id, label: id, kind: "script", done: false, redo: true, restart: false, spends: false, status: "ready", needs_gate: null, scheduled_for: null, ...o });
+    const f = route({ "/api/visuals/save": () => ({ ok: true, spend_approved: true }), "/api/song/": () => gated({ images: ["a.png"], openai_pictures: true, steps: [st("pictures", { spends: true, spends_what: "Create the pictures with OpenAI (12 pictures, about $0.48 at high)" }), st("poster", { spends: true, spends_what: "Make the poster with OpenAI (1 picture, about $0.07 at high)" })] }) });
+    render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("Create the pictures with OpenAI (12 pictures, about $0.48 at high)")).toBeInTheDocument(); expect(screen.getByText(/This also approves spending on/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save, approve the spend and continue" }));
+    await waitFor(() => expect(posts(f, "/api/visuals/save")[0]).toMatchObject({ mode: "own", layout: "video", approve_spend: true }));
+  });
   it("has no serious accessibility violations", async () => {
     route({ "/api/song/": () => gated({ images: ["a.png"], prompt_pack: { style_line: "S", prompts: [{ n: 1, section: "v", prompt: "p" }] } }) });
     const { container } = render(<MemoryRouter initialEntries={["/studio/songs/song-001"]}><App /></MemoryRouter>);
