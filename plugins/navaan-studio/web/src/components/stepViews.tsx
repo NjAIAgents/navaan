@@ -48,7 +48,7 @@ export function PlanView({ d, done }: { d: SongDetail; done: () => Promise<unkno
           );
         })}
       </ol>
-      <div className="row"><button className="btn p" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save the plan"}</button>{dirty && <button className="btn g" disabled={busy} onClick={() => setDraft(JSON.parse(sig))}>Undo my changes</button>}</div>
+      <div className="row"><button className="btn p" disabled={busy || !dirty} aria-busy={busy} onClick={() => void save()}>{busy ? "Saving…" : "Save the plan"}</button>{dirty && <button className="btn g" disabled={busy} onClick={() => setDraft(JSON.parse(sig))}>Undo my changes</button>}</div>
       {saved && <p className="mu" role="status">Saved. Pictures already made keep their old prompt: use Redo on “Create the pictures” (it spends credits, with your approval) to paint them from this plan.</p>}
       {err && <p role="alert" style={{ color: "var(--bad)" }}>{err}</p>}
     </div>

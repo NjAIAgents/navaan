@@ -80,7 +80,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
           <div className="stack" role="group" aria-label="Confirm approval">
             <p className="mu">This {gate === "credits" || gate === "suno_download" || gate === "captions_setup" ? "spends credits or downloads tools" : "reaches the outside world or cannot be undone"}. Approve it?</p>
             <div className="row">
-              <button className="btn p" disabled={busy} onClick={() => void ok("/api/approve", {})}>Yes, approve</button>
+              <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void ok("/api/approve", {})}>Yes, approve</button>
               <button className="btn g" onClick={() => setConfirm(false)}>Not yet</button>
             </div>
           </div>
@@ -94,7 +94,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
             </fieldset>
           )}
           <div className="row">
-            <button className="btn p" disabled={busy} onClick={() => (RISKY.has(gate) ? setConfirm(true) : void ok("/api/approve", {}))}>Approve</button>
+            <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => (RISKY.has(gate) ? setConfirm(true) : void ok("/api/approve", {}))}>Approve</button>
             <button className="btn" disabled={busy} onClick={() => setChanging(true)}>Request changes</button>
             {running && onStop && <button className="btn g" disabled={busy || stopping} onClick={onStop}>{stopping ? "Stopping…" : "Stop the run"}</button>}
           </div>
@@ -134,7 +134,7 @@ function QuestionCard({ q, act, busy }: { q: Question; act: Act; busy: boolean }
       {(q.allow_text || flagged) && <><label htmlFor="q-text">Your answer</label><textarea id="q-text" className="field" rows={2} value={text} onChange={(e) => setText(e.target.value)} /></>}
       <div className="row">
         {q.options.length ? q.options.map((o) => <button key={o.id} className="btn" disabled={busy} onClick={() => void answer(o.id, o.text)}>{o.label}</button>)
-          : <button className="btn p" disabled={busy} onClick={() => void answer(null, true)}>Send answer</button>}
+          : <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void answer(null, true)}>Send answer</button>}
       </div>
       {err && <p role="alert" className="mu">{err}</p>}
     </section>
@@ -174,7 +174,7 @@ function Approvals({ d, act, busy }: { d: SongDetail; act: Act; busy: boolean })
           <li key={g} className="stp">
             <span className="tx"><b>{gateTitle(g)}</b><span className="mu"> · {a.via.replace(/^ui:/, "")} · {new Date(a.at).toLocaleString()}</span></span>
             {asking === g
-              ? <span className="row" role="group" aria-label={`Confirm revoking ${gateTitle(g)}`}><button className="btn p" disabled={busy} onClick={() => void act("/api/revoke", { gate: g }).then(() => setAsking(null))}>Yes, revoke</button><button className="btn g" onClick={() => setAsking(null)}>Keep</button></span>
+              ? <span className="row" role="group" aria-label={`Confirm revoking ${gateTitle(g)}`}><button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/revoke", { gate: g }).then(() => setAsking(null))}>Yes, revoke</button><button className="btn g" onClick={() => setAsking(null)}>Keep</button></span>
               : <button className="btn g" disabled={busy} onClick={() => setAsking(g)} aria-label={`Revoke approval of ${gateTitle(g)}`}>Revoke</button>}
           </li>
         ))}
@@ -204,7 +204,7 @@ function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: b
     <div className="stack" role="alertdialog" aria-label={`Confirm deleting ${d.slug}`}>
       <p>Delete {d.slug}? It disappears from the list and nothing runs for it any more. Its files are moved to a _deleted folder inside songs, not erased, but the app has no way to bring it back.</p>
       <div className="row">
-        <button className="btn p" disabled={busy} onClick={() => void act("/api/delete", {}).then((ok) => { if (ok) onGone(); })}>Yes, delete {d.slug}</button>
+        <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/delete", {}).then((ok) => { if (ok) onGone(); })}>Yes, delete {d.slug}</button>
         <button className="btn g" onClick={() => setAsk(false)}>Keep it</button>
       </div>
     </div>
@@ -277,7 +277,7 @@ function LanesView({ d, act, busy, pending, running, stopping, onStop, reload }:
             {nx.type === "gate" && nx.gate
               ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={pending} running={running} stopping={stopping} onStop={onStop} reload={reload} />
               : <section className="card stack live"><StepStatus kind={running ? "later" : "next"} /><h3>{stepLabel(nx.step)}</h3>
-                  <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { step: nx.step })}>Run {stepLabel(nx.step)}</button></div>
+                  <div className="row"><button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/run", { step: nx.step })}>Run {stepLabel(nx.step)}</button></div>
                   <p className="mu">Only this lane moves. The {l === "youtube" ? "Instagram" : "YouTube"} lane keeps its own place.</p></section>}
           </section>
         );
@@ -374,8 +374,8 @@ export default function Song() {
       <p>{d.failure.plain || d.failure.error || "It did not finish."}</p>
       <div className="row">
         {d.failure.step
-          ? <button className="btn p" disabled={busy} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
-          : <button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
+          ? <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
+          : <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
         <a className="btn g" href={classic(slug)}>Full log in the classic view <Icon name="external" /></a>
       </div>
       <DeleteItem d={d} act={act} busy={busy} onGone={() => go(list)} />
@@ -394,7 +394,7 @@ export default function Song() {
   : d.next.type === "run" ? (
     <section className="card stack live"><StepStatus kind={ranBefore(d.next.step ?? "") ? "stale" : "next"} /><h2>{stepLabel(d.next.step ?? "")}</h2>
       {ranBefore(d.next.step ?? "") && <p className="mu">It ran before ({ranBefore(d.next.step ?? "")}). Something it depends on changed, so it will run again.</p>}
-      <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
+      <div className="row"><button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
     </section>
   ) : d.next.type === "done" ? <section className="card"><h2>All steps are done</h2></section> : null;
 
