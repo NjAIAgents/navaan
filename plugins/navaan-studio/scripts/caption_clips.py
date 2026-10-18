@@ -49,7 +49,9 @@ def main(slug, mode):
         sys.exit(f"navaan: missing {base}. Build it first.")
     total = duration(base)
     if mode == "16x9": off = 0.0
-    elif mode == "own": off = float((load_json(f"{D}/reel_report.json", default={}) or {}).get("start") or 0.0)  # where the reel begins in the song
+    elif mode == "own":
+        import reel_lyrics
+        off = float((load_json(f"{D}/reel_report.json", default={}) or {}).get("start") or 0.0) - reel_lyrics.offset(D)   # where the reel begins in the song; a nudge shows the lyrics later (+) or earlier (-)
     else: off = float(load_json(f"{D}/reel_start.json")["start"])
     items = plan(cues, off, total)
     size, y = (54, 900) if mode == "16x9" else (46, 1450)

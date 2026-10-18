@@ -6,6 +6,8 @@ import { ShareCard } from "../components/ShareCard";
 import { Icon } from "../components/Icon";
 import { PipelineRail } from "../components/PipelineRail";
 import { StepDetail } from "../components/StepDetail";
+import { StepStatus } from "../components/StepStatus";
+import type { SetGate } from "../components/GateSwitch";
 import { ShotsPreview } from "../components/ShotsPreview";
 import { MoodCard } from "../components/MoodCard";
 import { PosterCard } from "../components/PosterCard";
@@ -22,18 +24,26 @@ import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
 
+// The videos at "Review the videos", in the order they are looked at, with what each is called and what it is for. The key is what the server calls it when feedback is about that one video.
+const VIDEOS: [string, string, string][] = [["final_16x9.mp4", "full", "Full video"], ["final_reel_9x16.mp4", "reel", "Reel without lyrics"], ["final_reel_9x16_cap.mp4", "reel_lyrics", "Reel with lyrics"]];
+
 function GateCard({ d, gate, act, busy, running = false, stopping = false, onStop }: { d: SongDetail; gate: string; act: Act; busy: boolean; running?: boolean; stopping?: boolean; onStop?: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const [changing, setChanging] = useState(false);
   const [note, setNote] = useState("");
+  const [about, setAbout] = useState(""); const [nudge, setNudge] = useState("");
   const file = GATE_FILE[gate];
   // What you are approving is shown here, not a tab away: the videos for "Review the videos", the song for "Listen". The size in the address stops a browser from playing an older file with the same name.
   const names = Object.keys(d.files ?? {}); const url = (n: string) => `/media/${d.slug}/${n}?v=${d.files[n]}`;
-  const videos = gate === "media" ? names.filter((n) => n.endsWith(".mp4") && !n.startsWith("clips~")) : [];
+  const rank = (n: string) => { const i = VIDEOS.findIndex(([f]) => f === n); return i < 0 ? 9 : i; };
+  const videos = gate === "media" ? names.filter((n) => n.endsWith(".mp4") && !n.startsWith("clips~")).sort((x, y) => rank(x) - rank(y)) : [];
+  const named = d.meta.type !== "inspiration" ? VIDEOS.filter(([f]) => videos.includes(f)) : [];   // songs: feedback names one of these; an inspiration has a single video
+  const hasLyricReel = videos.includes("final_reel_9x16_cap.mp4"); const lyricsOn = d.reel_lyrics?.on !== false;
   const songs = gate === "listen" ? names.filter((n) => n === "final.mp3") : [];
   const spends = gate === "credits" ? d.steps.filter((x) => x.spends && !x.done && x.spends_what).map((x) => x.spends_what as string) : [];
   const shown = file ? d.text[file] : "";
-  const ok = async (path: string, body: Record<string, unknown>) => { if (await act(path, { slug: d.slug, gate, ...body })) { setConfirm(false); setChanging(false); setNote(""); } };
+  const ok = async (path: string, body: Record<string, unknown>) => { if (await act(path, { slug: d.slug, gate, ...body })) { setConfirm(false); setChanging(false); setNote(""); setAbout(""); setNudge(""); } };
+  const needAbout = named.length > 1;   // with several videos the note must say which one, so only that one is made again
   return (
     <section className="card gate" aria-labelledby="gate-h">
       <span className="chip wn"><span className="dot" />Waiting for you</span>
@@ -42,37 +52,63 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
         <><p>I approve spending on exactly this:</p><ul className="spend-list">{spends.map((t) => <li key={t}>{t}</li>)}</ul></>
       ) : <p>{GATE_ASK[gate] ?? "Approve to move this song forward."}</p>}
       <p className="mu">{running ? "A run is waiting for this approval. Stop it if you need to change something earlier." : "Nothing is running: it is paused here until you decide. To change something first, use Redo on a step in the list."}</p>
+      <div className="actbar">
+        {changing ? (
+          <form className="stack" onSubmit={(e) => { e.preventDefault(); void ok("/api/request-changes", { note, ...(needAbout ? { video: about, ...(about === "reel_lyrics" && nudge.trim() ? { offset: Number(nudge) } : {}) } : {}) }); }}>
+            {needAbout && (
+              <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend><b>Which video is this about?</b></legend>
+                <span className="mu">Only that video is made again.</span>
+                {named.map(([, k, label]) => <label key={k} className="row" style={{ gap: 8 }}><input type="radio" name="about" value={k} checked={about === k} onChange={() => setAbout(k)} /> {label}</label>)}
+              </fieldset>
+            )}
+            {about === "reel_lyrics" && (
+              <><label htmlFor="nudge">Lyrics early or late? Move them by (seconds: + later, − earlier; leave empty to keep)</label>
+              <input id="nudge" className="field" type="number" step="0.1" min={-10} max={10} value={nudge} onChange={(e) => setNudge(e.target.value)} style={{ maxWidth: 160 }} /></>
+            )}
+            <label htmlFor="note">What should change?</label>
+            <textarea id="note" className="field" rows={3} required value={note} onChange={(e) => setNote(e.target.value)} />
+            <div className="row">
+              <button className="btn p" type="submit" disabled={busy || !note.trim() || (needAbout && !about)}>{needAbout ? "Send back and make that video again" : "Send back"}</button>
+              <button className="btn g" type="button" onClick={() => setChanging(false)}>Cancel</button>
+            </div>
+          </form>
+        ) : confirm ? (
+          <div className="stack" role="group" aria-label="Confirm approval">
+            <p className="mu">This {gate === "credits" || gate === "suno_download" || gate === "captions_setup" ? "spends credits or downloads tools" : "reaches the outside world or cannot be undone"}. Approve it?</p>
+            <div className="row">
+              <button className="btn p" disabled={busy} onClick={() => void ok("/api/approve", {})}>Yes, approve</button>
+              <button className="btn g" onClick={() => setConfirm(false)}>Not yet</button>
+            </div>
+          </div>
+        ) : (
+          <>
+          {hasLyricReel && (
+            <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend><b>Instagram reel</b></legend>
+              <label className="row" style={{ gap: 8 }}><input type="radio" name="iglyrics" checked={lyricsOn} disabled={busy} onChange={() => void act("/api/reel/lyrics", { on: true })} /> With lyrics</label>
+              <label className="row" style={{ gap: 8 }}><input type="radio" name="iglyrics" checked={!lyricsOn} disabled={busy} onChange={() => void act("/api/reel/lyrics", { on: false })} /> Without lyrics <span className="mu">(use this while the lyrics are out of sync)</span></label>
+            </fieldset>
+          )}
+          <div className="row">
+            <button className="btn p" disabled={busy} onClick={() => (RISKY.has(gate) ? setConfirm(true) : void ok("/api/approve", {}))}>Approve</button>
+            <button className="btn" disabled={busy} onClick={() => setChanging(true)}>Request changes</button>
+            {running && onStop && <button className="btn g" disabled={busy || stopping} onClick={onStop}>{stopping ? "Stopping…" : "Stop the run"}</button>}
+          </div>
+          </>
+        )}
+      </div>
       {(gate === "quote" || gate === "media") && d.meta.type === "inspiration" && d.narrate && !d.narrate.on && !Object.keys(d.files ?? {}).some((f) => f.startsWith("voiceover")) && (
         <p className="mu" role="note">There is no narration on this short, so the video has music and text only. To add a voice, use the Narration card below.</p>
       )}
-      {videos.map((n) => <figure key={n} className="stack" style={{ margin: 0 }}><video controls playsInline preload="metadata" src={url(n)} style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: 12 }} aria-label={n} /><figcaption className="mu">{n}</figcaption></figure>)}
+      {videos.length > 0 && (
+        <div className="vrow" aria-label="The videos, side by side">
+          {videos.map((n) => { const label = VIDEOS.find(([f]) => f === n)?.[2] ?? n; return <figure key={n} className={`stack vfig${n.includes("16x9") ? " wide" : ""}`}><video controls playsInline preload="metadata" src={url(n)} aria-label={label} /><figcaption><b>{label}</b> <span className="mu">{n}</span></figcaption></figure>; })}
+        </div>
+      )}
       {songs.map((n) => <audio key={n} controls preload="none" src={url(n)} aria-label={n} />)}
       {gate === "shots" && <ShotsPreview d={d} />}
       {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
-      {changing ? (
-        <form className="stack" onSubmit={(e) => { e.preventDefault(); void ok("/api/request-changes", { note }); }}>
-          <label htmlFor="note">What should change?</label>
-          <textarea id="note" className="field" rows={3} required value={note} onChange={(e) => setNote(e.target.value)} />
-          <div className="row">
-            <button className="btn p" type="submit" disabled={busy || !note.trim()}>Send back</button>
-            <button className="btn g" type="button" onClick={() => setChanging(false)}>Cancel</button>
-          </div>
-        </form>
-      ) : confirm ? (
-        <div className="stack" role="group" aria-label="Confirm approval">
-          <p className="mu">This {gate === "credits" || gate === "suno_download" || gate === "captions_setup" ? "spends credits or downloads tools" : "reaches the outside world or cannot be undone"}. Approve it?</p>
-          <div className="row">
-            <button className="btn p" disabled={busy} onClick={() => void ok("/api/approve", {})}>Yes, approve</button>
-            <button className="btn g" onClick={() => setConfirm(false)}>Not yet</button>
-          </div>
-        </div>
-      ) : (
-        <div className="row">
-          <button className="btn p" disabled={busy} onClick={() => (RISKY.has(gate) ? setConfirm(true) : void ok("/api/approve", {}))}>Approve</button>
-          <button className="btn" disabled={busy} onClick={() => setChanging(true)}>Request changes</button>
-          {running && onStop && <button className="btn g" disabled={busy || stopping} onClick={onStop}>{stopping ? "Stopping…" : "Stop the run"}</button>}
-        </div>
-      )}
     </section>
   );
 }
@@ -153,6 +189,48 @@ const when = (h: NonNullable<SongDetail["meta"]["history"]>[number]) => {
   return Number.isNaN(ms) ? { at: "", text: h } : { at: new Date(ms).toLocaleString(), text: rest.join(" ") };
 };
 
+const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
+
+// After the videos are approved, YouTube and Instagram each have a lane of their own: each shows its own next step or approval, and neither waits for the other.
+function LanesView({ d, act, busy, running, stopping, onStop }: { d: SongDetail; act: Act; busy: boolean; running: boolean; stopping: boolean; onStop: () => void }) {
+  const lanes = d.lanes ?? {};
+  return (
+    <div className="lanes" aria-label="Publishing lanes">
+      {(["youtube", "instagram"] as const).filter((l) => lanes[l]).map((l) => {
+        const nx = lanes[l]; const mine = d.steps.filter((x) => x.lane === l); const done = mine.filter((x) => x.done && x.status === "done").length;
+        return (
+          <section key={l} className="stack lane" aria-labelledby={`lane-${l}`}>
+            <div className="row"><h2 id={`lane-${l}`}>{LANE_TITLE[l]}</h2><span className="n">{done}/{mine.length}</span></div>
+            {nx.type === "gate" && nx.gate
+              ? <GateCard key={`${l}-${nx.gate}`} d={d} gate={nx.gate} act={act} busy={busy} running={running} stopping={stopping} onStop={onStop} />
+              : <section className="card stack live"><StepStatus kind={running ? "later" : "next"} /><h3>{stepLabel(nx.step)}</h3>
+                  <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { step: nx.step })}>Run {stepLabel(nx.step)}</button></div>
+                  <p className="mu">Only this lane moves. The {l === "youtube" ? "Instagram" : "YouTube"} lane keeps its own place.</p></section>}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+// What a click said it would do, in words, while it is being done and once it is done. Shown as a status message so no button press goes unanswered.
+const sayFor = (path: string, b: Record<string, unknown>): [string, string] => {
+  const st = stepLabel(String(b.step ?? "")); const g = gateTitle(String(b.gate ?? ""));
+  switch (path) {
+    case "/api/approve": return ["Approving…", `Approved: ${g}.`];
+    case "/api/request-changes": return ["Sending it back…", b.video ? "Sent back. That video is being made again." : "Sent back with your note. Nothing runs until you press Run."];
+    case "/api/redo": return [`Starting the redo of ${st}…`, `Redo started: ${st}.`];
+    case "/api/restart": return [`Restarting from ${st}…`, `Restarting from ${st}.`];
+    case "/api/run": return ["Starting…", b.all ? "Running to the next approval." : "Running one step."];
+    case "/api/stop": return ["Stopping…", "Stop requested. The step ends in a moment."];
+    case "/api/revoke": return ["Taking the approval back…", `Approval taken back: ${g}.`];
+    case "/api/answer": return ["Sending your answer…", "Answer sent. The run carries on."];
+    case "/api/reel/lyrics": return ["Saving…", "Saved."];
+    default: return ["Working…", "Done."];
+  }
+};
+const STARTS = new Set(["/api/run", "/api/redo", "/api/restart"]);
+
 export default function Song() {
   const { slug = "" } = useParams();
   const [sp, setSp] = useSearchParams();
@@ -168,13 +246,19 @@ export default function Song() {
 
   const stepParam = sp.get("step");
   useEffect(() => { if (stepParam) document.getElementById("sd-h")?.scrollIntoView?.({ block: "nearest" }); }, [stepParam]);   // a hook, so it sits above the early returns: a step was opened, bring its detail into view (on a phone it is above the list)
+  const [notice, setNotice] = useState("");
+  useEffect(() => { if (!notice || /…$/.test(notice)) return; const t = setTimeout(() => setNotice(""), 8000); return () => clearTimeout(t); }, [notice]);   // a finished message goes away by itself; one still being done stays
   const [stopping, setStopping] = useState(false);
   useEffect(() => { if (!running) setStopping(false); }, [running]);   // the run really ended: the button goes back to normal
   const stop = async () => { setStopping(true); if (!(await act("/api/stop", {}))) setStopping(false); };
   const act: Act = async (path, body) => {
-    setPending(true);
-    try { await postJSON(path, { slug, ...body }); setErr(""); await load(); return true; }
-    catch (e) { setErr(errText(e)); return false; }
+    const [doing, did] = sayFor(path, body);
+    setPending(true); setNotice(doing);
+    try {
+      const r = await postJSON<{ started?: boolean }>(path, { slug, ...body }); setErr(""); await load();
+      setNotice(STARTS.has(path) && r?.started === false ? "Nothing started: a run is already going. Press Stop first if you want to change it." : did); return true;
+    }
+    catch (e) { setErr(errText(e)); setNotice(""); return false; }
     finally { setPending(false); }
   };
 
@@ -191,9 +275,21 @@ export default function Song() {
   const pick = (id: string) => { const n = new URLSearchParams(sp); if (n.get("step") === id) n.delete("step"); else n.set("step", id); setSp(n, { replace: true }); };
   const eventsFor = (id: string) => { const st = d.steps.find((x) => x.id === id); const gs = [st?.gate_before, st?.gate_after].filter(Boolean); return history.map(when).filter((w) => w.text.includes(`step ${id} `) || w.text.includes(`step ${id}`) && /\b(done|failed)\b/.test(w.text) || gs.some((g) => w.text.includes(`gate ${g} `))); };
 
+  const runStep = d.run?.step || (d.next.type === "run" ? d.next.step ?? "" : "");   // the step that is running, from the run itself (the status text can lag a step behind)
+  const ranBefore = (id: string) => eventsFor(id).find((e) => e.text.includes(`step ${id} done`))?.at ?? "";
+  const setGate: SetGate = async (g, on) => { setPending(true); setNotice("Saving…"); try { await postJSON("/api/settings/gates_save", { gates: { [g]: on } }); setErr(""); await load(); setNotice(on ? `${gateTitle(g)} will ask you again.` : `${gateTitle(g)} will approve itself from now on.`); return true; } catch (e) { setErr(errText(e)); setNotice(""); return false; } finally { setPending(false); } };   // the same switch as Settings, Approvals that approve themselves: it applies to every song
+
   // The one thing that needs you now: exactly one card, never an approval and a "Running" chip side by side.
+  const hasLanes = !!d.lanes && Object.keys(d.lanes).length > 0 && !d.failure;   // the videos are approved: the publishing steps run in their own lanes
+  const runCard = (
+    <section className="card stack live" aria-labelledby="run-h">
+      <StepStatus kind="running" run={d.run} usual={d.meta.step_seconds?.[runStep]} />
+      <h2 id="run-h">{runStep ? stepLabel(runStep) : d.status_text || "Working…"}</h2>
+      <div className="row"><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></div>
+    </section>
+  );
   const now = d.failure ? (
-    <section className="card fail stack" role="alert" aria-labelledby="fail-h">
+    <section className="card fail stack live" role="alert" aria-labelledby="fail-h">
       <span className="chip bad"><span className="dot" />Failed</span>
       <h2 id="fail-h">{stepLabel(d.failure.step) || "A step"} failed</h2>
       <p>{d.failure.plain || d.failure.error || "It did not finish."}</p>
@@ -211,12 +307,12 @@ export default function Song() {
   ) : d.question ? <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />
   : d.needs_you ? <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>
   : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
-  : running && !gate ? (
-    <section className="card stack" role="status"><span className="chip ac"><span className="dot" />Running</span><p>{d.status_text || "Working…"}</p><div className="row"><button className="btn" disabled={stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button></div></section>
-  ) : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
+  : hasLanes ? (running ? runCard : null)
+  : running && !gate ? runCard : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
   : gate ? <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} running={running} stopping={stopping} onStop={() => void stop()} />
   : d.next.type === "run" ? (
-    <section className="card stack"><h2>Next: {stepLabel(d.next.step ?? "")}</h2>
+    <section className="card stack live"><StepStatus kind={ranBefore(d.next.step ?? "") ? "stale" : "next"} /><h2>{stepLabel(d.next.step ?? "")}</h2>
+      {ranBefore(d.next.step ?? "") && <p className="mu">It ran before ({ranBefore(d.next.step ?? "")}). Something it depends on changed, so it will run again.</p>}
       <div className="row"><button className="btn p" disabled={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
     </section>
   ) : d.next.type === "done" ? <section className="card"><h2>All steps are done</h2></section> : null;
@@ -231,6 +327,7 @@ export default function Song() {
         <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
         <p>{slug} · {d.meta.state ?? "new"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })}</p>
       </div>
+      {notice && <div className="toast" role="status" aria-live="polite">{/…$/.test(notice) && <span className="spin" aria-hidden="true" />}<span>{notice}</span></div>}
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
       <div className="tabs" role="tablist" aria-label="Sections">
         {TABS.map(([k, l]) => (
@@ -243,8 +340,8 @@ export default function Song() {
         {tab === "pipeline" && (d.notes ?? []).map((n) => <section key={n} className="card row" role="note"><p style={{ margin: 0, flex: "1 1 260px" }}>{n}</p><button className="btn" onClick={() => setSp({ tab: "content" }, { replace: true })}>Open Content</button></section>)}
         {tab === "pipeline" && (
           <div className="pl-grid">
-            <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} />
-            <div className="pl-now stack">{selId ? <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} /> : now}</div>
+            <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} setGate={setGate} />
+            <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
           </div>
         )}
         {tab === "content" && (<>

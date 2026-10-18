@@ -80,7 +80,9 @@ def main(argv):
     if not mo or not mo.get("pictures"): print("no motion.json, the pictures stay still."); return 0
     import motion_loop as M
     made = skipped = 0
-    for rel in wanted(D):
+    todo = wanted(D)
+    for k, rel in enumerate(todo, 1):
+        C.progress(k - 1, len(todo), f"picture {k} of {len(todo)}")
         reg = M.clean_regions((mo["pictures"].get(rel) or {}).get("regions"))
         if not reg or not os.path.exists(os.path.join(D, rel)): skipped += 1; continue
         if "--force" not in argv and not stale(D, rel, mj): made += 1; continue

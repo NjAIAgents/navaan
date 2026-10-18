@@ -6,7 +6,7 @@ Each shot is cut as its own clip (a picture or a moving loop, with the same came
 cross fades, the grade, the fade out, the channel mark and the audio. Remotion drew every frame in a headless browser and took 20 minutes or
 more for a song; this takes a few. Anything that goes wrong raises, and shots_render.py then falls back to Remotion.
 Set video.renderer to "remotion" in the profile to always use Remotion."""
-import os, sys, json, subprocess, shutil
+import os, sys, json, subprocess, shutil, threading
 from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
@@ -147,8 +147,13 @@ def render(D, props, out):
         tl = timeline(shots, fade, dur)
         workers = max(1, min(6, (os.cpu_count() or 2) // 2 or 1))
         print(f"fast render: {len(shots)} shots, {workers} at a time ...", flush=True)
+        made_n, lock = [0], threading.Lock()
+        def seg_job(a):
+            r = segment(D, a[1], a[0], *tl[a[0]], W, H, fps, work)
+            with lock: made_n[0] += 1; C.progress(70 * made_n[0] // max(1, len(shots)), 100, f"picture {made_n[0]} of {len(shots)}")   # the pictures are the first 70% of the bar, joining them the rest
+            return r
         with ThreadPoolExecutor(workers) as ex:
-            segs = list(ex.map(lambda a: segment(D, a[1], a[0], *tl[a[0]], W, H, fps, work), list(enumerate(shots))))
+            segs = list(ex.map(seg_job, list(enumerate(shots))))
         ins = []
         for p in segs: ins += ["-i", p]
         n = len(segs); fc = []; last = "[0:v]"
@@ -176,6 +181,6 @@ def render(D, props, out):
         cmd = [ff, "-y", "-v", "error", *ins, *extra, "-filter_complex", ";".join(fc), "-map", "[v]"]
         if ai is not None: cmd += ["-map", f"{ai}:a", "-c:a", "aac", "-b:a", "256k"]
         cmd += ["-t", _n(dur), "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", "-r", str(fps), "-movflags", "+faststart", out]
-        subprocess.run(cmd, check=True)
+        C.run_ffmpeg(cmd, dur, "joining the pictures", 70, 30)
     finally:
         shutil.rmtree(work, ignore_errors=True)

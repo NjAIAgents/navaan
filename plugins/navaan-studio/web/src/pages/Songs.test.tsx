@@ -40,7 +40,7 @@ describe("Studio > song", () => {
     expect(await screen.findByRole("heading", { name: "Lyrics" })).toBeInTheDocument();
     expect(screen.getByLabelText(/lyrics.txt/)).toHaveTextContent("Tere hone se");
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    await screen.findByRole("heading", { name: /Next: Generate the song on Suno/ });
+    await screen.findByRole("heading", { name: /Generate the song on Suno/ });
     const post = f.mock.calls.find(([u]) => u === "/api/approve")!; expect(JSON.parse(String(post[1]?.body))).toEqual({ slug: "song-001", gate: "lyrics" });
     fireEvent.click(screen.getByRole("tab", { name: "Activity" })); expect(screen.getByText(/gate lyrics approved via ui:owner/)).toBeInTheDocument();   // history says who
   });

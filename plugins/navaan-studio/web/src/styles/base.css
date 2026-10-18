@@ -275,3 +275,26 @@ body.lock { overflow: hidden; }
 .rl .lb-btn { appearance: none; background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: var(--tap); } .rl .lb-btn:hover { color: var(--ac); } .rl .lb-btn:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; border-radius: 6px; } .rl.sel { background: color-mix(in srgb, var(--ac) 12%, transparent); border-color: color-mix(in srgb, var(--ac) 45%, transparent); }
 .zoom-open { appearance: none; background: none; border: 0; padding: 0; cursor: zoom-in; display: inline-block; line-height: 0; border-radius: 8px; } .zoom-open:focus-visible { outline: 2px solid var(--ac); outline-offset: 3px; }
 .zoom-ov { position: fixed; inset: 0; z-index: 60; background: var(--scrim); backdrop-filter: blur(6px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; cursor: zoom-out; } .zoom-ov img { max-width: 94vw; max-height: 86vh; object-fit: contain; border-radius: 10px; box-shadow: var(--shadow); cursor: default; } .zoom-ov .btn { cursor: pointer; }
+
+/* Live state of a step: a spinner while it runs, a pulse while it waits for you, and a bar (filled when the step reports how far it is, moving when it does not). */
+.spin { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; display: inline-block; animation: nv-spin .8s linear infinite; }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; animation: nv-pulse 1.4s ease-in-out infinite; }
+.bar { height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--ac) 16%, transparent); overflow: hidden; width: 100%; } .bar.sm { height: 4px; }
+.bar > i { display: block; height: 100%; background: var(--ac); border-radius: 99px; transition: width .6s ease; } .bar.ind > i { width: 35%; animation: nv-slide 1.4s ease-in-out infinite; }
+@keyframes nv-spin { to { transform: rotate(360deg); } } @keyframes nv-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } } @keyframes nv-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+.rl.run .nd { background: transparent; border-color: var(--ac); color: var(--ac); } .rl .bar { margin-top: 4px; }
+.gsw { display: flex; flex-direction: column; gap: 4px; flex-basis: 100%; font-size: 12px; } .gsw label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; } .facts > div { display: flex; flex-direction: column; } .facts dt { font-size: 12px; } .facts dd { margin: 0; font-weight: 600; }
+
+/* The videos at the review, side by side: the wide one gets more room, the reels sit beside it and wrap on a narrow screen. */
+.vrow { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; width: 100%; } .vfig { margin: 0; flex: 1 1 170px; min-width: 0; gap: 4px; } .vfig.wide { flex: 2 1 320px; }
+.vfig video { width: 100%; max-height: 62vh; border-radius: 12px; object-fit: contain; } .vfig figcaption { font-size: 13px; overflow-wrap: anywhere; }
+.actbar { align-self: stretch; display: flex; flex-direction: column; gap: 10px; } @media (min-width: 900px) { .actbar { position: sticky; top: 8px; z-index: 3; max-height: 70vh; overflow: auto; padding: 8px 0; background: var(--bg); } }
+.pl-now > .card.live { position: sticky; top: 8px; z-index: 4; } @media (max-width: 860px) { .pl-now > .card.live { position: static; } }
+
+/* The answer to a click: a short message at the top right that says what is being done, then what was done. */
+.toast { position: fixed; top: 76px; right: 24px; z-index: 80; max-width: min(380px, calc(100vw - 24px)); display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: var(--r3); background: var(--s2); color: var(--tx); border: 1px solid var(--ln); box-shadow: var(--shadow); font-weight: 600; }
+@media (max-width: 899px) { .toast { top: auto; bottom: calc(96px + env(safe-area-inset-bottom)); left: 12px; right: 12px; max-width: none; } }
+
+/* YouTube and Instagram each have a lane of their own once the videos are approved: side by side on a wide screen, stacked on a phone. */
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; } .lane > .row { align-items: baseline; }

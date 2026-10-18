@@ -29,7 +29,7 @@ describe("StepDetail", () => {
   });
   it("says a step that has not run yet has nothing to show, and goes back", () => {
     const back = vi.fn(); render(<StepDetail d={d()} id="render" events={[]} onBack={back} />);
-    expect(screen.getByText("Next")).toBeInTheDocument(); expect(screen.getByText(/has not run yet, so there is nothing to show/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Back to what needs you/ })); expect(back).toHaveBeenCalled();
+    expect(screen.getByText("Next")).toBeInTheDocument(); expect(screen.getByText(/It has not run yet/)).toBeInTheDocument(); expect(screen.getByText("Renders the vertical video.")).toBeInTheDocument();   // and what it will do
+    fireEvent.click(screen.getByRole("button", { name: "Close this step" })); expect(back).toHaveBeenCalled();
   });
 });
