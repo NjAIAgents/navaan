@@ -87,9 +87,10 @@ def heartbeat(job_id, worker, progress=None, status_text=None, lease_s=120):
 
 
 def finish(job_id, worker, rc, error=None, status_text=None):
+    """rc 7 is a run that stopped at a step scheduled for later (navaan.pipeline): finished, not failed, and its status text says when."""
     c = _c()
     try:
-        c.execute("UPDATE jobs SET status = CASE WHEN cancel_requested AND ? <> 0 THEN 'canceled' WHEN ? = 0 THEN 'done' ELSE 'failed' END, rc = ?, error = ?, "
+        c.execute("UPDATE jobs SET status = CASE WHEN cancel_requested AND ? <> 0 THEN 'canceled' WHEN ? IN (0, 7) THEN 'done' ELSE 'failed' END, rc = ?, error = ?, "
                   "status_text = COALESCE(?, status_text), finished_at = now(), locked_until = NULL WHERE id = ? AND locked_by = ? AND status = 'running'",
                   (rc, rc, rc, (error or None) and str(error)[:500], status_text, job_id, worker))
         c.commit()

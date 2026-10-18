@@ -56,7 +56,7 @@ button { font: inherit; color: inherit; }
 
 /* controls: flat */
 .btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--tap); padding: 0 18px; border-radius: var(--r2); border: 1px solid var(--ln); color: var(--tx); font-size: 14px; font-weight: 600; line-height: 1; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .16s var(--ease), filter .16s; background: var(--glass-fill); }
-.btn:not(.p):not(.g) { border-color: transparent; }
+.btn:not(.p):not(.g) { border-color: color-mix(in srgb, var(--tx) 26%, transparent); }   /* three kinds: gold (the action), outlined (the second), quiet (.g) */
 .btn:not(.p):not(.g):hover { filter: brightness(1.2); } .btn:active { transform: scale(.97); }
 .btn.p { background: linear-gradient(135deg, var(--g1), var(--g2)); border-color: transparent; color: var(--on-action); } .btn.p:hover { filter: brightness(1.06); }
 .btn.g { background: transparent; border-color: transparent; } .btn.g:hover { background: var(--s2); }
@@ -312,3 +312,22 @@ body.lock { overflow: hidden; }
 /* YouTube and Instagram each have a lane of their own once the videos are approved: side by side on a wide screen, stacked on a phone. */
 .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; } .lane > .row { align-items: baseline; }
 .ly-line { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; display: inline-flex; gap: 12px; align-items: center; min-height: var(--tap); border-radius: 6px; } .ly-line:hover span:last-child { text-decoration: underline; text-underline-offset: 4px; } .ly-line:focus-visible { outline: 2px solid var(--ac); outline-offset: 3px; } .ly-t { font-size: .6em; font-variant-numeric: tabular-nums; color: var(--dim); min-width: 2.6em; }
+
+/* Item header: the cover, the title and plain status, and top right when it goes out. */
+.ph.hd { display: flex; align-items: flex-start; gap: 20px; } .ph-tx { flex: 1 1 auto; min-width: 0; }
+.ph-cover { flex: none; border-radius: var(--r2); object-fit: cover; border: 1px solid var(--ln); }
+.goes { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 10px 16px; border-radius: var(--r3); border: 1px solid var(--ln); background: var(--s2); color: var(--tx); font: inherit; text-align: right; cursor: pointer; }
+.goes .k { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mu); } .goes .v { font-size: 17px; font-weight: 700; } .goes .w { font-size: 12px; color: var(--mu); } .goes b { color: var(--ac); font-weight: 600; }
+.goes.off { border-style: dashed; } .goes.ok { cursor: default; border-color: color-mix(in srgb, var(--ok) 45%, transparent); } .goes.ok .k { color: var(--ok); }
+@media (max-width: 899px) { .ph.hd { flex-wrap: wrap; } .goes { order: -1; flex-direction: row; align-items: baseline; gap: 8px; width: 100%; box-sizing: border-box; padding: 8px 12px; } .ph-cover { display: none; } }
+.allset { border-color: color-mix(in srgb, var(--ok) 40%, transparent); } .allset h2 { font-family: var(--font-display); font-size: 28px; margin: 0; }
+.allset-p { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; } .allset-p li { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: var(--r2); background: var(--s2); }
+.chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.quote-view { margin: 0; padding: 18px 22px; border-radius: var(--r2); background: var(--s2); font-family: var(--font-display); font-size: 26px; line-height: 1.3; display: flex; flex-direction: column; gap: 6px; }
+.matches { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.seg.pane { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+/* Phone: while a song is loaded, the player and the tab bar join into one block at the bottom, so together they take less of the screen. */
+@media (max-width: 899px) {
+  .has-np .np { bottom: calc(12px + 60px + env(safe-area-inset-bottom)); border-radius: var(--r4) var(--r4) 0 0; border-bottom: 0; box-shadow: var(--shadow); padding-bottom: 2px; }
+  .has-np .tabbar { height: 60px; border-radius: 0 0 var(--r4) var(--r4); border-top: 1px solid var(--ln); }
+}

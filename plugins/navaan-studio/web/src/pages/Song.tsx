@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { PipelineRail } from "../components/PipelineRail";
 import { StepDetail } from "../components/StepDetail";
 import { StepStatus } from "../components/StepStatus";
+import { useMobile } from "../components/useMobile";
 import type { SetGate } from "../components/GateSwitch";
 import { ShotsPreview } from "../components/ShotsPreview";
 import { MoodCard } from "../components/MoodCard";
@@ -17,6 +18,7 @@ import { ScheduleCard } from "../components/SchedulePanel";
 import { MediaCard, MusicCard, NarrationCard, PostTextEditor, ShotsEditor, TextEditors } from "../components/SongEditors";
 import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
+import { fmtCentral } from "../lib/datetime";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { classic, errText, nextAction } from "../lib/songs";
@@ -33,6 +35,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
   const [note, setNote] = useState("");
   const [about, setAbout] = useState(""); const [nudge, setNudge] = useState("");
   const file = GATE_FILE[gate];
+  const at = d.steps.find((x) => x.gate_before === gate && x.scheduled_for)?.scheduled_for ?? "";   // a publish step with a time: approving it now does not publish now
   // What you are approving is shown here, not a tab away: the videos for "Review the videos", the song for "Listen". The size in the address stops a browser from playing an older file with the same name.
   const names = Object.keys(d.files ?? {}); const url = (n: string) => `/media/${d.slug}/${n}?v=${d.files[n]}`;
   const rank = (n: string) => { const i = VIDEOS.findIndex(([f]) => f === n); return i < 0 ? 9 : i; };
@@ -50,7 +53,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       <h2 id="gate-h">{gateTitle(gate)}</h2>
       {gate === "credits" && spends.length ? (
         <><p>I approve spending on exactly this:</p><ul className="spend-list">{spends.map((t) => <li key={t}>{t}</li>)}</ul></>
-      ) : <p>{GATE_ASK[gate] ?? "Approve to move this song forward."}</p>}
+      ) : <p>{at ? SCHEDULED_ASK[gate]?.(fmtCentral(at)) ?? GATE_ASK[gate] : GATE_ASK[gate] ?? "Approve to move this song forward."}</p>}
       <p className="mu">{running ? "A run is waiting for this approval. Stop it if you need to change something earlier." : "Nothing is running: it is paused here until you decide. To change something first, use Redo on a step in the list."}</p>
       <div className="actbar">
         {changing ? (
@@ -110,7 +113,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       {gate === "shots" && <ShotsPreview d={d} />}
       {gate === "instagram_caption" && <PostTextEditor d={d} kind="instagram" done={reload ?? (() => undefined)} />}
       {gate === "publish_youtube" && <PostTextEditor d={d} kind="youtube" done={reload ?? (() => undefined)} />}
-      {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && gate !== "instagram_caption" && (shown ? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre> : <p className="mu">{file} is not there yet. Run its step first.</p>)}
+      {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && gate !== "instagram_caption" && (shown ? (Readable[gate]?.(shown) ?? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre>) : <p className="mu">{file} is not there yet. Run its step first.</p>)}
     </section>
   );
 }
@@ -208,6 +211,56 @@ function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: b
   ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : "song"}</button></div>;
 }
 
+// What an approval card shows, as words a person reads rather than the file behind it. The raw file stays one click away.
+const parse = (t: string): Record<string, unknown> | null => { try { const v = JSON.parse(t); return v && typeof v === "object" ? v as Record<string, unknown> : null; } catch { return null; } };   // expected: not JSON shows the raw file
+const RawFile = ({ text, name }: { text: string; name: string }) => <details><summary>The raw file</summary><pre className="art" tabIndex={0} aria-label={name}>{text}</pre></details>;
+const Readable: Record<string, (text: string) => React.ReactNode | null> = {
+  quote: (t) => { const q = parse(t); if (!q) return null; const lines = Array.isArray(q.lines) && q.lines.length ? q.lines as string[] : [String(q.text ?? "")];
+    return <div className="stack"><blockquote className="quote-view">{lines.map((l, i) => <span key={i}>{l}</span>)}</blockquote><p className="mu">{q.author ? `By ${q.author}` : "Original line"}{q.language ? ` · ${String(q.language).toUpperCase()}` : ""}{q.notes ? ` · ${q.notes}` : ""}</p><RawFile text={t} name="quote.json" /></div>; },
+  originality: (t) => { const o = parse(t); if (!o) return null; const clear = o.verdict === "clear" || o.safe_to_publish === true; const m = Array.isArray(o.matches) ? o.matches as { url?: string; title?: string; note?: string }[] : [];
+    return <div className="stack"><p><span className={`chip ${clear ? "ok" : "wn"}`}><span className="dot" />{clear ? "Clear: no earlier use of these words found" : "Check this: similar wording found"}</span></p>{o.recommendation ? <p>{String(o.recommendation)}</p> : null}
+      {m.length > 0 && <ul className="matches">{m.map((x, i) => <li key={i}><a href={x.url} target="_blank" rel="noreferrer">{x.title || x.url}</a>{x.note && <span className="mu"> · {x.note}</span>}</li>)}</ul>}<RawFile text={t} name="originality.json" /></div>; },
+};
+
+// What a publish approval says when the step has a time: it is approved now and goes out then, never "now".
+const SCHEDULED_ASK: Record<string, (when: string) => string> = {
+  go_public: (w) => `Make the YouTube video and Short public ${w}, as scheduled. Approving now does not publish now.`,
+  publish_instagram: (w) => `Post the Reel to Instagram ${w}, as scheduled. Approving now does not post now.`,
+};
+
+// The item's state in plain words, not the pipeline's internal names (media_ready, quote_ok).
+const STATE_WORDS: Record<string, string> = { drafted: "Started", lyrics_ok: "Lyrics approved", accepted: "Song approved", quote_ok: "Quote approved", media_ready: "Video ready for review", approved: "Videos approved", published: "Published" };
+
+// Top right of the page: when it goes out. A time (Central), "Published", or "When it finishes" with a way to set a time.
+function GoesOut({ d, onChange }: { d: SongDetail; onChange: () => void }) {
+  const s = d.meta.schedule; const at = [s?.youtube_at, s?.instagram_at].filter(Boolean) as string[];
+  const both = !!(s?.youtube_at && s?.instagram_at); const where = both ? "YouTube + Instagram" : s?.youtube_at ? "YouTube" : "Instagram";
+  if (d.meta.state === "published" && (!s || s.done)) return <div className="goes ok" role="status"><span className="k">Published</span>{" "}<span className="v">YouTube and Instagram</span></div>;
+  if (s && !s.done && at.length) {
+    const first = at.slice().sort()[0];
+    return <button type="button" className="goes" onClick={onChange}><span className="k">Goes out</span>{" "}<span className="v">{fmtCentral(first).replace(/^today/, "Today")}</span>{" "}<span className="w">{where} · <b>Change</b></span></button>;
+  }
+  return <button type="button" className="goes off" onClick={onChange}><span className="k">Goes out</span>{" "}<span className="v">When it finishes</span>{" "}<span className="w"><b>Set a time</b></span></button>;
+}
+
+// Everything is approved and the rest waits for its publishing time: say so in one calm card, with both platforms and the links.
+function AllSet({ d, onChange }: { d: SongDetail; onChange: () => void }) {
+  const s = d.meta.schedule!; const yt = (d.meta.published?.youtube_items ?? []).find((x) => x.url);
+  const at = [s.youtube_at, s.instagram_at].filter(Boolean).sort()[0] as string;
+  return (
+    <section className="card stack allset" aria-labelledby="allset-h">
+      <span className="chip ok"><span className="dot" />All set</span>
+      <h2 id="allset-h">Goes out {fmtCentral(at)}</h2>
+      <p className="mu">Every approval is given. The studio publishes on its own at that time; you do not need to keep this page open.</p>
+      <ul className="allset-p">
+        {s.youtube_at && <li><b>YouTube</b><span className="mu">{yt ? "uploaded, private until then" : "uploads first, private"} · {fmtCentral(s.youtube_at)}</span>{yt?.url && <a href={yt.url} target="_blank" rel="noreferrer">{yt.url.replace(/^https?:\/\//, "")} <Icon name="external" /></a>}</li>}
+        {s.instagram_at && <li><b>Instagram</b><span className="mu">the Reel posts {fmtCentral(s.instagram_at)}</span></li>}
+      </ul>
+      <div className="row"><button className="btn" onClick={onChange}>Change the time</button></div>
+    </section>
+  );
+}
+
 const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
 
 // After the videos are approved, YouTube and Instagram each have a lane of their own: each shows its own next step or approval, and neither waits for the other.
@@ -271,6 +324,7 @@ export default function Song() {
   const [notice, setNotice] = useState("");
   useEffect(() => { if (!notice || /…$/.test(notice)) return; const t = setTimeout(() => setNotice(""), 8000); return () => clearTimeout(t); }, [notice]);   // a finished message goes away by itself; one still being done stays
   const [stopping, setStopping] = useState(false);
+  const mobile = useMobile(); const [pane, setPane] = useState<"now" | "steps">("now");   // a phone shows what needs you or the steps, not both stacked into one long page
   useEffect(() => { if (!running) setStopping(false); }, [running]);   // the run really ended: the button goes back to normal
   const stop = async () => { setStopping(true); if (!(await act("/api/stop", {}))) setStopping(false); };
   const act: Act = async (path, body) => {
@@ -288,6 +342,7 @@ export default function Song() {
 
   const title = d.text["title.txt"]?.trim() || slug;
   const insp = d.meta.type === "inspiration"; const list = insp ? "/studio/inspiration" : "/studio/songs";
+  const coverFile = insp ? "thumb_9x16.jpg" : "cover_1x1.png"; const cover = (d.files ?? {})[coverFile] ? `/media/${slug}/${coverFile}?w=160&v=${d.files[coverFile]}` : "";   // the song's cover (an inspiration: its reel's first frame) beside the title
   const gate = d.next.type === "gate" ? d.next.gate : undefined;
   const busy = pending || running;
   const history = [...(d.meta.history ?? [])].reverse().slice(0, 30);
@@ -302,7 +357,9 @@ export default function Song() {
   const setGate: SetGate = async (g, on) => { setPending(true); setNotice("Saving…"); try { await postJSON("/api/settings/gates_save", { gates: { [g]: on } }); setErr(""); await load(); setNotice(on ? `${gateTitle(g)} will ask you again.` : `${gateTitle(g)} will approve itself from now on.`); return true; } catch (e) { setErr(errText(e)); setNotice(""); return false; } finally { setPending(false); } };   // the same switch as Settings, Approvals that approve themselves: it applies to every song
 
   // The one thing that needs you now: exactly one card, never an approval and a "Running" chip side by side.
-  const hasLanes = !!d.lanes && Object.keys(d.lanes).length > 0 && !d.failure;   // the videos are approved: the publishing steps run in their own lanes
+  const sch = d.meta.schedule; const timed = (id?: string) => !!id && !!d.steps.find((x) => x.id === id)?.scheduled_for;
+  const allSet = !!sch && !sch.done && !gate && !running && !d.question && !d.needs_you && (d.lanes && Object.keys(d.lanes).length ? Object.values(d.lanes).every((l) => l.type === "run" && timed(l.step)) : d.next.type === "run" && timed(d.next.step));   // nothing left but the publishing time
+  const hasLanes = !allSet && !!d.lanes && Object.keys(d.lanes).length > 0;   // the videos are approved: the publishing steps run in their own lanes, shown under a failure card too, so a waiting approval is never hidden
   const runCard = (
     <section className="card stack live" aria-labelledby="run-h">
       <StepStatus kind="running" run={d.run} usual={d.meta.step_seconds?.[runStep]} />
@@ -330,6 +387,7 @@ export default function Song() {
   ) : d.question ? <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />
   : d.needs_you ? <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>
   : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
+  : allSet ? <AllSet d={d} onChange={() => setSp({ tab: "publish" }, { replace: true })} />
   : hasLanes ? (running && !d.status_text?.startsWith("waiting for you") ? runCard : null)   // a run waiting at an approval shows that approval, not a spinner saying Running
   : running && !gate ? runCard : gate === "visuals_mode" ? <VisualsCard d={d} done={load} />
   : gate ? <GateCard key={gate} d={d} gate={gate} act={act} busy={pending} running={running} stopping={stopping} onStop={() => void stop()} reload={load} />
@@ -345,10 +403,14 @@ export default function Song() {
   const asked = sp.get("tab"); const tab: Tab = TABS.some(([k]) => k === asked) ? (asked as Tab) : "pipeline";
   return (
     <>
-      <div className="ph">
-        <Link className="back" to={list}><Icon name="chevron" />{insp ? "Inspiration" : "Songs"}</Link>
-        <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
-        <p>{slug} · {d.meta.state ?? "new"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })}</p>
+      <div className="ph hd">
+        {cover && <img className="ph-cover" src={cover} alt="" width={insp ? 54 : 96} height={96} />}
+        <div className="ph-tx">
+          <Link className="back" to={list}><Icon name="chevron" />{insp ? "Inspiration" : "Songs"}</Link>
+          <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
+          <p>{STATE_WORDS[d.meta.state ?? ""] ?? "New"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })} · <span className="mu">{slug}</span></p>
+        </div>
+        <GoesOut d={d} onChange={() => setSp({ tab: "publish" }, { replace: true })} />
       </div>
       {notice && <div className="toast" role="status" aria-live="polite">{/…$/.test(notice) && <span className="spin" aria-hidden="true" />}<span>{notice}</span></div>}
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
@@ -363,8 +425,14 @@ export default function Song() {
         {tab === "pipeline" && (d.notes ?? []).map((n) => <section key={n} className="card row" role="note"><p style={{ margin: 0, flex: "1 1 260px" }}>{n}</p><button className="btn" onClick={() => setSp({ tab: "content" }, { replace: true })}>Open Content</button></section>)}
         {tab === "pipeline" && (
           <div className="pl-grid">
-            <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={pick} setGate={setGate} />
-            <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>
+            {mobile && (
+              <div className="seg pane" role="group" aria-label="Show">
+                <button aria-pressed={pane === "now"} onClick={() => setPane("now")}>Now</button>
+                <button aria-pressed={pane === "steps"} onClick={() => setPane("steps")}>Steps <span className="mu">{d.steps.filter((x) => x.done).length}/{d.steps.length}</span></button>
+              </div>
+            )}
+            {(!mobile || pane === "steps") && <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={(id) => { pick(id); if (mobile) setPane("now"); }} />}
+            {(!mobile || pane === "now") && <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
           </div>
         )}
         {tab === "content" && (<>

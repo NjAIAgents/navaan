@@ -100,6 +100,12 @@ class Finish(Base):
         v = J.view("song-001"); self.assertEqual((v["rc"], v["error"]), (3, "step lyrics failed"))
         self.assertEqual(J.view("song-404"), {"running": False, "rc": None, "queued": False, "progress": {}, "status_text": ""})
 
+    def test_a_run_that_stops_at_a_scheduled_step_is_finished_not_failed(self):
+        # insp-006: approving "make it public" on a scheduled item ended the run with exit 7 and the page said "A step failed"
+        J.enqueue("song-001", "pipeline"); j = J.claim("w1"); J.finish(j["id"], "w1", 7, status_text="scheduled: it publishes at the set time")
+        row = J._c().execute("SELECT status, rc, status_text FROM jobs WHERE id = ?", (j["id"],)).fetchone()
+        self.assertEqual((row["status"], row["rc"], row["status_text"]), ("done", 7, "scheduled: it publishes at the set time"))
+
     def test_cancel_a_queued_job_is_immediate_and_a_running_one_is_flagged(self):
         J.enqueue("song-001", "pipeline"); self.assertTrue(J.request_cancel("song-001")); self.assertFalse(J.view("song-001")["running"])
         J.enqueue("song-002", "pipeline"); j = J.claim("w1")
