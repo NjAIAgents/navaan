@@ -783,7 +783,7 @@ class H(BaseHTTPRequestHandler):
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p == "/api/schedule/set":
                 if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
-                try: return self._send(200, {"ok": True, "schedule": PS.set_schedule(slug, str(body.get("instagram_at") or ""), body.get("youtube_at") or None)})
+                try: return self._send(200, {"ok": True, "schedule": PS.set_schedule(slug, str(body.get("instagram_at") or "") or None, body.get("youtube_at") or None)})
                 except ValueError as e: return self._send(400, {"error": str(e)})
             if p == "/api/analytics/auto":
                 try: return self._send(200, analytics_auto.set_settings(body.get("enabled"), body.get("every_days", 7), body.get("hour", 9), body.get("ask")))
@@ -1148,7 +1148,6 @@ class H(BaseHTTPRequestHandler):
                 navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"shot list edited via ui:{sess.get('user') or 'owner'}"))
                 return self._send(200, {"ok": True})
             if p == "/api/plan/save":   # the words of the picture plan, edited on the step's page: the idea, the character, the look, and each picture's prompt
-                import prompt_pack
                 prompt_pack.apply_edits(C.song_dir(slug), {k: body[k] for k in ("concept", "character", "style_line", "prompts") if k in body})
                 navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"picture plan edited via ui:{sess.get('user') or 'owner'}"))
                 return self._send(200, {"ok": True})

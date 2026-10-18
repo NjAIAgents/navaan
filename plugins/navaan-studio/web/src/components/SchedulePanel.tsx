@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getJSON, postJSON, type BestTime, type SchedOption, type Schedule, type Suggestion } from "../lib/api";
-import { fmtL, plusMin, toIso, toLocalIn } from "../lib/datetime";
+import { fmtL, toIso, toLocalIn } from "../lib/datetime";
 import { errText } from "../lib/songs";
 import { Loading } from "./Loading";
 
@@ -29,16 +29,14 @@ export function SchedulePanel({ type, slug: slug0 = "", onDone, onCancel }: Prop
   useEffect(() => {
     const t = encodeURIComponent(type);
     getJSON<{ songs: SchedOption[] }>(`/api/schedule/options?type=${t}`).then((r) => { setOpts(r.songs); if (!slug0 && r.songs.length === 1) setSlug(r.songs[0].slug); }).catch((e) => setErr(errText(e)));
-    getJSON<BestTime>(`/api/besttime?type=${t}`).then((b) => { setIg(b); setAt((cur) => cur || (b.slots?.[0] ? toLocalIn(b.slots[0].at) : "")); }).catch(() => setIg({ empty: true }));   // expected: no timing data is not an error
+    getJSON<BestTime>(`/api/besttime?type=${t}`).then((b) => { setIg(b); }).catch(() => setIg({ empty: true }));   // expected: no timing data is not an error
     getJSON<BestTime>(`/api/besttime?type=${t}&platform=youtube`).then(setYt).catch(() => setYt({ empty: true }));
   }, [type, slug0]);
   const chosen = opts?.find((o) => o.slug === slug);
   const ytSlots = yt?.kinds?.video && !yt.kinds.video.empty ? yt.kinds.video.slots ?? [] : [];
-  const pickYt = (v: string) => { setYtAt(v); if (v && (!at || new Date(at).getTime() < new Date(v).getTime() + 5 * 60000)) setAt(plusMin(v, 60)); };
-  const tooClose = !!(ytAt && at && new Date(at).getTime() < new Date(ytAt).getTime() + 5 * 60000);
-  const save = async () => {
+  const save = async () => {   // YouTube and Instagram are separate: either time may be empty, and then that platform is left for you
     setBusy(true); setErr("");
-    try { await postJSON("/api/schedule/set", { slug, instagram_at: toIso(at), youtube_at: ytAt ? toIso(ytAt) : null }); onDone(); }
+    try { await postJSON("/api/schedule/set", { slug, instagram_at: at ? toIso(at) : null, youtube_at: ytAt ? toIso(ytAt) : null }); onDone(); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   return (
@@ -51,19 +49,19 @@ export function SchedulePanel({ type, slug: slug0 = "", onDone, onCancel }: Prop
       </select>
       {chosen?.missing_gates.length ? <p className="mu">Still to approve before that time: {chosen.missing_gates.join(", ")}. Nothing posts without them.</p> : null}
       <h3>YouTube</h3>
-      {ytSlots.length > 0 && <div className="row" style={{ flexWrap: "wrap" }} role="group" aria-label="Recommended YouTube times">{ytSlots.map((x) => <button key={x.at} className={"btn" + (toLocalIn(x.at) === ytAt ? " p" : "")} onClick={() => pickYt(toLocalIn(x.at))}>{fmtL(x.at)} · {x.score}</button>)}</div>}
+      {ytSlots.length > 0 && <div className="row" style={{ flexWrap: "wrap" }} role="group" aria-label="Recommended YouTube times">{ytSlots.map((x) => <button key={x.at} className={"btn" + (toLocalIn(x.at) === ytAt ? " p" : "")} onClick={() => setYtAt(toLocalIn(x.at))}>{fmtL(x.at)} · {x.score}</button>)}</div>}
       <p className="mu">{!yt ? "Loading…" : yt.kinds?.video && !yt.kinds.video.empty ? `From ${(yt.kinds.video.basis?.signals ?? []).join(", ")}. Confidence ${yt.kinds.video.confidence}. ${(yt.kinds.video.notes ?? []).join(" ")}` : (yt.kinds?.video?.notes ?? yt.notes ?? []).join(" ") || "No YouTube timing data yet. Run Collect on the YouTube tab."}</p>
       <label htmlFor="sp-yt">YouTube public at (your local time)</label>
-      <div className="row"><input id="sp-yt" className="field" type="datetime-local" value={ytAt} onChange={(e) => pickYt(e.target.value)} /><button className="btn g" onClick={() => setYtAt("")}>Auto, 15 min before the Reel</button></div>
+      <div className="row"><input id="sp-yt" className="field" type="datetime-local" value={ytAt} onChange={(e) => setYtAt(e.target.value)} /><button className="btn g" onClick={() => setYtAt("")}>Don't schedule YouTube</button></div>
       <h3>Instagram</h3>
       {(ig?.slots ?? []).length > 0 && <div className="row" style={{ flexWrap: "wrap" }} role="group" aria-label="Recommended Instagram times">{(ig?.slots ?? []).map((x) => <button key={x.at} className={"btn" + (toLocalIn(x.at) === at ? " p" : "")} onClick={() => setAt(toLocalIn(x.at))}>{fmtL(x.at)} · {x.score}</button>)}</div>}
       <BestTimes b={ig} label="Instagram" />
       <label htmlFor="sp-ig">Instagram Reel at (your local time)</label>
-      <input id="sp-ig" className="field" type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
-      {tooClose ? <p role="alert" className="mu">The Reel must be at least 5 minutes after the YouTube time, because it links to the public video.</p> : <p className="mu">The server must be running at those times.</p>}
+      <div className="row"><input id="sp-ig" className="field" type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} /><button className="btn g" onClick={() => setAt("")}>Don't schedule Instagram</button></div>
+      <p className="mu">Each is its own: pick one time or both, in any order. A platform with no time is left for you to publish, and neither waits for the other. The server must be running at those times.</p>
       {err && <p role="alert" className="mu">{err}</p>}
       <div className="row">
-        <button className="btn p" disabled={!slug || !at || busy || tooClose} onClick={() => void save()}>{busy ? "Saving…" : "Schedule"}</button>
+        <button className="btn p" disabled={!slug || (!at && !ytAt) || busy} onClick={() => void save()}>{busy ? "Saving…" : "Schedule"}</button>
         {onCancel && <button className="btn g" onClick={onCancel}>Cancel</button>}
       </div>
     </section>
@@ -83,7 +81,7 @@ export function ScheduleCard({ slug, type, schedule, done }: { slug: string; typ
       <h2 id="sc-h">Publishing schedule {schedule?.done && <span className="chip ok">published</span>}</h2>
       {schedule ? (
         <>
-          <p>YouTube public: <b>{fmtL(schedule.youtube_at)}</b><br />Instagram Reel: <b>{fmtL(schedule.instagram_at)}</b></p>
+          <p>YouTube public: <b>{schedule.youtube_at ? fmtL(schedule.youtube_at) : "not scheduled (you publish it)"}</b><br />Instagram Reel: <b>{schedule.instagram_at ? fmtL(schedule.instagram_at) : "not scheduled (you post it)"}</b></p>
           {blocked.length > 0 && <p className="mu">{blocked.join(", ")}. Approve it and the step runs on the next check.</p>}
           {missed.length > 0 && <p className="mu">Missed: {missed.join(", ")}. Pick a new time.</p>}
           <div className="row">
@@ -95,7 +93,7 @@ export function ScheduleCard({ slug, type, schedule, done }: { slug: string; typ
         </>
       ) : sug ? (
         <>
-          <p>Suggested from your analytics <span className="chip">confidence: {sug.confidence}</span><br />YouTube public: <b>{sug.youtube_at ? fmtL(sug.youtube_at) : "auto, 15 minutes before the Reel"}</b><br />Instagram Reel: <b>{fmtL(sug.instagram_at)}</b></p>
+          <p>Suggested from your analytics <span className="chip">confidence: {sug.confidence}</span><br />YouTube public: <b>{sug.youtube_at ? fmtL(sug.youtube_at) : "not scheduled (you publish it)"}</b><br />Instagram Reel: <b>{sug.instagram_at ? fmtL(sug.instagram_at) : "not scheduled (you post it)"}</b></p>
           <p className="mu">Based on {sug.basis.join(", ") || "followers online"}. {sug.note ?? ""} Approvals stay yours.</p>
           <div className="row"><button className="btn p" disabled={busy} onClick={() => void run("/api/schedule/accept")}>Use these times</button><button className="btn" onClick={() => setEdit(true)}>Other time</button></div>
         </>

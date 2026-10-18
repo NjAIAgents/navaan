@@ -217,6 +217,16 @@ class Access(unittest.TestCase):
         self.assertEqual(json.load(open(os.path.join(D, "prompt_pack.json")))["character"], "A lone man.")
         self.assertEqual(save("lis-tok", "csrf-lis", character="x")[0], 403)   # a listener has no say
 
+    def test_write_the_prompt_for_pictures_reaches_the_prompt_pack_and_does_not_fail_with_an_internal_error(self):
+        # a local `import prompt_pack` in another branch of the same handler once made the name unbound here: the button answered 500
+        code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]
+        with mock.patch.object(U.prompt_pack, "make", lambda sl, count=None: {"slug": sl, "count": count}):
+            code, body = self.call("/api/visuals/prompts", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug, count=4))
+        self.assertEqual((code, json.loads(body)), (200, {"ok": True, "pack": {"slug": slug, "count": 4}}))
+        with mock.patch.object(U.prompt_pack, "make", mock.Mock(side_effect=RuntimeError("no key"))):
+            code, body = self.call("/api/visuals/prompts", "owner-tok", "csrf-owner", post=True, body=dict(slug=slug))
+        self.assertEqual((code, json.loads(body)["error"]), (400, "no key"))
+
     def test_feedback_at_the_video_review_names_one_video_and_only_that_one_is_made_again(self):
         import navaan, navaan_common as C, reel_lyrics
         code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea="rain")); slug = json.loads(body)["slug"]; D = C.song_dir(slug)

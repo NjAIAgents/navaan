@@ -34,21 +34,26 @@ class Suggest(unittest.TestCase):
         self.ig["slots"] = [{"at": iso(t), "score": s} for t, s in ig]
         self.yt["kinds"]["video"]["slots"] = [{"at": iso(t), "score": s} for t, s in yt]
 
-    def test_youtube_best_slot_then_reel_slot_after_it(self):
+    def test_each_platform_gets_the_best_slot_of_its_own_and_neither_depends_on_the_other(self):
         y1, y2 = NOW + H(hours=20), NOW + H(hours=44)
-        self.slots(yt=[(y1, 80), (y2, 100)], ig=[(y2 - H(hours=2), 100), (y2 + H(hours=3), 90), (y2 + H(hours=30), 100)])
+        self.slots(yt=[(y1, 80), (y2, 100)], ig=[(y2 - H(hours=2), 90), (y2 + H(hours=3), 80), (y2 + H(hours=30), 100)])
         s = self.PS.suggest(self.slug, NOW)
         self.assertEqual(s["youtube_at"], iso(y2))
-        self.assertEqual(s["instagram_at"], iso(y2 + H(hours=3)))   # before the video and 30 h later are both out of range
+        self.assertEqual(s["instagram_at"], iso(y2 + H(hours=30)))   # the best Instagram slot, whatever the YouTube time is: before it, close to it or a day later
         self.assertEqual(s["confidence"], "high")
 
-    def test_reel_defaults_to_an_hour_after_when_no_instagram_slot_fits(self):
+    def test_the_reel_can_be_suggested_before_the_video(self):
         y = NOW + H(hours=20)
         self.slots(yt=[(y, 100)], ig=[(y - H(hours=3), 100)])
         s = self.PS.suggest(self.slug, NOW)
-        self.assertEqual(s["instagram_at"], iso(y + H(minutes=60)))
+        self.assertEqual((s["youtube_at"], s["instagram_at"]), (iso(y), iso(y - H(hours=3))))
 
-    def test_without_youtube_data_only_the_reel_time_and_auto(self):
+    def test_a_platform_with_no_slots_is_left_manual_and_the_note_says_so(self):
+        self.slots(yt=[(NOW + H(hours=20), 100)], ig=[])
+        s = self.PS.suggest(self.slug, NOW)
+        self.assertEqual(s["youtube_at"], iso(NOW + H(hours=20))); self.assertIsNone(s["instagram_at"]); self.assertIn("Reel is left for you", s["note"])
+
+    def test_without_youtube_data_only_the_reel_time(self):
         self.yt["kinds"]["video"] = {"empty": True}
         self.slots(ig=[(NOW + H(hours=5), 70), (NOW + H(hours=30), 100)])
         s = self.PS.suggest(self.slug, NOW)
@@ -60,8 +65,11 @@ class Suggest(unittest.TestCase):
         self.ig, self.yt = {"empty": True}, {"empty": True}
         self.assertIsNone(self.PS.suggest(self.slug, NOW))
         self.ig = {"empty": False, "slots": [{"at": iso(NOW + H(hours=5)), "score": 70}], "basis": {"signals": []}}
+        self.yt = {"empty": True}
         self.meta({"slug": "s1", "type": "music", "published": {"instagram": "https://i/x"}})
-        self.assertIsNone(self.PS.suggest(self.slug, NOW))
+        self.assertIsNone(self.PS.suggest(self.slug, NOW))   # Instagram is posted and YouTube has no data: nothing to suggest
+        self.meta({"slug": "s1", "type": "music", "published": {"instagram": "https://i/x", "youtube_items": [{"id": "a", "url": "u", "privacy": "public"}]}})
+        self.assertIsNone(self.PS.suggest(self.slug, NOW))   # both posted
 
     def test_slots_in_the_past_are_skipped(self):
         self.slots(yt=[(NOW + H(minutes=1), 100), (NOW + H(hours=30), 60)])
@@ -84,6 +92,20 @@ class Suggest(unittest.TestCase):
         self.slots()
         self.PS.clear(self.slug)
         with self.assertRaises(ValueError): self.PS.accept(self.slug)
+
+    def test_a_schedule_may_have_one_platform_only_and_the_five_minute_rule_is_gone(self):
+        n = self.PS.now()
+        s = self.PS.set_schedule(self.slug, instagram_at=iso(n + H(hours=3)))   # Instagram alone: YouTube is not scheduled, not "15 minutes before"
+        self.assertIsNone(s["youtube_at"]); self.assertEqual(s["instagram_at"], iso(n + H(hours=3)))
+        s = self.PS.set_schedule(self.slug, youtube_at=iso(n + H(hours=3)))   # YouTube alone
+        self.assertIsNone(s["instagram_at"]); self.assertEqual(s["youtube_at"], iso(n + H(hours=3)))
+        s = self.PS.set_schedule(self.slug, instagram_at=iso(n + H(hours=3)), youtube_at=iso(n + H(hours=4)))   # the Reel BEFORE the video: allowed
+        self.assertEqual((s["instagram_at"], s["youtube_at"]), (iso(n + H(hours=3)), iso(n + H(hours=4))))
+        s = self.PS.set_schedule(self.slug, instagram_at=iso(n + H(hours=3)), youtube_at=iso(n + H(hours=3)))   # at the same minute: allowed
+        with self.assertRaises(ValueError) as c: self.PS.set_schedule(self.slug)
+        self.assertIn("for both", str(c.exception))
+        with self.assertRaises(ValueError): self.PS.set_schedule(self.slug, instagram_at=iso(n + H(minutes=1)))   # too close is still refused, per platform
+        self.assertIn("Instagram", self.PS.status_text({"schedule": self.PS.set_schedule(self.slug, instagram_at=iso(n + H(hours=3)))})); self.assertNotIn("YouTube", self.PS.status_text({"schedule": {"instagram_at": iso(n + H(hours=3)), "youtube_at": None}}))
 
 
 if __name__ == "__main__":

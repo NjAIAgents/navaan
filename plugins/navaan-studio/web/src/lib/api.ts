@@ -117,8 +117,8 @@ export type Alert = { id: string; kind: string; title: string; message: string; 
 export type Slot = { at: string; score: number; audience_peak_hour_utc?: number };
 export type BestTime = { empty?: boolean; notes?: string[]; reason?: string; basis?: { signals?: string[] }; slots?: Slot[]; hours?: number[]; weekdays?: number[]; kinds?: { video?: { empty?: boolean; slots?: Slot[]; confidence?: string; notes?: string[]; basis?: { signals?: string[]; rule?: string } } } };
 export type SchedOption = { slug: string; title: string; next: string; public: boolean; missing_gates: string[]; schedule: string };
-export type Suggestion = { youtube_at: string | null; instagram_at: string; confidence: string; basis: string[]; note?: string };
-export type Schedule = { youtube_at: string; instagram_at: string; blocked?: Record<string, string>; missed?: Record<string, unknown>; done?: boolean };
+export type Suggestion = { youtube_at: string | null; instagram_at: string | null; confidence: string; basis: string[]; note?: string };
+export type Schedule = { youtube_at: string | null; instagram_at: string | null; blocked?: Record<string, string>; missed?: Record<string, unknown>; done?: boolean };
 
 // Cloud (NAV-27)
 export type CloudSong = { slug: string; title: string; files: { name: string; size: number; key: string }[]; bytes: number; local: boolean; cleaned: boolean; uploaded_at?: string | null; verified?: boolean | null; youtube: string[]; instagram: string };

@@ -2,8 +2,8 @@
 """publish_schedule.py  publish at a chosen time, from the approvals you already gave.
 
 meta.json of an item gets  "schedule": {"youtube_at": "...Z", "instagram_at": "...Z", "created_at", "attempts", "missed", "blocked", "done"}.
-  youtube_at     when the YouTube video and Short go public (step go_public), 15 minutes before the Instagram time by default
-  instagram_at   when the Reel goes out (step publish_instagram), which needs the video to be public first
+  youtube_at     when the YouTube video and Short go public (step go_public), or None: YouTube is not scheduled and stays manual
+  instagram_at   when the Reel goes out (step publish_instagram), or None: Instagram is not scheduled and stays manual. The two platforms are independent: neither waits for the other
 Scheduling never approves anything. The gates go_public, instagram_caption and publish_instagram are still yours: approve them before the time.
 At the time, the scheduler runs the step only if its gates are approved. If a gate is missing it waits and shows "waiting for approval", and
 fires on the next check once you approve, up to 12 hours late. After that the slot is marked missed and you pick a new time.
@@ -56,37 +56,36 @@ def hold(m, sid, at=None):
     return w if t and (at or now()) < t and not m.get("schedule", {}).get("missed", {}).get(sid) else None
 
 
-def set_schedule(slug, instagram_at, youtube_at=None, nav=None):
+def set_schedule(slug, instagram_at=None, youtube_at=None, nav=None):
+    """Schedule YouTube, Instagram or both, each on its own: a platform without a time stays manual, and neither waits for the other. A platform already posted is not scheduled again.
+    ValueError with a sentence for a bad time, a time too close, or when there is nothing to schedule."""
     import navaan as N
     m = N.meta(slug)
-    if N.ig_done(m): raise ValueError("this item is already on Instagram")
-    ig = parse(instagram_at)
-    if not ig: raise ValueError("bad Instagram time")
-    yt = parse(youtube_at) if youtube_at else ig - datetime.timedelta(minutes=YT_BEFORE_IG_MIN)
-    if not yt: raise ValueError("bad YouTube time")
+    ig = parse(instagram_at) if instagram_at else None; yt = parse(youtube_at) if youtube_at else None
+    if instagram_at and not ig: raise ValueError("bad Instagram time")
+    if youtube_at and not yt: raise ValueError("bad YouTube time")
+    if ig and N.ig_done(m) and not yt: raise ValueError("this item is already on Instagram")
+    if N.ig_done(m): ig = None
+    if N.public_done(m): yt = None   # already public: only the Instagram time, if there is one, matters
+    if not ig and not yt: raise ValueError("pick a time for YouTube, for Instagram, or for both")
     n = now()
-    if ig < n + datetime.timedelta(minutes=MIN_LEAD_MIN): raise ValueError("pick a time at least a few minutes ahead")
-    if N.public_done(m):
-        yt = n  # already public, only the Instagram time matters
-    elif yt < n + datetime.timedelta(minutes=MIN_LEAD_MIN - 1):
-        yt = n + datetime.timedelta(minutes=MIN_LEAD_MIN - 1)
-    if not N.public_done(m) and ig < yt + datetime.timedelta(minutes=5): raise ValueError("the Instagram time must be at least 5 minutes after the YouTube time, the Reel links to the public video")
-    sched = {"youtube_at": iso(yt), "instagram_at": iso(ig), "created_at": iso(n), "attempts": {}, "missed": {}, "blocked": {}, "done": False}
+    for t in (ig, yt):
+        if t and t < n + datetime.timedelta(minutes=MIN_LEAD_MIN): raise ValueError("pick a time at least a few minutes ahead")
+    sched = {"youtube_at": iso(yt) if yt else None, "instagram_at": iso(ig) if ig else None, "created_at": iso(n), "attempts": {}, "missed": {}, "blocked": {}, "done": False}
     def put(d):
         d["schedule"] = sched
-        N.log_hist(d, f"publishing scheduled: YouTube {iso(yt)}, Instagram {iso(ig)}")
+        N.log_hist(d, "publishing scheduled: " + "; ".join(x for x in (f"YouTube {iso(yt)}" if yt else "", f"Instagram {iso(ig)}" if ig else "") if x))
     N.edit_meta(slug, put)
     return sched
 
 
 def suggest(slug, at=None):
-    """Best times to publish this item, from the analytics, or None when there is no timing data or nothing left to schedule.
-    YouTube first: the best upcoming slot for full videos (the Short goes public with it). The Reel goes at the best Instagram slot that falls 5 minutes to 12 hours
-    after it, else one hour after. Without YouTube data only the Reel time is suggested and YouTube stays on auto (15 minutes before). Computed on request, never stored,
+    """Best times to publish this item, from the analytics, or None when there is no timing data or nothing left to schedule. YouTube and Instagram are separate: each gets the best upcoming slot
+    of its own (the Short goes public with the video), and a platform with no timing data, or one already posted, gets no time and stays manual. Computed on request, never stored,
     and it approves nothing."""
     import navaan as N, besttime
     m = N.meta(slug)
-    if N.ig_done(m) or m.get("cleanup"): return None
+    if m.get("cleanup") or (N.ig_done(m) and N.public_done(m)): return None   # nothing left to schedule (one platform may still be, and then only it is suggested)
     label = C.item_type(m); n = at or now()
     ig, yt = besttime.for_label(label), besttime.for_label_youtube(label)
     igs = [(parse(x["at"]), x["score"]) for x in ig.get("slots", [])] if not ig.get("empty") else []
@@ -95,28 +94,22 @@ def suggest(slug, at=None):
     best = lambda c: max(c, key=lambda t: (t[1], -t[0].timestamp()))
     day = datetime.timedelta
     y = r = None; basis = []; conf = "medium"
-    if N.public_done(m):  # already public, only the Reel time matters
-        c = [t for t in igs if t[0] >= n + day(minutes=MIN_LEAD_MIN + 3)]
-        if c: r = best(c)[0]; basis = ["Instagram followers online"] + (["your own Reels"] if "your own posts" in (ig.get("basis") or {}).get("signals", []) else [])
-    else:
+    if not N.public_done(m):
         c = [t for t in yts if t[0] >= n + day(minutes=MIN_LEAD_MIN + 1)]
-        if c:
-            y = best(c)[0]; conf = yk.get("confidence", "low"); basis = list((yk.get("basis") or {}).get("signals", []))
-            rc = [t for t in igs if y + day(minutes=5) <= t[0] <= y + day(hours=12)]
-            r = best(rc)[0] if rc else y + day(minutes=60)
-        else:
-            c = [t for t in igs if t[0] >= n + day(minutes=MIN_LEAD_MIN + 18)]
-            if c: r = best(c)[0]; basis = ["Instagram followers online"]
-    if not r: return None
-    return {"youtube_at": iso(y) if y else None, "instagram_at": iso(r), "confidence": conf, "basis": basis,
-            "youtube_data": bool(y), "note": "" if y else "No YouTube timing data yet, so YouTube goes public 15 minutes before the Reel."}
+        if c: y = best(c)[0]; conf = yk.get("confidence", "low"); basis = list((yk.get("basis") or {}).get("signals", []))
+    if not N.ig_done(m):
+        c = [t for t in igs if t[0] >= n + day(minutes=MIN_LEAD_MIN + 3)]
+        if c: r = best(c)[0]; basis += ["Instagram followers online"] + (["your own Reels"] if "your own posts" in (ig.get("basis") or {}).get("signals", []) else [])
+    if not r and not y: return None
+    note = " ".join(x for x in ("No YouTube timing data yet, so YouTube is left for you to publish." if not y and not N.public_done(m) else "", "No Instagram timing data yet, so the Reel is left for you to post." if not r and not N.ig_done(m) else "") if x)
+    return {"youtube_at": iso(y) if y else None, "instagram_at": iso(r) if r else None, "confidence": conf, "basis": basis, "youtube_data": bool(y), "note": note}
 
 
 def accept(slug):
     """Schedule the suggested times. Gates are still yours."""
     sg = suggest(slug)
     if not sg: raise ValueError("no timing suggestion yet: collect analytics first, or pick a time yourself")
-    return set_schedule(slug, sg["instagram_at"], sg["youtube_at"])
+    return set_schedule(slug, sg["instagram_at"], sg["youtube_at"])   # either may be None: that platform stays manual
 
 
 def clear(slug):
@@ -132,6 +125,7 @@ def status_text(m):
     if s.get("done"): return "published on schedule"
     parts = []
     for sid, key, lab in (("go_public", "youtube_at", "YouTube public"), ("publish_instagram", "instagram_at", "Instagram")):
+        if not s.get(key): continue   # not scheduled: left for you
         if s.get("missed", {}).get(sid): parts.append(f"{lab}: missed")
         else: parts.append(f"{lab} {s.get(key)}" + (f" ({s['blocked'][sid]})" if s.get("blocked", {}).get(sid) else ""))
     return "; ".join(parts)
@@ -164,10 +158,9 @@ def _due(N, slug, m, n):
         if (n - t) > datetime.timedelta(hours=GRACE_H): out.append((sid, "MISSED")); return
         for g in gates:
             if not N.gate_ok(D, ap, g, N.ig_done(m)): out.append((sid, f"waiting for approval: {g}")); return
-        if not ready: out.append((sid, "waiting for YouTube to be public")); return
         out.append((sid, None))
     if not N.public_done(m): check("go_public", "youtube_at", ["go_public"], True)
-    if not N.ig_done(m): check("publish_instagram", "instagram_at", ["publish_instagram", "instagram_caption"], N.public_done(m))
+    if not N.ig_done(m): check("publish_instagram", "instagram_at", ["publish_instagram", "instagram_caption"], True)   # the Reel does not wait for YouTube
     return out
 
 
@@ -183,7 +176,8 @@ def tick(fire, skip=None, at=None):
         try: m = N.meta(slug)
         except Exception as _e: L.soft(LOG, "tick_error"); continue
         if not get(m): continue
-        if N.ig_done(m) and N.public_done(m) and not m["schedule"].get("done"):
+        sc0 = m["schedule"]
+        if (not sc0.get("instagram_at") or N.ig_done(m)) and (not sc0.get("youtube_at") or N.public_done(m)) and not sc0.get("done"):   # every platform that was scheduled is posted
             N.edit_meta(slug, lambda d: d["schedule"].__setitem__("done", True)); m = N.meta(slug)
         s = m["schedule"]
         for sid, why in _due(N, slug, m, n):
