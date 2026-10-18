@@ -332,4 +332,21 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
     await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
   });
+  it("offers to delete a failed item with a confirmation, deletes it and goes back to the list; a published one shows why it cannot be deleted", async () => {
+    const f = route(OWNER, { "/api/delete": () => ({ ok: true, moved_to: "_deleted/song-007-x" }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-007", failure: { step: "video", error: "boom", ref: "r1", plain: "The video could not be built." }, deletable: { ok: true, why: "" }, steps: [step("video")] }) });
+    at(A);
+    expect(await screen.findByText("The video could not be built.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete this song" }));
+    expect(screen.getByRole("alertdialog", { name: "Confirm deleting song-007" })).toHaveTextContent("moved to a _deleted folder inside songs, not erased"); expect(posts(f, "/api/delete")).toEqual([]);   // nothing yet
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" })); expect(screen.queryByRole("alertdialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Delete this song" })); fireEvent.click(screen.getByRole("button", { name: "Yes, delete song-007" }));
+    await waitFor(() => expect(posts(f, "/api/delete")).toEqual([{ slug: "song-007" }]));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Songs" })).toBeInTheDocument());   // back on the list
+  });
+
+  it("does not offer deleting a published item and says why", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "song-007", deletable: { ok: false, why: "It is published (on YouTube, Instagram, the cloud bucket or the site). Take it down there first; deleting it here would leave those behind." }, steps: [step("video", { done: true, status: "done" })] }) });
+    at(`${A}?tab=activity`);
+    expect(await screen.findByText(/Cannot be deleted\. It is published/)).toBeInTheDocument(); expect(screen.queryByRole("button", { name: /Delete this/ })).toBeNull();
+  });
 });

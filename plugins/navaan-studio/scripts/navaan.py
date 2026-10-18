@@ -939,6 +939,36 @@ def ig_reel_candidates(slug):
     return cands if reel_lyrics.on(meta(slug)) else [c for c in cands if "_cap" not in c]
 
 
+def deletable(slug):
+    """(ok, why): whether an item may be deleted from the studio. A published item may not: deleting it here would leave its posts and its page on the site behind."""
+    m = meta(slug)
+    if C.published_links(m) or (m.get("cloud") or {}).get("uploaded_at") or m.get("state") == "published":
+        return False, "It is published (on YouTube, Instagram, the cloud bucket or the site). Take it down there first; deleting it here would leave those behind."
+    try:
+        import catalog_store
+        if catalog_store.track_view(slug, all_licences=True): return False, "It is on the site. Take it off the site first."   # the catalog lists published tracks only
+    except Exception as _e: L.soft(LOG, "deletable_catalog_check")   # a catalog that cannot be read does not block deleting an item that is not published
+    return True, ""
+
+
+def delete_item(slug, by):
+    """Delete an item that is not published: it leaves the list, and its folder is moved to songs/_deleted/<slug>-<time>/ with a note of who deleted it and when, so nothing is erased from disk. Raises SystemExit with a sentence when it may not be deleted."""
+    import shutil, studio_store
+    ok, why = deletable(slug)
+    if not ok: sys.exit(why)
+    D = song_dir(slug); m = meta(slug); stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dest = os.path.join(songs_root(), "_deleted", f"{slug}-{stamp}"); os.makedirs(os.path.dirname(dest), exist_ok=True)
+    try:
+        import catalog_store; catalog_store.delete_draft(slug)
+    except ValueError as e: sys.exit(str(e))
+    except Exception: L.exc(LOG, "delete_catalog_failed", item=slug)   # a draft row left behind is not shown anywhere; the item is still deleted
+    studio_store.delete(slug)
+    shutil.move(D, dest)
+    with open(os.path.join(dest, "deleted.json"), "w", encoding="utf-8") as f: json.dump({"slug": slug, "deleted_at": stamp, "by": by, "state": m.get("state"), "type": item_type(m), "meta": m}, f, indent=2, default=str); f.write("\n")
+    L.event(LOG, "info", "item_deleted", item=slug, by=by, moved_to=dest)
+    return dest
+
+
 def request_changes(slug, gate, note, via, about=""):
     """Send an item back instead of approving it (FR-023): drops any approval of the gate, keeps the note in the history, never counts as an approval. `about` names the video the note is about."""
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")

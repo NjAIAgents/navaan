@@ -6,6 +6,15 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-17
+
+### Added
+- A failed or stuck song or inspiration can be deleted. The Delete button is on the failure message and on the item's Activity tab; it asks first and says what happens: the item leaves the list and its files are moved to a _deleted folder inside songs (with a note of who deleted it and when), not erased. A published item cannot be deleted from here, and the page says why: take it down from YouTube, Instagram, the bucket and the site first. It is refused while a run is going.
+
+### Fixed
+- The approval switches on the steps were drawn as huge 44 px ticks. They are small switches now; the tap area is still 44 px.
+- A finished publish step no longer says "This step did not save a file you can open here" when it shows where it published, and a finished step says an approval was asked "before it ran" rather than "needs your approval before it runs".
+
 ## [0.37.0] - 2026-10-17
 
 ### Fixed
@@ -474,7 +483,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.38.0...HEAD
+[0.38.0]: https://github.com/NjAIAgents/navaan/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/NjAIAgents/navaan/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/NjAIAgents/navaan/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/NjAIAgents/navaan/compare/v0.35.1...v0.36.0

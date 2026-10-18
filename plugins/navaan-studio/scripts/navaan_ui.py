@@ -235,7 +235,7 @@ def detail(slug):
     failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
-            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "reel_lyrics": reel_lyrics.view(D, m),
+            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "deletable": dict(zip(("ok", "why"), navaan.deletable(slug))), "reel_lyrics": reel_lyrics.view(D, m),
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
@@ -974,6 +974,12 @@ class H(BaseHTTPRequestHandler):
                 if body.get("offset") is not None: reel_lyrics.save_offset(C.song_dir(slug), nudge); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"reel lyrics nudged by {nudge} s via {who}"))
                 return self._send(200, {"ok": True, **reel_lyrics.view(C.song_dir(slug), navaan.meta(slug))})
             if p == "/api/revoke": navaan.set_gate(slug, body["gate"], False, f"ui:{sess.get('user') or 'owner'}"); return self._send(200, {"ok": True})   # the history says who took the approval back
+            if p == "/api/delete":   # an item that is not published goes to songs/_deleted (nothing is erased); a published one is refused with the reason
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this item. Press Stop first."})
+                try: dest = navaan.delete_item(slug, f"ui:{sess.get('user') or 'owner'}")
+                except SystemExit as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
+                auth._audit("item_delete", user=sess.get("user"), ip=self._ip(), slug=slug)
+                return self._send(200, {"ok": True, "moved_to": os.path.relpath(dest, C.songs_root())})
             if p == "/api/redo":
                 if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song"})
                 return self._send(200, {"started": start_job(slug, False, body.get("step"), redo=True)})

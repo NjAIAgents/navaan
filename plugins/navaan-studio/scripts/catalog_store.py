@@ -290,6 +290,20 @@ def audio_asset(slug): return _asset(slug, "audio")
 def preview_asset(slug): return _asset(slug, "audio_preview")
 
 
+def delete_draft(slug):
+    """Remove the catalog row of a track that was never published (with its pictures and files list, search entry and share links). A published track is refused: ValueError. False when there was no such row."""
+    def go(c):
+        t = c.execute("SELECT id::text AS id, status FROM tracks WHERE slug = ?", (slug,)).fetchone()
+        if not t: return False
+        if t["status"] == "published": raise ValueError("this track is published on the site; take it off the site first")
+        c.execute("DELETE FROM assets WHERE owner_kind = 'track' AND owner_id = ?::uuid", (t["id"],))
+        c.execute("DELETE FROM share_links WHERE subject_kind = 'track' AND subject_id = ?::uuid", (t["id"],))
+        _unindex(c, "track", t["id"])
+        c.execute("DELETE FROM tracks WHERE id = ?::uuid", (t["id"],))   # genres, album entries and reactions go with it
+        return True
+    return _tx(go)
+
+
 def set_cover_facts(asset_id, width, height, colour):
     _tx(lambda c: c.execute("UPDATE assets SET width = ?, height = ?, dominant_colour = ? WHERE id = ?::uuid", (width, height, colour, asset_id)))
 

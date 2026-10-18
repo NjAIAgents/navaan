@@ -249,6 +249,23 @@ class Access(unittest.TestCase):
         self.assertEqual(json.load(open(os.path.join(D, "quote.json")))["lines"], ["You are allowed to change,", "and grow"])
         self.assertEqual(self.call("/api/new", "lis-tok", "csrf-lis", post=True, body=dict(type="inspiration", suno_url="https://suno.com/s/abc123"))[0], 403)
 
+    def test_a_failed_or_stuck_item_can_be_deleted_and_a_published_one_cannot(self):
+        import navaan, navaan_common as C, catalog_store as K
+        mk = lambda idea: json.loads(self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="music", idea=idea))[1])["slug"]
+        dele = lambda slug, tok="owner-tok", csrf="csrf-owner": self.call("/api/delete", tok, csrf, post=True, body=dict(slug=slug))
+        gone, kept = mk("a failed one"), mk("a published one"); D = C.song_dir(gone); open(os.path.join(D, "lyrics.txt"), "w").write("kept on disk\n")
+        d = json.loads(self.call(f"/api/song/{gone}", "owner-tok")[1]); self.assertEqual(d["deletable"], {"ok": True, "why": ""})
+        self.assertEqual(dele(gone, "lis-tok", "csrf-lis")[0], 403)   # a listener has no say
+        with mock.patch.object(U.jobs, "active", lambda sl: True): self.assertEqual(dele(gone)[0], 409)   # not while it runs
+        code, body = dele(gone); self.assertEqual(code, 200); moved = json.loads(body)["moved_to"]; self.assertTrue(moved.startswith("_deleted/" + gone + "-"))
+        self.assertFalse(os.path.exists(D)); self.assertEqual(open(os.path.join(C.songs_root(), moved, "lyrics.txt")).read(), "kept on disk\n")   # moved, not erased
+        note = json.load(open(os.path.join(C.songs_root(), moved, "deleted.json"))); self.assertEqual((note["slug"], note["by"]), (gone, "ui:owner1"))
+        self.assertNotIn(gone, [r["slug"] for r in json.loads(self.call("/api/songs", "owner-tok")[1])])   # gone from the list
+        self.assertEqual(self.call(f"/api/song/{gone}", "owner-tok")[0], 404)   # no such item any more
+        navaan.edit_meta(kept, lambda m: m.setdefault("published", {}).update(instagram="https://www.instagram.com/reel/x/"))
+        d = json.loads(self.call(f"/api/song/{kept}", "owner-tok")[1]); self.assertFalse(d["deletable"]["ok"]); self.assertIn("Take it down there first", d["deletable"]["why"])
+        code, body = dele(kept); self.assertEqual(code, 400); self.assertIn("published", json.loads(body)["error"]); self.assertTrue(os.path.isdir(C.song_dir(kept)))   # a published item stays
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")
