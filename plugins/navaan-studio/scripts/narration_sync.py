@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """narration_sync.py <slug> [--whisper]  make voiceover.srt for a narration you uploaded as audio only.
 
-Two ways, pauses first:
-  pauses   Your text lines (quote.json) are matched to the pauses in the audio. No model, instant, nothing to download.
-           It works when the voice pauses between lines. Background music makes the pauses harder to find.
-  whisper  The audio is transcribed with Whisper (timestamp tokens) and its phrases become the lines. Needs the caption
-           tools (setup_captions.py, one time download). Used when the pauses do not fit your lines, or with --whisper.
+Two ways, Whisper first when the caption tools are installed:
+  whisper  The audio is transcribed with Whisper (timestamp tokens) and the lines are placed where they are spoken. Needs the caption
+           tools (setup_captions.py, one time download), which this script runs itself in. It is the only way that is right when music plays under the voice.
+  pauses   Your text lines (quote.json) are matched to the pauses in the audio. No model, instant, nothing to download. Used only when Whisper cannot run
+           or does not fit. It works when the voice pauses between lines; background music hides the pauses, and then the times are a guess (this is said in the log).
 
 Writes songs/<slug>/voiceover.srt, contiguous cues like the ones a narration tool exports. Nothing is generated or spent.
 """
@@ -273,8 +273,10 @@ def sync(D, lines, allow_whisper=True, force_whisper=False, lang="en", ffmpeg="f
         try: cues, info = by_whisper_lines(x, lines, lang)  # Whisper's positions first, the pauses only when it is not available
         except Exception as e: L.soft(LOG, "sync_error"); cues, info = None, {"whisper_lines_failed": str(e)[:120]}
     if lines and not force_whisper and cues is None:
+        whisper_err = info.get("whisper_lines_failed")
         cues, info = by_pauses(x, lines)
         if cues is None: why = info; info = {}
+        elif whisper_err: info["whisper_lines_failed"] = whisper_err   # kept, so the caller can say the times are only from pauses
     else: why = "no text lines to match"
     if cues is None:
         if not allow_whisper: return None
@@ -296,6 +298,7 @@ def _again_in_venv(a):
 
 def main(a):
     if not a or a[0] in ("-h", "--help"): sys.exit(__doc__)
+    _again_in_venv(a)   # in the caption tools' python when they are installed and this is not it: the system python has numpy but not onnxruntime, so Whisper silently failed and the times came from pauses
     if np is None:
         _again_in_venv(a); sys.exit("navaan: numpy is missing. Approve the captions_setup gate, or run setup_captions.py --yes.")
     import navaan_common as C
@@ -310,6 +313,8 @@ def main(a):
         sys.exit(f"navaan: {e}")
     if os.path.exists(flag): os.remove(flag)
     print(f"voiceover.srt written ({info['method']}, {info['cues']} lines, {info['seconds']} s)" + (f". Pauses did not fit: {info['pauses_failed']}" if info.get("pauses_failed") else ""))
+    if info.get("whisper_lines_failed"):   # said plainly, in the log of the step: the times are a guess, and a voice with music under it has no pauses to find
+        print(f"WARNING: the lines were timed from pauses only, which is approximate, because the speech timing could not run ({info['whisper_lines_failed']}). If the text drifts from the voice, run Time the narration again once the caption tools work.", flush=True)
     return 0
 
 
