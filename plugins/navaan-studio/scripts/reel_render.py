@@ -8,8 +8,11 @@ Description: the hands of the reel pipeline: executes the approved edit plan (ed
 
 Reads edl.json (checked by reel_edl.validate first), source.mp4, quote.json (the on-screen words), voiceover.* and voiceover.srt (when the quote is narrated), music from the
 NAVAAN library (reel_music.resolve) or the owner's own upload (music_src.*). Writes final_reel_9x16.mp4 (1080x1920, 30 fps, h264 + aac), thumb_9x16.jpg and render_report.json.
-One ffmpeg pass: each kept part is cut, framed to 9:16 (centre and slow zoom from the plan), joined, graded, then the quote and text are laid on as Pillow pictures
-(so no drawtext or libass is needed), and the sound is mixed: footage sound by policy, voice, music ducked under the voice, normalised to -16 LUFS.
+One ffmpeg pass: each kept part is cut, framed to 9:16 (centre and slow zoom from the plan), joined, the first and last frame held for the intro and the end card, graded,
+then the quote, the text and the end card are laid on as Pillow pictures (so no drawtext or libass is needed), and the sound is mixed: footage sound by policy and the music both
+step back (sidechain ducking) while the voice speaks, normalised to -16 LUFS. The footage's own sound is never dropped on a guess: the plan's policy decides (the owner supplies footage
+with background music or ambience and no narration).
+A voiceover longer than the reel stretches the end card, so the voice is never cut.
 """
 import os, sys, re, json, glob, shutil, tempfile, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +89,54 @@ def scrim_png(path):
     col.resize((W, H)).save(path)
 
 
+def instagram_glyph(d, x0, cy, ic):
+    lw = max(3, ic // 12); w = (255, 255, 255, 255)
+    d.rounded_rectangle((x0, cy - ic // 2, x0 + ic, cy + ic // 2), radius=int(ic * 0.28), outline=w, width=lw)
+    r = int(ic * 0.22); cx = x0 + ic // 2; d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=w, width=lw)
+    dr = max(2, ic // 20); dx, dy = x0 + int(ic * 0.72), cy - int(ic * 0.28); d.ellipse((dx - dr, dy - dr, dx + dr, dy + dr), fill=w)
+
+
+def endcard_png(path, handle, credit, face="serif"):
+    """The words of the end card on a transparent picture: the account handle with the Instagram mark, and the music credit under it."""
+    from PIL import Image, ImageDraw
+    import inspire_render as R
+    R.FACE["font"] = face
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(im); y = int(H * 0.44)
+    if handle:
+        bs = min(76, int((W - 260) / (len(handle) * 0.62))); bf = R.pil_font(bs, R.has_dev(handle)); tw = int(d.textlength(handle, font=bf))
+        ic = int(bs * 0.95); gap = int(bs * 0.38); x0 = (W - (ic + gap + tw)) // 2
+        instagram_glyph(d, x0, y, ic); R.draw_text(im, (x0 + ic + gap + tw // 2, y), handle, bf, (255, 255, 255, 255)); y += int(bs * 1.5)
+    if credit:
+        cf = R.pil_font(40, R.has_dev(credit)); R.draw_text(im, (W // 2, y), credit, cf, (255, 255, 255, 225))
+    im.save(path)
+
+
+def account_handle():
+    """The reel account's Instagram handle with one @, or "" when none is set."""
+    h = str((C.account("reel") or {}).get("handle") or C.cfg("publish.instagram_handle") or "").strip().lstrip("@")
+    return "@" + h if h else ""
+
+
+def music_credit(label):
+    """`Music: <title> (NAVAAN)` for a library track; nothing for the owner's own upload or no music."""
+    if not label or label == "owner upload" or "/" not in label: return ""
+    slug, name = label.split("/", 1)
+    t = next((e["title"] for e in RM.library() if e["slug"] == slug and e["file"] == name), "")
+    return f"Music: {t} (NAVAAN)" if t else ""
+
+
+def fit_voice(D, edl):
+    """A voice that outlasts the footage would be cut off: hold the last frame until it has finished (the end card, if any, comes after that).
+    The extra time is recorded in outro.extra. Returns a note, or "" when the voice already fits."""
+    vo = find_voice(D)
+    if not vo: return ""
+    base_end = edl["intro"]["seconds"] + edl["content_seconds"]
+    add = round(min(edl["audio"]["vo_start"] + RM._seconds(vo) + 0.6 - base_end, E.MAX_OUT - edl["seconds"]), 2)
+    if add <= 0.01: return ""
+    edl["outro"]["seconds"] = round(edl["outro"]["seconds"] + add, 2); edl["outro"]["extra"] = add; edl["seconds"] = round(edl["seconds"] + add, 2)
+    return f"the voice is longer than the footage: the last frame is held {add:.1f} s longer"
+
+
 def parse_srt(path):
     cues = []
     for blk in re.split(r"\n\s*\n", open(path, encoding="utf-8").read().strip()):
@@ -97,12 +148,14 @@ def parse_srt(path):
     return cues
 
 
-def quote_cues(D, edl):
-    """[(text, start, end)] of the quote's lines in reel time: with the voice, where each line is spoken; without it, spread evenly from quote.start."""
+def quote_cues(D, edl, limit=None):
+    """[(text, start, end)] of the quote's lines in reel time: with the voice, where each line is spoken; without it, spread evenly from quote.start.
+    Nothing runs past `limit` (where the end card starts, else the end of the reel), so the quote and the end card never share the screen."""
+    if not edl["quote"]["show"]: return [], ""   # the footage already carries the words; the voice still speaks them
     q = C.load_json(os.path.join(D, "quote.json"), default=None) or {}
     lines = [C.plain(l).strip() for l in (q.get("lines") or []) if str(l).strip()] or ([C.plain(q.get("text") or "").strip()] if str(q.get("text") or "").strip() else [])
     if not lines: return [], ""
-    total = edl["seconds"]; vo0 = edl["audio"]["vo_start"]; srt = os.path.join(D, "voiceover.srt")
+    total = limit if limit is not None else edl["seconds"]; vo0 = edl["audio"]["vo_start"]; srt = os.path.join(D, "voiceover.srt")
     cues = parse_srt(srt) if os.path.exists(srt) and find_voice(D) else []
     if cues and len(cues) == len(lines):
         out = [(t, min(total - 0.3, c["start"] + vo0), min(total, c["end"] + vo0 + 0.35)) for t, c in zip(lines, cues)]
@@ -129,55 +182,72 @@ def find_music(slug, D, edl):
 def build(slug, D, edl, tmp, ffmpeg):
     """The ffmpeg command for the whole reel."""
     pr = C.load_json(os.path.join(D, "probe.json"), default={}) or {}; total = edl["seconds"]; segs = edl["segments"]; n = len(segs)
+    intro, outro = edl["intro"]["seconds"], edl["outro"]["seconds"]; content = edl["content_seconds"]
+    mp, mm, mlabel = find_music(slug, D, edl)
+    asked = round(outro - edl["outro"].get("extra", 0.0), 3)   # the end card's own length; the rest of the hold is the voice finishing
+    card_t0 = total - asked if asked > 0.05 else None
     cmd = [ffmpeg, "-y", "-v", "error", "-i", os.path.join(D, "source.mp4")]
     g = [f"[0:v]split={n}" + "".join(f"[s{i}]" for i in range(n)) if n > 1 else "[0:v]null[s0]"]
     g += [segment_chain(i, s) for i, s in enumerate(segs)]
     g.append("".join(f"[v{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc]" if n > 1 else "[v0]null[vc]")
-    g.append("[vc]" + ",".join(grade_filters(edl["grade"])) + "[vg]")
+    hold = ([f"start_duration={intro:.3f}:start_mode=clone"] if intro else []) + ([f"stop_duration={outro:.3f}:stop_mode=clone"] if outro else [])
+    g.append("[vc]" + (f"tpad={':'.join(hold)}," if hold else "") + ",".join(grade_filters(edl["grade"])) + "[vg]")   # held frames are graded like the rest
     # text pictures: a scrim, the quote lines, the other text
-    cues, author = quote_cues(D, edl)
-    layers = []   # (png, start, end)
+    cues, author = quote_cues(D, edl, card_t0)
+    layers = []   # (png, start, end, fades)
+    card = None
+    if card_t0 is not None:
+        handle = account_handle() if edl["outro"]["handle"] else ""; credit = music_credit(mlabel) if edl["outro"]["credit"] else ""
+        if handle or credit:
+            card = os.path.join(tmp, "endcard.png"); endcard_png(card, handle, credit, edl["quote"]["font"])
     if cues or edl["text"]:
         sp = os.path.join(tmp, "scrim.png"); scrim_png(sp); layers.append((sp, 0.0, total, False))
     for i, (t, a, b) in enumerate(cues):
         p = os.path.join(tmp, f"q{i}.png"); text_png(t, edl["quote"]["pos"], p, edl["quote"]["font"], author if i == len(cues) - 1 else ""); layers.append((p, a, b, True))
     for i, x in enumerate(edl["text"]):
         p = os.path.join(tmp, f"t{i}.png"); text_png(x["text"], x["pos"], p, edl["quote"]["font"]); layers.append((p, x["start"], x["end"], True))
+    if card_t0 is not None:   # the end card: the held last frame is dimmed, then the handle and the credit come up over it
+        from PIL import Image
+        dim = os.path.join(tmp, "enddim.png"); Image.new("RGBA", (W, H), (0, 0, 0, 120)).save(dim)
+        layers.append((dim, card_t0, total, True))
+        if card: layers.append((card, card_t0 + 0.2, total, True))
     k = 1; cur = "vg"
     for j, (p, a, b, fade) in enumerate(layers):
         cmd += ["-loop", "1", "-framerate", str(FPS), "-t", f"{total:.2f}", "-i", p]
         if fade:
-            fi, fo = 0.35, 0.35
-            g.append(f"[{k}:v]format=rgba,fade=t=in:st={a:.2f}:d={fi}:alpha=1,fade=t=out:st={max(a + fi, b - fo):.2f}:d={fo}:alpha=1[l{j}]")
+            fi, fo = 0.35, (0.0 if b >= total - 0.01 else 0.35)   # a layer that lasts to the end stays up; the reel's own fade closes it
+            g.append(f"[{k}:v]format=rgba,fade=t=in:st={a:.2f}:d={fi}:alpha=1" + (f",fade=t=out:st={max(a + fi, b - fo):.2f}:d={fo}:alpha=1" if fo else "") + f"[l{j}]")
         else:
             g.append(f"[{k}:v]format=rgba[l{j}]")
         g.append(f"[{cur}][l{j}]overlay=0:0:format=auto[o{j}]"); cur = f"o{j}"; k += 1
     g.append(f"[{cur}]fade=t=in:st=0:d=0.3,fade=t=out:st={total - 0.4:.2f}:d=0.4[vout]")
     # sound
-    a = edl["audio"]; mix = []
+    a = edl["audio"]; bed = []   # the sounds that sit under the voice: the footage's own, the music
+    vo = find_voice(D)
     if pr.get("has_audio") and a["policy"] != "mute":
         g.append(f"[0:a]asplit={n}" + "".join(f"[as{i}]" for i in range(n)) if n > 1 else "[0:a]anull[as0]")
         for i, s in enumerate(segs): g.append(f"[as{i}]atrim=start={s['start']:.3f}:end={s['end']:.3f},asetpts=PTS-STARTPTS[a{i}]")
         g.append("".join(f"[a{i}]" for i in range(n)) + f"concat=n={n}:v=0:a=1[ac]" if n > 1 else "[a0]anull[ac]")
         lvl = 1.0 if a["policy"] == "keep" else a["ambient_level"]
-        g.append("[ac]" + ("afftdn=nr=12," if a["policy"] == "denoise" else "") + f"volume={lvl:.2f}[amb]"); mix.append("amb")
-    vo = find_voice(D)
+        g.append("[ac]" + ("afftdn=nr=12," if a["policy"] == "denoise" else "") + (f"adelay={int(intro * 1000)}|{int(intro * 1000)}," if intro else "") + f"volume={lvl:.2f}[amb]"); bed.append("amb")
     if vo:
         cmd += ["-i", vo]; vi = k; k += 1; ms = int(a["vo_start"] * 1000)
         g.append(f"[{vi}:a]adelay={ms}|{ms},volume={a['voice_level']:.2f},atrim=0:{total:.2f}[vo]")
-    mp, mm, mlabel = find_music(slug, D, edl)
     if mp:
         cmd += ["-i", mp]; mi = k; k += 1
         g.append(f"[{mi}:a]atrim=start={mm['start']:.2f}:duration={total + 0.5:.2f},asetpts=PTS-STARTPTS,afade=t=in:d={mm['fade_in']:.2f},afade=t=out:st={max(0.0, total - mm['fade_out']):.2f}:d={mm['fade_out']:.2f},volume={mm['level']:.2f}[mu]")
-        if vo:   # the music steps back while the voice speaks
-            g.append("[vo]asplit=2[vo1][vo2]"); g.append("[mu][vo2]sidechaincompress=threshold=0.04:ratio=8:attack=20:release=500[mud]"); mix += ["mud", "vo1"]
-        else: mix.append("mu")
-    elif vo: mix.append("vo")
+        bed.append("mu")
+    if vo and bed:   # everything under the voice steps back while it speaks, so the words stay clear
+        g.append(f"[vo]asplit={len(bed) + 1}" + "".join(f"[vs{i}]" for i in range(len(bed) + 1)))
+        for i, b in enumerate(bed):   # the voice is padded with silence to the reel's length: sidechaincompress ends with its shorter input, which cut the background off when the voice stopped
+            g.append(f"[vs{i}]apad=whole_dur={total:.2f}[vp{i}]"); g.append(f"[{b}][vp{i}]sidechaincompress=threshold=0.04:ratio=8:attack=20:release=500[{b}d]")
+        mix = [b + "d" for b in bed] + [f"vs{len(bed)}"]
+    else: mix = ["vo"] if vo else bed
     if mix:
-        g.append("".join(f"[{x}]" for x in mix) + f"amix=inputs={len(mix)}:duration=longest:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11,atrim=0:{total:.2f}[aout]")
+        g.append("".join(f"[{x}]" for x in mix) + f"amix=inputs={len(mix)}:duration=longest:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11,apad=whole_dur={total:.2f},atrim=0:{total:.2f}[aout]")   # padded so the sound lasts as long as the picture
     cmd += ["-filter_complex", ";".join(g), "-map", "[vout]"] + (["-map", "[aout]", "-c:a", "aac", "-b:a", "192k", "-ar", "44100"] if mix else ["-an"])
     cmd += ["-t", f"{total:.2f}", "-r", str(FPS), "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-maxrate", "10M", "-bufsize", "20M", "-pix_fmt", "yuv420p", "-movflags", "+faststart"]
-    return cmd, {"music": mlabel, "voice": bool(vo), "quote_lines": len(cues), "layers": len(layers)}
+    return cmd, {"music": mlabel, "voice": bool(vo), "quote_lines": len(cues), "layers": len(layers), "intro_s": intro, "outro_s": outro, "end_card": bool(card), "footage_sound": a["policy"] if pr.get("has_audio") else "none", "ducked": bool(vo and bed)}
 
 
 def validate_out(info):
@@ -197,6 +267,8 @@ def main(slug):
     pr = C.load_json(os.path.join(D, "probe.json"), default={}) or {}
     try: edl = E.validate(C.load_json(os.path.join(D, "edl.json")), float(pr.get("duration") or 0))
     except ValueError as e: sys.exit("navaan: edl.json is not usable: " + str(e))
+    note = fit_voice(D, edl)
+    if note: print(note, flush=True)
     ff = C.tool("ffmpeg"); tmp = tempfile.mkdtemp(prefix="reel_", dir=os.path.join(D, ".cache") if os.path.isdir(os.path.join(D, ".cache")) else None)
     out = os.path.join(D, OUT); part = out + ".part.mp4"
     try:

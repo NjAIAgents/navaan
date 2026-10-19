@@ -3,7 +3,7 @@ Created: 2026-10-19
 Last updated: 2026-10-19
 Description: the reel pipeline: the edit plan check, the shrink-on-arrival step, the music library rule (own published songs only) and the render, on synthetic footage.
 """
-import json, os, shutil, subprocess, sys, tempfile, unittest
+import json, os, re, shutil, subprocess, sys, tempfile, unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 sys.path.insert(0, HERE)
@@ -49,7 +49,7 @@ class Skills(unittest.TestCase):
         txt = open(os.path.join(HERE, "..", "skills", "reel-director", "SKILL.md"), encoding="utf-8").read()
         block = re.search(r"## 3\. edl\.json.*?```\n(.*?)```", txt, re.S).group(1)
         edl = E.validate(json.loads(block), 30.0)
-        self.assertEqual(edl["audio"]["music"]["file"], "final.mp3"); self.assertEqual(edl["grade"]["look"], "warm"); self.assertEqual(edl["seconds"], 12.5)
+        self.assertEqual(edl["audio"]["music"]["file"], "final.mp3"); self.assertEqual(edl["grade"]["look"], "warm"); self.assertEqual(edl["seconds"], 17.0); self.assertEqual((edl["intro"]["seconds"], edl["outro"]["seconds"], edl["audio"]["vo_start"]), (1.5, 3.0, 1.9))   # 12.5 s of footage + intro + end card
 
     def test_both_skills_exist_with_names_matching_the_steps(self):
         import navaan
@@ -132,6 +132,19 @@ class Edl(unittest.TestCase):
         for part in ("overlap", "neon", "contrast", "shout", "not a path", "after the reel"):
             self.assertIn(part, m.replace("must be a file name, not a path", "not a path"))
 
+    def test_intro_and_end_card_count_toward_the_length_and_move_the_voice(self):
+        import reel_edl as E
+        e = E.validate({"segments": [{"start": 0, "end": 10}], "intro": {"seconds": 1.5}, "outro": {"seconds": 3}}, 10.0)
+        self.assertEqual((e["seconds"], e["content_seconds"]), (14.5, 10.0))
+        self.assertEqual(e["audio"]["vo_start"], 1.9, "the voice starts after the intro unless the plan says otherwise")
+        self.assertEqual(e["quote"]["start"], 2.5); self.assertTrue(e["quote"]["show"]); self.assertTrue(e["outro"]["handle"] and e["outro"]["credit"])
+        self.assertEqual(E.validate({"segments": [{"start": 0, "end": 10}], "audio": {"vo_start": 0.2}, "quote": {"show": False}}, 10.0)["audio"]["vo_start"], 0.2)
+        self.assertFalse(E.validate({"segments": [{"start": 0, "end": 10}], "quote": {"show": False}}, 10.0)["quote"]["show"])
+        with self.assertRaises(ValueError) as cm: E.validate({"segments": [{"start": 0, "end": 10}], "intro": {"seconds": 5}, "outro": {"seconds": 9}}, 10.0)
+        self.assertIn("intro.seconds", str(cm.exception)); self.assertIn("outro.seconds", str(cm.exception))
+        with self.assertRaises(ValueError): E.validate({"segments": [{"start": 0, "end": 2}], "intro": {"seconds": 0.5}}, 10.0)   # 2.5 s in all: under the minimum
+        self.assertIn("End card", E.summary(e)); self.assertIn("Intro", E.summary(e))
+
     def test_length_limits_and_range(self):
         import reel_edl as E
         with self.assertRaises(ValueError): E.validate({"segments": [{"start": 0, "end": 2}]}, 12.0)   # under 3 s
@@ -208,11 +221,14 @@ class Render(Env):
             ff("-f", "lavfi", "-i", "sine=frequency=200:duration=5", os.path.join(self.D, "voiceover.mp3"))
             open(os.path.join(self.D, "voiceover.srt"), "w").write("1\n00:00:00,000 --> 00:00:02,000\nSlow down.\n\n2\n00:00:02,200 --> 00:00:05,000\nThe day is still yours.\n")
 
-    def check(self, secs):
+    def check(self, secs, audio=True):
         import reel_render as R
         R.main("reel-001")
         w, h, codec, dur, has_a = probe(os.path.join(self.D, "final_reel_9x16.mp4"))
-        self.assertEqual((w, h, codec), (1080, 1920, "h264")); self.assertAlmostEqual(dur, secs, delta=0.3); self.assertTrue(has_a)
+        self.assertEqual((w, h, codec), (1080, 1920, "h264")); self.assertAlmostEqual(dur, secs, delta=0.3); self.assertEqual(has_a, audio)
+        if audio:   # the sound lasts as long as the picture: ducking under a short voice used to cut the background off when the voice stopped
+            asec = float(subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=duration", "-of", "csv=p=0", os.path.join(self.D, "final_reel_9x16.mp4")]).strip())
+            self.assertAlmostEqual(asec, dur, delta=0.15)
         self.assertTrue(os.path.exists(os.path.join(self.D, "thumb_9x16.jpg")))
         return json.load(open(os.path.join(self.D, "render_report.json")))
 
@@ -227,6 +243,60 @@ class Render(Env):
         edl = E.validate(json.load(open(os.path.join(self.D, "edl.json"))), 14.0)
         cues, _ = R.quote_cues(self.D, edl)
         self.assertEqual(cues[0][1], 0.4, "the first line appears where the voice starts (0.4 s in)")
+
+    def frame_brightness(self, t):
+        from PIL import Image, ImageStat
+        p = os.path.join(self.D, f"b{t}.jpg"); ff("-ss", str(t), "-i", os.path.join(self.D, "final_reel_9x16.mp4"), "-frames:v", "1", "-vf", "scale=108:-2", p)
+        return ImageStat.Stat(Image.open(p).convert("L")).mean[0]
+
+    def test_intro_and_end_card_hold_the_first_and_last_frame(self):
+        json.dump({"accounts": {"reel": {"instagram_handle": "@navaan_reels"}}}, open(os.path.join(self.tmp.name, "navaan.config.json"), "w"))
+        self.prep(plan={"segments": [{"start": 0, "end": 6}], "intro": {"seconds": 1.0}, "outro": {"seconds": 2.0}, "audio": {"policy": "mute"}, "quote": {"show": False}})
+        rep = self.check(9.0, audio=False)
+        self.assertEqual((rep["intro_s"], rep["outro_s"]), (1.0, 2.0)); self.assertTrue(rep["end_card"], "the handle is drawn on the end card")
+        self.assertLess(self.frame_brightness(8.5), 0.8 * self.frame_brightness(5.5), "the end card dims the held last frame")
+        a, b = self.frame_brightness(0.5), self.frame_brightness(0.9)   # after the 0.3 s fade in
+        self.assertAlmostEqual(a, b, delta=3.0, msg="the intro holds one frame")
+
+    def test_end_card_without_handle_or_credit_is_just_the_held_frame(self):
+        self.prep(plan={"segments": [{"start": 0, "end": 6}], "outro": {"seconds": 2.0}, "audio": {"policy": "mute"}})
+        rep = self.check(8.0, audio=False); self.assertFalse(rep["end_card"], "no handle and no library track: nothing to write on it")
+
+    def tail_volume(self, ss):
+        r = subprocess.run(["ffmpeg", "-v", "info", "-ss", str(ss), "-i", os.path.join(self.D, "final_reel_9x16.mp4"), "-vn", "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True)
+        m = re.search(r"mean_volume:\s*(-?[0-9.]+) dB", r.stderr); return float(m.group(1)) if m else -91.0
+
+    def test_the_footage_sound_stays_and_steps_back_under_a_voiceover(self):
+        """Even when the footage is rated speech-like (music can fool that guess), its sound is kept: the owner supplies footage with background music and no narration."""
+        self.prep(voice=True, plan={"segments": [{"start": 1, "end": 9}], "audio": {"policy": "keep"}, "quote": {"show": False}})
+        json.dump({"has_audio": True, "has_speech": True}, open(os.path.join(self.D, "audio.json"), "w"))
+        rep = self.check(8.0); self.assertEqual((rep["footage_sound"], rep["ducked"]), ("keep", True))
+        kept = self.tail_volume(6.5)   # the voice (5 s from 0.4) is over: only the footage sound is left
+        json.dump({"segments": [{"start": 1, "end": 9}], "audio": {"policy": "mute"}, "quote": {"show": False}}, open(os.path.join(self.D, "edl.json"), "w"))
+        self.check(8.0); self.assertGreater(kept, self.tail_volume(6.5) + 10, "kept footage sound is audible after the voice; muted is silence")
+
+    def test_footage_sound_follows_the_plan_under_a_voiceover(self):
+        self.prep(voice=True); rep = self.check(8.0); self.assertEqual((rep["footage_sound"], rep["ducked"]), ("ambient_low", True))
+
+    def test_a_quote_the_footage_already_shows_is_not_drawn_again(self):
+        self.prep(plan={"segments": [{"start": 0, "end": 6}], "audio": {"policy": "mute"}, "quote": {"show": False}})
+        rep = self.check(6.0, audio=False); self.assertEqual((rep["quote_lines"], rep["layers"]), (0, 0), "no scrim either: nothing is drawn")
+
+    def test_a_voice_longer_than_the_reel_stretches_the_end_card(self):
+        self.prep(plan={"segments": [{"start": 0, "end": 4}], "audio": {"policy": "mute"}})
+        ff("-f", "lavfi", "-i", "sine=frequency=200:duration=8", os.path.join(self.D, "voiceover.mp3"))
+        rep = self.check(9.0)   # 0.4 s before the voice + 8 s of voice + 0.6 s after
+        self.assertAlmostEqual(rep["outro_s"], 5.0, delta=0.05)
+
+    def test_the_end_card_comes_after_a_long_voice_and_the_quote_never_overlaps_it(self):
+        import reel_render as R, reel_edl as E
+        self.prep(plan={"segments": [{"start": 0, "end": 4}], "outro": {"seconds": 2.0}, "audio": {"policy": "mute"}, "quote": {"start": 0.5}})
+        ff("-f", "lavfi", "-i", "sine=frequency=200:duration=8", os.path.join(self.D, "voiceover.mp3"))
+        edl = E.validate(json.load(open(os.path.join(self.D, "edl.json"))), 14.0); self.assertTrue(R.fit_voice(self.D, edl))
+        self.assertEqual((edl["outro"]["extra"], edl["outro"]["seconds"]), (5.0, 7.0)); self.assertEqual(edl["seconds"], 11.0)   # 4 s of footage, held 5 s for the voice, then a 2 s card
+        cues, _ = R.quote_cues(self.D, edl, 11.0 - 2.0)
+        self.assertTrue(all(b <= 9.0 + 1e-6 for _, _, b in cues), "no quote line runs into the end card")
+        rep = self.check(11.0, audio=True); self.assertEqual(rep["outro_s"], 7.0)
 
     def test_no_voice_no_music_still_renders(self):
         self.prep(plan={"segments": [{"start": 0, "end": 6}], "audio": {"policy": "mute"}})
