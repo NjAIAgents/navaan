@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.47.2] - 2026-10-18
+
+### Fixed
+- An Aha-lorithm short made before its account was set up ended with a "NAVAAN" mark and no end card. It now ends on the channel's own card, "The Aha-lorithm · AI explained in seconds" with @TheAhalorithm, and an item of another channel never shows NAVAAN's mark. To fix a short already made, run its "Plan typography" step and then its render again; nothing is paid twice.
+
 ## [0.47.1] - 2026-10-18
 
 ### Fixed
@@ -629,7 +634,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.47.2...HEAD
+[0.47.2]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...v0.47.2
 [0.47.1]: https://github.com/NjAIAgents/navaan/compare/v0.47.0...v0.47.1
 [0.47.0]: https://github.com/NjAIAgents/navaan/compare/v0.46.3...v0.47.0
 [0.46.3]: https://github.com/NjAIAgents/navaan/compare/v0.46.2...v0.46.3

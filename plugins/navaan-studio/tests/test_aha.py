@@ -29,6 +29,12 @@ class Aha(unittest.TestCase):
     def test_a_youtube_login_alone_makes_its_account_ready(self):
         a = self.C.account("aha"); self.assertTrue(a["configured"]); self.assertEqual(a["youtube_channel"], "@TheAhalorithm")
 
+    def test_without_its_account_it_still_ends_on_its_own_handle_never_navaan(self):
+        json.dump({"accounts": {}}, open(os.path.join(self.tmp.name, "navaan.config.json"), "w"))
+        if hasattr(self.C, "_CFG"): self.C._CFG = None
+        self.assertEqual(self.P.handle("aha"), "TheAhalorithm"); self.assertEqual(self.P.watermark("aha-001"), "@TheAhalorithm"); self.assertEqual(self.P.brand_name("aha-001"), "TheAhalorithm")
+        self.assertEqual(self.P.handle("inspiration"), "")   # an inspiration item without its account: no NAVAAN mark either (watermark is empty, checked on music below)
+
     def test_its_look_and_mark_are_its_own(self):
         self.assertEqual(self.P.handle("aha"), "TheAhalorithm"); self.assertEqual(self.P.watermark("aha-001"), "@TheAhalorithm")
         self.assertEqual(self.P.LOOKS["aha"]["font"], "sans"); self.assertNotEqual(self.P.LOOKS["aha"]["accent"], self.P.LOOKS["inspiration"]["accent"])
