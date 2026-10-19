@@ -86,8 +86,9 @@ ALBUM_COVER = {}  # album slug -> {"running": bool, "error": str}, the album cov
 POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
-EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json"}
-READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "motion.json", "caption_cues.json"}
+EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json"}
+READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "motion.json", "caption_cues.json",
+                    "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json"}   # the reel's plan, the critic's notes and the footage facts
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
@@ -360,6 +361,27 @@ class H(BaseHTTPRequestHandler):
         except (TypeError, ValueError) as e: return self._send(400, {"error": str(e) if isinstance(e, ValueError) else "start and length are numbers"})
         except LookupError as e: return self._send(404, {"error": str(e)})
         except RuntimeError: L.exc(LOG, "clip_failed"); return self._send(502, {"error": "cannot make the clip right now"})
+    def _reel_upload(self):
+        """POST /api/reel/upload?slug=reel-001&name=clip.mov with the video as the raw body. The footage of a reel item: written to disk in chunks, then the ingest step shrinks it.
+        The sign-in, the host, the origin and the CSRF token were checked before this is called."""
+        import reel_upload
+        q = parse_qs(urlparse(self.path).query); slug = (q.get("slug") or [""])[0]; name = (q.get("name") or ["video.mp4"])[0]
+        def refuse(code, msg):
+            self.close_connection = True   # the body was not read: this connection cannot carry another request
+            return self._send(code, {"error": msg})
+        if not SLUG.match(slug) or not os.path.isdir(os.path.join(C.songs_root(), slug)): return refuse(404, "no such reel")
+        if C.item_type(navaan.meta(slug)) != "reel": return refuse(400, "footage is uploaded to a reel item")
+        try: n = int(self.headers.get("Content-Length") or 0)
+        except ValueError: return refuse(400, "bad length")   # expected: a length that is not a number is a refusal to send back, not an error to log
+        D = C.song_dir(slug)
+        try:
+            got = reel_upload.save(self.rfile, n, D, name)
+        except reel_upload.Refused as e:
+            L.event(LOG, "warning", "reel_upload_refused", item=slug, code=e.code, reason=e.message)
+            return refuse(e.code, e.message)
+        navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"footage uploaded: {name} ({got // 1048576} MB) (via ui)"))
+        L.event(LOG, "info", "reel_upload_done", item=slug, bytes=got)
+        return self._send(200, {"ok": True, "bytes": got})
     def _site_post(self, p):
         """The two things anyone may send from the public site: a reaction to a song, and a message. Counts and a message: no session, no cookie, nothing about the sender is kept (not even the address). Slowed down per address; a hidden field catches bots."""
         n = int(self.headers.get("Content-Length") or 0)
@@ -780,6 +802,7 @@ class H(BaseHTTPRequestHandler):
         if not need and not auth.can(sess, "studio.access"): return self._send(403, {"error": "this account cannot use the studio"})
         if need and not auth.can(sess, need): return self._send(403, {"error": "this account cannot do that"})
         if not hmac.compare_digest((self.headers.get("X-Navaan-Token") or "").encode(), (sess.get("csrf") or TOKEN).encode()): return self._send(403, {"error": "forbidden"})   # this session's token
+        if self.path.split("?")[0] == "/api/reel/upload": return self._reel_upload()   # a raw video body, streamed to disk: it must not be read as JSON
         try: body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except Exception: return self._send(400, {"error": "bad json"})
         slug = body.get("slug", ""); p = self.path

@@ -52,7 +52,7 @@ def ig_done(m): return bool(m.get("published", {}).get("instagram"))
 LANES = {"youtube": ("youtube_meta", "publish_youtube", "youtube_short", "go_public"), "instagram": ("instagram_caption", "publish_instagram")}
 LANE_OF = {sid: lane for lane, ids in LANES.items() for sid in ids}
 LANE_NAME = {"youtube": "YouTube", "instagram": "Instagram"}
-SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json", "shots": "shots.json"}  # these approvals are tied to the file's hash, so an edit after approval needs a new approval
+SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json", "shots": "shots.json", "edit_plan": "edl.json"}  # these approvals are tied to the file's hash, so an edit after approval needs a new approval
 def file_sha(D, name):
     p = os.path.join(D, name)
     return hashlib.sha256(open(p, encoding="utf-8").read().strip().encode("utf-8")).hexdigest() if os.path.exists(p) else None
@@ -237,7 +237,7 @@ def ig_enabled(m):
     """Instagram steps are on when the profile names a handle. Inspiration always shows them: it has its own account, checked before any post."""
     if item_type(m) in C.NO_INSTAGRAM: return False   # The Aha-lorithm posts YouTube Shorts only
     if (m.get("skip") or {}).get("instagram"): return False   # the owner chose not to post this item to Instagram (Skip Instagram on its page); undone the same way
-    return item_type(m) == "inspiration" or bool(cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
+    return item_type(m) in ("inspiration", "reel") or bool(cfg("publish.instagram_handle") or os.environ.get("NAVAAN_WITH_INSTAGRAM"))
 
 
 def background_steps(slug, D, gen, has_bg):
@@ -327,7 +327,49 @@ def aha_steps(slug, D):
     return out
 
 
-STEPSETS = {"music": music_steps, "inspiration": inspiration_steps, "aha": aha_steps}
+def reel_steps(slug, D):
+    """A reel from the owner's own footage. The upload is shrunk to a small working copy, Claude reads the scenes and proposes the quote and the edit, a person approves the words and the plan,
+    an optional narration is made, then ffmpeg carries out the plan. A critique of the render comes before the final-cut approval; publishing is Instagram only."""
+    FINAL = "final_reel_9x16.mp4"
+    voice = lambda: any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac"))
+    mode = brief_opt(D, "narrate", "eleven").lower()   # eleven (the default) | none | file (a recorded or Suno-made voice is uploaded on the Narration card)
+    eleven = mode == "eleven" and bool(media_cfg.get_key("elevenlabs"))   # no key: the reel is made without a voice, and the Narration card says why
+    narr = voice() or eleven
+    need_w = bool((load_json(os.path.join(D, "narration_sync.json"), default={}) or {}).get("needs_whisper")) and not setup_captions.ready()
+    out = [
+        dict(id="ingest", outputs=["source.mp4", "probe.json", "frames.json", "frames/*", "scenes_auto.json", "audio.json", "music_library.json"], label="Shrink the footage and look at it", kind="script",
+             cmds=[sc("reel_ingest.py", slug), sc("reel_music.py", slug)], done=lambda m: has(D, "source.mp4", "probe.json", "frames.json", "audio.json", "music_library.json")),
+        dict(id="direct", outputs=["scenes.json", "copy_options.json", "edl.json", "quote.json", "title.txt"], label="Read the scenes, suggest the quote and plan the edit", kind="claude", skill="reel-director", chrome=False, state="draft",
+             done=lambda m: has(D, "scenes.json", "copy_options.json", "edl.json", "quote.json", "title.txt"), after="quote", sets="quote_ok"),
+        dict(id="originality", outputs=["originality.json"], label="Check originality and attribution on the web", kind="claude", skill="inspiration-check", chrome=False, tools=["WebSearch", "WebFetch"],
+             done=lambda m: has(D, "originality.json"), after="originality"),
+        dict(id="edit_check", outputs=["edl_report.json", "edl_summary.md"], label="Check the edit plan against the footage", kind="script", cmds=[sc("reel_edl.py", slug)],
+             done=lambda m: fresh(D, ["edl_report.json", "edl_summary.md"], ["edl.json", "probe.json"]), after="edit_plan", sets="plan_ok"),
+    ]
+    if eleven:
+        out.append(dict(id="narrate", outputs=["voiceover.mp3"], label="Narrate the quote (ElevenLabs)", kind="script", cmds=[sc("narrate_eleven.py", slug)], before="credits",
+                        done=lambda m: voice()))
+    if narr:
+        out.append(dict(id="narration", outputs=["voiceover.srt"], label="Time the narration lines to the voice", kind="script", before=("captions_setup" if need_w else None),
+                        cmds=([sc("setup_captions.py", "--yes")] if need_w else []) + [sc("narration_sync.py", slug)], done=lambda m: has(D, "voiceover.srt")))
+    out += [
+        dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Edit and render the vertical video (9:16)", kind="script", sets_after="media_ready", cmds=[sc("reel_render.py", slug)],
+             done=lambda m: fresh(D, [FINAL], ["edl.json", "source.mp4", "quote.json", "voiceover.*", "music_src.*"])),
+        dict(id="critique", outputs=["critique.json"], redo=True, label="Review the rendered reel against the plan", kind="claude", skill="reel-critic", chrome=False,
+             done=lambda m: fresh(D, ["critique.json"], [FINAL]), after="media", sets="approved"),
+        dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption (you review and can edit it)", kind="claude", skill="inspiration-caption", optional=True, after="instagram_caption",
+             hint="This is a reel made from the owner's own footage: also read copy_options.json (caption_draft) and scenes.json, and add `Music: <title> (NAVAAN)` as the last line when render_report.json names a library track.",
+             done=lambda m: has(D, "instagram.txt")),
+        dict(id="publish_instagram", outputs=["published.json"], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True, cmds=None, done=lambda m: ig_done(m)),
+        dict(id="archive", outputs=[], redo=False, label="Archive to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
+             cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
+        dict(id="cleanup", outputs=[], redo=False, label="Clean up the local copy (last step, only after the bucket is checked)", kind="script", before="local_cleanup", optional_cloud=True,
+             cmds=[sc("cleanup.py", slug, "--yes")], done=lambda m: bool(m.get("cleanup", {}).get("at"))),
+    ]
+    return out
+
+
+STEPSETS = {"music": music_steps, "inspiration": inspiration_steps, "aha": aha_steps, "reel": reel_steps}
 
 
 def steps(slug, D):

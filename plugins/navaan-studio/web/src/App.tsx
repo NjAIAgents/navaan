@@ -27,6 +27,7 @@ const Analytics = lazy(() => import("./pages/Analytics"));
 const Approvals = lazy(() => import("./pages/Approvals"));
 const Inspiration = lazy(() => import("./pages/Inspiration"));
 const Aha = lazy(() => import("./pages/Aha"));
+const Reels = lazy(() => import("./pages/Reels"));
 const Schedule = lazy(() => import("./pages/Schedule"));
 const Search = lazy(() => import("./pages/Search"));
 const Song = lazy(() => import("./pages/Song"));
@@ -51,6 +52,8 @@ export default function App() {
         <Route path="studio/inspiration/:slug" element={<MembersOnly studio><Song /></MembersOnly>} />
         <Route path="studio/aha" element={<MembersOnly studio><Aha /></MembersOnly>} />
         <Route path="studio/aha/:slug" element={<MembersOnly studio><Song /></MembersOnly>} />
+        <Route path="studio/reels" element={<MembersOnly studio><Reels /></MembersOnly>} />
+        <Route path="studio/reels/:slug" element={<MembersOnly studio><Song /></MembersOnly>} />
         <Route path="studio/podcasts" element={<MembersOnly studio><Placeholder title="Podcasts" blurb="Spoken episodes will live here, in a later release." /></MembersOnly>} />
         <Route path="studio/approvals" element={<MembersOnly studio><Approvals /></MembersOnly>} />
         <Route path="studio/schedule" element={<MembersOnly studio><Schedule /></MembersOnly>} />

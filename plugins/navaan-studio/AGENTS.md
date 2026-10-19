@@ -59,7 +59,7 @@ Asking the user from a headless step: write `songs/<slug>/question.json` (`{"tex
 
 ## Content types
 
-Every item has a `type` in meta.json: `music` (also every older item), `inspiration`, `explainer` (planned). The type picks the production steps, skills and checks. Gates, approvals, publishing, archive and the portal are shared. Folders are named `song-001`, `insp-001`, `expl-001`. Create one with `navaan.py new --type inspiration --idea "..."` or the New button in the portal.
+Every item has a `type` in meta.json: `music` (also every older item), `inspiration`, `aha`, `reel`, `explainer` (planned). The type picks the production steps, skills and checks. Gates, approvals, publishing, archive and the portal are shared. Folders are named `song-001`, `insp-001`, `aha-001`, `reel-001`, `expl-001`. Create one with `navaan.py new --type inspiration --idea "..."` or the New button in the portal.
 
 ### Inspiration pipeline
 
@@ -70,6 +70,16 @@ quote (gate `quote`) -> originality check on the web (gate `originality`) -> bac
 - Options live in brief.md as `- key: value` lines: music (auto, none or a file), voiceover (none or file), background (generate, library or a path), camera, transition, duration.
 - Inspiration publishes to its own account. Set `accounts.inspiration` in navaan.config.json (`instagram_handle`, `youtube_channel`, `instagram_env`, `youtube_token`, optional `youtube_client_secret`). The login files must not be the NAVAAN ones. Until then every publish step refuses and posts nothing. `navaan.py account inspiration` shows what is missing.
 - Never attach a famous author to a line without the originality check finding two independent sources.
+
+### Reel pipeline (your own video)
+
+Footage uploaded in the portal (`POST /api/reel/upload`, a raw body streamed to `.cache/raw.<ext>`) -> `ingest` (shrinks it to `source.mp4`, H.264 CRF 24, at most 30 fps, long side at most `reel.proxy.max_long_side`; checks the copy plays to its last second and has the same length; only then deletes the big original unless `reel.keep_original` is true; takes about 8 to 24 stills, scene cuts and sound facts; lists the music) -> `direct` (Claude, skill `reel-director`: reads the stills, writes `scenes.json`, 3 quote options in `copy_options.json`, the chosen one as `quote.json`, and the edit plan `edl.json`; gate `quote`) -> originality check (gate `originality`) -> `edit_check` (`reel_edl.py` validates the plan against the footage and writes `edl_summary.md`; gate `edit_plan`, tied to the hash of `edl.json`) -> optional ElevenLabs narration of the quote (gate `credits`) and its timing -> `render` (`reel_render.py`: plain ffmpeg and Pillow, 1080x1920, 30 fps, 3 to 90 seconds) -> `critique` (Claude, skill `reel-critic`: advice in `critique.json`, never edits the plan; gate `media`) -> Instagram caption (gate) -> Instagram Reel (gate) -> archive -> cleanup. Reels post to Instagram only: set `accounts.reel` (`instagram_handle`, `instagram_env`).
+
+- The footage may have no speech. The director works from what it sees; `audio.json` says whether the sound is speech-like (a guess from its shape, not a transcript) and the plan chooses what happens to it (`keep`, `ambient_low`, `denoise`, `mute`).
+- Narration is ElevenLabs by default (`- narrate: eleven` in brief.md, off when no key is saved), `none` skips it (footage, music and on-screen words only), or upload a recorded or Suno-made voice on the Narration card (`file`). The spoken words are the quote.
+- Music comes only from audio NAVAAN owns: published `music` items on this machine (`final_tagged.mp3`, `final.mp3`, `reel_audio.mp3`), or the owner's own upload on the Music card (`music_src.*`, which wins). Never a downloaded or third-party track, and not an inspiration's `music.mp3` until its licence is confirmed. `render_report.json` names the track used and the Instagram caption credits it.
+- Config in navaan.config.json: `reel.max_upload_mb` (2048), `reel.keep_original` (false), `reel.proxy.max_long_side` (2560), `reel.proxy.crf` (24), `reel.proxy.preset` (veryfast).
+- Deleting the original is the one irreversible thing the pipeline does on its own, and only after the working copy is verified.
 
 ## Instagram and YouTube analytics and growth advice
 
