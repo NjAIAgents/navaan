@@ -250,9 +250,25 @@ def yt_oauth_finish(ctype, which, pasted):
     return yt_save(ctype, which, json.dumps(info))
 
 
+CONF_FULL = 0.8   # NAV-54: on the server the conf folder is a 16 MB memory disk (tokens and settings); a full one breaks token refresh
+
+
+def conf_disk(path=None):
+    """{"used", "total", "share"} of the disk the conf folder is on, or None when it cannot be read."""
+    import shutil
+    try: u = shutil.disk_usage(path or HOME)
+    except OSError: return None   # expected: no conf folder yet (a fresh install)
+    return {"used": u.used, "total": u.total, "share": u.used / u.total if u.total else 0}
+
+
 def alerts():
-    """What needs the person now, from the cached login checks. Each item: id, kind (claude, yt, ig), title, message, a command to run, and where to run it."""
+    """What needs the person now, from the cached login checks. Each item: id, kind (claude, yt, ig, disk), title, message, a command to run, and where to run it."""
     out = []; cl = claude_status()
+    dk = conf_disk()
+    if dk and dk["share"] >= CONF_FULL:
+        out.append({"id": "conf_disk", "kind": "disk", "title": f"The settings disk is {round(100 * dk['share'])}% full",
+                    "message": f"{dk['used'] // 1024} of {dk['total'] // 1024} KB used in {HOME}, which holds the sign-ins. When it is full they cannot be refreshed. Something has put a big file there: move it to /tmp.",
+                    "command": f"du -ah {HOME} | sort -h | tail", "where": "inside the navaan container (docker exec -it navaan sh)"})
     if cl["state"] in ("expired", "missing"):
         out.append({"id": "claude", "kind": "claude", "title": "Claude token " + ("expired" if cl["state"] == "expired" else "missing"),
                     "message": "Steps that use Claude (lyrics, captions text, recommendations) cannot run until a new token is saved.",

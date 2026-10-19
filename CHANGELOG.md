@@ -10,6 +10,7 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ### Added
 - Sentiment tab under Studio › Analytics (NAV-68). Claude reads every comment on your YouTube and Instagram posts and every message sent from the public site, once each. It marks each one positive, neutral or negative with a confidence and up to three short themes. The tab shows the share of each over the chosen period and day by day, a table per song or short, the themes people keep mentioning, and the five most positive and five most negative comments with a link to the post. "Score new comments" runs in the background (up to 200 a run) and shows how many were scored and roughly what that much Claude use would cost; the automatic analytics refresh scores new comments too. Your own replies are not scored. Hindi, Hinglish and English comments are all read in their own language, and the themes are in English.
+- Studio warns when the server's settings disk (the 16 MB memory disk that holds the logins) is 80% full, and says how to find the file that filled it (NAV-54). The rule to keep one-off files out of it is in deploy/README.
 
 ## [0.46.3] - 2026-10-18
 
