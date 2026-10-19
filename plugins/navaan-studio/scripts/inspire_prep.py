@@ -250,7 +250,8 @@ def main(slug):
     pics = pics if pics and all(os.path.exists(os.path.join(D, b)) for b in pics) else []   # one picture per line, else the one background (not `beats`: that is the music's beat finder)
     author = (q.get("author") or "").strip()
     bg = next((os.path.basename(p) for ext in ("jpg", "jpeg", "png", "webp") for p in glob.glob(os.path.join(D, f"background.{ext}"))), None)
-    if not bg: sys.exit("navaan: no background image. Run the background step or put background.jpg in the folder.")
+    scene = itype == "inspiration" and os.path.exists(os.path.join(D, "scene_src.mp4"))   # the owner's own scene video stands in for the picture (inspire_scene.py)
+    if not bg and not scene: sys.exit("navaan: no background image. Run the background step or put background.jpg in the folder.")
     words = [len(C.plain(l).split()) for l in lines]
     voice = next((p for p in sorted(glob.glob(os.path.join(D, "voiceover.*"))) if os.path.splitext(p)[1].lower() in (".mp3", ".wav", ".m4a", ".aac")), None)
     if opt(D, "voiceover", "none").lower() == "file" and not voice:
@@ -303,6 +304,9 @@ def main(slug):
     if isinstance(q.get("aha"), int) and 0 <= q["aha"] < len(out_lines): out_lines[q["aha"]]["aha"] = True   # the music drops back while the takeaway lands
     if pics and len(pics) == len(out_lines):
         for l, b in zip(out_lines, pics): l["bg"] = b
+    scene_info = None
+    if scene:   # fitted to the finished length (the audio plus the end card), so the credit page still ends the short
+        import inspire_scene; scene_info = inspire_scene.fit(D, dur); bg = inspire_scene.BG
     h = int(hashlib.sha1(slug.encode()).hexdigest(), 16)
     presets = ["push_in", "pan_left", "pull_out", "pan_right", "drift"]
     cam = opt(D, "camera", presets[h % len(presets)]).lower()
@@ -311,7 +315,7 @@ def main(slug):
     if tr not in ("rise", "fade", "blur"): tr = "rise"
     timing = {
         "slug": slug, "width": W, "height": H, "fps": FPS, "duration": round(dur, 2),
-        "background": bg, "music": os.path.basename(mfile) if mfile else None, "voiceover": os.path.basename(voice) if voice else None,
+        "background": bg, "background_video": bool(scene), "scene": scene_info, "music": os.path.basename(mfile) if mfile else None, "voiceover": os.path.basename(voice) if voice else None,
         "lines": out_lines, "hold_until": hold_end,
         "brand": ({"text": brand, "icon": "youtube" if itype in C.NO_INSTAGRAM else "instagram", "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),

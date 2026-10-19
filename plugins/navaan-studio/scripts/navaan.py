@@ -255,11 +255,13 @@ def background_steps(slug, D, gen, has_bg):
                  before=("credits" if gen else None), done=has_bg)]
 
 
-def inspiration_steps(slug, D):
-    """Quote, originality check, background, typography and music, render, review, then publish to YouTube Shorts and Instagram from the item's own account."""
+def inspiration_steps(slug, D, scene_ok=True):
+    """Quote, originality check, background, typography and music, render, review, then publish to YouTube Shorts and Instagram from the item's own account.
+    With the owner's own scene video (an upload waiting, or scene_src.mp4), a "Prepare the scene video" step takes the place of the background step and its picture spend."""
     FINAL = "final_reel_9x16.mp4"
     gen = brief_opt(D, "background", "generate").lower() == "generate"
     has_bg = lambda m: any(glob.glob(os.path.join(D, f"background.{e}")) for e in ("jpg", "jpeg", "png", "webp"))
+    scene = scene_ok and (os.path.exists(os.path.join(D, "scene_src.mp4")) or any(not p.endswith(".part") for p in glob.glob(os.path.join(D, ".cache", "raw.*"))))
     # a narration uploaded as audio only: its lines are timed against the voice (pauses first, Whisper when they do not fit)
     narr = any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac"))
     eleven = brief_opt(D, "narrate", "eleven").lower() != "none"   # the quote is narrated by ElevenLabs: a standard step of every inspiration, behind the credits approval; `- narrate: none` skips it for one short
@@ -272,14 +274,15 @@ def inspiration_steps(slug, D):
              done=lambda m: has(D, "quote.json", "title.txt"), after="quote", sets="quote_ok"),
         dict(id="originality", outputs=["originality.json"], label="Check originality and attribution on the web", kind="claude", skill="inspiration-check", chrome=False, tools=["WebSearch", "WebFetch"],
              done=lambda m: has(D, "originality.json"), after="originality"),
-        *background_steps(slug, D, gen, has_bg),
+        *([dict(id="scene", outputs=["scene_src.mp4", "scene_upload.json"], label="Prepare the scene video", kind="script", cmds=[sc("inspire_scene.py", slug)],
+                done=lambda m: has(D, "scene_src.mp4"))] if scene else background_steps(slug, D, gen, has_bg)),
         *([dict(id="narrate", outputs=["voiceover.mp3"], label="Narrate the quote (ElevenLabs)", kind="script", cmds=[sc("narrate_eleven.py", slug)], before="credits",
                 done=lambda m: any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac")) or bool((m.get("approvals") or {}).get("media")))] if eleven else []),   # a voice exists, or the video was already approved (a short made before narration existed is not reopened)
         *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
-             done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*"])),
+             done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*", "scene_src.mp4"])),
         dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 7 to 15 s without a voice)", kind="script", sets_after="media_ready",
-             cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "music.mp3", "voiceover.*", "send_line.txt"]), after="media", sets="approved"),
+             cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "scene_bg.mp4", "music.mp3", "voiceover.*", "send_line.txt"]), after="media", sets="approved"),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube Shorts title, description and tags", kind="claude", skill="inspiration-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
         dict(id="publish_youtube", outputs=["published.json"], redo=False, label="Upload to YouTube as a Short (API, private)", kind="script", before="publish_youtube",
@@ -312,7 +315,7 @@ def aha_steps(slug, D):
     """The Aha-lorithm (NAV-67): a narrated scene short. A script of 6 to 9 beats (hook, explanation, the aha), a fact check, one picture per beat,
     ElevenLabs narration, then the inspiration render with a picture per beat and quiet ambient music. YouTube Shorts only: no Instagram caption or post."""
     out = []
-    for s in inspiration_steps(slug, D):
+    for s in inspiration_steps(slug, D, scene_ok=False):   # a scene video is for inspiration shorts only
         if s["id"] in ("instagram_caption", "publish_instagram", "background_prompt"): continue
         if s["id"] == "quote": s = {**s, "skill": "aha-script", "label": "Write the script: hook, explanation, the aha (one picture per beat)"}
         if s["id"] == "originality": s = {**s, "skill": "aha-check", "label": "Fact-check every claim on the web"}

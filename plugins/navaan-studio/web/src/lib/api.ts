@@ -64,6 +64,7 @@ export type SongDetail = {
   visuals_problems?: string[];
   music?: { file: string; name: string; added: string; seconds: number } | null;
   music_level?: number | null;   // percent the music sits at under the voice (shorts), set on the Music card
+  scene?: { ready: boolean; pending: boolean; fit: { src_seconds: number; total: number; stretch: number; hold: number; cut: boolean } | null } | null;   // an inspiration's own scene video: ready, waiting to be prepared, and how it was fitted to the short
   narrate?: { on: boolean; voice: string; voices: Record<string, string>; pace?: string; paces?: Record<string, string>; estimate_s: number; script?: string; script_custom?: boolean; from_suno?: boolean; used_s: number; cap_s: number; key: boolean } | null;
   poster?: { style: string; styles: string[]; prompt: string; default?: string; published?: boolean; stale?: boolean; can_publish?: boolean; has: boolean; v: number; usd: number; quality: string; key: boolean; running?: boolean; error?: string };
 };

@@ -17,7 +17,7 @@ import navaan_common as C
 import navaan_log as L
 LOG = L.get("reel_ingest")
 
-VIDEO_EXT = (".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".3gp")
+VIDEO_EXT = (".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".3gp", ".mpg", ".mpeg")
 
 
 def find_raw(D):

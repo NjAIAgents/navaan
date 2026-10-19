@@ -20,6 +20,7 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
   const [err, setErr] = useState("");
   const [later, setLater] = useState(false); const [at, setAt] = useState("");   // publish when the pipeline finishes (default) or at a set time, US Central
   const reel = type === "reel"; const [video, setVideo] = useState<File | null>(null); const [pct, setPct] = useState(0);   // a reel starts from your own video
+  const [scene, setScene] = useState<File | null>(null);   // an inspiration may bring its own scene video, used instead of a generated picture
   const song = type === "music"; const aha = type === "aha"; const blog = type === "blog";   // an Aha-lorithm short starts from an idea, your own narration, or nothing (Claude picks the topic); never from Suno. A blog starts from a keyword, field or area: no voice, no publishing time
   const [nar, setNar] = useState<{ key: boolean; voices: Record<string, string> } | null>(null); const [narrate, setNarrate] = useState(true); const [voice, setVoice] = useState("suno1");
   useEffect(() => {   // an inspiration can start with the quote narrated by ElevenLabs: on by default when a key is saved
@@ -34,12 +35,16 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
     if (blog && !idea.trim()) return setErr("Write a keyword, field or area first.");
     if (reel && !video) return setErr("Choose your video first.");
     if (reel && video && video.size > MAX_VIDEO_BYTES) return setErr("That video is over 2 GB.");
+    if (scene && scene.size > MAX_VIDEO_BYTES) return setErr("That scene video is over 2 GB.");
     if (!song && !aha && !blog && !reel && !idea.trim() && !sunoUrl.trim()) return setErr("Write the quote or the idea first, or paste a Suno link.");
     if (later && !at) return setErr("Pick the date and time to publish, or choose to publish when the pipeline finishes.");
     setBusy(true);
     try { const r = await postJSON<{ slug: string }>("/api/new", blog ? { type, idea: idea.trim() } : { type, ...when, idea: !song && sunoUrl.trim() ? "" : idea.trim(), ...(song ? {} : { ...(useNarr ? { narrate: "eleven", voice } : { narrate: "none" }), ...(sunoUrl.trim() ? { suno_url: sunoUrl.trim() } : {}) }) });
       if (reel && video) {   // the footage goes up as it is, then the pipeline starts; if this fails the reel's own page offers the upload again
         try { await uploadVideo(r.slug, video, (a, b) => setPct(Math.round((100 * a) / Math.max(1, b)))); await postJSON("/api/run", { slug: r.slug, all: true }); } catch { /* expected: the reel page shows the upload again */ }
+      }
+      if (scene && !song && !aha && !blog && !reel) {   // the scene goes up as it is; if this fails the short's own page offers it again
+        try { await uploadVideo(r.slug, scene, (a, b) => setPct(Math.round((100 * a) / Math.max(1, b)))); } catch { /* expected: the short's page offers the scene video again */ }
       }
       done(r.slug); } catch (x) { setErr(errText(x)); } finally { setBusy(false); }
   };
@@ -69,7 +74,7 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
           {reel && (
             <>
               <label htmlFor="ni-video">Your video (mp4 or mov, up to 2 GB)</label>
-              <input id="ni-video" className="field" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm" onChange={(e) => setVideo(e.target.files?.[0] ?? null)} />
+              <input id="ni-video" className="field" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm,.mpg,.mpeg" onChange={(e) => setVideo(e.target.files?.[0] ?? null)} />
               <p className="mu">It is shrunk to a small working copy on the server, and the big original is deleted once that copy is checked. Claude then reads the scenes and suggests a quote and an edit for you to approve. Footage with no speech is fine.</p>
             </>
           )}
@@ -78,6 +83,9 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
               <label htmlFor="ni-suno">Suno link (optional)</label>
               <input id="ni-suno" className="field" type="url" value={sunoUrl} onChange={(e) => setSunoUrl(e.target.value)} placeholder="https://suno.com/s/…" autoComplete="off" />
               <p className="mu">With a link, the words and the voice come from that Suno song, and the quote below is not needed. Without one, the quote is narrated by ElevenLabs.</p>
+              <label htmlFor="ni-scene">Scene video (optional; mp4 or mov, up to 2 GB)</label>
+              <input id="ni-scene" className="field" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm,.mpg,.mpeg" onChange={(e) => setScene(e.target.files?.[0] ?? null)} />
+              <p className="mu">With a scene video, no background picture is made (and nothing is spent on one): the video plays behind the words with the song's sound, and the credit page ends the short. Without one, nothing changes.</p>
             </>
           )}
           <label htmlFor="ni-idea">{song ? "Idea (optional)" : aha ? "Idea, topic or your narration (optional)" : blog ? "Keyword, field or area" : reel ? "What is it about, or your own words (optional)" : "Quote or idea"}</label>
@@ -96,8 +104,8 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
             <label className="row" style={{ gap: 10 }}><input type="radio" name="ni-when" checked={later} onChange={() => setLater(true)} /> On a date and time I choose</label>
             {later && <><label htmlFor="ni-at">Date and time (Central Time, CST/CDT)</label><input id="ni-at" className="field" type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} /><p className="mu">YouTube and Instagram both go out then, once the approvals are given. You can change either time later on the item's Publishing schedule card.</p></>}
           </fieldset>}
-          {busy && reel && video && <progress max={100} value={pct} aria-label="Upload progress" />}
-          <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? (reel && pct ? `Uploading ${pct}%` : "Creating…") : "Create"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>
+          {busy && ((reel && video) || scene) && <progress max={100} value={pct} aria-label="Upload progress" />}
+          <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? (pct ? `Uploading ${pct}%` : "Creating…") : "Create"}</button><button className="btn g" type="button" onClick={() => setOpen(false)}>Cancel</button></div>
         </form>
       ) : (
         <form className="stack" noValidate onSubmit={(e) => void doImport(e)}>   {/* our own messages say what is missing, in one place, instead of the browser's bubble */}

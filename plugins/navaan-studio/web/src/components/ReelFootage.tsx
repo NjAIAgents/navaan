@@ -19,7 +19,7 @@ export function ReelFootage({ d, done }: { d: SongDetail; done: () => void }) {
       <p>Choose your video (mp4 or mov, up to 2 GB). It is shrunk to a small working copy and the big original is deleted once that copy is checked.</p>
       <form className="stack" onSubmit={(e) => void send(e)}>
         <label htmlFor="rf-file">Your video</label>
-        <input id="rf-file" className="field" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <input id="rf-file" className="field" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm,.mpg,.mpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         {busy && <progress max={100} value={pct} aria-label="Upload progress" />}
         <div className="row"><button className="btn p" type="submit" disabled={busy}>{busy ? `Uploading ${pct}%` : "Upload and start"}</button></div>
       </form>
