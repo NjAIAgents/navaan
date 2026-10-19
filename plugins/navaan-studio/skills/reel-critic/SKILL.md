@@ -17,10 +17,13 @@ You judge `final_reel_9x16.mp4` before a person approves it at the `media` gate.
 
 ## Rubric (each is pass or fix, with the time it concerns)
 - Hook: is the first second visually strong and is the hook text (if any) readable at once?
+- Doubled words: does the same sentence show twice (drawn text over the same words already burned into the footage), or does drawn text cover a face or other text? If the plan has `quote.show` true and the stills show the quote already in the picture, that is a fix: set it to false.
+- Intro and end card: if the plan has them, is the first frame held with its hook line readable, and does the end card show the handle and the music credit clearly, with no quote line still on screen?
 - Words: is every quote line fully readable (size, contrast against the footage), spelled as in `quote.json`, inside the frame, clear of the bottom fifth?
 - Framing: is the subject cut off or off-centre at any still? Is a zoom too strong or a crop wrong?
 - Pace: any stretch that looks dead or repeated; does the length suit the content (15 to 45 s)?
 - Look: exposure and colour natural, no heavy banding, the grade not overdone.
+- Voices: if a voiceover was added and the footage's own sound under it contains a second voice (someone talking), say so as a fix: the owner should upload footage with music or ambience only. The footage's background itself should stay audible but clearly under the voice.
 - Sound: mean volume between about -24 and -12 dB, no clipping (peak under -1 dB), music not louder than the voice, ambient noise not distracting.
 
 ## Write critique.json
