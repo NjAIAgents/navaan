@@ -153,13 +153,15 @@ def render_ffmpeg(D, T, out):
         scrim, lines, ap, wp, bp = make_pngs(D, T, tmp)
         z, x, y, F = cam_exprs(T); fps = T["fps"]; dur = T["duration"]; hold = T["hold_until"]
         cmd = [ff, "-y", "-v", "error", "-i", os.path.join(D, T["background"])]
+        vid = bool(T.get("background_video"))   # the owner's scene video (already fitted to the length): no camera move, it moves by itself
         n = 1
         extra = [scrim] + lines + ([ap] if ap else []) + [wp] + ([bp] if bp else [])
         for p in extra: cmd += ["-loop", "1", "-framerate", str(fps), "-t", f"{dur:.2f}", "-i", p]
         ai = []
         if T.get("music"): cmd += ["-i", os.path.join(D, T["music"])]; ai.append("m")
         if T.get("voiceover"): cmd += ["-i", os.path.join(D, T["voiceover"])]; ai.append("v")
-        g = [f"[0:v]scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,zoompan=z='{z}':x='{x}':y='{y}':d={F}:s={W}x{H}:fps={fps},format=yuv420p[bg]",
+        g = [(f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={fps},format=yuv420p[bg]" if vid else
+              f"[0:v]scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,zoompan=z='{z}':x='{x}':y='{y}':d={F}:s={W}x{H}:fps={fps},format=yuv420p[bg]"),
              f"[bg][1:v]overlay=0:0:format=auto[v0]"]
         k = 2; cur = "v0"
         def layer(idx, start, end, name, rise):
@@ -193,9 +195,9 @@ def render_remotion(D, T, out):
     rd = remotion_dir()
     comp, props = "Quote", os.path.join(D, "timing.json")
     scenes = any(l.get("bg") for l in T.get("lines") or [])   # an Aha-lorithm short: a picture per line, captions, music bed and end card, all drawn by Quote
-    if T.get("narration") and not scenes:  # a voiced quote: one line at a time, in step with the narration, then the end card
+    if (T.get("narration") or T.get("background_video")) and not scenes:  # a voiced quote (or one over the owner's scene video): one line at a time, in step with the narration, then the end card
         br = T.get("brand") or {}
-        np_ = {"width": W, "height": H, "fps": T.get("fps", 30), "duration": T["duration"], "bg": T["background"], "bg_is_image": True, "audio": T.get("voiceover"),
+        np_ = {"width": W, "height": H, "fps": T.get("fps", 30), "duration": T["duration"], "bg": T["background"], "bg_is_image": not T.get("background_video"), "audio": T.get("voiceover"),
                "cues": [{"text": l["text"], "start": l["start"], "end": l["end"]} for l in T["lines"]], "title": "", "hook": "",
                "handle": ({"text": br["text"], "icon": br.get("icon", "instagram"), "start": br["start"]} if br else None),
                "style": T.get("style") or {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.4}, "mode": "reel",
