@@ -11,7 +11,7 @@ type Data = { days: number; totals: Counts & { total: number }; daily: (Counts &
   best: Quote[]; worst: Quote[]; waiting: number; running: boolean; last_run: { started_at: string; finished_at: string | null; scored: number; usd: number; error: string | null } | null };
 
 const KINDS: K[] = ["positive", "neutral", "negative"];
-const COLOR: Record<K, string> = { positive: "var(--ok, #6FD3A8)", neutral: "var(--mu)", negative: "var(--bad, #F28B82)" };
+const COLOR: Record<K, string> = { positive: "var(--ok)", neutral: "var(--mu)", negative: "var(--bad)" };
 const SRC: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", site: "the site" };
 const pct = (n: number, t: number) => (t ? Math.round((100 * n) / t) : 0);
 
