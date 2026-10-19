@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-10-19
+
+### Added
+- Reels: upload your own video and get an Instagram-ready 9:16 reel. The upload is shrunk to a small working copy and the big original is deleted once the copy is checked. Claude reads the scenes, suggests a quote that fits them (the footage can have no speech at all) and plans the cuts, framing, look, sound and music; you approve the words and the plan before anything is made. The reel can be narrated with ElevenLabs, with a voice you record or make on Suno, or have no voice at all. Music comes only from NAVAAN's own published songs or your own upload. A review of the finished reel sits beside the final-cut approval, and the reel posts to Instagram.
+
 ## [0.49.0] - 2026-10-19
 
 ### Added
@@ -683,7 +688,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.49.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.50.0...HEAD
+[0.50.0]: https://github.com/NjAIAgents/navaan/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/NjAIAgents/navaan/compare/v0.47.3...v0.48.0
 [0.47.3]: https://github.com/NjAIAgents/navaan/compare/v0.47.2...v0.47.3

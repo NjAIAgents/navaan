@@ -246,13 +246,14 @@ def cfg(key, default=None):
     return d
 
 
-GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "visuals_mode", "shots", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public", "topic")
+GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "visuals_mode", "shots", "edit_plan", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public", "topic")
 
 
-CONTENT_TYPES = ("music", "inspiration", "aha", "explainer", "blog")  # every item has one; it picks the pipeline steps, prompts and checks
-TYPE_PREFIX = {"music": "song", "inspiration": "insp", "aha": "aha", "explainer": "expl", "blog": "blog"}
-SHORT_TYPES = ("inspiration", "aha")   # short vertical videos made from a few spoken lines over one picture (the inspiration pipeline)
+CONTENT_TYPES = ("music", "inspiration", "aha", "reel", "explainer", "blog")  # every item has one; it picks the pipeline steps, prompts and checks
+TYPE_PREFIX = {"music": "song", "inspiration": "insp", "aha": "aha", "reel": "reel", "explainer": "expl", "blog": "blog"}
+SHORT_TYPES = ("inspiration", "aha", "reel")   # short vertical videos with a quote and an optional narration (the reel type edits the owner's own footage instead of one picture)
 NO_INSTAGRAM = ("aha", "blog")   # The Aha-lorithm (NAV-67) posts YouTube Shorts only; a blog (NAV-69) goes to dev.to and LinkedIn
+NO_YOUTUBE = ("reel",)   # a reel made from the owner's footage posts to Instagram only
 
 
 def is_short(t): return t in SHORT_TYPES
@@ -260,6 +261,7 @@ def plain(s): return str(s).replace("*", "")   # a script line without its *high
 TYPE_GATES = {"music": tuple(g for g in GATES if g not in ("quote", "originality")),
               "inspiration": ("quote", "originality", "credits", "media", "publish_youtube", "instagram_caption", "go_public", "publish_instagram", "cloud_upload", "local_cleanup"),
               "aha": ("quote", "originality", "credits", "media", "publish_youtube", "go_public", "cloud_upload", "local_cleanup"),
+              "reel": ("quote", "originality", "edit_plan", "credits", "media", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup"),
               "blog": ("topic", "cloud_upload", "local_cleanup")}   # NAV-69: the owner picks the topic; later stories add the writing, image and publish approvals
 
 
@@ -291,8 +293,8 @@ def account(ctype):
     rp = lambda k: os.path.realpath(os.path.expanduser(a[k])) if a.get(k) else ""
     ig, yt, ys = rp("instagram_env"), rp("youtube_token"), rp("youtube_client_secret")
     same_ig = bool(ig) and ig == os.path.realpath(f"{home}/instagram.env"); same_yt = bool(yt) and yt == os.path.realpath(f"{home}/youtube_token.json")
-    # a YouTube-only channel (NO_INSTAGRAM) needs only its YouTube login to be configured
-    return {"type": ctype, "configured": bool(yt) if ctype in NO_INSTAGRAM else bool(ig and yt), "handle": a.get("instagram_handle", ""), "youtube_channel": a.get("youtube_channel", ""),
+    # a YouTube-only channel (NO_INSTAGRAM) needs only its YouTube login to be configured; an Instagram-only one (NO_YOUTUBE) only its Instagram login
+    return {"type": ctype, "configured": bool(yt) if ctype in NO_INSTAGRAM else bool(ig) if ctype in NO_YOUTUBE else bool(ig and yt), "handle": a.get("instagram_handle", ""), "youtube_channel": a.get("youtube_channel", ""),
             "ig_env": ig, "yt_token": yt, "yt_secret": ys or None, "ig_ready": bool(ig) and os.path.exists(ig) and not same_ig,
             "yt_ready": bool(yt) and os.path.exists(yt) and not same_yt, "same_as_music": same_ig or same_yt}
 

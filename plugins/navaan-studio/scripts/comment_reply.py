@@ -119,6 +119,7 @@ def _quote_text(slug):
 
 CHANNEL_ABOUT = {"aha": "The Aha-lorithm, a YouTube Shorts channel about AI awareness and surprising insights, each a few spoken lines over one picture",
                  "inspiration": "a quiet channel of short healing and self-worth quote videos, spoken over calm visuals",
+                 "reel": "an Instagram account of short reels made from the owner's own videos, with a quote over the footage",
                  "music": "an independent music channel with original songs"}
 
 
@@ -145,9 +146,10 @@ def content_context(c):
     out = f"You are the owner of the channel {who}" + (f" ({h})" if h else "") + (f", {CHANNEL_ABOUT[c['account']]}" if c.get("account") in CHANNEL_ABOUT else "") + ".\n"
     kind = {"short": "a YouTube Short", "video": "a YouTube video", "REELS": "an Instagram Reel", "FEED": "an Instagram post"}.get(c.get("kind"), "a post")
     out += f"The viewer commented on {kind} titled: {c.get('post') or ''}\n"
-    if c.get("item_type") in ("inspiration", "aha"):
+    if c.get("item_type") in ("inspiration", "aha", "reel"):
         q = _quote_text(c.get("slug"))
         out += ("It is a short AI-awareness insight video: a few lines are spoken and shown over a picture. It is NOT a song. Never call it a song, track or music.\n" if c.get("item_type") == "aha"
+                else "It is a short reel made from the owner's own video, with a quote shown over the footage. It is NOT a song. Never call it a song or track.\n" if c.get("item_type") == "reel"
                 else "It is a short inspirational quote video: a quote is spoken and shown over visuals. It is NOT a song. Never call it a song, track or music.\n")
         if q:
             out += f"The quote in the video: {q}\n"

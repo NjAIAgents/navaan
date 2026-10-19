@@ -24,6 +24,7 @@ import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
 import { TopicPicker } from "../components/TopicPicker";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { errText, isShort, listPath, nextAction } from "../lib/songs";
+import { ReelFootage } from "../components/ReelFootage";
 import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
@@ -116,6 +117,8 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       {gate === "shots" && <ShotsPreview d={d} />}
       {gate === "instagram_caption" && <PostTextEditor d={d} kind="instagram" done={reload ?? (() => undefined)} />}
       {gate === "publish_youtube" && <PostTextEditor d={d} kind="youtube" done={reload ?? (() => undefined)} />}
+      {gate === "edit_plan" && d.text["edl_summary.md"] && <pre className="art" tabIndex={0} aria-label="The edit plan in plain words">{d.text["edl_summary.md"]}</pre>}
+      {gate === "media" && d.text["critique.json"] && <CritiqueView text={d.text["critique.json"]} />}
       {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && gate !== "instagram_caption" && (shown ? (Readable[gate]?.(shown) ?? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre>) : <p className="mu">{file} is not there yet. Run its step first.</p>)}
     </section>
   );
@@ -220,7 +223,7 @@ function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: b
         <button className="btn g" onClick={() => setAsk(false)}>Keep it</button>
       </div>
     </div>
-  ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : d.meta.type === "aha" ? "short" : d.meta.type === "blog" ? "blog post" : "song"}</button></div>;
+  ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : d.meta.type === "aha" ? "short" : d.meta.type === "blog" ? "blog post" : d.meta.type === "reel" ? "reel" : "song"}</button></div>;
 }
 
 // What an approval card shows, as words a person reads rather than the file behind it. The raw file stays one click away.
@@ -233,6 +236,14 @@ const Readable: Record<string, (text: string) => React.ReactNode | null> = {
     return <div className="stack"><p><span className={`chip ${clear ? "ok" : "wn"}`}><span className="dot" />{clear ? "Clear: no earlier use of these words found" : "Check this: similar wording found"}</span></p>{o.recommendation ? <p>{String(o.recommendation)}</p> : null}
       {m.length > 0 && <ul className="matches">{m.map((x, i) => <li key={i}><a href={x.url} target="_blank" rel="noreferrer">{x.title || x.url}</a>{x.note && <span className="mu"> · {x.note}</span>}</li>)}</ul>}<RawFile text={t} name="originality.json" /></div>; },
 };
+
+// The reel critic's verdict beside the video you are about to approve: advice, never a block.
+function CritiqueView({ text }: { text: string }) {
+  const c = parse(text); if (!c) return null;
+  const fixes = Array.isArray(c.fixes) ? (c.fixes as unknown[]).map(String) : [];
+  return <div className="stack" aria-label="The reviewer's notes"><p><span className={`chip ${c.verdict === "pass" ? "ok" : "wn"}`}><span className="dot" />{c.verdict === "pass" ? "The reviewer found nothing to fix" : "The reviewer suggests changes"}</span></p>
+    {c.summary ? <p>{String(c.summary)}</p> : null}{fixes.length > 0 && <ul>{fixes.map((f, i) => <li key={i}>{f}</li>)}</ul>}</div>;
+}
 
 // What a publish approval says when the step has a time: it is approved now and goes out then, never "now".
 const SCHEDULED_ASK: Record<string, (when: string) => string> = {
@@ -276,11 +287,12 @@ function AllSet({ d, onChange }: { d: SongDetail; onChange: () => void }) {
 const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
 
 // What blocks this item that no step can fix: the artist profile, the item's own account, a YouTube thumbnail the channel refused.
-function SongAlerts({ d }: { d: SongDetail }) {
+function SongAlerts({ d, done }: { d: SongDetail; done: () => void }) {
   const t = d.meta.type ?? "music"; const thumb = d.thumb_pending?.[0];
   return (<>
+    {t === "reel" && !(d.files ?? {})["source.mp4"] && !d.job?.running && <ReelFootage d={d} done={done} />}
     {d.profile === false && <section className="card alert" role="status"><h2>No artist profile yet</h2><p>The agents have no palette, motifs or voice to follow, so they guess from earlier songs. Run <code>python3 plugins/navaan-studio/scripts/navaan.py init</code> in the workspace, then run the step again.</p></section>}
-    {d.account && d.account.configured === false && <section className="card alert" role="status"><h2>Its own account is not set up</h2><p>This item publishes to its own {t === "aha" ? "YouTube channel" : "accounts"}, and nothing can be posted until that is set. In Settings, Accounts, add the content type <code>{t}</code> and sign in to YouTube for it.</p><Link className="btn" to="/studio/settings">Open Settings</Link></section>}
+    {d.account && d.account.configured === false && <section className="card alert" role="status"><h2>Its own account is not set up</h2><p>This item publishes to its own {t === "aha" ? "YouTube channel" : t === "reel" ? "Instagram account" : "accounts"}, and nothing can be posted until that is set. In Settings, Accounts, add the content type <code>{t}</code>{t === "reel" ? " with its Instagram login file." : " and sign in to YouTube for it."}</p><Link className="btn" to="/studio/settings">Open Settings</Link></section>}
     {thumb && <section className="card alert" role="status"><h2>Thumbnail not set on YouTube</h2><p>YouTube refused the custom thumbnail because the channel is not phone verified. Verify at <a href="https://www.youtube.com/verify" target="_blank" rel="noreferrer">youtube.com/verify</a>, then run <code>python3 plugins/navaan-studio/scripts/publish_youtube.py thumb {d.slug} {thumb.id}</code>. This goes away once it is set.</p></section>}
   </>);
 }
@@ -442,7 +454,7 @@ export default function Song() {
       <div className="ph hd">
         {cover && <img className="ph-cover" src={cover} alt="" width={insp ? 54 : 96} height={96} />}
         <div className="ph-tx">
-          <Link className="back" to={list}><Icon name="chevron" />{d.meta.type === "aha" ? "The Aha-lorithm" : d.meta.type === "blog" ? "Blog" : insp ? "Inspiration" : "Songs"}</Link>
+          <Link className="back" to={list}><Icon name="chevron" />{d.meta.type === "aha" ? "The Aha-lorithm" : d.meta.type === "blog" ? "Blog" : d.meta.type === "reel" ? "Reels" : insp ? "Inspiration" : "Songs"}</Link>
           <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
           <p>{STATE_WORDS[d.meta.state ?? ""] ?? "New"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })} · <span className="mu">{slug}</span></p>
         </div>
@@ -468,7 +480,7 @@ export default function Song() {
               </div>
             )}
             {(!mobile || pane === "steps") && <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={(id) => { pick(id); if (mobile) setPane("now"); }} />}
-            {(!mobile || pane === "now") && <div className="pl-now stack"><SongAlerts d={d} />{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{d.meta.skip?.instagram && <p className="mu row" role="status">Not posted to Instagram: you skipped it for this one.<button className="btn g" disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: false })}>Post to Instagram after all</button></p>}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
+            {(!mobile || pane === "now") && <div className="pl-now stack"><SongAlerts d={d} done={load} />{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{d.meta.skip?.instagram && <p className="mu row" role="status">Not posted to Instagram: you skipped it for this one.<button className="btn g" disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: false })}>Post to Instagram after all</button></p>}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
           </div>
         )}
         {tab === "content" && (<>

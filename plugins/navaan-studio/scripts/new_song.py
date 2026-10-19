@@ -7,7 +7,7 @@ import os, sys, shutil, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from navaan_common import find_root, cfg, songs_root, CONTENT_TYPES, next_slug, item_save
 
-BUILT = ("music", "inspiration", "aha", "blog")
+BUILT = ("music", "inspiration", "aha", "reel", "blog")
 
 
 def create(slug=None, ctype="music", idea=""):
