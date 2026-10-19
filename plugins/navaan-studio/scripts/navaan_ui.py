@@ -243,6 +243,7 @@ def detail(slug):
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "poster": {**POST.state(slug), **POSTER.get(slug, {})},
+            "scene": ({"ready": os.path.exists(os.path.join(D, "scene_src.mp4")), "pending": any(not p.endswith(".part") for p in glob.glob(os.path.join(D, ".cache", "raw.*"))), "fit": C.load_json(os.path.join(D, "scene.json"), default=None)} if C.item_type(m) == "inspiration" else None),
             "narrate": (__import__("narrate_eleven").info(D) if C.is_short(C.item_type(m)) else None), "music": (__import__("bg_music").info(D) if C.is_short(C.item_type(m)) else None), "music_level": (round(100 * __import__("inspire_prep").music_level(D, C.item_type(m))) if C.is_short(C.item_type(m)) else None),
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
@@ -363,25 +364,33 @@ class H(BaseHTTPRequestHandler):
         except LookupError as e: return self._send(404, {"error": str(e)})
         except RuntimeError: L.exc(LOG, "clip_failed"); return self._send(502, {"error": "cannot make the clip right now"})
     def _reel_upload(self):
-        """POST /api/reel/upload?slug=reel-001&name=clip.mov with the video as the raw body. The footage of a reel item: written to disk in chunks, then the ingest step shrinks it.
+        """POST /api/reel/upload?slug=reel-001&name=clip.mov with the video as the raw body, written to disk in chunks. For a reel it is the footage (the ingest step shrinks it);
+        for an inspiration it is the owner's own scene video, used instead of a generated picture (inspire_scene.py shrinks it). The same large-upload route serves both, so nginx needs no second location.
         The sign-in, the host, the origin and the CSRF token were checked before this is called."""
         import reel_upload
         q = parse_qs(urlparse(self.path).query); slug = (q.get("slug") or [""])[0]; name = (q.get("name") or ["video.mp4"])[0]
         def refuse(code, msg):
             self.close_connection = True   # the body was not read: this connection cannot carry another request
             return self._send(code, {"error": msg})
-        if not SLUG.match(slug) or not os.path.isdir(os.path.join(C.songs_root(), slug)): return refuse(404, "no such reel")
-        if C.item_type(navaan.meta(slug)) != "reel": return refuse(400, "footage is uploaded to a reel item")
+        if not SLUG.match(slug) or not os.path.isdir(os.path.join(C.songs_root(), slug)): return refuse(404, "no such item")
+        kind = C.item_type(navaan.meta(slug))
+        if kind not in ("reel", "inspiration"): return refuse(400, "a video is uploaded to a reel or an inspiration")
         try: n = int(self.headers.get("Content-Length") or 0)
         except ValueError: return refuse(400, "bad length")   # expected: a length that is not a number is a refusal to send back, not an error to log
-        D = C.song_dir(slug)
+        D = C.song_dir(slug); done = "source.mp4"   # a reel that already has its footage refuses a second one; an inspiration's scene video can be replaced until the short is rendered
+        if kind == "inspiration":
+            if os.path.exists(os.path.join(D, "final_reel_9x16.mp4")): return refuse(409, "this short already has its video; a scene video can only be added before it is rendered")
+            done = "no-such-file"
         try:
-            got = reel_upload.save(self.rfile, n, D, name)
+            got = reel_upload.save(self.rfile, n, D, name, done)
         except reel_upload.Refused as e:
             L.event(LOG, "warning", "reel_upload_refused", item=slug, code=e.code, reason=e.message)
             return refuse(e.code, e.message)
-        navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"footage uploaded: {name} ({got // 1048576} MB) (via ui)"))
-        L.event(LOG, "info", "reel_upload_done", item=slug, bytes=got)
+        if kind == "inspiration":
+            for stale in ("scene_src.mp4", "scene_bg.mp4", "scene_upload.json", "scene.json", "timing.json"):   # the new upload replaces the old scene; what was made from it is stale
+                if os.path.exists(os.path.join(D, stale)): os.remove(os.path.join(D, stale))
+        navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"{'footage' if kind == 'reel' else 'scene video'} uploaded: {name} ({got // 1048576} MB) (via ui)"))
+        L.event(LOG, "info", "reel_upload_done", item=slug, bytes=got, kind=kind)
         return self._send(200, {"ok": True, "bytes": got})
     def _site_post(self, p):
         """The two things anyone may send from the public site: a reaction to a song, and a message. Counts and a message: no session, no cookie, nothing about the sender is kept (not even the address). Slowed down per address; a hidden field catches bots."""
@@ -1082,6 +1091,15 @@ class H(BaseHTTPRequestHandler):
                 try: catalog_store.sync_item(slug)   # a published song shows it at once; an unpublished one takes it when it is published
                 except Exception: L.exc(LOG, "mood_sync_failed", item=slug)
                 return self._send(200, {"ok": True, "mood": mood})
+            if p == "/api/scene/remove":   # take the owner's scene video away before the short is rendered: the background steps come back
+                if C.item_type(navaan.meta(slug)) != "inspiration": return self._send(400, {"error": "a scene video belongs to an inspiration"})
+                D = C.song_dir(slug)
+                if os.path.exists(os.path.join(D, "final_reel_9x16.mp4")): return self._send(409, {"error": "this short already has its video; Redo the render step instead"})
+                for f in ("scene_src.mp4", "scene_bg.mp4", "scene_upload.json", "scene.json", "timing.json") + tuple(os.path.basename(x) for x in glob.glob(os.path.join(D, ".cache", "raw.*"))):
+                    fp = os.path.join(D, ".cache", f) if f.startswith("raw.") else os.path.join(D, f)
+                    if os.path.exists(fp): os.remove(fp)
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "scene video removed (via ui); the background steps are back"))
+                return self._send(200, {"ok": True})
             if p == "/api/narration/eleven":   # narrate the quote with ElevenLabs as a step of this item: on or off, which voice and how fast (the spend is approved at the credits gate)
                 import narration, narrate_eleven, media_cfg, tts_eleven
                 if not C.is_short(navaan.meta(slug).get("type")): return self._send(400, {"error": "narration is for inspiration shorts"})

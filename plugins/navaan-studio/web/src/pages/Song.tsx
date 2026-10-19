@@ -25,6 +25,7 @@ import { TopicPicker } from "../components/TopicPicker";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { errText, isShort, listPath, nextAction } from "../lib/songs";
 import { ReelFootage } from "../components/ReelFootage";
+import { SceneCard } from "../components/SceneCard";
 import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
@@ -487,6 +488,7 @@ export default function Song() {
           <TextEditors d={d} done={load} />
           <ShotsEditor key={slug} d={d} done={load} />
           {insp && <NarrationCard d={d} done={load} />}
+          <SceneCard d={d} done={load} />
           {insp && <MusicCard d={d} done={load} />}
         </>)}
         {tab === "media" && (<>
