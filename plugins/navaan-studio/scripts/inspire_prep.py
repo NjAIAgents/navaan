@@ -204,8 +204,18 @@ def snap(t, bts, lo, hi, tol=0.4):
 
 # Each short-form channel has its own look, so the two never pass for each other: colours, the font family (serif or sans) and the icon of the end card.
 LOOKS = {"inspiration": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
-         "aha": {"color": "#F4F7FF", "accent": "#E2B75A", "dim": 0.5, "font": "sans", "place": "center", "music": 0.12,
-                 "title": "The *Aha*-lorithm", "tagline": "AI explained in seconds"}}   # The Aha-lorithm: a short bold caption in the safe area, muted gold on the key phrase, a picture per beat, music about 20 dB under the voice
+         "aha": {"color": "#F4F7FF", "accent": "#E2B75A", "dim": 0.5, "font": "sans", "place": "center", "music": 0.25,
+                 "title": "The *Aha*-lorithm", "tagline": "AI explained in seconds"}}   # The Aha-lorithm: a short bold caption in the safe area, muted gold on the key phrase, a picture per beat, music about 14 dB under the voice (0.12 was inaudible on a phone)
+MUSIC_DEFAULT = {"aha": 0.25, "inspiration": 0.35}   # the bed's volume under a voice when the short does not set its own (0.35 is what inspiration always had)
+
+
+def music_level(D, itype):
+    """The music volume under the voice, 0 to 0.6: the short's own `music_level` (a percent, set on its Music card), else the channel's default."""
+    v = opt(D, "music_level", "")
+    try: return max(0.0, min(0.6, float(v) / 100.0))
+    except ValueError: return MUSIC_DEFAULT.get(itype, 0.35)   # expected: no level set (empty), use the default
+
+
 MUSIC_LIB = {"aha": "aha_music"}   # a channel with its own library of quiet beds (<local_dir>/aha_music), picked even under a voice
 
 
@@ -306,7 +316,7 @@ def main(slug):
         "brand": ({"text": brand, "icon": "youtube" if itype in C.NO_INSTAGRAM else "instagram", "start": round(dur - 3.2, 2), "end": round(dur, 2)} if brand else None),
         "author": ({"text": "— " + author, "start": round(max(starts[-1] + 1.2, dur - tail_hold + 0.4), 2), "end": round(hold_end + 0.0, 2)} if author else None),
         "camera": cam, "transition": tr, "layout": layout, "language": q.get("language", ""), "narration": narr,
-        "style": dict(LOOKS.get(itype, LOOKS["inspiration"])),
+        "style": {**LOOKS.get(itype, LOOKS["inspiration"]), "music": music_level(D, itype)},
         "watermark": watermark(slug),
         "music_source": how, "beat_source": bkind, "beats": bts[:80],
     }
