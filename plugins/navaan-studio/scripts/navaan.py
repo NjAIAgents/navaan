@@ -315,8 +315,8 @@ def aha_steps(slug, D):
         if s["id"] in ("instagram_caption", "publish_instagram", "background_prompt"): continue
         if s["id"] == "quote": s = {**s, "skill": "aha-script", "label": "Write the script: hook, explanation, the aha (one picture per beat)"}
         if s["id"] == "originality": s = {**s, "skill": "aha-check", "label": "Fact-check every claim on the web"}
-        if s["id"] == "youtube_meta": s = {**s, "hint": ("Title: the hook, one fitting emoji at most. Description: two or three short plain lines on the insight, the aha line on its own, then "
-                                                         "'Follow The Aha-lorithm for AI explained in seconds.' and the hashtags #AI #ArtificialIntelligence #AIExplained #AIAwareness #TheAhalorithm plus one or two on the topic. " + s.get("hint", "")).strip()}
+        if s["id"] == "youtube_meta": s = {**s, "hint": ("Title: the hook, one fitting emoji at most. Description: three short parts only: the hook line (a few words, no explanation), then "
+                                                         "'Follow The Aha-lorithm for AI explained in seconds.' and the hashtags #AI #ArtificialIntelligence #AIExplained #AIAwareness #TheAhalorithm, one or two on the topic, then #Shorts. Example: 'Confidence is not evidence.' / 'Follow The Aha-lorithm for AI explained in seconds.' / '#AI ... #CriticalThinking #Shorts'. " + s.get("hint", "")).strip()}
         if s["id"] == "background":
             s = dict(id="background", outputs=["scenes/beat_*.png", "background.png"], label="Make one picture per beat (OpenAI)", kind="script",
                      cmds=[sc("aha_pictures.py", slug)], before="credits", done=lambda m: aha_beats_done(D))

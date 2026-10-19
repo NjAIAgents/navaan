@@ -35,6 +35,8 @@ class Site(unittest.TestCase):
         self.assertEqual(C.with_site_link("Stay soft.\n", None), "Stay soft.\n\nHear the full song free: https://navaan.online")
         self.assertEqual(C.with_site_link("", "song-007"), "Hear the full song free: https://navaan.online/app/song/song-007")
         self.assertEqual(C.with_site_link(None, None), "Hear the full song free: https://navaan.online")
+        self.assertEqual(C.with_site_link("Stay soft.", None, itype="inspiration"), "Stay soft.\n\nMore from NAVAAN: https://navaan.online")
+        self.assertEqual(C.with_site_link("What a token is.", None, itype="aha"), "What a token is.")
 
     def test_instagram_gets_the_address_without_https_and_nothing_is_added_twice(self):
         self.assertEqual(C.with_site_link("Caption", "song-007", plain=True), "Caption\n\nHear the full song free: navaan.online/app/song/song-007")

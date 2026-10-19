@@ -75,7 +75,11 @@ function ShellFrame() {
   const counted = ready && !studio && (guest || !studioUrl);   // visits are counted for listeners only, never the owner (in the studio, or signed in on the public site with a way back to it)
   useEffect(() => { setCounting(counted); }, [counted]);
   useEffect(() => { if (!counted) return; hit("view", /^\/song\/([^/]+)/.exec(pathname)?.[1]); if (pathname === "/join") hit("pitch"); }, [pathname, counted]);   // every account pitch leads to /join
-  useEffect(() => { getJSON<{ version?: unknown }>("/auth/state").then((s) => setVersion(typeof s?.version === "string" && s.version ? s.version : undefined)).catch(() => setVersion(undefined)); }, []);
+  useEffect(() => { getJSON<{ version?: unknown; headless?: boolean; scheduler?: string; worker?: string }>("/auth/state").then((s) => {
+    const v = typeof s?.version === "string" && s.version ? s.version : "";
+    const where = s?.scheduler ? [s.headless ? "on the server" : "running on this computer", `scheduler ${s.scheduler === "paused" ? "paused" : "on"}`, `worker ${s.worker === "down" ? "down" : "up"}`].join(" · ") : "";   // the classic status chip; only the studio gets these fields
+    setVersion([v, where].filter(Boolean).join(" · ") || undefined);
+  }).catch(() => setVersion(undefined)); }, []);
   const close = useCallback(() => setOpen(false), []);
   const title = titleFor(pathname);
   useEffect(() => { document.title = title === "Home" ? "NAVAAN" : `${title} · NAVAAN`; close(); }, [title, close]);

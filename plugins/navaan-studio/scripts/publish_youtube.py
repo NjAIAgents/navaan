@@ -119,7 +119,8 @@ def upload(a):
     if not os.path.exists(f): sys.exit(f"navaan: missing {f}")
     if "_cap" not in os.path.basename(f) and cfg("captions.enabled", False):
         print("warning: file name has no _cap, captions may be missing. Check before publishing.")
-    meta["description"] = with_site_link(meta.get("description"), a.slug if (item_load(a.slug, {}) or {}).get("type", "music") == "music" else None)   # every upload points to the site
+    itype = (item_load(a.slug, {}) or {}).get("type", "music")
+    meta["description"] = with_site_link(meta.get("description"), a.slug if itype == "music" else None, itype=itype)   # every NAVAAN upload points to the site
     body = body_from(meta, a.privacy)
     if a.publish_at:
         if a.privacy != "private": sys.exit("navaan: --publish-at needs --privacy private (YouTube schedules private videos)")

@@ -76,7 +76,7 @@ class Aha(unittest.TestCase):
 
     def test_marks_are_drawn_not_spoken_and_the_voice_is_normal_speed(self):
         import narrate_eleven as E
-        self.script(2); self.assertNotIn("*", E.quote_text(self.D)); self.assertEqual(E.chosen_pace(self.D), "normal")
+        self.script(2); self.assertNotIn("*", E.quote_text(self.D)); self.assertEqual(E.chosen_pace(self.D), "calm")
         self.assertEqual(self.C.plain("AI can be *wrong*."), "AI can be wrong.")
 
     def test_its_quiet_bed_comes_from_its_own_library_even_under_a_voice(self):
