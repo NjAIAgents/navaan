@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-10-18
+
+### Fixed
+- Redoing a step that is followed by an approval (for example the video, before you approve it) threw the new result away. It put the old files back and called the run failed, because the step read "waiting for approval". The new output is now kept and waits for your approval.
+
 ## [0.47.0] - 2026-10-18
 
 ### Added
@@ -624,7 +629,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...HEAD
+[0.47.1]: https://github.com/NjAIAgents/navaan/compare/v0.47.0...v0.47.1
 [0.47.0]: https://github.com/NjAIAgents/navaan/compare/v0.46.3...v0.47.0
 [0.46.3]: https://github.com/NjAIAgents/navaan/compare/v0.46.2...v0.46.3
 [0.46.2]: https://github.com/NjAIAgents/navaan/compare/v0.46.1...v0.46.2

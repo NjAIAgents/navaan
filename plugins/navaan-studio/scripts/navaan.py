@@ -923,7 +923,7 @@ def redo_run(slug, sid):
         print(f"redo {sid}: spends credits. Approve the credits gate, then run this step."); return 0
     rc = run(slug, step=sid)
     row = next((r for r in plan(slug)[0] if r["id"] == sid), {})
-    if rc != 0 or row.get("status") != "done":
+    if rc != 0 or not row.get("done"):   # done, not status: a step followed by an approval (the video) reads "waiting for approval" when it worked
         if dest and os.path.isdir(dest):
             restore(slug, dest); __import__('shutil').rmtree(dest, ignore_errors=True); print(f"redo {sid}: failed, previous files put back")
         return rc or 1
