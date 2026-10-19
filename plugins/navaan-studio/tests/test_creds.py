@@ -137,14 +137,21 @@ class YoutubeBrowserSignIn(unittest.TestCase):
 
 class Alerts(unittest.TestCase):
     def setUp(self):
-        self.o = (S.claude_status, S.status)
-        S.claude_status = lambda: {"credential": "subscription token", "state": "ok"}
+        self.o = (S.claude_status, S.status, S.conf_disk)
+        S.claude_status = lambda: {"credential": "subscription token", "state": "ok"}; S.conf_disk = lambda path=None: None   # this computer's own disk says nothing here
         S.status = lambda force=False: {"accounts": [{"type": "music", "yt_token": "/home/navaan/.config/navaan/youtube_token.json", "yt": {"present": True, "ok": True},
                                                       "yt_analytics": {"present": True, "ok": True}, "ig": {"present": True, "ok": True, "days_left": 40}, "market": {"present": False}}]}
 
-    def tearDown(self): S.claude_status, S.status = self.o
+    def tearDown(self): S.claude_status, S.status, S.conf_disk = self.o
 
     def test_nothing_to_say_when_all_is_fine(self): self.assertEqual(S.alerts(), [])
+
+    def test_a_nearly_full_settings_disk_is_an_alert(self):   # NAV-54: the 16 MB memory disk on the server
+        from unittest import mock
+        with mock.patch.object(S, "conf_disk", return_value={"used": 14 * 1024 * 1024, "total": 16 * 1024 * 1024, "share": 0.875}):
+            a = S.alerts(); self.assertEqual(a[0]["id"], "conf_disk"); self.assertIn("88% full", a[0]["title"])
+        with mock.patch.object(S, "conf_disk", return_value={"used": 1, "total": 16, "share": 0.0625}): self.assertEqual(S.alerts(), [])
+        self.assertIsNone(self.o[2]("/no/such/folder/here"))
 
     def test_expired_claude_token(self):
         S.claude_status = lambda: {"credential": "subscription token", "state": "expired"}

@@ -90,6 +90,13 @@ The inspiration account uses `NAVAAN_YT_TOKEN=~/.config/navaan/youtube_token_ins
 
 Whether always-on use of a Claude subscription token fits Anthropic's terms is yours to check (T034). An API key in the same box is the fallback; no other change is needed.
 
+## The settings disk is 16 MB: keep files out of it (NAV-54)
+
+`/home/navaan/.config/navaan` in the `navaan` container is a 16 MB memory disk (tmpfs) that holds the logins, tokens and settings delivered from Vault. Nothing in the app writes media there; keep it that way:
+
+- One-off jobs (an image test, a download, a conversion) write to `/tmp` (about 2 GB) and stream the result out with `docker exec ... cat`. `docker cp` cannot read a tmpfs, so a file left there is also hard to get back.
+- When the disk passes 80% Studio shows "The settings disk is N% full". Find the culprit with `docker exec navaan du -ah /home/navaan/.config/navaan | sort -h | tail` and move it to `/tmp`. A full disk makes the next token refresh fail.
+
 ## Mac-only steps
 Suno import of a public song no longer needs a browser: the server reads the public clip data and downloads the audio itself (`suno_import.py auto <slug>`). It falls back to the Chrome step, which cannot run on the server, only for a private song or when `suno.auto_failed` is set in meta.json. The music Short and Instagram Reel no longer need Studio for songs that use your own pictures: the video step also renders `final_reel_9x16.mp4` (45 s from the first chorus, `shots_render.py <slug> --reel`; write `reel_start.json` {"start": seconds} to move it), the Short is uploaded with the API, and Instagram uses the same file. The full YouTube video has no burned in captions. Steps that drive Chrome (Suno generate, Flow visuals and the Studio Short for Flow songs, the Suno import fallback) cannot run on the server. The studio shows "Do this on the Mac, then upload the result". Copy the song folder to the Mac, run the step there, copy the new files back:
 ```sh
