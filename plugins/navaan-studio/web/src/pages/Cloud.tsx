@@ -24,7 +24,7 @@ function FileRow({ s, f, busy, link, err, onLink, onClose }: { s: CloudSong; f: 
     <li className="cl-file">
       <span className="cl-name"><b>{label}</b>{f.name.includes("/") && <span className="mu"> {f.name.slice(0, f.name.lastIndexOf("/"))}</span>} <span className="mu">{mb(f.size)}</span></span>
       <span className="cl-act">
-        {kind === "edit" && <Link className="btn g" to={`/studio/${s.slug.startsWith("insp") ? "inspiration" : s.slug.startsWith("aha") ? "aha" : "songs"}/${s.slug}`} aria-label={`Edit ${label} of ${s.slug}`}>Edit</Link>}
+        {kind === "edit" && <Link className="btn g" to={`/studio/${s.slug.startsWith("insp") ? "inspiration" : s.slug.startsWith("aha") ? "aha" : s.slug.startsWith("blog") ? "blog" : "songs"}/${s.slug}`} aria-label={`Edit ${label} of ${s.slug}`}>Edit</Link>}
         {(kind === "audio" || kind === "video" || kind === "image") && (link
           ? <button className="btn g" onClick={() => onClose(f.key)} aria-label={`Close ${label} of ${s.slug}`}>Close</button>
           : <button className="btn g" disabled={busy} onClick={() => onLink(f.key, "show")} aria-label={`${kind === "audio" ? "Play" : kind === "video" ? "Watch" : "View"} ${label} of ${s.slug}`}>{kind === "audio" ? "Play" : kind === "video" ? "Watch" : "View"}</button>)}
