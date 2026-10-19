@@ -61,6 +61,14 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     fireEvent.change(box, { target: { value: "All my songs are on a paid plan." } }); fireEvent.click(sw);
     await waitFor(() => expect(posts(f, "/api/settings/licence_save")).toEqual([{ auto: true, statement: "All my songs are on a paid plan." }]));
   });
+  it("saves a pasted YouTube token file as the fallback sign-in, and has the setup guides", async () => {
+    const f = route({ "/api/settings/yt_save": () => ({ ok: true }), "/api/settings": () => DATA });
+    at(); await open(/YouTube publishing/);
+    fireEvent.click(await screen.findByText("Or sign in from a terminal and paste the token file"));
+    fireEvent.change(screen.getByLabelText("Token file for YouTube publishing"), { target: { value: '{"token": "x"}' } }); fireEvent.click(screen.getByRole("button", { name: "Save the token file" }));
+    await waitFor(() => expect(posts(f, "/api/settings/yt_save")).toEqual([{ type: "music", which: "publish", content: '{"token": "x"}' }]));
+    expect(screen.getByText("How to set up YouTube (first time)")).toBeInTheDocument();
+  });
   it("sets the spending limits: the most one run may spend on pictures, pictures per song, narration per month", async () => {
     const f = route({ "/api/settings/media_save": () => ({ ok: true }), "/api/settings": () => DATA });
     at(); fireEvent.click(await screen.findByRole("tab", { name: "AI services" }));

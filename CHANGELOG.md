@@ -23,6 +23,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
   - an empty page says how to start, and YouTube says when only public counts are shown
 - A song's page shows how each post and video is doing, as the classic Performance tab did: its rank against the account's other posts and its multiple of their median, the numbers as tiles, views over time, YouTube retention, what the analysis says about it, and the comments waiting for a reply. Posts and videos can be unlinked, and a YouTube video can be linked from the song too.
 - The Media tab shows where the song is published (YouTube thumbnails with their privacy and a link into YouTube Studio when private, the Instagram Reel embedded), its files in the cloud archive with one-hour previews, the cover and thumbnail stills, and its pictures. "Make 9:16" and "Try the first 2 pictures" work after the look is chosen too.
+- The Songs, Inspiration and Aha-lorithm lists can be searched, filtered to published or in the cloud, grouped by album or status, and shown as a grid. Each row shows its progress, where its files are (local only, in the cloud, bucket out of date, local copy cleaned), a refused YouTube thumbnail, and its views on Instagram and YouTube.
+- Approvals lists items whose YouTube thumbnail was refused, and the Studio tile counts them.
+- The home dashboard shows how many items are published (and on Instagram), how many are in the cloud (checked, and cleaned here), a bar by stage, and the latest covers.
+- Cloud shows the archived count, the objects, the total size and how many are out of date, and the bucket's folder.
+- Settings: each YouTube sign-in can also be done from a terminal by pasting the token file, and step-by-step guides cover the Instagram token, the Facebook token for peer data and the first YouTube setup.
+- The Text tab edits every text file of an item, not only the usual ones. The account menu shows whether the studio runs on the server and whether the scheduler and the worker are up.
 
 ### Changed
 - New Aha-lorithm shorts are narrated at the "Calm" pace, a little slower than normal. A short already made keeps its pace; change it on its Narration card and narrate it again.

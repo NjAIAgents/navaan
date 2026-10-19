@@ -33,6 +33,8 @@ export type SongRow = {
   album: string; steps_done: number; steps_total: number; public: boolean; published: boolean; scheduled: string; schedule_at?: string;
   next: { type: string; step?: string; gate?: string; label?: string };
   art?: { colour: string | null } | null;
+  archived?: boolean; verified?: boolean | null; cleaned?: boolean; thumb_pending?: boolean; instagram?: boolean;   // the cloud and publishing state the list shows
+  mtime?: number; cover?: boolean;
 };
 
 export type Step = {
@@ -140,7 +142,7 @@ export type Schedule = { youtube_at: string | null; instagram_at: string | null;
 
 // Cloud (NAV-27)
 export type CloudSong = { slug: string; title: string; files: { name: string; size: number; key: string }[]; bytes: number; local: boolean; cleaned: boolean; uploaded_at?: string | null; verified?: boolean | null; youtube: string[]; instagram: string };
-export type CloudData = { configured: boolean; provider?: string; bucket?: string; region?: string; error?: string; songs?: CloudSong[] };
+export type CloudData = { configured: boolean; provider?: string; bucket?: string; region?: string; prefix?: string; error?: string; songs?: CloudSong[] };
 
 // Feedback from the public site (NAV-44)
 export type SongReactions = { slug: string; title: string; up: number; down: number; love: number };

@@ -341,3 +341,7 @@ body.lock { overflow: hidden; }
 .barlist .bl-t { height: 8px; border-radius: 4px; background: var(--s2); overflow: hidden; }
 .barlist .bl-t i { display: block; height: 100%; background: var(--ac); border-radius: 4px; }
 .th-sort { background: none; border: 0; padding: 0 4px; font: inherit; color: inherit; cursor: pointer; min-height: var(--tap, 44px); }   /* a phone needs a 44px target */
+/* the item list as a grid of tiles (Songs, Inspiration, Aha-lorithm) */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.q.tile { flex-direction: column; align-items: flex-start; }
+.q.tile .cover { width: 100%; height: auto; aspect-ratio: 1; }
