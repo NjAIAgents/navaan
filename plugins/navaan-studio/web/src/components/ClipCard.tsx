@@ -23,8 +23,9 @@ export function ClipCard({ slug, title, position, duration: playing, bare = fals
   const known = duration > 20; const whole = known ? Math.floor(duration) : 3600;   // the length is unknown until the song has loaded: then numbers are typed instead of dragged
   const length = end - start;
   // The two points keep to 5 to 90 seconds apart and inside the song: moving one pushes the other.
-  const moveStart = (v: number) => { const a = Math.max(0, Math.min(whole - MIN_LEN, Math.floor(v) || 0)); setStart(a); setEnd(Math.max(a + MIN_LEN, Math.min(end, a + MAX_LEN, whole))); };
-  const moveEnd = (v: number) => { const b = Math.max(MIN_LEN, Math.min(whole, Math.floor(v) || 0)); setEnd(b); setStart(Math.min(b - MIN_LEN, Math.max(start, b - MAX_LEN, 0))); };
+  // From the latest value, not the one this render saw: two quick changes (start, then end) must not undo each other.
+  const moveStart = (v: number) => { const a = Math.max(0, Math.min(whole - MIN_LEN, Math.floor(v) || 0)); setStart(a); setEnd((e) => Math.max(a + MIN_LEN, Math.min(e, a + MAX_LEN, whole))); };
+  const moveEnd = (v: number) => { const b = Math.max(MIN_LEN, Math.min(whole, Math.floor(v) || 0)); setEnd(b); setStart((s) => Math.min(b - MIN_LEN, Math.max(s, b - MAX_LEN, 0))); };
   const slide = (a: number, b: number) => { setMade(null); setStart(a); setEnd(b); };
   // Hear exactly the part that will be cut: the song plays from the first point and stops at the second.
   const pl = usePlayer(); const pos = usePosition().position; const [hearing, setHearing] = useState(false);

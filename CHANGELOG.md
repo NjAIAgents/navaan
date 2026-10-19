@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.46.3] - 2026-10-18
+
+### Fixed
+- Making a clip: if the start and the end were changed quickly one after the other, the start went back to 0. Both points are now kept. This also unblocks the 0.46.2 release, whose deploy check tripped on it.
+
 ## [0.46.2] - 2026-10-18
 
 ### Fixed
@@ -613,7 +618,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.46.2...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.46.3...HEAD
+[0.46.3]: https://github.com/NjAIAgents/navaan/compare/v0.46.2...v0.46.3
 [0.46.2]: https://github.com/NjAIAgents/navaan/compare/v0.46.1...v0.46.2
 [0.46.1]: https://github.com/NjAIAgents/navaan/compare/v0.46.0...v0.46.1
 [0.46.0]: https://github.com/NjAIAgents/navaan/compare/v0.45.0...v0.46.0

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClipCard } from "./ClipCard";
 
@@ -15,6 +15,12 @@ describe("ClipCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Make the clip" }));
     expect(await screen.findByLabelText("Clip of Tere Hone Se")).toHaveAttribute("src", "/c/song-001-41-15.mp4");
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit]; expect(url).toBe("/api/clip"); expect(JSON.parse(String(init.body))).toEqual({ slug: "song-001", start: 41, length: 15 });
+  });
+  it("keeps both points when they are changed quickly one after the other (the start was once undone by the end)", () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({}))));
+    render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={200} />);
+    act(() => { fireEvent.change(screen.getByLabelText("Start at (seconds)"), { target: { value: "1" } }); fireEvent.change(screen.getByLabelText("End at (seconds)"), { target: { value: "16" } }); });   // one batch, as a fast hand or a test does
+    expect(screen.getByText("Clip from 0:01 to 0:16, 15 seconds of 3:20")).toBeInTheDocument();
   });
   it("shares the video file through the phone's share sheet when it can, else the link, and shows the server's refusal", async () => {
     const share = vi.fn(() => Promise.resolve()); Object.defineProperty(navigator, "share", { configurable: true, value: share }); Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
