@@ -21,8 +21,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
   - recommendations show Claude's market sources and whether each one came from Claude or the rules, sort the surest first, report what changed after one was marked done, and show the last Claude run's error if it did not finish
   - a slot in Best time to publish opens the scheduler with that time filled in
   - an empty page says how to start, and YouTube says when only public counts are shown
+- A song's page shows how each post and video is doing, as the classic Performance tab did: its rank against the account's other posts and its multiple of their median, the numbers as tiles, views over time, YouTube retention, what the analysis says about it, and the comments waiting for a reply. Posts and videos can be unlinked, and a YouTube video can be linked from the song too.
+- The Media tab shows where the song is published (YouTube thumbnails with their privacy and a link into YouTube Studio when private, the Instagram Reel embedded), its files in the cloud archive with one-hour previews, the cover and thumbnail stills, and its pictures. "Make 9:16" and "Try the first 2 pictures" work after the look is chosen too.
 
 ### Changed
+- New Aha-lorithm shorts are narrated at the "Calm" pace, a little slower than normal. A short already made keeps its pace; change it on its Narration card and narrate it again.
 - "Waiting for you" says plainly whether it needs an account switch or something done on the Mac, without sending you to the classic view. A failed step's "Show the full log" opens the step's log in the new app.
 
 ## [0.47.1] - 2026-10-18

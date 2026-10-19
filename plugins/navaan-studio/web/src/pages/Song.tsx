@@ -16,6 +16,7 @@ import { VisualsCard } from "../components/VisualsCard";
 import { SongAnalytics } from "../components/SongAnalytics";
 import { ScheduleCard } from "../components/SchedulePanel";
 import { MediaCard, MusicCard, NarrationCard, PostTextEditor, ShotsEditor, TextEditors } from "../components/SongEditors";
+import { ArchiveCard, PicturesCard, PublishedCard, StillsCard } from "../components/MediaExtras";
 import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
 import { fmtCentral } from "../lib/datetime";
@@ -475,7 +476,11 @@ export default function Song() {
           {insp && <MusicCard d={d} done={load} />}
         </>)}
         {tab === "media" && (<>
+          <PublishedCard d={d} />
           <MediaCard d={d} />
+          <StillsCard d={d} />
+          <PicturesCard d={d} done={load} />
+          {d.cloud && <ArchiveCard slug={slug} />}
           <PosterCard d={d} done={load} />
           {!isShort(d.meta.type) && <MoodCard d={d} done={load} />}
         </>)}
