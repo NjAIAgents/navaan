@@ -3,7 +3,7 @@
 
 Author: Navjyot Nishant
 Created: 2026-10-13
-Last updated: 2026-10-13
+Last updated: 2026-10-18
 Description: pull secrets to a memory-only folder, push refreshed tokens back, report status for the portal.
 
   watch     (server) AppRole login, pull everything, then every 30 s push files that changed and pull ones changed in Vault.
@@ -15,7 +15,7 @@ Description: pull secrets to a memory-only folder, push refreshed tokens back, r
 Environment: NAVAAN_VAULT_ADDR (or VAULT_ADDR), NAVAAN_VAULT_ROLE_ID_FILE, NAVAAN_VAULT_SECRET_ID_FILE, NAVAAN_VAULT_MOUNT (navaan),
 NAVAAN_SECRETS_DIR (~/.config/navaan), NAVAAN_SECRETS_STATUS (<dir>/secrets.status), NAVAAN_GATE_FILE (where gate.htpasswd is written, in place).
 Layout: specs/001-run-navaan-on-server/contracts/vault-layout.md. Nothing here prints a secret value, role id, secret id or token."""
-import os, sys, json, time, base64, hashlib, getpass, subprocess, urllib.request, urllib.error
+import os, re, sys, json, time, base64, hashlib, getpass, subprocess, urllib.request, urllib.error
 
 ADDR = (os.environ.get("NAVAAN_VAULT_ADDR") or os.environ.get("VAULT_ADDR") or "").rstrip("/")
 MOUNT = os.environ.get("NAVAAN_VAULT_MOUNT", "navaan")
@@ -27,6 +27,17 @@ POLL, RETRY = 30, 15
 KNOWN = ["instagram.env", "instagram_inspiration.env", "youtube_token.json", "youtube_token_inspiration.json", "youtube_analytics_token.json",
          "youtube_token_inspiration_analytics.json", "youtube_client_secret.json", "claude.env", "openai.env", "elevenlabs.env", "media.json", "gates.json", "auth.json"]
 GATE = "gate.htpasswd"
+# Each content type has its own login files (accounts.<type> in navaan.config.json), named after the type: they belong in Vault too,
+# or a new channel's sign-in stays in the one container that took it and is lost on the next restart.
+ACCOUNT_FILE = re.compile(r"(youtube_token_[a-z][a-z0-9_]{0,40}\.json|instagram_[a-z][a-z0-9_]{0,40}\.env)")
+
+
+def is_known(name): return name in KNOWN or bool(ACCOUNT_FILE.fullmatch(name))
+
+
+def local_known():
+    try: return {n for n in os.listdir(DIR) if is_known(n)}
+    except OSError: return set()   # expected: the folder does not exist yet before the first pull
 
 
 class Sealed(Exception): pass
@@ -108,7 +119,7 @@ def cycle(token, known):
     """One pass. known: name -> sha of the content last in step with Vault. Returns a one line summary."""
     pulled = pushed = 0
     remote = names(token)
-    for name in sorted(set(remote) | {n for n in KNOWN if os.path.exists(os.path.join(DIR, n))}):
+    for name in sorted(set(remote) | local_known()):
         path = dest(name)
         if not path: continue
         local = open(path, "rb").read() if os.path.exists(path) else None
@@ -119,7 +130,7 @@ def cycle(token, known):
             if got and (local is None or sha(got[0]) != sha(local)):
                 write_file(path, got[0], got[1], inplace=(name == GATE)); known[name] = sha(got[0]); pulled += 1
             elif got: known[name] = sha(got[0])
-        elif local is not None and name in KNOWN:  # new here, not in Vault yet
+        elif local is not None and is_known(name):  # new here, not in Vault yet
             store(name, local, os.stat(path).st_mode & 0o777, token); known[name] = sha(local); pushed += 1
     return f"{len(known)} files, pulled {pulled}, pushed {pushed}"
 
@@ -161,10 +172,10 @@ def admin_token():
 def push(files):
     if not ADDR: sys.exit("Set VAULT_ADDR (for example through an ssh tunnel to the Vault port).")
     t = admin_token()
-    for n in files or [n for n in KNOWN if os.path.exists(os.path.join(DIR, n)) and n != "auth.json"]:
+    for n in files or sorted(n for n in local_known() if n != "auth.json"):
         p = n if os.path.isabs(n) else os.path.join(DIR, n)
         name = os.path.basename(p)
-        if name not in KNOWN + [GATE]: print(f"skip {name}: not a known credential file"); continue
+        if not (is_known(name) or name == GATE): print(f"skip {name}: not a known credential file"); continue
         store(name, open(p, "rb").read(), os.stat(p).st_mode & 0o777, t); print(f"pushed {name}")
 
 

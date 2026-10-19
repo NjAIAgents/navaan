@@ -77,7 +77,7 @@ class Aha(unittest.TestCase):
     def test_its_quiet_bed_comes_from_its_own_library_even_under_a_voice(self):
         self.assertEqual(self.P.narrated_music(True, "auto", "/lib/a.mp3", "library", library_ok=True), ("/lib/a.mp3", "library"))
         self.assertEqual(self.P.narrated_music(True, "auto", "/lib/a.mp3", "library"), (None, "none"))   # inspiration: only the owner's own track under a voice
-        self.assertEqual(self.P.MUSIC_LIB["aha"], "aha_music"); self.assertLess(self.P.LOOKS["aha"]["music"], 0.2)
+        self.assertEqual(self.P.MUSIC_LIB["aha"], "aha_music"); self.assertTrue(0.2 <= self.P.LOOKS["aha"]["music"] <= 0.35)   # under the voice, yet audible on a phone (0.12 was not)
 
     def test_the_channel_music_is_fitted_and_its_beats_found_under_the_beat_pictures(self):
         import subprocess, shutil

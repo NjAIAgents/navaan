@@ -204,8 +204,8 @@ def snap(t, bts, lo, hi, tol=0.4):
 
 # Each short-form channel has its own look, so the two never pass for each other: colours, the font family (serif or sans) and the icon of the end card.
 LOOKS = {"inspiration": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
-         "aha": {"color": "#F4F7FF", "accent": "#E2B75A", "dim": 0.5, "font": "sans", "place": "center", "music": 0.12,
-                 "title": "The *Aha*-lorithm", "tagline": "AI explained in seconds"}}   # The Aha-lorithm: a short bold caption in the safe area, muted gold on the key phrase, a picture per beat, music about 20 dB under the voice
+         "aha": {"color": "#F4F7FF", "accent": "#E2B75A", "dim": 0.5, "font": "sans", "place": "center", "music": 0.25,
+                 "title": "The *Aha*-lorithm", "tagline": "AI explained in seconds"}}   # The Aha-lorithm: a short bold caption in the safe area, muted gold on the key phrase, a picture per beat, music about 14 dB under the voice (0.12 was inaudible on a phone)
 MUSIC_LIB = {"aha": "aha_music"}   # a channel with its own library of quiet beds (<local_dir>/aha_music), picked even under a voice
 
 
