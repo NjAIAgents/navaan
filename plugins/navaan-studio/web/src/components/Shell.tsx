@@ -9,6 +9,7 @@ import { useTheme } from "../theme/useTheme";
 import { getJSON } from "../lib/api";
 import { MeProvider, useMe } from "../lib/me";
 import { PlayerProvider, usePlayer } from "../lib/player";
+import { hit, setCounting } from "../lib/visits";
 import { SeekBar } from "./SeekBar";
 import { Cover } from "./Cover";
 import { Transport } from "./Transport";
@@ -70,7 +71,10 @@ function ShellFrame() {
   const { choice, setChoice } = useTheme();
   const [open, setOpen] = useState(false);
   const [version, setVersion] = useState<string | undefined>();
-  const { user: who, studio, guest, studioUrl } = useMe();
+  const { user: who, studio, guest, studioUrl, ready } = useMe();
+  const counted = ready && !studio && (guest || !studioUrl);   // visits are counted for listeners only, never the owner (in the studio, or signed in on the public site with a way back to it)
+  useEffect(() => { setCounting(counted); }, [counted]);
+  useEffect(() => { if (!counted) return; hit("view", /^\/song\/([^/]+)/.exec(pathname)?.[1]); if (pathname === "/join") hit("pitch"); }, [pathname, counted]);   // every account pitch leads to /join
   useEffect(() => { getJSON<{ version?: unknown }>("/auth/state").then((s) => setVersion(typeof s?.version === "string" && s.version ? s.version : undefined)).catch(() => setVersion(undefined)); }, []);
   const close = useCallback(() => setOpen(false), []);
   const title = titleFor(pathname);

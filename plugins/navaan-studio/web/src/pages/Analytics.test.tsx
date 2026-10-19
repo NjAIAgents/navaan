@@ -105,10 +105,25 @@ describe("Studio > Analytics > Interactions", () => {
   });
 });
 
+const T = (v: number) => ({ views: v, plays: 2, seconds: 150, pitch: 1, visitors: 3 });
+const VISITS = { days: 30, totals: { today: T(4), d7: T(9), d30: T(20) }, songs: [{ slug: "song-001", title: "Tere Hone Se", views: 7, plays: 2, seconds: 150, visitors: 3 }],
+  sources: [{ name: "youtube", views: 5, plays: 2, visitors: 2 }, { name: "direct", views: 2, plays: 0, visitors: 1 }], devices: [{ name: "mobile", views: 7, plays: 2, visitors: 3 }], daily: [] };
+
+describe("Studio > Analytics > Visitors (NAV-33)", () => {
+  it("shows today, 7 and 30 days, then songs, sources and devices for the chosen period", async () => {
+    const f = mock({ "/api/site/visits": () => VISITS, "/api/analytics": () => ig() });
+    at("/studio/analytics?tab=visitors&days=7");
+    const today = await screen.findByLabelText("Today"); expect(today).toHaveTextContent("3 visitors, 4 page views"); expect(today).toHaveTextContent("2 plays, 3 min listened · 1 opened the account page");
+    expect(screen.getByRole("link", { name: "Tere Hone Se" })).toHaveAttribute("href", "/studio/songs/song-001");
+    expect(screen.getByRole("cell", { name: "YouTube" })).toBeInTheDocument(); expect(screen.getByRole("cell", { name: "Direct or an app" })).toBeInTheDocument(); expect(screen.getByRole("cell", { name: "Phone" })).toBeInTheDocument();
+    expect(f.mock.calls.some(([u]) => u === "/api/site/visits?days=7")).toBe(true);
+  });
+});
+
 describe("accessibility", () => {
   it("has no serious violations on the three tabs", async () => {
-    for (const tab of ["analytics", "recommendations", "interactions"]) {
-      cleanup(); mock({ "/api/analytics": () => ig(), "/api/replies": () => ({ items: [{ comment_id: "u", username: "@v", text: "hi", posted_at: "2026-10-13T06:58:29Z", post_id: "v", post: "P", account: "a", link: "https://x", reply: null }] }) });
+    for (const tab of ["analytics", "recommendations", "interactions", "visitors"]) {
+      cleanup(); mock({ "/api/site/visits": () => VISITS, "/api/analytics": () => ig(), "/api/replies": () => ({ items: [{ comment_id: "u", username: "@v", text: "hi", posted_at: "2026-10-13T06:58:29Z", post_id: "v", post: "P", account: "a", link: "https://x", reply: null }] }) });
       at(`/studio/analytics?tab=${tab}`); await screen.findAllByRole("heading", { level: 1 }); await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
       await screen.findByRole("tabpanel"); await new Promise((r) => setTimeout(r, 20));
       const r = await axe.run(document.body, { rules: { "color-contrast": { enabled: false } } });

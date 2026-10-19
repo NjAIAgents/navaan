@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-18
+
+### Added
+- Visitors tab under Studio › Analytics (NAV-33). It shows who comes to the public site and what they play: visitors, page views, plays, minutes listened and how many opened the account page, for today and the last 7 and 30 days. It also lists each song, where visitors came from (YouTube, Instagram, WhatsApp, search engines, direct and others) and their device (phone, tablet or computer). Counting is first-party and uses no cookies. A visitor is the same address and browser on the same day, kept only as a code made with a key that is never stored and is replaced every day; no IP address or browser details are kept. Visits of the owner, link previews and crawlers are not counted. Add `?src=yt`, `ig` or `wa` to links you post so visits from YouTube, Instagram and WhatsApp are told apart, since those apps send no referrer. The privacy policy says all this.
+
 ## [0.45.0] - 2026-10-18
 
 ### Added
@@ -596,7 +601,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.45.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.46.0...HEAD
+[0.46.0]: https://github.com/NjAIAgents/navaan/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/NjAIAgents/navaan/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/NjAIAgents/navaan/compare/v0.42.0...v0.43.0

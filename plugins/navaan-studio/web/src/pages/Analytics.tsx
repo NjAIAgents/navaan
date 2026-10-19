@@ -6,10 +6,11 @@ import Feedback from "./analytics/Feedback";
 import Interactions from "./analytics/Interactions";
 import Numbers from "./analytics/Numbers";
 import Recs from "./analytics/Recs";
+import Visitors from "./analytics/Visitors";
 import { Actions, Auto, Hashtags, Peers } from "./analytics/Extras";
 import { Loading } from "../components/Loading";
 
-const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"], ["feedback", "Feedback"]] as const;
+const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"], ["feedback", "Feedback"], ["visitors", "Visitors"]] as const;
 
 // Studio > Analytics: numbers, advice and audience replies on their own tabs. The state is in the address, so a view can be linked.
 export default function Analytics() {
@@ -37,7 +38,7 @@ export default function Analytics() {
       </div>
       <div id="panel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="stack" style={{ gap: 20 }}>
         {err && <div className="card" role="alert"><h2>Could not load analytics</h2><p className="mu">{err}</p></div>}
-        {tab === "feedback" ? <Feedback /> : tab === "interactions" ? <Interactions platform={platform} /> : (
+        {tab === "visitors" ? <Visitors days={days} /> : tab === "feedback" ? <Feedback /> : tab === "interactions" ? <Interactions platform={platform} /> : (
           <>
             {!d && !err && <Loading />}
             {d?.empty && <div className="card"><p className="empty">Nothing collected yet{d.error ? ` (${d.error})` : ""}.</p></div>}
