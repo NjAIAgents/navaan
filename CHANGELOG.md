@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.46.2] - 2026-10-18
+
+### Fixed
+- Studio › Analytics was missing the "Best time to publish" bar chart from the classic page. It is back at the top of the Analytics tab, for Instagram and for YouTube (videos and Shorts). It shows a bar for each hour of the day in Central Time, a score for each weekday, and the next good slots. Peers, the competitor table, now sits right under it instead of below every chart.
+
 ## [0.46.1] - 2026-10-18
 
 ### Fixed
@@ -606,7 +611,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.46.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.46.2...HEAD
+[0.46.2]: https://github.com/NjAIAgents/navaan/compare/v0.46.1...v0.46.2
 [0.46.1]: https://github.com/NjAIAgents/navaan/compare/v0.46.0...v0.46.1
 [0.46.0]: https://github.com/NjAIAgents/navaan/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...v0.45.0
