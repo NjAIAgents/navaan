@@ -31,6 +31,7 @@ export const STUDIO_SUB: { to: string; label: string; soon?: boolean }[] = [
   { to: "/studio/inspiration", label: "Inspiration" },
   { to: "/studio/aha", label: "Aha-lorithm" },
   { to: "/studio/reels", label: "Reels" },
+  { to: "/studio/blog", label: "Blog" },
   { to: "/studio/podcasts", label: "Podcasts", soon: true },
   { to: "/studio/approvals", label: "Approvals" },
   { to: "/studio/schedule", label: "Schedule" },

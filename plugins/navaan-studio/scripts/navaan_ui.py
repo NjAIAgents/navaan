@@ -87,8 +87,9 @@ POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json"}
-READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "motion.json", "caption_cues.json",
-                    "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json"}   # the reel's plan, the critic's notes and the footage facts
+READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "motion.json", "caption_cues.json", "topics.json", "trend_sources.json",
+                       "research.md", "claims.json", "outline.md", "devto.md", "linkedin_article.md", "factcheck.json", "fix_notes.md", "review_notes.md", "edit.json",   # the blog's working files (NAV-72, NAV-73)
+                       "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json"}   # the reel's plan, the critic's notes and the footage facts
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}
@@ -237,7 +238,7 @@ def detail(slug):
     failure = {"step": fstep, "error": ferr, "ref": jv.get("id", ""), "plain": plain_failure(fstep, ferr, rows, nolyr)} if (jv.get("status") == "failed" and jv["rc"] not in (0, 5, 6, 7) and not stale) else None
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
-            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) != "music" else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "deletable": dict(zip(("ok", "why"), navaan.deletable(slug))), "reel_lyrics": reel_lyrics.view(D, m),
+            "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) not in ("music", "blog") else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "deletable": dict(zip(("ok", "why"), navaan.deletable(slug))), "reel_lyrics": reel_lyrics.view(D, m),
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "visuals_suggest": V.suggest(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
@@ -1001,7 +1002,19 @@ class H(BaseHTTPRequestHandler):
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True, "started": start_job(slug, True)})
             if not SLUG.match(slug): return self._send(400, {"error": "bad slug"})
+            if p == "/api/blog/topic":   # the owner picks one of the 5 suggested topics, maybe reworded, and that approves the topic gate (NAV-71)
+                tp = os.path.join(C.song_dir(slug), "topics.json"); t = C.load_json(tp, default=None)
+                cands = (t or {}).get("candidates") or []
+                try: i = int(body.get("index"))
+                except (TypeError, ValueError): i = -1   # expected: no number sent; refused just below
+                if not 0 <= i < len(cands): return self._send(400, {"error": "pick one of the suggested topics"})
+                pick = {**cands[i], "index": i, **{k: str(body[k]).strip()[:500] for k in ("title", "angle") if str(body.get(k) or "").strip()}}
+                t["chosen"] = pick
+                with open(tp, "w", encoding="utf-8") as f: json.dump(t, f, indent=2, ensure_ascii=False)
+                navaan.set_gate(slug, "topic", True, f"ui:{sess.get('user') or 'owner'}")
+                return self._send(200, {"ok": True, "chosen": pick})
             if p == "/api/approve":
+                if body.get("gate") == "topic" and not navaan.topic_chosen(C.song_dir(slug)): return self._send(400, {"error": "pick a topic first"})
                 navaan.set_gate(slug, body["gate"], True, f"ui:{sess.get('user') or 'owner'}"); started = False
                 m = navaan.meta(slug); sid = m.get("redo_pending")
                 if sid and body["gate"] == "credits":

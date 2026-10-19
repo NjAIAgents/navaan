@@ -34,6 +34,7 @@ import navaan_log as L
 from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root, item_type, account
 import navaan_common as C
 import publish_schedule as PS
+import blog_loop as BL
 import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -369,7 +370,45 @@ def reel_steps(slug, D):
     return out
 
 
-STEPSETS = {"music": music_steps, "inspiration": inspiration_steps, "aha": aha_steps, "reel": reel_steps}
+BLOG_ABOUT = ("This item is a blog post under the owner's own name, for developers and tech readers: a dev.to post and a LinkedIn article made from one topic. "
+              "The topic the owner picked is topics.json \"chosen\".")
+
+
+def topic_chosen(D):
+    """The owner picked one of the 5 topics (topics.json "chosen", written by the topic picker)."""
+    return bool((load_json(os.path.join(D, "topics.json"), default={}) or {}).get("chosen"))
+
+
+def blog_steps(slug, D):
+    """A blog (NAV-69): one topic becomes a dev.to post, a LinkedIn article and a LinkedIn post. NAV-71: free trend sources, 5 topics from Claude's
+    web search, and the owner's pick. Research, writing, images and publishing follow in later stories; the archive and cleanup are shared."""
+    tail = [s for s in inspiration_steps(slug, D) if s["id"] in ("archive", "cleanup")]
+    return [
+        dict(id="trends", outputs=["trend_sources.json"], label="Look up what is trending (Hacker News, dev.to, Google Trends)", kind="script",
+             cmds=[sc("trend_sources.py", slug)], done=lambda m: has(D, "trend_sources.json")),
+        dict(id="topics", outputs=["topics.json"], label="Suggest 5 trending topics", kind="claude", skill="blog-topics", chrome=False, tools=["WebSearch", "WebFetch"],
+             done=lambda m: has(D, "topics.json"), after="topic"),
+        # NAV-72: research the chosen topic from primary sources, then outline it; a new pick makes both due again
+        dict(id="research", outputs=["research.md", "claims.json"], label="Research the topic from primary sources", kind="claude", skill="blog-research", chrome=False, tools=["WebSearch", "WebFetch"],
+             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["research.md", "claims.json"], ["topics.json"]) and BL.claims_ok(D)),
+        dict(id="outline", outputs=["outline.md"], label="Outline the post", kind="claude", skill="blog-outline", chrome=False,
+             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["outline.md"], ["research.md", "claims.json"])),
+        # NAV-73: drafts, a fact check that sends failing claims back to the writer at most twice, then review notes and the edit
+        dict(id="write", outputs=[*BL.DRAFTS, BL.MARK], label="Write the dev.to post and the LinkedIn article", kind="claude", skill="blog-writer", chrome=False,
+             hint=BLOG_ABOUT, done=lambda m: has(D, *BL.DRAFTS) and fresh(D, [BL.MARK], ["outline.md", "fix_notes.md"])),
+        dict(id="factcheck", outputs=["factcheck.json"], label="Fact-check every claim against its source", kind="claude", skill="blog-factcheck", chrome=False, tools=["WebSearch", "WebFetch"],
+             done=lambda m: BL.checked(D)),
+        dict(id="factcheck_loop", outputs=["fix_notes.md"], label="Send failing claims back to the writer (2 rounds at most)", kind="script",
+             cmds=[sc("blog_loop.py", "factcheck", slug)], done=lambda m: BL.passed(D) or BL.fix_pending(D)),
+        dict(id="review", outputs=["review_notes.md"], label="Review structure, clarity and depth (notes only)", kind="claude", skill="blog-reviewer", chrome=False,
+             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["review_notes.md"], ["factcheck.json"])),
+        dict(id="edit", outputs=["edit.json", *BL.DRAFTS], label="Edit both drafts with the review notes", kind="claude", skill="blog-editor", chrome=False,
+             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["edit.json"], ["review_notes.md"])),
+        *tail,
+    ]
+
+
+STEPSETS = {"music": music_steps, "inspiration": inspiration_steps, "aha": aha_steps, "reel": reel_steps, "blog": blog_steps}
 
 
 def steps(slug, D):

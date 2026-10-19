@@ -21,6 +21,7 @@ import { usePlayer } from "../lib/player";
 import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
 import { fmtCentral } from "../lib/datetime";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
+import { TopicPicker } from "../components/TopicPicker";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { errText, isShort, listPath, nextAction } from "../lib/songs";
 import { ReelFootage } from "../components/ReelFootage";
@@ -95,8 +96,9 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
               <label className="row" style={{ gap: 8 }}><input type="radio" name="iglyrics" checked={!lyricsOn} disabled={busy} onChange={() => void act("/api/reel/lyrics", { on: false })} /> Without lyrics <span className="mu">(use this while the lyrics are out of sync)</span></label>
             </fieldset>
           )}
+          {gate === "topic" && <TopicPicker d={d} act={act} busy={busy} />}
           <div className="row">
-            <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => (RISKY.has(gate) ? setConfirm(true) : void ok("/api/approve", {}))}>Approve</button>
+            {gate !== "topic" && <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => (RISKY.has(gate) ? setConfirm(true) : void ok("/api/approve", {}))}>Approve</button>}
             <button className="btn" disabled={busy} onClick={() => setChanging(true)}>Request changes</button>
             {running && onStop && <button className="btn g" disabled={busy || stopping} onClick={onStop}>{stopping ? "Stopping…" : "Stop the run"}</button>}
           </div>
@@ -221,7 +223,7 @@ function DeleteItem({ d, act, busy, onGone }: { d: SongDetail; act: Act; busy: b
         <button className="btn g" onClick={() => setAsk(false)}>Keep it</button>
       </div>
     </div>
-  ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : d.meta.type === "aha" ? "short" : d.meta.type === "reel" ? "reel" : "song"}</button></div>;
+  ) : <div className="row"><button className="btn" disabled={busy} onClick={() => setAsk(true)}>Delete this {d.meta.type === "inspiration" ? "inspiration" : d.meta.type === "aha" ? "short" : d.meta.type === "blog" ? "blog post" : d.meta.type === "reel" ? "reel" : "song"}</button></div>;
 }
 
 // What an approval card shows, as words a person reads rather than the file behind it. The raw file stays one click away.
@@ -387,7 +389,7 @@ export default function Song() {
   if (!d) return err ? <div className="card" role="alert"><h2>Could not load this song</h2><p className="mu">{err}</p><Link className="btn" to="/studio/songs">Back to Songs</Link></div> : <Loading />;
 
   const title = d.text["title.txt"]?.trim() || slug;
-  const insp = isShort(d.meta.type); const list = listPath(d.meta.type);
+  const insp = isShort(d.meta.type); const list = listPath(d.meta.type); const blog = d.meta.type === "blog";
   const coverFile = insp ? "thumb_9x16.jpg" : "cover_1x1.png"; const cover = (d.files ?? {})[coverFile] ? `/media/${slug}/${coverFile}?w=160&v=${d.files[coverFile]}` : "";   // the song's cover (an inspiration: its reel's first frame) beside the title
   const gate = d.next.type === "gate" ? d.next.gate : undefined;
   const busy = pending || running;
@@ -452,7 +454,7 @@ export default function Song() {
       <div className="ph hd">
         {cover && <img className="ph-cover" src={cover} alt="" width={insp ? 54 : 96} height={96} />}
         <div className="ph-tx">
-          <Link className="back" to={list}><Icon name="chevron" />{d.meta.type === "aha" ? "The Aha-lorithm" : d.meta.type === "reel" ? "Reels" : insp ? "Inspiration" : "Songs"}</Link>
+          <Link className="back" to={list}><Icon name="chevron" />{d.meta.type === "aha" ? "The Aha-lorithm" : d.meta.type === "blog" ? "Blog" : d.meta.type === "reel" ? "Reels" : insp ? "Inspiration" : "Songs"}</Link>
           <h1 className="disp">{title}{pl.slug === slug && pl.playing && <> <Equaliser /></>}</h1>
           <p>{STATE_WORDS[d.meta.state ?? ""] ?? "New"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })} · <span className="mu">{slug}</span></p>
         </div>
@@ -493,8 +495,8 @@ export default function Song() {
           <StillsCard d={d} />
           <PicturesCard d={d} done={load} />
           {d.cloud && <ArchiveCard slug={slug} />}
-          <PosterCard d={d} done={load} />
-          {!isShort(d.meta.type) && <MoodCard d={d} done={load} />}
+          {!blog && <PosterCard d={d} done={load} />}
+          {!isShort(d.meta.type) && !blog && <MoodCard d={d} done={load} />}
         </>)}
         {tab === "publish" && (<>
           {published && (
@@ -505,7 +507,7 @@ export default function Song() {
           )}
           {published && <KeepCard slug={slug} />}
           {published && <ShareCard slug={slug} />}
-          {!(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
+          {!blog && !(d.meta.published?.instagram && !d.meta.schedule) && !(d.next.type === "done" && !d.meta.schedule) && <ScheduleCard slug={slug} type={d.meta.type ?? "music"} schedule={d.meta.schedule} done={load} />}
           {published && <SongAnalytics slug={slug} />}
         </>)}
         {tab === "activity" && (<>
