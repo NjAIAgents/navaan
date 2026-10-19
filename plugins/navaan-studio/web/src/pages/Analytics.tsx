@@ -7,7 +7,7 @@ import Interactions from "./analytics/Interactions";
 import Numbers from "./analytics/Numbers";
 import Recs from "./analytics/Recs";
 import Visitors from "./analytics/Visitors";
-import { Actions, Auto, Hashtags, Peers } from "./analytics/Extras";
+import { Actions, Auto, BestTime, Hashtags, Peers } from "./analytics/Extras";
 import { Loading } from "../components/Loading";
 
 const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"], ["feedback", "Feedback"], ["visitors", "Visitors"]] as const;
@@ -44,8 +44,10 @@ export default function Analytics() {
             {d?.empty && <div className="card"><p className="empty">Nothing collected yet{d.error ? ` (${d.error})` : ""}.</p></div>}
             {d?.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
             {d && !d.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
+            {d && !d.empty && tab === "analytics" && <BestTime d={d} platform={platform} />}
+            {d && !d.empty && tab === "analytics" && platform === "instagram" && <Peers d={d} />}
             {d && !d.empty && (tab === "recommendations" ? <Recs d={d} reload={load} /> : <Numbers d={d} platform={platform} reload={load} />)}
-            {d && !d.empty && tab === "analytics" && platform === "instagram" && <><Peers d={d} /><Hashtags d={d} /></>}
+            {d && !d.empty && tab === "analytics" && platform === "instagram" && <Hashtags d={d} />}
             {(tab === "analytics" || tab === "recommendations") && <Auto />}
           </>
         )}
