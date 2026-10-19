@@ -241,7 +241,7 @@ def detail(slug):
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "poster": {**POST.state(slug), **POSTER.get(slug, {})},
-            "narrate": (__import__("narrate_eleven").info(D) if C.is_short(C.item_type(m)) else None), "music": (__import__("bg_music").info(D) if C.is_short(C.item_type(m)) else None),
+            "narrate": (__import__("narrate_eleven").info(D) if C.is_short(C.item_type(m)) else None), "music": (__import__("bg_music").info(D) if C.is_short(C.item_type(m)) else None), "music_level": (round(100 * __import__("inspire_prep").music_level(D, C.item_type(m))) if C.is_short(C.item_type(m)) else None),
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
             "thumb_pending": (navaan.meta(slug).get("published", {}).get("thumbnail_pending") or []),
             "needs_you": (open(os.path.join(D, "needs_you.txt"), encoding="utf-8").read().strip() if os.path.exists(os.path.join(D, "needs_you.txt")) else "")}
@@ -1082,6 +1082,17 @@ class H(BaseHTTPRequestHandler):
                     navaan.edit_meta(slug, lambda m: navaan.log_hist(m, note))
                     return self._send(200, {"ok": True, **r})
                 except ValueError as e: return self._send(400, {"error": str(e)})
+            if p == "/api/music/level":   # how loud the music sits under the voice, in percent, for this short; the next typography step uses it
+                import narration
+                if not C.is_short(navaan.meta(slug).get("type")): return self._send(400, {"error": "the music level is for shorts"})
+                try: lv = int(round(float(body.get("level"))))
+                except (TypeError, ValueError): return self._send(400, {"error": "the level is a number from 0 to 60"})
+                if not 0 <= lv <= 60: return self._send(400, {"error": "the level is a number from 0 to 60"})
+                D = C.song_dir(slug); approved = bool((navaan.meta(slug).get("approvals") or {}).get("media"))
+                narration.set_options(D, {"music_level": str(lv)})
+                if not approved and os.path.exists(os.path.join(D, "timing.json")): os.remove(os.path.join(D, "timing.json"))   # the typography step runs again and takes the new level
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"music level {lv}% via ui"))
+                return self._send(200, {"ok": True, "level": lv, "redo": "Plan the typography" if approved else ""})
             if p in ("/api/music/upload", "/api/music/remove"):   # the owner's own background track for an inspiration short; the music is fitted by ffmpeg when the typography step runs
                 import bg_music, glob as _g
                 if not C.is_short(navaan.meta(slug).get("type")): return self._send(400, {"error": "background music is for inspiration shorts"})
