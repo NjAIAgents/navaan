@@ -93,3 +93,6 @@ Rollback: write the `.bak-` file back the same way and reload. The certificate r
 Note: the VM's own resolver may keep an old answer for `navaan.online` for a while; check from the VM with `curl --resolve navaan.online:443:127.0.0.1`.
 
 The public host has its own, looser throttle (`navaan_public`, 900 requests a minute per address): visitors have no session, so the strict anonymous zone would stop a normal visit. The studio hosts keep the strict zones. When you change this file on the VM: back up, overwrite in place, `nginx -t`, reload, then run the neighbour check as above.
+
+## Large uploads (reels)
+`navaan.conf` has a `location = /api/reel/upload` in the two studio vhosts (`navaan.njlabs.dev`, `studio.navaan.online`): `client_max_body_size 2100M`, `proxy_request_buffering off` and 30 minute timeouts, so a phone video streams straight to the app. Everything else stays at 30M. The app refuses over `reel.max_upload_mb` (2048) and checks free disk first; the data volume needs room for the upload and its shrunk copy. Reload nginx after copying the file.

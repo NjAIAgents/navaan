@@ -101,7 +101,7 @@ def _write(c, slug, doc, sha):
     row = c.execute("INSERT INTO items (slug, type, state, doc, export_sha) VALUES (?, ?, ?, ?, ?) "
                     "ON CONFLICT (slug) DO UPDATE SET type = excluded.type, state = excluded.state, doc = excluded.doc, export_sha = excluded.export_sha, "
                     "version = items.version + 1, updated_at = now() RETURNING id, version",
-                    (slug, t if t in ("music", "inspiration", "aha", "explainer", "podcast", "blog") else "music", doc.get("state"), _jsonb(doc), sha)).fetchone()
+                    (slug, t if t in ("music", "inspiration", "aha", "reel", "explainer", "podcast", "blog") else "music", doc.get("state"), _jsonb(doc), sha)).fetchone()
     iid = row["id"]
     hist, appr, pubs, sched = project(doc)
     for tbl in ("item_history", "approvals", "publications", "schedules"): c.execute(f"DELETE FROM {tbl} WHERE item_id = ?", (iid,))

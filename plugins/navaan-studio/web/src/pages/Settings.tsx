@@ -174,6 +174,7 @@ function AddAccount({ act, busy }: { act: Do; busy: boolean }) {
 // What each service needs a person to do, worst first. A Fix button opens the right tab and folds the right row open.
 // A channel that posts to YouTube only (The Aha-lorithm, NAV-67) has no Instagram login to show.
 const YT_ONLY = new Set(["aha"]);
+const IG_ONLY = new Set(["reel"]);   // reels post to Instagram only: no YouTube login to show
 const accountName = (t: string) => (t === "aha" ? "The Aha-lorithm" : t.charAt(0).toUpperCase() + t.slice(1));
 type Item = { id: string; tab: Tab; name: string; status: Status };
 function overview(d: SettingsData): Item[] {
@@ -181,7 +182,7 @@ function overview(d: SettingsData): Item[] {
   for (const a of d.accounts) {
     const t = accountName(a.type);
     if (!YT_ONLY.has(a.type)) items.push({ id: `ig-${a.type}`, tab: "accounts", name: `${t}: Instagram`, status: loginStatus(a.ig) });
-    items.push({ id: `yt-${a.type}`, tab: "accounts", name: `${t}: YouTube publishing`, status: loginStatus(a.yt) });
+    if (!IG_ONLY.has(a.type)) items.push({ id: `yt-${a.type}`, tab: "accounts", name: `${t}: YouTube publishing`, status: loginStatus(a.yt) });
   }
   items.push({ id: "claude", tab: "ai", name: "Claude", status: d.claude.state === "ok" ? { kind: "ok", text: `Working (${d.claude.credential || "signed in"})` } : d.claude.state === "missing" ? { kind: "wn", text: "No token" } : { kind: "bad", text: `Problem: ${d.claude.state}` } });
   for (const p of ["openai", "elevenlabs"] as const) items.push({ id: p, tab: "ai", name: p === "openai" ? "OpenAI" : "ElevenLabs", status: d.media.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
@@ -223,8 +224,10 @@ function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; ac
               <p className="mu">A Facebook token that lets the analytics compare you with other accounts. You can leave it empty.</p>
               <TokenForm id={`mk-tok-${a.type}`} label="New Facebook token for competitor data" busy={busy} onSave={(token) => save("ig_save", { type: a.type, kind: "market", token })} />
             </Row></>}
+            {!IG_ONLY.has(a.type) && <>
             <Row id={`yt-${a.type}`} name="YouTube publishing" status={loginStatus(a.yt)} action={a.yt.present ? "Change" : "Sign in"} open={on(`yt-${a.type}`)} onToggle={tg(`yt-${a.type}`)}><YouTube a={a} which="publish" act={act} busy={busy} /></Row>
             <Row id={`ya-${a.type}`} name="YouTube analytics" status={loginStatus(a.yt_analytics)} action={a.yt_analytics.present ? "Change" : "Sign in"} open={on(`ya-${a.type}`)} onToggle={tg(`ya-${a.type}`)}><YouTube a={a} which="analytics" act={act} busy={busy} /></Row>
+            </>}
           </section>
         );
       })}

@@ -6,7 +6,7 @@ import { GATE_TITLE, gateTitle } from "../lib/gates";
 import { classic, errText, itemPath } from "../lib/songs";
 import { Loading } from "../components/Loading";
 
-const KIND: Record<string, string> = { music: "Song", inspiration: "Inspiration", aha: "Aha-lorithm", blog: "Blog" };
+const KIND: Record<string, string> = { music: "Song", inspiration: "Inspiration", aha: "Aha-lorithm", blog: "Blog", reel: "Reel" };
 
 // Everything waiting for a yes, across songs and inspiration, grouped by what is being asked. One action per row: open it and decide there, where the text is.
 export default function Approvals() {
