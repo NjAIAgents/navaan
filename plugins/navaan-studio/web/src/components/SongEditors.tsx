@@ -225,7 +225,7 @@ export function NarrationCard({ d, done }: { d: SongDetail; done: Done }) {
 // The owner's own track under the voice. Free tracks (for example from pixabay.com/music, under its Content License) work; the licence of each track is the owner's to check. ffmpeg fits it to the video and the renderer keeps it quiet under the voice.
 export function MusicCard({ d, done }: { d: SongDetail; done: Done }) {
   const [file, setFile] = useState<File | null>(null); const [err, setErr] = useState(""); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false);
-  const m = d.music;
+  const m = d.music; const [lv, setLv] = useState<number>(d.music_level ?? 25);
   const send = async (path: string, body: Record<string, unknown>) => { setBusy(true); setErr(""); setNote(""); try { const r = await postJSON<{ redo?: string }>(path, { slug: d.slug, ...body }); setFile(null); if (r?.redo) setNote(`The video is approved, so it keeps its old sound. To use this, Redo "${r.redo}" in the steps.`); await done(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   const upload = async () => {
     if (!file) return setErr("Pick the music file first.");
@@ -242,6 +242,14 @@ export function MusicCard({ d, done }: { d: SongDetail; done: Done }) {
       <label htmlFor="bm-f">{m ? "Use a different track" : "Music file (mp3, wav, m4a, aac, flac or ogg)"}</label>
       <input id="bm-f" className="field" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg" disabled={busy} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       <div className="row"><button className="btn p" disabled={busy || !file} onClick={() => void upload()}>{m ? "Replace the music" : "Add the music"}</button></div>
+      {d.meta.type === "aha" && d.music_level != null && (   // the level is drawn by the scene renderer (aha); a narrated inspiration short plays the voice only
+        <div className="stack">
+          <label htmlFor="bm-lv">Music volume under the voice: {lv}%</label>
+          <input id="bm-lv" type="range" min={0} max={60} step={1} value={lv} aria-valuetext={`${lv} percent${lv ? `, about ${Math.round(-20 * Math.log10(lv / 100))} dB under the voice` : ", no music"}`} onChange={(e) => setLv(Number(e.target.value))} />
+          <p className="mu">{lv ? `About ${Math.round(-20 * Math.log10(lv / 100))} dB under the voice. 15 to 30% stays in the background on a phone; it still drops back while the aha line plays.` : "No music under the voice."}</p>
+          <div className="row"><button className="btn" disabled={busy || lv === d.music_level} onClick={() => void send("/api/music/level", { level: lv })}>Save the music volume</button></div>
+        </div>
+      )}
       {note && <p className="mu" role="status">{note}</p>}
       {err && <p role="alert" className="mu">{err}</p>}
     </section>

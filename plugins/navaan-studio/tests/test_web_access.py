@@ -110,6 +110,13 @@ class Access(unittest.TestCase):
             self.assertEqual(self.call("/api/analytics/sentiment/run", "lis-tok", "csrf-lis", post=True)[0], 403); go.assert_not_called()
             self.assertEqual(self.call("/api/analytics/sentiment/run", "owner-tok", "csrf-owner", post=True)[0], 200); go.assert_called_once()
 
+    def test_the_owner_sets_a_shorts_music_level_and_the_typography_runs_again(self):
+        D = os.path.join(__import__("navaan_common").songs_root(), "aha-009"); os.makedirs(D); json.dump({"type": "aha", "state": "drafted"}, open(os.path.join(D, "meta.json"), "w")); open(os.path.join(D, "timing.json"), "w").write("{}")
+        call = lambda body, tok="owner-tok", csrf="csrf-owner": self.call("/api/music/level", tok, csrf, post=True, body={"slug": "aha-009", **body})
+        self.assertEqual(call({"level": 90})[0], 400); self.assertEqual(call({"level": "loud"})[0], 400); self.assertEqual(call({"level": 30}, "lis-tok", "csrf-lis")[0], 403)
+        code, body = call({"level": 30}); self.assertEqual(code, 200); self.assertEqual(json.loads(body)["level"], 30)
+        self.assertIn("music_level: 30", open(os.path.join(D, "brief.md")).read()); self.assertFalse(os.path.exists(os.path.join(D, "timing.json")))   # the next typography takes it
+
     def test_the_owner_sets_a_songs_mood_and_nobody_else_can(self):
         D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "drafted"}, open(os.path.join(D, "meta.json"), "w"))
         post = lambda tok, csrf, **b: self.call("/api/mood", tok, csrf, post=True, body=b)

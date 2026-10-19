@@ -35,6 +35,11 @@ class Aha(unittest.TestCase):
         self.assertEqual(self.P.handle("aha"), "TheAhalorithm"); self.assertEqual(self.P.watermark("aha-001"), "@TheAhalorithm"); self.assertEqual(self.P.brand_name("aha-001"), "TheAhalorithm")
         self.assertEqual(self.P.handle("inspiration"), "")   # an inspiration item without its account: no NAVAAN mark either (watermark is empty, checked on music below)
 
+    def test_the_music_level_is_the_shorts_own_else_the_channel_default(self):
+        self.assertEqual(self.P.music_level(self.D, "aha"), 0.25); self.assertEqual(self.P.music_level(self.D, "inspiration"), 0.35)
+        open(os.path.join(self.D, "brief.md"), "w").write("- music_level: 40\n"); self.assertEqual(self.P.music_level(self.D, "aha"), 0.4)
+        open(os.path.join(self.D, "brief.md"), "w").write("- music_level: 300\n"); self.assertEqual(self.P.music_level(self.D, "aha"), 0.6)   # capped
+
     def test_its_look_and_mark_are_its_own(self):
         self.assertEqual(self.P.handle("aha"), "TheAhalorithm"); self.assertEqual(self.P.watermark("aha-001"), "@TheAhalorithm")
         self.assertEqual(self.P.LOOKS["aha"]["font"], "sans"); self.assertNotEqual(self.P.LOOKS["aha"]["accent"], self.P.LOOKS["inspiration"]["accent"])

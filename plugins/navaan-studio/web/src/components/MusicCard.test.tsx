@@ -28,6 +28,16 @@ describe("MusicCard", () => {
     expect(await screen.findByText(/The video is approved, so it keeps its old sound. To use this, Redo "Plan the typography"/)).toBeInTheDocument();
     expect((f.mock.calls[0] as unknown as [string])[0]).toBe("/api/music/remove");
   });
+  it("sets how loud the music sits under the voice on an Aha-lorithm short, and is not offered on inspiration", async () => {
+    const f = ok({ ok: true, level: 35, redo: "" }); vi.stubGlobal("fetch", f);
+    const aha = { slug: "aha-001", files: {}, meta: { type: "aha" }, music: null, music_level: 25 } as unknown as SongDetail;
+    render(<MusicCard d={aha} done={async () => undefined} />);
+    const s = screen.getByLabelText("Music volume under the voice: 25%"); expect(s).toHaveAttribute("aria-valuetext", "25 percent, about 12 dB under the voice");
+    expect(screen.getByRole("button", { name: "Save the music volume" })).toBeDisabled();
+    fireEvent.change(s, { target: { value: "35" } }); fireEvent.click(screen.getByRole("button", { name: "Save the music volume" }));
+    await waitFor(() => expect(f).toHaveBeenCalledWith("/api/music/level", expect.objectContaining({ body: JSON.stringify({ slug: "aha-001", level: 35 }) })));
+    cleanup(); render(<MusicCard d={{ ...d(), music_level: 35 } as SongDetail} done={async () => undefined} />); expect(screen.queryByLabelText(/Music volume under the voice/)).toBeNull();
+  });
   it("shows the server's refusal", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ error: "that file is not audio that can be played" }), { status: 400, headers: { "Content-Type": "application/json" } }))));
     render(<MusicCard d={d()} done={vi.fn()} />);
