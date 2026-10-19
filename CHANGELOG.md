@@ -33,6 +33,10 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Changed
 - New Aha-lorithm shorts are narrated at the "Calm" pace, a little slower than normal. A short already made keeps its pace; change it on its Narration card and narrate it again.
 - "Waiting for you" says plainly whether it needs an account switch or something done on the Mac, without sending you to the classic view. A failed step's "Show the full log" opens the step's log in the new app.
+- Aha-lorithm YouTube descriptions are short: the hook line, the follow line, and the hashtags.
+
+### Fixed
+- Uploads no longer add "Hear the full song free" to items that are not songs. Aha-lorithm shorts get no NAVAAN line (their own channel); inspiration shorts get "More from NAVAAN: https://navaan.online".
 
 ## [0.47.3] - 2026-10-18
 

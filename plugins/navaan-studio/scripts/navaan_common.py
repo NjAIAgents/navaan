@@ -163,13 +163,14 @@ def run(cmd):
 SITE = "https://navaan.online"
 
 
-def with_site_link(text, slug=None, plain=False):
+def with_site_link(text, slug=None, plain=False, itype="music"):
     """A YouTube description or an Instagram caption with the site's address at the end, unless navaan.online is already in it. With a slug it is that song's page on the site
-    (a song, which anyone can open once its licence is confirmed); without one, the site itself (an inspiration has no page of its own). plain drops https://, because Instagram does not link a caption."""
+    (a song, which anyone can open once its licence is confirmed); without one, the site itself (an inspiration has no page of its own). plain drops https://, because Instagram does not link a caption.
+    Only a song gets "full song" wording; an aha short is its own channel and gets no NAVAAN line at all."""
     t = str(text or "").rstrip()
-    if "navaan.online" in t.lower(): return t
+    if itype == "aha" or "navaan.online" in t.lower(): return t
     url = f"{SITE}/app/song/{slug}" if slug else SITE
-    line = "Hear the full song free: " + (url.replace("https://", "") if plain else url)
+    line = ("Hear the full song free: " if itype == "music" else "More from NAVAAN: ") + (url.replace("https://", "") if plain else url)
     return (t + "\n\n" if t else "") + line
 
 
