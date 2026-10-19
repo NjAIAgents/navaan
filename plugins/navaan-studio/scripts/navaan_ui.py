@@ -162,7 +162,7 @@ def made_files(D, outputs, cap=40):
             if any(x.startswith(".") for x in parts): continue
             if len(parts) == 1: key = rel
             elif len(parts) == 2 and parts[0] == "images": key = "images~" + parts[1]
-            elif len(parts) == 2 and parts[0] == "clips": key = "clips~" + parts[1]
+            elif len(parts) == 2 and (parts[0] == "clips" or (parts[0] == "scenes" and os.path.splitext(rel)[1].lower() in (".png", ".jpg", ".jpeg", ".webp"))): key = parts[0] + "~" + parts[1]   # scenes: an Aha-lorithm short's picture per beat (its prompts stay text)
             else: continue
             if key not in seen: seen.add(key); out.append({"name": key, "size": os.path.getsize(pth)})
             if len(out) >= cap: return out
@@ -728,7 +728,8 @@ class H(BaseHTTPRequestHandler):
         L.event(L.get("client"), "error" if f["kind"] in ("error", "rejection", "api_network", "api_json") else "warning", "client_" + f["kind"], **{k: v for k, v in f.items() if v})
         return self._send(200, {"ok": True})
     def _media(self, slug, name, w=0):
-        D = C.song_dir(slug); f = os.path.join(D, "clips", os.path.basename(name[6:])) if name.startswith("clips~") else (os.path.join(D, "images", os.path.basename(name[7:])) if name.startswith("images~") else os.path.join(D, os.path.basename(name)))
+        D = C.song_dir(slug); sub = next((x for x in ("clips", "images", "scenes") if name.startswith(x + "~")), None)
+        f = os.path.join(D, sub, os.path.basename(name[len(sub) + 1:])) if sub else os.path.join(D, os.path.basename(name))
         if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
         if os.path.splitext(f)[1].lower() not in MEDIA_EXT or not os.path.isfile(f): return self._send(404, {"error": "no file"})
         f = self._thumb(f, w) if w else f

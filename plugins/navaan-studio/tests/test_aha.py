@@ -84,6 +84,19 @@ class Aha(unittest.TestCase):
         self.P.main("aha-001")   # the beat finder ran on the bed (it was shadowed by the picture list once)
         T = json.load(open(os.path.join(self.D, "timing.json"))); self.assertEqual(T["music"], "music.mp3"); self.assertEqual([l["bg"] for l in T["lines"]], ["scenes/beat_01.png", "scenes/beat_02.png"])
 
+    def test_a_narrated_scene_short_is_rendered_with_its_pictures_not_the_lyrics_template(self):
+        import inspire_render as R
+        from unittest import mock
+        T = {"narration": True, "duration": 25, "background": "background.png", "voiceover": "narration.mp3", "music": "music.mp3",
+             "lines": [{"text": "A", "start": 0, "end": 3, "bg": "scenes/beat_01.png"}, {"text": "B", "start": 3, "end": 6, "bg": "scenes/beat_02.png"}], "style": {}}
+        with mock.patch.object(R, "remotion_dir", return_value=self.tmp.name), mock.patch.object(R.subprocess, "run") as run:
+            R.render_remotion(self.D, T, os.path.join(self.D, "out.mp4"))
+        cmd = run.call_args[0][0]; self.assertIn("Quote", cmd); self.assertNotIn("Lyrics", cmd); self.assertIn("--props=" + os.path.join(self.D, "timing.json"), cmd)
+        T["lines"] = [{k: v for k, v in l.items() if k != "bg"} for l in T["lines"]]   # a narrated inspiration quote keeps the lyrics template
+        with mock.patch.object(R, "remotion_dir", return_value=self.tmp.name), mock.patch.object(R.subprocess, "run") as run:
+            R.render_remotion(self.D, T, os.path.join(self.D, "out.mp4"))
+        self.assertIn("Lyrics", run.call_args[0][0])
+
     def test_each_line_gets_its_beat_picture_and_keeps_its_marks(self):
         from PIL import Image
         self.script(3); os.makedirs(os.path.join(self.D, "scenes"))

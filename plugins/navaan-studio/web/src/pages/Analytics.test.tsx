@@ -12,6 +12,7 @@ const ig = (o: object = {}) => ({
   series: { followers: series(3, 8), views: series(100, 400) },
   posts: [{ media_id: "m1", title: "Quote One", slug: "insp-001", posted_at: "2026-10-02T10:00:00Z", permalink: "https://ig/p/1", views: 321, reach: 200, saved: 7, shares: 3, engagement_rate: 4.5 }],
   reco: { ready: true, open: [rec()], done: [rec({ rec_id: "c-bbbbbb", title: "Already did this", status: "done" })], dismissed: [rec({ rec_id: "c-cccccc", title: "Not for me", status: "dismissed", dismissed_reason: "no time" })] },
+  besttime: { music: { label: "music", empty: false, hours: Array.from({ length: 24 }, (_, h) => (h === 23 ? 100 : h === 0 ? 90 : 20)), weekdays: [60, 70, 80, 90, 100, 50, 40], slots: [{ at: "2026-10-20T23:00:00Z", score: 97 }], notes: ["Few own posts yet."], basis: { signals: ["followers online"], own_posts: 12, peer_posts: 140 } } },
   runs: [{ started_at: "2026-10-14T23:00:00Z", status: "ok", errors: 0, first_error: "" }], collect: { running: false }, ...o,
 });
 const yt = () => ({ ...ig(), kpis: { subscribers: 6, subscribers_change: -1, views: 207, watch_hours: 0.6, subs_gained: 4, waiting: 1 }, series: { subscribers: series(5, 6) }, posts: undefined, videos: [{ video_id: "v1", title: "Finding Your Way Back", kind: "video", published_at: "2026-10-01T10:00:00Z", url: "https://yt/v1", views: 99, likes: 5, comments: 1, avg_view_s: 12.3 }] });
@@ -108,6 +109,18 @@ describe("Studio > Analytics > Interactions", () => {
 const T = (v: number) => ({ views: v, plays: 2, seconds: 150, pitch: 1, visitors: 3 });
 const VISITS = { days: 30, totals: { today: T(4), d7: T(9), d30: T(20) }, songs: [{ slug: "song-001", title: "Tere Hone Se", views: 7, plays: 2, seconds: 150, visitors: 3 }],
   sources: [{ name: "youtube", views: 5, plays: 2, visitors: 2 }, { name: "direct", views: 2, plays: 0, visitors: 1 }], devices: [{ name: "mobile", views: 7, plays: 2, visitors: 3 }], daily: [] };
+
+describe("Studio > Analytics > Best time to publish", () => {
+  it("shows the hours to post in Central Time, the weekdays and the next slots, above the peers", async () => {
+    mock({ "/api/analytics": () => ig({ peers: { rows: [{ username: "peer1", followers: 900 }], own: [] } }) });
+    at("/studio/analytics");
+    const bt = await screen.findByRole("region", { name: "Best time to publish" });
+    expect(within(bt).getByRole("img", { name: /music: best hours to post, Central Time: (6pm, 7pm|5pm, 6pm)/ })).toBeInTheDocument();   // 23:00 and 00:00 UTC: 6 and 7 pm in daylight time, 5 and 6 pm in standard time
+    expect(bt).toHaveTextContent("Fri 100"); expect(bt).toHaveTextContent("Next good slots: Tue 6:00 PM CT (97)"); expect(bt).toHaveTextContent("12 own posts · 140 peer posts");
+    const peers = screen.getByRole("region", { name: /Peers/ });
+    expect(bt.compareDocumentPosition(peers) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 
 describe("Studio > Analytics > Visitors (NAV-33)", () => {
   it("shows today, 7 and 30 days, then songs, sources and devices for the chosen period", async () => {
