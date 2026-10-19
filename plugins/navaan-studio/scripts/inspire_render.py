@@ -192,7 +192,8 @@ def render_ffmpeg(D, T, out):
 def render_remotion(D, T, out):
     rd = remotion_dir()
     comp, props = "Quote", os.path.join(D, "timing.json")
-    if T.get("narration"):  # a voiced quote: one line at a time, in step with the narration, then the end card
+    scenes = any(l.get("bg") for l in T.get("lines") or [])   # an Aha-lorithm short: a picture per line, captions, music bed and end card, all drawn by Quote
+    if T.get("narration") and not scenes:  # a voiced quote: one line at a time, in step with the narration, then the end card
         br = T.get("brand") or {}
         np_ = {"width": W, "height": H, "fps": T.get("fps", 30), "duration": T["duration"], "bg": T["background"], "bg_is_image": True, "audio": T.get("voiceover"),
                "cues": [{"text": l["text"], "start": l["start"], "end": l["end"]} for l in T["lines"]], "title": "", "hook": "",
