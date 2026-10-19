@@ -233,8 +233,8 @@ def main(slug):
     text = (q.get("text") or "").strip()
     if not text: sys.exit("navaan: quote.json has no text")
     lines = [l.strip() for l in (q.get("lines") or []) if l.strip()] or split_lines(text, q.get("language", ""))   # an aha script keeps its *highlight* marks: the renderer colours them
-    beats = [os.path.join("scenes", "beat_%02d.png" % (i + 1)) for i in range(len(lines))] if itype == "aha" else []
-    beats = beats if beats and all(os.path.exists(os.path.join(D, b)) for b in beats) else []   # one picture per line, else the one background
+    pics = [os.path.join("scenes", "beat_%02d.png" % (i + 1)) for i in range(len(lines))] if itype == "aha" else []
+    pics = pics if pics and all(os.path.exists(os.path.join(D, b)) for b in pics) else []   # one picture per line, else the one background (not `beats`: that is the music's beat finder)
     author = (q.get("author") or "").strip()
     bg = next((os.path.basename(p) for ext in ("jpg", "jpeg", "png", "webp") for p in glob.glob(os.path.join(D, f"background.{ext}"))), None)
     if not bg: sys.exit("navaan: no background image. Run the background step or put background.jpg in the folder.")
@@ -288,8 +288,8 @@ def main(slug):
     if len(caps) == len(out_lines) and all(caps):   # an aha beat shows its short caption while its full line is spoken
         for l, c in zip(out_lines, caps): l["text"] = c
     if isinstance(q.get("aha"), int) and 0 <= q["aha"] < len(out_lines): out_lines[q["aha"]]["aha"] = True   # the music drops back while the takeaway lands
-    if beats and len(beats) == len(out_lines):
-        for l, b in zip(out_lines, beats): l["bg"] = b
+    if pics and len(pics) == len(out_lines):
+        for l, b in zip(out_lines, pics): l["bg"] = b
     h = int(hashlib.sha1(slug.encode()).hexdigest(), 16)
     presets = ["push_in", "pan_left", "pull_out", "pan_right", "drift"]
     cam = opt(D, "camera", presets[h % len(presets)]).lower()

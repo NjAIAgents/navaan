@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.46.1] - 2026-10-18
+
+### Fixed
+- An Aha-lorithm short stopped at "Plan typography, timing and music" with `TypeError: 'list' object is not callable` whenever it had music. The list of beat pictures had taken the name of the step that finds the music's beats. Run the step again and it goes through.
+
 ## [0.46.0] - 2026-10-18
 
 ### Added
@@ -601,7 +606,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.46.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.46.1...HEAD
+[0.46.1]: https://github.com/NjAIAgents/navaan/compare/v0.46.0...v0.46.1
 [0.46.0]: https://github.com/NjAIAgents/navaan/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/NjAIAgents/navaan/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/NjAIAgents/navaan/compare/v0.43.0...v0.44.0
