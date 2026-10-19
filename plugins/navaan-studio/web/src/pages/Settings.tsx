@@ -238,6 +238,16 @@ function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Sa
           ))}
         </section>
       ))}
+      <section className="card stack" aria-label="Spending limits">   {/* the caps that stop a run from spending more than you meant */}
+        <h3>Spending limits</h3>
+        {([["max_run_usd", "Most one run may spend on pictures (US dollars)", 0.05, 20, 0.05], ["song_pictures", "Pictures planned per song", 6, 40, 1], ["eleven_monthly_seconds", "ElevenLabs narration allowed per month (seconds)", 60, 36000, 30]] as const).map(([k, l, lo, hi, step]) => (
+          <div key={k} className="stack">
+            <label htmlFor={`m-${k}`}>{l}</label>
+            <input id={`m-${k}`} className="field" type="number" min={lo} max={hi} step={step} value={edit[k] ?? String(m.settings[k] ?? "")} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} />
+          </div>
+        ))}
+        <p className="mu">A run that would pass the first limit stops before anything is paid. Allowed: {"$"}0.05 to {"$"}20, 6 to 40 pictures, 60 to 36,000 seconds.</p>
+      </section>
       <div className="row"><button className="btn p" disabled={busy || !Object.keys(edit).length} onClick={() => void act("media_save", { settings: edit }).then((ok) => ok && setEdit({}))}>Save these choices</button></div>
     </div>
   );

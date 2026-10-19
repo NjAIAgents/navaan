@@ -9,7 +9,7 @@ const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { sta
 const DATA = {
   accounts: [{ type: "music", handle: "navaan", youtube_channel: "", configured: true, ig: { present: true, ok: false, error: "Token expired" }, market: { present: false }, yt: { present: true, ok: true, channel: "NAVAAN" }, yt_analytics: { present: false } }],
   cloud: { provider: "oci", bucket: "navaan", region: "ap-mumbai-1" }, secret_present: true, checked_at: "2026-10-16T00:00:00Z", claude: { credential: "subscription token", state: "ok", headless: true },
-  media: { settings: { image_provider: "flow", voice: "frank" }, keys: { openai: true, elevenlabs: false }, usage: { openai_usd: 0.5, eleven_seconds: 12 }, voices: { frank: "Frank (deep, wise)" }, choices: { image_provider: ["flow", "openai"], voice: ["frank"] } },
+  media: { settings: { image_provider: "flow", voice: "frank", max_run_usd: 0.8, song_pictures: 16, eleven_monthly_seconds: 1500 }, keys: { openai: true, elevenlabs: false }, usage: { openai_usd: 0.5, eleven_seconds: 12 }, voices: { frank: "Frank (deep, wise)" }, choices: { image_provider: ["flow", "openai"], voice: ["frank"] } },
   gates: [{ id: "lyrics", on: true, types: ["music"] }, { id: "publish_youtube", on: true, types: ["music"] }],
 };
 function route(routes: Record<string, (init?: RequestInit) => unknown>) {
@@ -60,6 +60,13 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     fireEvent.change(box, { target: { value: "" } }); fireEvent.click(sw); expect(await screen.findByRole("alert")).toHaveTextContent("Write the statement first"); expect(posts(f, "/api/settings/licence_save")).toHaveLength(0);
     fireEvent.change(box, { target: { value: "All my songs are on a paid plan." } }); fireEvent.click(sw);
     await waitFor(() => expect(posts(f, "/api/settings/licence_save")).toEqual([{ auto: true, statement: "All my songs are on a paid plan." }]));
+  });
+  it("sets the spending limits: the most one run may spend on pictures, pictures per song, narration per month", async () => {
+    const f = route({ "/api/settings/media_save": () => ({ ok: true }), "/api/settings": () => DATA });
+    at(); fireEvent.click(await screen.findByRole("tab", { name: "AI services" }));
+    const cap = await screen.findByLabelText("Most one run may spend on pictures (US dollars)"); expect(cap).toHaveValue(0.8); expect(screen.getByLabelText("Pictures planned per song")).toHaveValue(16);
+    fireEvent.change(cap, { target: { value: "1.5" } }); fireEvent.click(screen.getByRole("button", { name: "Save these choices" }));
+    await waitFor(() => expect(posts(f, "/api/settings/media_save")).toEqual([{ settings: { max_run_usd: "1.5" } }]));
   });
   it("shows the server's refusal under the box", async () => {
     route({ "/api/settings/claude_save": () => json({ error: "that token was refused" }, 400), "/api/settings": () => DATA });

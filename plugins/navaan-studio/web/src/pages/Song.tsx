@@ -21,7 +21,7 @@ import { getJSON, postJSON, type Question, type SongDetail } from "../lib/api";
 import { fmtCentral } from "../lib/datetime";
 import { fileB64, MAX_AUDIO_BYTES } from "../lib/files";
 import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
-import { classic, errText, isShort, listPath, nextAction } from "../lib/songs";
+import { errText, isShort, listPath, nextAction } from "../lib/songs";
 import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
@@ -165,17 +165,26 @@ function SunoUpload({ why, act, busy }: { why: string; act: Act; busy: boolean }
 function Approvals({ d, act, busy }: { d: SongDetail; act: Act; busy: boolean }) {
   const [asking, setAsking] = useState<string | null>(null);
   const given = Object.entries(d.approvals);
-  if (!given.length) return null;
+  const ahead = (d.gates ?? []).filter((g) => !d.approvals[g]);   // every approval of this item, so one can be given ahead of its step (a risky one asks first)
+  if (!given.length && !ahead.length) return null;
   return (
     <section className="sec" aria-labelledby="ap-h">
-      <div className="sh"><h2 id="ap-h">Approved</h2><span className="n">{given.length}</span></div>
+      <div className="sh"><h2 id="ap-h">Approvals</h2><span className="n">{given.length} of {given.length + ahead.length}</span></div>
       <ul className="card hist">
         {given.map(([g, a]) => (
           <li key={g} className="stp">
-            <span className="tx"><b>{gateTitle(g)}</b><span className="mu"> · {a.via.replace(/^ui:/, "")} · {new Date(a.at).toLocaleString()}</span></span>
+            <span className="tx"><b>{gateTitle(g)}</b><span className="mu"> · approved · {a.via.replace(/^ui:/, "")} · {new Date(a.at).toLocaleString()}</span></span>
             {asking === g
               ? <span className="row" role="group" aria-label={`Confirm revoking ${gateTitle(g)}`}><button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/revoke", { gate: g }).then(() => setAsking(null))}>Yes, revoke</button><button className="btn g" onClick={() => setAsking(null)}>Keep</button></span>
               : <button className="btn g" disabled={busy} onClick={() => setAsking(g)} aria-label={`Revoke approval of ${gateTitle(g)}`}>Revoke</button>}
+          </li>
+        ))}
+        {ahead.map((g) => (
+          <li key={g} className="stp">
+            <span className="tx"><b>{gateTitle(g)}</b><span className="mu"> · not yet</span></span>
+            {asking === g
+              ? <span className="row" role="group" aria-label={`Confirm approving ${gateTitle(g)}`}><button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/approve", { gate: g }).then(() => setAsking(null))}>Yes, approve now</button><button className="btn g" onClick={() => setAsking(null)}>Not yet</button></span>
+              : <button className="btn g" disabled={busy} onClick={() => (RISKY.has(g) ? setAsking(g) : void act("/api/approve", { gate: g }))} aria-label={`Approve ${gateTitle(g)} ahead`}>Approve</button>}
           </li>
         ))}
       </ul>
@@ -262,6 +271,28 @@ function AllSet({ d, onChange }: { d: SongDetail; onChange: () => void }) {
 }
 
 const LANE_TITLE: Record<string, string> = { youtube: "YouTube", instagram: "Instagram" };
+
+// What blocks this item that no step can fix: the artist profile, the item's own account, a YouTube thumbnail the channel refused.
+function SongAlerts({ d }: { d: SongDetail }) {
+  const t = d.meta.type ?? "music"; const thumb = d.thumb_pending?.[0];
+  return (<>
+    {d.profile === false && <section className="card alert" role="status"><h2>No artist profile yet</h2><p>The agents have no palette, motifs or voice to follow, so they guess from earlier songs. Run <code>python3 plugins/navaan-studio/scripts/navaan.py init</code> in the workspace, then run the step again.</p></section>}
+    {d.account && d.account.configured === false && <section className="card alert" role="status"><h2>Its own account is not set up</h2><p>This item publishes to its own {t === "aha" ? "YouTube channel" : "accounts"}, and nothing can be posted until that is set. In Settings, Accounts, add the content type <code>{t}</code> and sign in to YouTube for it.</p><Link className="btn" to="/studio/settings">Open Settings</Link></section>}
+    {thumb && <section className="card alert" role="status"><h2>Thumbnail not set on YouTube</h2><p>YouTube refused the custom thumbnail because the channel is not phone verified. Verify at <a href="https://www.youtube.com/verify" target="_blank" rel="noreferrer">youtube.com/verify</a>, then run <code>python3 plugins/navaan-studio/scripts/publish_youtube.py thumb {d.slug} {thumb.id}</code>. This goes away once it is set.</p></section>}
+  </>);
+}
+
+// A step stopped and left a note for you: an account to switch (in the Flow tab the agent opened), or something to do on the Mac.
+function NeedsYou({ text }: { text: string }) {
+  const kind = text.startsWith("ACCOUNT:") ? "account" : text.startsWith("MAC:") ? "mac" : "";
+  return (
+    <section className="card alert" role="status">
+      <h2>{kind === "account" ? "Account setup needed" : kind === "mac" ? "Do this on the Mac, then upload the result" : "Waiting for you"}</h2>
+      <p style={{ overflowWrap: "anywhere" }}>{text.replace(/^(ACCOUNT|MAC):\s*/, "")}</p>
+      {!kind && <p className="mu">Switch the account in the Flow tab the agent opened, not in a new tab. The agent checks every 30 seconds and carries on by itself; if it timed out, run the step again. If Flow keeps going back to the old account, sign out of that Google account in Chrome, or use a Chrome profile with only the account that has credits.</p>}
+    </section>
+  );
+}
 
 // After the videos are approved, YouTube and Instagram each have a lane of their own: each shows its own next step or approval, and neither waits for the other.
 function LanesView({ d, act, busy, pending, running, stopping, onStop, reload }: { d: SongDetail; act: Act; busy: boolean; pending: boolean; running: boolean; stopping: boolean; onStop: () => void; reload: () => Promise<unknown> | void }) {
@@ -378,7 +409,7 @@ export default function Song() {
         {d.failure.step
           ? <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/redo", { step: d.failure!.step })}>Retry {stepLabel(d.failure.step)}</button>
           : <button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/run", { all: true })}>Run again{d.next.type === "run" && d.next.step ? `: ${stepLabel(d.next.step)}` : ""}</button>}   {/* the run was stopped (a restart) before any step was named: carry on from the next step */}
-        <a className="btn g" href={classic(slug)}>Full log in the classic view <Icon name="external" /></a>
+        {d.failure.step && <button className="btn g" onClick={() => pick(d.failure!.step)}>Show the full log</button>}
       </div>
       <DeleteItem d={d} act={act} busy={busy} onGone={() => go(list)} />
       <details><summary>The raw error, for the log</summary>
@@ -387,7 +418,7 @@ export default function Song() {
       </details>
     </section>
   ) : d.question ? <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />
-  : d.needs_you ? <section className="card" role="status"><h2>Waiting for you</h2><p>{d.needs_you}</p><a className="btn" href={classic(slug)}>Open in the classic view <Icon name="external" /></a></section>
+  : d.needs_you ? <NeedsYou text={d.needs_you} />
   : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
   : allSet ? <AllSet d={d} onChange={() => setSp({ tab: "publish" }, { replace: true })} />
   : hasLanes ? (running && !d.status_text?.startsWith("waiting for you") ? runCard : null)   // a run waiting at an approval shows that approval, not a spinner saying Running
@@ -434,7 +465,7 @@ export default function Song() {
               </div>
             )}
             {(!mobile || pane === "steps") && <PipelineRail d={d} act={act} busy={busy} selected={selId} onSelect={(id) => { pick(id); if (mobile) setPane("now"); }} />}
-            {(!mobile || pane === "now") && <div className="pl-now stack">{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{d.meta.skip?.instagram && <p className="mu row" role="status">Not posted to Instagram: you skipped it for this one.<button className="btn g" disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: false })}>Post to Instagram after all</button></p>}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
+            {(!mobile || pane === "now") && <div className="pl-now stack"><SongAlerts d={d} />{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{d.meta.skip?.instagram && <p className="mu row" role="status">Not posted to Instagram: you skipped it for this one.<button className="btn g" disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: false })}>Post to Instagram after all</button></p>}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
           </div>
         )}
         {tab === "content" && (<>

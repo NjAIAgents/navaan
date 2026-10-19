@@ -50,6 +50,7 @@ export type SongDetail = {
   notes?: string[];
   failure: { step: string; error: string; ref: string; plain?: string } | null;
   question: Question | null; needs_you: string;
+  gates?: string[]; profile?: boolean; account?: { configured?: boolean } | null; thumb_pending?: { id: string }[];   // the warnings on the song page: no artist profile, the item's own account not set up, a YouTube thumbnail not set
   cameras: string[]; cloud: boolean; images: string[];
   visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; visuals_suggest?: { camera: string; scene: string }; openai_pictures?: boolean;
   prompt_pack?: { aspect?: string; concept?: string; character?: string; style_line: string; look?: Record<string, unknown>; prompts: { n: number; section: string; lyric?: string; prompt: string; camera?: string; motion?: string }[] } | null;

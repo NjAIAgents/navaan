@@ -104,6 +104,15 @@ describe("answering the agent, uploading Suno's MP3, revoking an approval", () =
     fireEvent.click(screen.getByRole("button", { name: "Revoke approval of Lyrics" })); expect(posts(f, "/api/revoke")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Yes, revoke" })); await waitFor(() => expect(posts(f, "/api/revoke")).toEqual([{ slug: "song-001", gate: "lyrics" }]));
   });
+  it("approves a gate ahead of its step; a risky one (publishing) asks first", async () => {
+    const f = route(OWNER, { "/api/approve": () => ({ ok: true }), "/api/song/": () => detail({ gates: ["lyrics", "media", "go_public"], approvals: { lyrics: { at: "2026-10-16T01:00:00Z", via: "ui:meera" } } }) });
+    at("/studio/songs/song-001?tab=activity");
+    expect(await screen.findByText("1 of 3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Approve Review the videos ahead" }));
+    await waitFor(() => expect(posts(f, "/api/approve")).toEqual([{ slug: "song-001", gate: "media" }]));
+    fireEvent.click(screen.getByRole("button", { name: "Approve Make the YouTube video public ahead" })); expect(posts(f, "/api/approve")).toHaveLength(1);   // going public waits for a yes
+    fireEvent.click(screen.getByRole("button", { name: "Yes, approve now" })); await waitFor(() => expect(posts(f, "/api/approve")[1]).toEqual({ slug: "song-001", gate: "go_public" }));
+  });
 });
 
 describe("accessibility", () => {
@@ -363,6 +372,20 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     expect(document.getElementById("step-publish_youtube")).toHaveTextContent("YouTube lane"); expect(document.getElementById("step-instagram_caption")).toHaveTextContent("Instagram lane");
     fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
     await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
+  });
+  it("warns about what no step can fix: its own account not set up, no artist profile, a refused YouTube thumbnail", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "aha-001", meta: { type: "aha", state: "draft", history: [] }, profile: false, account: { configured: false }, thumb_pending: [{ id: "abc123" }] }) });
+    at("/studio/aha/aha-001");
+    expect(await screen.findByRole("heading", { name: "Its own account is not set up" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Settings" })).toHaveAttribute("href", "/studio/settings");
+    expect(screen.getByRole("heading", { name: "No artist profile yet" })).toBeInTheDocument();
+    expect(screen.getByText(/publish_youtube.py thumb aha-001 abc123/)).toBeInTheDocument();
+  });
+  it("says what a step is waiting for in plain words, without sending you to the classic view", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "song-009", needs_you: "MAC: export the stems from Logic and upload them" }) });
+    at("/studio/songs/song-009");
+    expect(await screen.findByRole("heading", { name: "Do this on the Mac, then upload the result" })).toBeInTheDocument();
+    expect(screen.getByText("export the stems from Logic and upload them")).toBeInTheDocument(); expect(screen.queryByText(/classic view/)).toBeNull();
   });
   it("lets you skip Instagram for one song so the pipeline finishes without it, and turn it back on", async () => {
     const f = route(OWNER, { "/api/skip_lane": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-008", next: { type: "run", step: "publish_instagram" },

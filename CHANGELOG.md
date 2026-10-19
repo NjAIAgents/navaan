@@ -6,6 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-10-18
+
+### Added
+- Settings › AI services › Spending limits: the most one run may spend on pictures, the pictures planned per song, and the ElevenLabs narration allowed per month can be changed from the new app. Before, only the classic page could change them (NAV-29).
+- The song page warns about what no step can fix: the item's own account is not set up (with a link to Settings), there is no artist profile, or YouTube refused the custom thumbnail (with the command that sets it).
+- The song's Approvals list shows every approval, and you can give one ahead of its step. Publishing and spending approvals ask first.
+
+### Changed
+- "Waiting for you" says plainly whether it needs an account switch or something done on the Mac, without sending you to the classic view. A failed step's "Show the full log" opens the step's log in the new app.
+
 ## [0.47.1] - 2026-10-18
 
 ### Fixed
@@ -629,7 +639,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...v0.48.0
 [0.47.1]: https://github.com/NjAIAgents/navaan/compare/v0.47.0...v0.47.1
 [0.47.0]: https://github.com/NjAIAgents/navaan/compare/v0.46.3...v0.47.0
 [0.46.3]: https://github.com/NjAIAgents/navaan/compare/v0.46.2...v0.46.3
