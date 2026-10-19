@@ -60,6 +60,29 @@ describe("New song and New inspiration", () => {
     await waitFor(() => expect(posts(f, "/api/new")[0]).toMatchObject({ type: "aha", idea: "" })); expect(posts(f, "/api/new")[0]).not.toHaveProperty("suno_url");
     expect(await screen.findByRole("link", { name: "The Aha-lorithm" })).toHaveAttribute("href", "/studio/aha");   // the back link from the new short names the channel list
   });
+  it("starts a blog from a keyword, which it needs, and opens it under Blog (NAV-71)", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ slug: "blog-001" }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "blog-001", meta: { type: "blog", state: "draft", history: [] } }) });
+    at("/studio/blog");
+    expect(await screen.findByRole("heading", { name: "Blog", level: 1 })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "New blog post" }));
+    expect(screen.queryByLabelText(/Suno link/)).toBeNull(); expect(screen.queryByRole("group", { name: "Narration" })).toBeNull(); expect(screen.queryByText("When should it be published?")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create" })); expect(await screen.findByRole("alert")).toHaveTextContent("Write a keyword, field or area first."); expect(posts(f, "/api/new")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText("Keyword, field or area"), { target: { value: "AI agents" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "blog", idea: "AI agents" }]));
+    expect(await screen.findByRole("link", { name: "Blog" })).toHaveAttribute("href", "/studio/blog");
+  });
+  it("approves a blog's topic by picking one of the 5, reworded if you like, never with a bare Approve (NAV-71)", async () => {
+    const topics = { candidates: [1, 2, 3, 4, 5].map((i) => ({ title: `Topic ${i}`, why_now: `News ${i}`, angle: `Angle ${i}`, sources: [`https://example.com/${i}`] })), sources_failed: ["google_trends"], chosen: null };
+    const f = route(OWNER, { "/api/blog/topic": () => ({ ok: true }), "/api/song/": () => detail({ slug: "blog-001", meta: { type: "blog", state: "draft", history: [] }, next: { type: "gate", gate: "topic" }, text: { "topics.json": JSON.stringify(topics) } }) });
+    at("/studio/blog/blog-001");
+    expect(await screen.findByRole("heading", { name: "Pick the topic" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull(); expect(screen.getByRole("button", { name: "Use this topic" })).toBeDisabled();
+    expect(screen.getByText(/Not reachable this time: google_trends/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Topic 3/ }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "My take on topic 3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use this topic" }));
+    await waitFor(() => expect(posts(f, "/api/blog/topic")).toEqual([{ slug: "blog-001", index: 2, title: "My take on topic 3", angle: "Angle 3" }]));
+  });
   it("needs the Suno link, takes the sound from the Suno page unless an audio file is added, and refuses a too big file", async () => {
     const f = route(OWNER, { "/api/import": () => ({ slug: "song-008", started: true }), "/api/songs": () => [], "/api/song/": () => detail({ slug: "song-008" }) });
     at("/studio/songs"); fireEvent.click(await screen.findByRole("button", { name: "New song" })); fireEvent.click(screen.getByRole("button", { name: "Import from Suno" }));
