@@ -29,6 +29,17 @@ class Aha(unittest.TestCase):
     def test_a_youtube_login_alone_makes_its_account_ready(self):
         a = self.C.account("aha"); self.assertTrue(a["configured"]); self.assertEqual(a["youtube_channel"], "@TheAhalorithm")
 
+    def test_without_its_account_it_still_ends_on_its_own_handle_never_navaan(self):
+        json.dump({"accounts": {}}, open(os.path.join(self.tmp.name, "navaan.config.json"), "w"))
+        if hasattr(self.C, "_CFG"): self.C._CFG = None
+        self.assertEqual(self.P.handle("aha"), "TheAhalorithm"); self.assertEqual(self.P.watermark("aha-001"), "@TheAhalorithm"); self.assertEqual(self.P.brand_name("aha-001"), "TheAhalorithm")
+        self.assertEqual(self.P.handle("inspiration"), "")   # an inspiration item without its account: no NAVAAN mark either (watermark is empty, checked on music below)
+
+    def test_the_music_level_is_the_shorts_own_else_the_channel_default(self):
+        self.assertEqual(self.P.music_level(self.D, "aha"), 0.25); self.assertEqual(self.P.music_level(self.D, "inspiration"), 0.35)
+        open(os.path.join(self.D, "brief.md"), "w").write("- music_level: 40\n"); self.assertEqual(self.P.music_level(self.D, "aha"), 0.4)
+        open(os.path.join(self.D, "brief.md"), "w").write("- music_level: 300\n"); self.assertEqual(self.P.music_level(self.D, "aha"), 0.6)   # capped
+
     def test_its_look_and_mark_are_its_own(self):
         self.assertEqual(self.P.handle("aha"), "TheAhalorithm"); self.assertEqual(self.P.watermark("aha-001"), "@TheAhalorithm")
         self.assertEqual(self.P.LOOKS["aha"]["font"], "sans"); self.assertNotEqual(self.P.LOOKS["aha"]["accent"], self.P.LOOKS["inspiration"]["accent"])
@@ -71,7 +82,7 @@ class Aha(unittest.TestCase):
     def test_its_quiet_bed_comes_from_its_own_library_even_under_a_voice(self):
         self.assertEqual(self.P.narrated_music(True, "auto", "/lib/a.mp3", "library", library_ok=True), ("/lib/a.mp3", "library"))
         self.assertEqual(self.P.narrated_music(True, "auto", "/lib/a.mp3", "library"), (None, "none"))   # inspiration: only the owner's own track under a voice
-        self.assertEqual(self.P.MUSIC_LIB["aha"], "aha_music"); self.assertLess(self.P.LOOKS["aha"]["music"], 0.2)
+        self.assertEqual(self.P.MUSIC_LIB["aha"], "aha_music"); self.assertTrue(0.2 <= self.P.LOOKS["aha"]["music"] <= 0.35)   # under the voice, yet audible on a phone (0.12 was not)
 
     def test_the_channel_music_is_fitted_and_its_beats_found_under_the_beat_pictures(self):
         import subprocess, shutil

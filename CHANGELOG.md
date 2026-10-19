@@ -34,6 +34,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - New Aha-lorithm shorts are narrated at the "Calm" pace, a little slower than normal. A short already made keeps its pace; change it on its Narration card and narrate it again.
 - "Waiting for you" says plainly whether it needs an account switch or something done on the Mac, without sending you to the classic view. A failed step's "Show the full log" opens the step's log in the new app.
 
+## [0.47.3] - 2026-10-18
+
+### Fixed
+- A new channel's sign-ins (The Aha-lorithm's YouTube login) never reached the publishing worker or Vault. The secrets sync knew only the first two accounts' file names, so "Upload to YouTube" kept saying the login was missing, and a restart would have lost it. Every account's login files are now kept in Vault and reach the worker within 30 seconds. After this release, sign in once more for The Aha-lorithm, since the earlier sign-in was never stored in Vault.
+- The Aha-lorithm's background music was too quiet to hear on a phone. By default it now sits at 25% (about 12 dB under the voice) instead of 12%, and it still drops back while the aha line plays. Each short can set its own level, from 0 to 60%, with the slider on its Music card. To hear it in a short already made, run its "Plan typography" step and then its render again.
+
+## [0.47.2] - 2026-10-18
+
+### Fixed
+- An Aha-lorithm short made before its account was set up ended with a "NAVAAN" mark and no end card. It now ends on the channel's own card, "The Aha-lorithm · AI explained in seconds" with @TheAhalorithm, and an item of another channel never shows NAVAAN's mark. To fix a short already made, run its "Plan typography" step and then its render again; nothing is paid twice.
+
 ## [0.47.1] - 2026-10-18
 
 ### Fixed
@@ -658,7 +669,9 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
 [Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...HEAD
-[0.48.0]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...v0.48.0
+[0.48.0]: https://github.com/NjAIAgents/navaan/compare/v0.47.3...v0.48.0
+[0.47.3]: https://github.com/NjAIAgents/navaan/compare/v0.47.2...v0.47.3
+[0.47.2]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...v0.47.2
 [0.47.1]: https://github.com/NjAIAgents/navaan/compare/v0.47.0...v0.47.1
 [0.47.0]: https://github.com/NjAIAgents/navaan/compare/v0.46.3...v0.47.0
 [0.46.3]: https://github.com/NjAIAgents/navaan/compare/v0.46.2...v0.46.3
