@@ -33,6 +33,8 @@ export type SongRow = {
   album: string; steps_done: number; steps_total: number; public: boolean; published: boolean; scheduled: string; schedule_at?: string;
   next: { type: string; step?: string; gate?: string; label?: string };
   art?: { colour: string | null } | null;
+  archived?: boolean; verified?: boolean | null; cleaned?: boolean; thumb_pending?: boolean; instagram?: boolean;   // the cloud and publishing state the list shows
+  mtime?: number; cover?: boolean;
 };
 
 export type Step = {
@@ -50,6 +52,7 @@ export type SongDetail = {
   notes?: string[];
   failure: { step: string; error: string; ref: string; plain?: string } | null;
   question: Question | null; needs_you: string;
+  gates?: string[]; profile?: boolean; account?: { configured?: boolean } | null; thumb_pending?: { id: string }[];   // the warnings on the song page: no artist profile, the item's own account not set up, a YouTube thumbnail not set
   cameras: string[]; cloud: boolean; images: string[];
   visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; visuals_suggest?: { camera: string; scene: string }; openai_pictures?: boolean;
   prompt_pack?: { aspect?: string; concept?: string; character?: string; style_line: string; look?: Record<string, unknown>; prompts: { n: number; section: string; lyric?: string; prompt: string; camera?: string; motion?: string }[] } | null;
@@ -71,17 +74,25 @@ export type ScheduleEntry = { slug: string; title: string; type: string; platfor
 export type Rec = {
   rec_id: string; title: string; why: string; action: string; expected_effect: string; priority: number; category: string; confidence: string; status: "open" | "done" | "dismissed";
   dismissed_reason: string | null; account: string; evidence: { title: string; severity: string }[];
+  source?: string; sources?: { topic: string; url?: string; title?: string }[]; done_at?: string | null;   // Claude's market research behind it, and once done, what changed since
+  outcome?: { verdict: "improved" | "worse" | "flat" | string; change_pct?: { median_views?: number | null; median_avg_view_pct?: number | null }; posts_after: number; note?: string } | null;
 };
 export type Overview = {
   empty?: boolean; reason?: string; error?: string; account: string; days: number; accounts: { label: string }[];
   kpis: Record<string, number | null>; series: Record<string, [string, number][]>;
-  posts?: { media_id: string; title: string; slug: string; posted_at: string; permalink: string; views: number; reach: number; saved: number; shares: number; engagement_rate: number | null }[];
-  videos?: { video_id: string; title: string; slug?: string; kind: string; published_at: string; url: string; views: number; likes: number; comments: number; avg_view_s: number | null }[];
-  reco: { ready: boolean; open: Rec[]; done: Rec[]; dismissed: Rec[]; analyzed_at?: string };
-  runs: { started_at: string; status: string; errors: number; first_error: string }[];
+  posts?: { media_id: string; title: string; slug: string; posted_at: string; permalink: string; views: number; reach: number; saved: number; shares: number; engagement_rate: number | null;
+    like_count?: number | null; comments_count?: number | null; avg_watch_s?: number | null; save_rate?: number | null; trend?: number[]; account?: string; language?: string; genre?: string }[];
+  videos?: { video_id: string; title: string; name?: string; slug?: string; kind: string; published_at: string; url: string; views: number; likes: number; comments: number; avg_view_s: number | null;
+    minutes_watched?: number | null; avg_view_pct?: number | null; subs_gained?: number | null; subs_per_1000?: number | null; privacy?: string; trend?: number[]; account?: string; language?: string; genre?: string }[];
+  reco: { ready: boolean; open: Rec[]; done: Rec[]; dismissed: Rec[]; analyzed_at?: string; findings?: number; notes?: number; ask?: { running?: boolean; rc?: number | null; tail?: string } };
+  runs: { started_at: string; finished_at?: string | null; status: string; errors: number; first_error: string; label?: string; stats?: Record<string, unknown> }[]; db?: string; analytics_ok?: boolean;
   collect: { running: boolean; rc?: number | null; tail?: string; account?: string };
   peers?: { rows: Peer[]; own: Peer[] };
   hashtags?: { peer_posts_with_tags?: number; suggested?: Record<string, { tag: string; peers: string[]; in_use?: boolean }[]>; own?: Record<string, { tag: string; avg_views: number | null }[]> };
+  // who the audience is and what works (NAV-29 parity): Instagram audience and online hours (UTC), YouTube traffic and retention, average views by group
+  audience?: Record<string, [string, number][]>; hours?: [number, number][]; traffic?: { source: string; views: number }[];
+  retention?: { name: string; kind: string; points: [number, number | null][] }[];
+  patterns?: Record<string, { name: string; posts?: number; videos?: number; avg_views: number | null; avg_view_pct?: number | null }[]>;
 };
 export type Peer = { username: string; label?: string; note?: string; error?: string; followers: number | null; posts_per_week: number | null; median_likes: number | null; median_comments: number | null; eng_per_1k: number | null; reel_share: number | null; caption_len: number | null; top_tags?: string[]; best?: { permalink?: string; likes?: number } | null };
 export type AutoSettings = { enabled: boolean; every_days: number; hour: number; ask: boolean; last_run: string | null; last_note: string | null; next_run: string | null; running: boolean; step?: string; choices: number[] };
@@ -132,7 +143,7 @@ export type Schedule = { youtube_at: string | null; instagram_at: string | null;
 
 // Cloud (NAV-27)
 export type CloudSong = { slug: string; title: string; files: { name: string; size: number; key: string }[]; bytes: number; local: boolean; cleaned: boolean; uploaded_at?: string | null; verified?: boolean | null; youtube: string[]; instagram: string };
-export type CloudData = { configured: boolean; provider?: string; bucket?: string; region?: string; error?: string; songs?: CloudSong[] };
+export type CloudData = { configured: boolean; provider?: string; bucket?: string; region?: string; prefix?: string; error?: string; songs?: CloudSong[] };
 
 // Feedback from the public site (NAV-44)
 export type SongReactions = { slug: string; title: string; up: number; down: number; love: number };

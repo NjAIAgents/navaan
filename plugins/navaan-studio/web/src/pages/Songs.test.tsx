@@ -21,6 +21,23 @@ const at = (path: string) => render(<MemoryRouter initialEntries={[path]}><App /
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Studio > Songs", () => {
+  it("lists a refused YouTube thumbnail on Approvals with the way to fix it", async () => {
+    mock({ "/api/songs": () => [row({ slug: "song-009", title: "Thumb One", status: "done", thumb_pending: true, next: { type: "done" } })] });
+    at("/studio/approvals");
+    expect(await screen.findByRole("heading", { name: "Set the YouTube thumbnail" })).toBeInTheDocument(); expect(screen.getByRole("link", { name: "Open Thumb One" })).toBeInTheDocument();
+    expect(screen.queryByText("Nothing is waiting for you.")).toBeNull();
+  });
+  it("finds a song, groups by album, shows where its files are and its views, and filters to published or in the cloud", async () => {
+    mock({ "/api/me": () => ({ user: "owner", roles: ["owner"], permissions: ["studio.access"] }), "/api/analytics/by-song": () => ({ "song-002": { views: 1200, yt_views: 300 } }),
+      "/api/songs": () => [row({ album: "Monsoon" }), row({ slug: "song-002", title: "Done One", status: "done", published: true, archived: true, verified: true, album: "Monsoon", next: { type: "done" } }), row({ slug: "song-003", title: "Old One", archived: true, cleaned: true, thumb_pending: true })] });
+    at("/studio/songs");
+    const done = await screen.findByRole("link", { name: /Done One/ }); expect(done).toHaveTextContent("In the cloud"); await waitFor(() => expect(done).toHaveTextContent("1,200 on Instagram · 300 on YouTube views"));
+    expect(screen.getByRole("link", { name: /Old One/ })).toHaveTextContent("Local cleaned"); expect(screen.getByRole("link", { name: /Old One/ })).toHaveTextContent("Thumbnail not set");
+    fireEvent.change(screen.getByLabelText("Find a song"), { target: { value: "done" } }); expect(screen.queryByRole("link", { name: /Tere Hone Se/ })).toBeNull(); fireEvent.change(screen.getByLabelText("Find a song"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Group by"), { target: { value: "album" } }); expect(screen.getByRole("region", { name: "Monsoon" })).toHaveTextContent("Done One"); expect(screen.getByRole("region", { name: "No album" })).toHaveTextContent("Old One");
+    fireEvent.click(screen.getByRole("button", { name: /^In the cloud/ })); expect(screen.queryByRole("link", { name: /Tere Hone Se/ })).toBeNull(); expect(screen.getByRole("link", { name: /Old One/ })).toBeInTheDocument();
+    try { localStorage.removeItem("navaan.list.group"); } catch { /* storage may be blocked */ }
+  });
   it("lists music with its state and next action, and filters", async () => {
     mock({ "/api/songs": () => [row({}), row({ slug: "song-002", title: "Done One", status: "done", published: true, next: { type: "done" } }), row({ slug: "insp-001", type: "inspiration" })] });
     at("/studio/songs");

@@ -20,11 +20,11 @@ export function BestTimes({ b, label }: { b: BestTime | null; label: string }) {
   );
 }
 
-type Props = { type: string; slug?: string; onDone: () => void; onCancel?: () => void };
+type Props = { type: string; slug?: string; onDone: () => void; onCancel?: () => void ; at0?: string; ytAt0?: string };   // at0 / ytAt0: a time to start from (ISO), e.g. a best-time slot picked on Analytics
 
-export function SchedulePanel({ type, slug: slug0 = "", onDone, onCancel }: Props) {
+export function SchedulePanel({ type, slug: slug0 = "", onDone, onCancel, at0 = "", ytAt0 = "" }: Props) {
   const [opts, setOpts] = useState<SchedOption[] | null>(null); const [ig, setIg] = useState<BestTime | null>(null); const [yt, setYt] = useState<BestTime | null>(null);
-  const [slug, setSlug] = useState(slug0); const [at, setAt] = useState(""); const [ytAt, setYtAt] = useState("");
+  const [slug, setSlug] = useState(slug0); const [at, setAt] = useState(at0 ? toLocalIn(at0) : ""); const [ytAt, setYtAt] = useState(ytAt0 ? toLocalIn(ytAt0) : "");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   useEffect(() => {
     const t = encodeURIComponent(type);

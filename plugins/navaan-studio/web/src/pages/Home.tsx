@@ -33,6 +33,26 @@ function Group({ title, rows, empty }: { title: string; rows: SongRow[]; empty: 
   );
 }
 
+// The classic dashboard's tiles, its by-stage bar and the latest covers (NAV-29): how much is out, how much is safe in the bucket, where the rest stands.
+function Overview({ rows }: { rows: SongRow[] }) {
+  const n = (f: (r: SongRow) => boolean) => rows.filter(f).length;
+  const stage = [["Needs you", n((r) => r.status === "approval"), "var(--wn)"], ["In production", n((r) => r.status === "production"), "var(--ac)"], ["Done", n((r) => r.status === "done"), "var(--ok)"]] as const;
+  const recent = [...rows].filter((r) => r.cover).sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0)).slice(0, 6);
+  return (<>
+    <div className="kpis">
+      <div className="card kpi"><span className="mu">Items</span><b>{rows.length}</b></div>
+      <div className="card kpi"><span className="mu">Published</span><b>{n((r) => r.published)}</b><span className="mu">{n((r) => !!r.instagram)} on Instagram</span></div>
+      <div className="card kpi"><span className="mu">In the cloud</span><b>{n((r) => !!r.archived)}</b><span className="mu">{n((r) => !!r.archived && r.verified !== false)} checked · {n((r) => !!r.cleaned)} cleaned here</span></div>
+    </div>
+    {rows.length > 0 && <div className="card stack" style={{ gap: 6 }}>
+      <div role="img" aria-label={`By stage: ${stage.map(([l, c]) => `${c} ${l.toLowerCase()}`).join(", ")}`} style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", background: "var(--s2)" }}>{stage.map(([l, c, col]) => <span key={l} style={{ width: `${(100 * c) / rows.length}%`, background: col }} />)}</div>
+      <p className="mu">{stage.map(([l, c]) => `${l} ${c}`).join(" · ")}</p>
+    </div>}
+    {recent.length > 0 && <section className="sec" aria-labelledby="h-recent"><div className="sh"><h2 id="h-recent">Recent covers</h2></div>
+      <div className="tiles card" style={{ padding: 8 }}>{recent.map((s) => <Link key={s.slug} className="q tile" to={itemPath(s.type, s.slug) ?? "/studio"}><Cover slug={s.slug} title={s.title} art={s.art} /><span className="tx"><b>{s.title || s.slug}</b></span></Link>)}</div></section>}
+  </>);
+}
+
 // Foundation story: the one real screen is the dashboard, on the existing API, so the shell is proven against live data.
 // The rich Studio screens follow in NAV-13 to NAV-15.
 export default function Home() {
@@ -46,7 +66,8 @@ export default function Home() {
       {!rows && !err && <Loading />}
       {rows && (
         <>
-          <Group title="Needs you" rows={rows.filter((r) => r.status === "approval")} empty="Nothing is waiting for you." />
+          <Overview rows={rows} />
+          <Group title="Needs you" rows={rows.filter((r) => r.status === "approval" || !!r.thumb_pending)} empty="Nothing is waiting for you." />
           <Group title="In production" rows={rows.filter((r) => r.status === "production")} empty="Nothing is being made right now." />
           <Group title="Done" rows={rows.filter((r) => r.status === "done")} empty="Nothing finished yet." />
         </>

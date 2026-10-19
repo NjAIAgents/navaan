@@ -47,8 +47,9 @@ function TokenForm({ id, label, busy, onSave }: { id: string; label: string; act
 }
 
 function YouTube({ a, which, act, busy }: { a: SettingsAccount; which: "publish" | "analytics"; act: Do; busy: boolean }) {
-  const [url, setUrl] = useState(""); const [opened, setOpened] = useState(""); const [err, setErr] = useState("");
-  const st = which === "publish" ? a.yt : a.yt_analytics; const name = which === "publish" ? "YouTube publishing" : "YouTube analytics";
+  const [url, setUrl] = useState(""); const [opened, setOpened] = useState(""); const [err, setErr] = useState(""); const [file, setFile] = useState("");
+  const st = which === "publish" ? a.yt : a.yt_analytics;
+  const cmd = which === "publish" ? `${a.type === "music" ? "" : `NAVAAN_YT_TOKEN=~/.config/navaan/youtube_token_${a.type}.json `}python3 plugins/navaan-studio/scripts/publish_youtube.py auth` : `python3 plugins/navaan-studio/scripts/yt_collect.py auth --account ${a.type}`; const name = which === "publish" ? "YouTube publishing" : "YouTube analytics";
   const start = async () => {
     setErr("");
     try { const r = await postJSON<{ url: string }>("/api/settings/yt_oauth_start", { type: a.type, which }); window.open(r.url, "_blank", "noopener"); setOpened("Opened Google in a new tab. Finish there, then paste the address of the page you end on."); }
@@ -66,8 +67,44 @@ function YouTube({ a, which, act, busy }: { a: SettingsAccount; which: "publish"
           <button className="btn p" type="submit" disabled={busy || !url.trim()}>Finish sign in</button>
         </form>
       )}
+      <details className="stack"><summary className="mu">Or sign in from a terminal and paste the token file</summary>   {/* the classic fallback when the browser sign-in is not possible */}
+        <p className="mu">On your Mac, in the project folder, run <code>{cmd}</code>. A browser opens for the Google sign-in. Then copy the file it saved (<code>cat ~/.config/navaan/&lt;file&gt; | pbcopy</code>) and paste it here.</p>
+        <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (await act("yt_save", { type: a.type, which, content: file })) setFile(""); }}>
+          <label htmlFor={`ytf-${a.type}-${which}`}>Token file for {name}</label>
+          <textarea id={`ytf-${a.type}-${which}`} className="field" rows={3} value={file} onChange={(e) => setFile(e.target.value)} spellCheck={false} />
+          <button className="btn" type="submit" disabled={busy || !file.trim()}>Save the token file</button>
+        </form>
+      </details>
       {err && <p role="alert" className="mu">{err}</p>}
     </div>
+  );
+}
+
+// First-time setup, step by step, as the classic Settings had it: the Instagram token, the Facebook token for peer data, and YouTube's Google Cloud project.
+function Guides() {
+  const ext = (href: string, t: string) => <a href={href} target="_blank" rel="noreferrer">{t}</a>;
+  return (
+    <section className="stack" aria-label="Setup guides">
+      <h3>Setup guides</h3>
+      <details className="card stack"><summary><b>How to get an Instagram token (first time, or after it expires)</b></summary><ol>
+        <li>The Instagram account must be a Professional account (Creator or Business): in the Instagram app, Settings, Account type and tools.</li>
+        <li>Open {ext("https://developers.facebook.com/apps", "developers.facebook.com/apps")}, app navaan-studio, Use cases, Instagram API, Customize.</li>
+        <li>Roles (left menu of the app): Instagram Testers, add the Instagram account. Then accept the invite in the Instagram app: Settings, Website permissions (or Apps and websites), Tester invites.</li>
+        <li>Back in Customize, API setup with Instagram login, section 2, Generate access tokens: add the account, Generate token, copy it.</li>
+        <li>Paste it on the account's Instagram row and Save. It is checked against Instagram and lasts 60 days; Refresh any time after the first day for a fresh 60 days.</li></ol></details>
+      <details className="card stack"><summary><b>How to get the Facebook token for peer data (optional)</b></summary><ol>
+        <li>Create a Facebook Page (any name, it can stay unpublished) and link the Instagram account to it: Page settings, Linked accounts, Instagram.</li>
+        <li>App navaan-studio, Use cases, Customize, Permissions and features: add instagram_basic, instagram_manage_insights, pages_show_list, pages_read_engagement, business_management.</li>
+        <li>{ext("https://developers.facebook.com/tools/explorer/", "Graph API Explorer")}: Meta App navaan-studio, Get User Access Token, tick those five permissions, Generate Access Token, allow the Page and the Instagram account.</li>
+        <li>{ext("https://developers.facebook.com/tools/debug/accesstoken/", "Access Token Debugger")}: paste, Debug, Extend Access Token (60 days), copy the extended one.</li>
+        <li>Paste it on the account's peer-data row and Save. Hashtag volumes stay off: Meta needs an app review for those.</li></ol></details>
+      <details className="card stack"><summary><b>How to set up YouTube (first time)</b></summary><ol>
+        <li>{ext("https://console.cloud.google.com/", "Google Cloud console")}: pick or create a project, enable YouTube Data API v3 (and YouTube Analytics API for watch time and retention).</li>
+        <li>APIs and Services, OAuth consent screen: External, the app name and your email, and add the Google accounts that own the channels as Test users.</li>
+        <li>Credentials, Create credentials, OAuth client ID, type Desktop app, Download JSON. Load that file here (it is shared by all accounts).</li>
+        <li>On each account press Sign in, choose the Google account that owns that channel (and the right channel if it asks), allow, then paste the address Google sends you to.</li>
+        <li>In Testing mode Google ends the sign-in after 7 days. To stop that, publish the app on the OAuth consent screen (no verification needed for your own use; Google shows an "unverified app" warning once).</li></ol></details>
+    </section>
   );
 }
 
@@ -199,6 +236,7 @@ function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; ac
         </Row>
         <Row id="add-type" name="Add a content type" status={{ kind: "ok", text: `${d.accounts.length} now` }} action="Add" open={open === "add-type"} onToggle={() => toggle("add-type")}><AddAccount act={act} busy={busy} /></Row>
       </section>
+      <Guides />
     </div>
   );
 }
@@ -238,6 +276,16 @@ function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Sa
           ))}
         </section>
       ))}
+      <section className="card stack" aria-label="Spending limits">   {/* the caps that stop a run from spending more than you meant */}
+        <h3>Spending limits</h3>
+        {([["max_run_usd", "Most one run may spend on pictures (US dollars)", 0.05, 20, 0.05], ["song_pictures", "Pictures planned per song", 6, 40, 1], ["eleven_monthly_seconds", "ElevenLabs narration allowed per month (seconds)", 60, 36000, 30]] as const).map(([k, l, lo, hi, step]) => (
+          <div key={k} className="stack">
+            <label htmlFor={`m-${k}`}>{l}</label>
+            <input id={`m-${k}`} className="field" type="number" min={lo} max={hi} step={step} value={edit[k] ?? String(m.settings[k] ?? "")} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} />
+          </div>
+        ))}
+        <p className="mu">A run that would pass the first limit stops before anything is paid. Allowed: {"$"}0.05 to {"$"}20, 6 to 40 pictures, 60 to 36,000 seconds.</p>
+      </section>
       <div className="row"><button className="btn p" disabled={busy || !Object.keys(edit).length} onClick={() => void act("media_save", { settings: edit }).then((ok) => ok && setEdit({}))}>Save these choices</button></div>
     </div>
   );

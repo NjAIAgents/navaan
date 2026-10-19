@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getJSON, postJSON, type AutoSettings, type Overview, type Peer } from "../../lib/api";
 import { errText } from "../../lib/songs";
 
@@ -106,7 +107,7 @@ const hourCT = (h: number) => { const n = new Date(); return new Date(Date.UTC(n
 const slotCT = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: CT });
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function HourBars({ b, label }: { b: Hours; label: string }) {
+function HourBars({ b, label, type, yt = false }: { b: Hours; label: string; type?: string; yt?: boolean }) {   // a slot opens the scheduler for that content type with the time filled in
   if (b.empty || !b.hours?.length) return <p className="mu">{label}: {(b.notes ?? []).join(" ") || "not enough data yet"}</p>;
   const top = b.hours.map((v, h) => [v, h] as const).sort((x, y) => y[0] - x[0]).slice(0, 3).map(([, h]) => hourCT(h)).join(", ");
   return (
@@ -120,7 +121,7 @@ function HourBars({ b, label }: { b: Hours; label: string }) {
         ))}
       </div>
       {!!b.weekdays?.length && <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>{b.weekdays.map((v, i) => <span key={i} className={"chip" + (v >= 85 ? " ok" : "")}>{DAYS[i]} {v}</span>)}</div>}
-      {!!b.slots?.length && <p>Next good slots: {b.slots.map((x) => `${slotCT(x.at)} CT (${x.score})`).join(" · ")}</p>}
+      {!!b.slots?.length && <div className="row" style={{ flexWrap: "wrap", gap: 6 }} role="group" aria-label={`${label}: next good slots`}><span>Next good slots:</span>{b.slots.map((x) => <Link key={x.at} className="btn g" to={`/studio/schedule?open=1&type=${encodeURIComponent(type ?? "music")}&${yt ? "yt" : "at"}=${encodeURIComponent(x.at)}`}>{slotCT(x.at)} CT · {x.score}</Link>)}</div>}
       {!!b.notes?.length && <p className="mu">{b.notes.join(" ")}</p>}
     </div>
   );
@@ -133,18 +134,18 @@ export function BestTime({ d, platform }: { d: Overview; platform: string }) {
   return (
     <section className="sec" aria-labelledby="bt-h">
       <div className="sh"><h2 id="bt-h">Best time to publish</h2></div>
-      <p className="mu">Bars are the hour to post, in Central Time; taller is better. {platform === "youtube" ? "YouTube has no \"viewers online\" number, so this blends how your own videos did, where your viewers live and when your Instagram followers are online." : "From when your followers are online, how your own posts did and when your peers post."} Set a song's time on its Publishing schedule card.</p>
+      <p className="mu">Bars are the hour to post, in Central Time; taller is better. {platform === "youtube" ? "YouTube has no \"viewers online\" number, so this blends how your own videos did, where your viewers live and when your Instagram followers are online." : "From when your followers are online, how your own posts did and when your peers post."} Pick a slot to schedule something at that time.</p>
       {labs.map(([label, b]) => (
         <div key={label} className="card stack" style={{ gap: 10 }}>
           <h3>{label}</h3>
           {platform === "youtube" ? (
             b.empty ? <p className="mu">{b.reason === "no_channel" ? "Channel not collected yet." : (b.kinds?.video?.notes ?? []).join(" ") || "Not enough data yet. Run Collect now."}</p> : <>
               <p className="mu">{b.traffic ? `${b.traffic.subscribers_pct}% of views come from subscribers and notifications; timing matters ${b.traffic.sensitivity}.` : "Traffic mix not collected yet."}{b.countries?.length ? ` Viewers: ${b.countries.slice(0, 5).map(([c, p]) => `${c} ${p}%`).join(", ")}.` : ""}</p>
-              {(["video", "short"] as const).map((k) => <div key={k} className="stack" style={{ gap: 6 }}><h4>{k === "video" ? "Videos" : "Shorts"}{b.kinds?.[k]?.confidence ? <span className="mu"> · confidence {b.kinds[k]!.confidence}</span> : null}</h4><HourBars b={b.kinds?.[k] ?? { empty: true }} label={`${label} ${k === "video" ? "videos" : "Shorts"}`} /></div>)}
+              {(["video", "short"] as const).map((k) => <div key={k} className="stack" style={{ gap: 6 }}><h4>{k === "video" ? "Videos" : "Shorts"}{b.kinds?.[k]?.confidence ? <span className="mu"> · confidence {b.kinds[k]!.confidence}</span> : null}</h4><HourBars b={b.kinds?.[k] ?? { empty: true }} label={`${label} ${k === "video" ? "videos" : "Shorts"}`} type={label} yt /></div>)}
             </>
           ) : <>
             <p className="mu">{(b.basis?.signals ?? []).join(", ")}{b.basis ? ` · ${b.basis.own_posts ?? 0} own posts · ${b.basis.peer_posts ?? 0} peer posts` : ""}</p>
-            <HourBars b={b} label={label} />
+            <HourBars b={b} label={label} type={label} />
           </>}
         </div>
       ))}

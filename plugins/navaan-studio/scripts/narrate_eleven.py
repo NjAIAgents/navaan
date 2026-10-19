@@ -61,7 +61,7 @@ def chosen_voice(D):
 
 def chosen_pace(D):
     """slow (default), calm or normal: a reflective quote is read slowly so each line can sit on screen while it is spoken."""
-    dflt = "normal" if C.item_type(C.load_json(os.path.join(D, "meta.json"), default={}) or {}) == "aha" else "slow"   # an Aha-lorithm explainer is spoken at normal speed
+    dflt = "calm" if C.item_type(C.load_json(os.path.join(D, "meta.json"), default={}) or {}) == "aha" else "slow"   # an Aha-lorithm explainer is spoken calmly: clear, a little under normal speed (owner, 2026-10-18)
     p = narration.get_option(D, "pace", dflt).lower()
     return p if p in T.PACES else dflt
 

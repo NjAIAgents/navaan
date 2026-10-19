@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { getJSON, type Overview } from "../lib/api";
 import { errText } from "../lib/songs";
 import Feedback from "./analytics/Feedback";
@@ -9,6 +9,7 @@ import Recs from "./analytics/Recs";
 import Visitors from "./analytics/Visitors";
 import Sentiment from "./analytics/Sentiment";
 import { Actions, Auto, BestTime, Hashtags, Peers } from "./analytics/Extras";
+import { IgAudience, Patterns, Retention, YtViewers } from "./analytics/Audience";
 import { Loading } from "../components/Loading";
 
 const TABS = [["analytics", "Analytics"], ["recommendations", "Recommendations"], ["interactions", "Interactions"], ["feedback", "Feedback"], ["sentiment", "Sentiment"], ["visitors", "Visitors"]] as const;
@@ -42,12 +43,18 @@ export default function Analytics() {
         {tab === "visitors" ? <Visitors days={days} /> : tab === "sentiment" ? <Sentiment days={days} /> : tab === "feedback" ? <Feedback /> : tab === "interactions" ? <Interactions platform={platform} /> : (
           <>
             {!d && !err && <Loading />}
-            {d?.empty && <div className="card"><p className="empty">Nothing collected yet{d.error ? ` (${d.error})` : ""}.</p></div>}
+            {d?.empty && <div className="card stack"><h2>No {platform === "youtube" ? "YouTube" : "Instagram"} data yet</h2>
+              <p>{d.reason === "db_error" && d.error ? d.error : platform === "youtube" ? "The YouTube collector has not run yet." : "The collector has not run yet."}{" "}
+                {platform === "youtube" ? "It uses the same Google sign-in as publishing, so press Collect now for views, likes and comments. Watch time, retention, traffic sources and audience also need the YouTube analytics sign-in in Settings." : "Sign in to Instagram for the account in Settings, Accounts, then press Collect now."}</p>
+              <p className="mu"><Link to="/studio/settings">Open Settings</Link>{d.db ? <> · Database: <code>{d.db}</code></> : null}</p></div>}
+            {d && !d.empty && platform === "youtube" && d.analytics_ok === false && <p className="mu" role="status">Showing public counts only (views, likes, comments, subscribers). Watch time, retention, traffic sources and audience need the YouTube analytics sign-in in <Link to="/studio/settings">Settings</Link>.</p>}
             {d?.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
             {d && !d.empty && <Actions d={d} platform={platform} account={account} reload={load} />}
             {d && !d.empty && tab === "analytics" && <BestTime d={d} platform={platform} />}
             {d && !d.empty && tab === "analytics" && platform === "instagram" && <Peers d={d} />}
             {d && !d.empty && (tab === "recommendations" ? <Recs d={d} reload={load} /> : <Numbers d={d} platform={platform} reload={load} />)}
+            {d && !d.empty && tab === "analytics" && <Patterns d={d} platform={platform} />}
+            {d && !d.empty && tab === "analytics" && (platform === "instagram" ? <IgAudience d={d} /> : <><YtViewers d={d} /><Retention d={d} /></>)}
             {d && !d.empty && tab === "analytics" && platform === "instagram" && <Hashtags d={d} />}
             {(tab === "analytics" || tab === "recommendations") && <Auto />}
           </>

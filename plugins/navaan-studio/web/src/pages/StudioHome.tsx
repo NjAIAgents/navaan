@@ -17,7 +17,7 @@ export default function StudioHome() {
     "/studio/songs": rows ? `${n((r) => r.type === "music")} songs` : null,
     "/studio/inspiration": rows ? `${n((r) => r.type === "inspiration")} shorts` : null,
     "/studio/aha": rows ? `${n((r) => r.type === "aha")} shorts` : null,
-    "/studio/approvals": rows ? `${n((r) => r.status === "approval")} waiting` : null,
+    "/studio/approvals": rows ? `${n((r) => r.status === "approval" || !!r.thumb_pending)} waiting` : null,
     "/studio/schedule": rows ? `${n((r) => !!r.scheduled)} scheduled` : null,
   };
   return (

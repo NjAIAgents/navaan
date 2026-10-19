@@ -6,6 +6,38 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-10-18
+
+### Added
+- Settings › AI services › Spending limits: the most one run may spend on pictures, the pictures planned per song, and the ElevenLabs narration allowed per month can be changed from the new app. Before, only the classic page could change them (NAV-29).
+- The song page warns about what no step can fix: the item's own account is not set up (with a link to Settings), there is no artist profile, or YouTube refused the custom thumbnail (with the command that sets it).
+- The song's Approvals list shows every approval, and you can give one ahead of its step. Publishing and spending approvals ask first.
+- Studio › Analytics has the classic page's analysis back (NAV-29):
+  - who the audience is: Instagram cities, countries, age and gender, and the hours followers are online; YouTube traffic sources, viewer countries, age and gender
+  - retention curves for your top videos
+  - "What seems to work": average views by language, genre, and Shorts against videos, and the share watched
+  - the posts and videos tables carry every classic column (likes, comments, average watch, save rate; watch minutes, share viewed, subscribers gained per 1,000 views), sort by any column, and have a views-over-time line per row; YouTube can show videos or Shorts only, and private videos say so
+  - every collector run is listed, with what it brought in
+  - recommendations show Claude's market sources and whether each one came from Claude or the rules, sort the surest first, report what changed after one was marked done, and show the last Claude run's error if it did not finish
+  - a slot in Best time to publish opens the scheduler with that time filled in
+  - an empty page says how to start, and YouTube says when only public counts are shown
+- A song's page shows how each post and video is doing, as the classic Performance tab did: its rank against the account's other posts and its multiple of their median, the numbers as tiles, views over time, YouTube retention, what the analysis says about it, and the comments waiting for a reply. Posts and videos can be unlinked, and a YouTube video can be linked from the song too.
+- The Media tab shows where the song is published (YouTube thumbnails with their privacy and a link into YouTube Studio when private, the Instagram Reel embedded), its files in the cloud archive with one-hour previews, the cover and thumbnail stills, and its pictures. "Make 9:16" and "Try the first 2 pictures" work after the look is chosen too.
+- The Songs, Inspiration and Aha-lorithm lists can be searched, filtered to published or in the cloud, grouped by album or status, and shown as a grid. Each row shows its progress, where its files are (local only, in the cloud, bucket out of date, local copy cleaned), a refused YouTube thumbnail, and its views on Instagram and YouTube.
+- Approvals lists items whose YouTube thumbnail was refused, and the Studio tile counts them.
+- The home dashboard shows how many items are published (and on Instagram), how many are in the cloud (checked, and cleaned here), a bar by stage, and the latest covers.
+- Cloud shows the archived count, the objects, the total size and how many are out of date, and the bucket's folder.
+- Settings: each YouTube sign-in can also be done from a terminal by pasting the token file, and step-by-step guides cover the Instagram token, the Facebook token for peer data and the first YouTube setup.
+- The Text tab edits every text file of an item, not only the usual ones. The account menu shows whether the studio runs on the server and whether the scheduler and the worker are up.
+
+### Changed
+- New Aha-lorithm shorts are narrated at the "Calm" pace, a little slower than normal. A short already made keeps its pace; change it on its Narration card and narrate it again.
+- "Waiting for you" says plainly whether it needs an account switch or something done on the Mac, without sending you to the classic view. A failed step's "Show the full log" opens the step's log in the new app.
+- Aha-lorithm YouTube descriptions are short: the hook line, the follow line, and the hashtags.
+
+### Fixed
+- Uploads no longer add "Hear the full song free" to items that are not songs. Aha-lorithm shorts get no NAVAAN line (their own channel); inspiration shorts get "More from NAVAAN: https://navaan.online".
+
 ## [0.47.3] - 2026-10-18
 
 ### Fixed
@@ -640,7 +672,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.47.3...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/NjAIAgents/navaan/compare/v0.47.3...v0.48.0
 [0.47.3]: https://github.com/NjAIAgents/navaan/compare/v0.47.2...v0.47.3
 [0.47.2]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...v0.47.2
 [0.47.1]: https://github.com/NjAIAgents/navaan/compare/v0.47.0...v0.47.1

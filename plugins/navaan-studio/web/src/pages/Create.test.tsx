@@ -98,11 +98,29 @@ describe("answering the agent, uploading Suno's MP3, revoking an approval", () =
     fireEvent.change(inp, { target: { files: [new File(["abc"], "x.mp3", { type: "audio/mpeg" })] } }); await waitFor(() => expect(posts(f, "/api/suno/audio")).toEqual([{ slug: "song-001", name: "x.mp3", data: "YWJj" }]));
     cleanup(); route(OWNER, { "/api/song/": () => detail({ meta: failed, files: { "final.mp3": 5 } }) }); at("/studio/songs/song-001"); await screen.findByRole("heading", { level: 1 }); expect(screen.queryByLabelText(/MP3 file/)).toBeNull();   // the audio is there
   });
+  it("Media tab: where it is published (YouTube private with a Studio link, the Reel embedded), the stills, and a picture redrawn as 9:16", async () => {
+    const f = route(OWNER, { "/api/visuals/vertical": () => ({ ok: true }), "/api/cloud": () => ({ configured: false }), "/api/song/": () => detail({ slug: "song-001", openai_pictures: true, images: ["pic_01.png"], vertical: { done: [] }, files: { "cover_1x1.png": 3, "final.mp3": 9 },
+      meta: { type: "music", state: "published", history: [], published: { youtube_items: [{ id: "abc123", url: "https://youtu.be/abc123", privacy: "private", file: "final_16x9.mp4" }], instagram: "https://www.instagram.com/reel/XYZ9/" } } }) });
+    at("/studio/songs/song-001?tab=media");
+    expect(await screen.findByRole("link", { name: "Open in YouTube Studio" })).toHaveAttribute("href", "https://studio.youtube.com/video/abc123/edit");
+    expect(screen.getByTitle("The Reel on Instagram")).toHaveAttribute("src", "https://www.instagram.com/reel/XYZ9/embed");
+    expect(screen.getByAltText("cover_1x1.png")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Make 9:16 of picture 1/ })); await waitFor(() => expect(posts(f, "/api/visuals/vertical")).toEqual([{ slug: "song-001", pics: [1] }]));
+  });
   it("lists what is approved and revokes one only after a confirmation", async () => {
     const f = route(OWNER, { "/api/revoke": () => ({ ok: true }), "/api/song/": () => detail({ approvals: { lyrics: { at: "2026-10-16T01:00:00Z", via: "ui:meera" } } }) });
     at("/studio/songs/song-001?tab=activity"); const item = (await screen.findByText("Lyrics", { selector: "b" })).closest("li")!; expect(item).toHaveTextContent("meera");
     fireEvent.click(screen.getByRole("button", { name: "Revoke approval of Lyrics" })); expect(posts(f, "/api/revoke")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Yes, revoke" })); await waitFor(() => expect(posts(f, "/api/revoke")).toEqual([{ slug: "song-001", gate: "lyrics" }]));
+  });
+  it("approves a gate ahead of its step; a risky one (publishing) asks first", async () => {
+    const f = route(OWNER, { "/api/approve": () => ({ ok: true }), "/api/song/": () => detail({ gates: ["lyrics", "media", "go_public"], approvals: { lyrics: { at: "2026-10-16T01:00:00Z", via: "ui:meera" } } }) });
+    at("/studio/songs/song-001?tab=activity");
+    expect(await screen.findByText("1 of 3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Approve Review the videos ahead" }));
+    await waitFor(() => expect(posts(f, "/api/approve")).toEqual([{ slug: "song-001", gate: "media" }]));
+    fireEvent.click(screen.getByRole("button", { name: "Approve Make the YouTube video public ahead" })); expect(posts(f, "/api/approve")).toHaveLength(1);   // going public waits for a yes
+    fireEvent.click(screen.getByRole("button", { name: "Yes, approve now" })); await waitFor(() => expect(posts(f, "/api/approve")[1]).toEqual({ slug: "song-001", gate: "go_public" }));
   });
 });
 
@@ -363,6 +381,20 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     expect(document.getElementById("step-publish_youtube")).toHaveTextContent("YouTube lane"); expect(document.getElementById("step-instagram_caption")).toHaveTextContent("Instagram lane");
     fireEvent.click(screen.getByRole("button", { name: "Run Write the Instagram caption" }));
     await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "song-007", step: "instagram_caption" }]));   // only that lane's step
+  });
+  it("warns about what no step can fix: its own account not set up, no artist profile, a refused YouTube thumbnail", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "aha-001", meta: { type: "aha", state: "draft", history: [] }, profile: false, account: { configured: false }, thumb_pending: [{ id: "abc123" }] }) });
+    at("/studio/aha/aha-001");
+    expect(await screen.findByRole("heading", { name: "Its own account is not set up" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Settings" })).toHaveAttribute("href", "/studio/settings");
+    expect(screen.getByRole("heading", { name: "No artist profile yet" })).toBeInTheDocument();
+    expect(screen.getByText(/publish_youtube.py thumb aha-001 abc123/)).toBeInTheDocument();
+  });
+  it("says what a step is waiting for in plain words, without sending you to the classic view", async () => {
+    route(OWNER, { "/api/song/": () => detail({ slug: "song-009", needs_you: "MAC: export the stems from Logic and upload them" }) });
+    at("/studio/songs/song-009");
+    expect(await screen.findByRole("heading", { name: "Do this on the Mac, then upload the result" })).toBeInTheDocument();
+    expect(screen.getByText("export the stems from Logic and upload them")).toBeInTheDocument(); expect(screen.queryByText(/classic view/)).toBeNull();
   });
   it("lets you skip Instagram for one song so the pipeline finishes without it, and turn it back on", async () => {
     const f = route(OWNER, { "/api/skip_lane": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-008", next: { type: "run", step: "publish_instagram" },

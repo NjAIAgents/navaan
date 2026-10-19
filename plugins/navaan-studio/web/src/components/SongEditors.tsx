@@ -89,12 +89,15 @@ export function PostTextEditor({ d, kind, done }: { d: SongDetail; kind: "instag
 
 export function TextEditors({ d, done }: { d: SongDetail; done: Done }) {
   const shown = FILES.filter(([n]) => n in d.text);
-  if (!shown.length && !parseYt(d.text?.["youtube.json"])) return null;
+  const known = new Set([...FILES.map(([n]) => n), "youtube.json", "shots.json"]);
+  const other = Object.keys(d.text ?? {}).filter((n) => !known.has(n)).sort();   // every other text file the server lets you edit, as the classic Text tab did
+  if (!shown.length && !other.length && !parseYt(d.text?.["youtube.json"])) return null;
   return (
     <section className="sec" aria-labelledby="tx-h">
       <div className="sh"><h2 id="tx-h">Words and settings</h2></div>
       {shown.map(([n, l]) => <FileEditor key={`${d.slug}${n}`} slug={d.slug} name={n} label={l} saved={d.text[n]} done={done} />)}
       {parseYt(d.text?.["youtube.json"]) && <details className="card stack"><summary><b>YouTube title, description and tags</b></summary><PostTextEditor d={d} kind="youtube" done={done} /></details>}
+      {other.length > 0 && <details className="card stack"><summary><b>Other files</b> <span className="mu">{other.length}</span></summary>{other.map((n) => <FileEditor key={`${d.slug}${n}`} slug={d.slug} name={n} label={n} saved={d.text[n]} done={done} />)}</details>}
     </section>
   );
 }

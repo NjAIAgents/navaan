@@ -61,7 +61,10 @@ export default function Cloud() {
         : d.error ? <div className="card" role="alert"><h2>The bucket could not be reached</h2><p className="mu">{d.error}</p><button className="btn" onClick={() => void load(true)}>Try again</button></div>
         : (
           <>
-            <div className="row" style={{ flexWrap: "wrap" }}><p className="mu" style={{ flex: 1 }}>{d.provider} · bucket {d.bucket}{d.region ? ` · ${d.region}` : ""} · {(d.songs ?? []).length} songs</p><button className="btn g" onClick={() => void load(true)}>Refresh</button></div>
+            <div className="row" style={{ flexWrap: "wrap" }}><p className="mu" style={{ flex: 1 }}>{d.provider} · bucket {d.bucket}{d.prefix ? `/${d.prefix}` : ""}{d.region ? ` · ${d.region}` : ""}</p><button className="btn g" onClick={() => void load(true)}>Refresh</button></div>
+            {(() => { const S = d.songs ?? []; const objects = S.reduce((a, s) => a + s.files.length, 0), bytes = S.reduce((a, s) => a + (s.bytes || 0), 0), stale = S.filter((s) => s.verified === false).length;   // the classic summary tiles
+              return <div className="kpis"><div className="card kpi"><span className="mu">Archived</span><b>{S.length}</b></div><div className="card kpi"><span className="mu">Objects</span><b>{objects.toLocaleString()}</b></div>
+                <div className="card kpi"><span className="mu">Total size</span><b>{bytes > 1e9 ? `${(bytes / 1e9).toFixed(2)} GB` : `${Math.round(bytes / 1e6)} MB`}</b></div><div className="card kpi"><span className="mu">Out of date</span><b>{stale}</b></div></div>; })()}
             {!(d.songs ?? []).length && <div className="card"><p className="empty">Nothing is archived yet.</p></div>}
             {(d.songs ?? []).map((s) => (
               <details key={s.slug} className="card cl">

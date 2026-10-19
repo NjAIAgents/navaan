@@ -5,7 +5,7 @@ description: Write the narrated script of an Aha-lorithm short (hook, explanatio
 
 # Aha-lorithm script
 
-Content type `aha` is a 20 to 25 second vertical YouTube Short for The Aha-lorithm (@TheAhalorithm): AI explained in seconds. One misconception, one clear explanation, one memorable insight. ElevenLabs reads the spoken lines from the first frame (a calm, natural narrator, about 140 words a minute), each beat has its own picture, and the renderer draws the beat's caption in the safe area. Quiet ambient music sits far under the voice, drops back while the aha line lands, and the end card shows "The Aha-lorithm · AI explained in seconds".
+Content type `aha` is a 20 to 25 second vertical YouTube Short for The Aha-lorithm (@TheAhalorithm): AI explained in seconds. One misconception, one clear explanation, one memorable insight. ElevenLabs reads the spoken lines from the first frame (a calm, natural narrator, about 120 to 130 words a minute), each beat has its own picture, and the renderer draws the beat's caption in the safe area. Quiet ambient music sits far under the voice, drops back while the aha line lands, and the end card shows "The Aha-lorithm · AI explained in seconds".
 
 1. Read `brief.md` and `navaan.config.json`. If `quote_feedback.txt` exists, apply exactly what it says, then delete it. The brief starts the short in one of three ways:
    - **The owner's own narration** (a hook and/or the spoken text): keep their words exactly. Only split them into beats, write the captions and the picture prompts. Fix nothing but typos.

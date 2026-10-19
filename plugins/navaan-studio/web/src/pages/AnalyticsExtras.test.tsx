@@ -60,14 +60,24 @@ describe("Analytics extras (NAV-28)", () => {
     const f = stub(); at(); fireEvent.click(await screen.findByRole("switch", { name: /Collect and analyse on a schedule/ })); fireEvent.change(screen.getByLabelText("Every"), { target: { value: "3" } }); fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(f.mock.calls.some(([u, i]) => u === "/api/analytics/auto" && i?.method === "POST")).toBe(true)); expect(JSON.parse(String(f.mock.calls.find(([u, i]) => u === "/api/analytics/auto" && i?.method === "POST")![1]?.body))).toEqual({ enabled: true, every_days: 3, hour: 9, ask: false });
   });
-  it("shows a published song's numbers on its page", async () => {
-    stub({ song: { empty: false, totals: { views: 120, reach: 90, saved: 7, shares: 2 }, posts: [{ media_id: "m2", permalink: "https://ig/p/2", product_type: "REELS", account: "music", views: 120, comments_total: 3, compare: { views_vs_median: 1.5, views_rank: 1, account_posts: 8 } }], unlinked: [], youtube: { videos: [{ video_id: "v1", title: "Tere", url: "https://yt/v1", views: 55 }] } } });
-    vi.stubGlobal("fetch", vi.fn((u: string) => Promise.resolve(u.startsWith("/api/me") ? json(OWNER) : u.startsWith("/api/analytics/song") ? json({ empty: false, totals: { views: 120, reach: 90, saved: 7, shares: 2 }, posts: [{ media_id: "m2", permalink: "https://ig/p/2", product_type: "REELS", account: "music", views: 120, comments_total: 3, compare: { views_vs_median: 1.5, views_rank: 1, account_posts: 8 } }], unlinked: [], youtube: { videos: [{ video_id: "v1", title: "Tere", url: "https://yt/v1", views: 55 }] } }) : u.startsWith("/api/song/") ? json({ slug: "song-001", steps: [], next: { type: "done" }, text: { "title.txt": "Tere" }, files: {}, meta: { type: "music", state: "published", history: [] }, approvals: {}, job: { running: false, queued: false, rc: null }, status_text: "", failure: null, question: null, needs_you: "" }) : json([]))));
-    at("/studio/songs/song-001?tab=publish"); expect(await screen.findByRole("heading", { name: "How it is doing" })).toBeInTheDocument(); expect(screen.getByText(/1.5× the account's median/)).toBeInTheDocument(); expect(screen.getByRole("link", { name: "Tere" })).toBeInTheDocument();
+  it("shows a published song's numbers on its page, post by post and video by video, and unlinks one", async () => {
+    const song = { empty: false, totals: { views: 120, reach: 90, saved: 7, shares: 2 },
+      posts: [{ media_id: "m2", permalink: "https://ig/p/2", product_type: "REELS", account: "music", username: "navaan", views: 120, reach: 90, saved: 7, save_rate: 7.8, comments_total: 3,
+        comments_waiting: [{ username: "fan1", text: "Beautiful voice", posted_at: "2026-10-17T10:00:00Z" }], history: [{ captured_at: "a", views: 40 }, { captured_at: "b", views: 120 }],
+        compare: { views_vs_median: 1.5, views_rank: 1, account_posts: 8, median_views: 80 }, findings: [{ severity: "medium", title: "Hook loses people early" }] }],
+      unlinked: [], youtube: { videos: [{ video_id: "v1", title: "Tere", url: "https://yt/v1", kind: "short", privacy: "private", views: 55, retention: [[0, 1], [0.1, 0.7], [0.5, 0.5], [1, 0.3]] }] } };
+    const f = vi.fn((u: string, _i?: RequestInit) => Promise.resolve(u.startsWith("/api/me") ? json(OWNER) : u.startsWith("/api/analytics/song") ? json(song) : u.startsWith("/api/analytics/link") ? json({ ok: true }) : u.startsWith("/api/song/") ? json({ slug: "song-001", steps: [], next: { type: "done" }, text: { "title.txt": "Tere" }, files: {}, meta: { type: "music", state: "published", history: [] }, approvals: {}, job: { running: false, queued: false, rc: null }, status_text: "", failure: null, question: null, needs_you: "" }) : json([])));
+    vi.stubGlobal("fetch", f);
+    at("/studio/songs/song-001?tab=publish"); expect(await screen.findByRole("heading", { name: "How it is doing" })).toBeInTheDocument();
+    const ig = screen.getByRole("article", { name: /Instagram reels on @navaan/ }); expect(ig).toHaveTextContent("Ranked #1 of 8 posts"); expect(ig).toHaveTextContent("1.5×"); expect(ig).toHaveTextContent("Hook loses people early"); expect(ig).toHaveTextContent("Beautiful voice");
+    expect(within(ig).getByRole("img", { name: /from 40 to 120/ })).toBeInTheDocument();
+    const yt = screen.getByRole("article", { name: "YouTube Short: Tere" }); expect(yt).toHaveTextContent("70% still watching at the 10% mark"); expect(within(yt).getByRole("link", { name: "Open in YouTube Studio" })).toHaveAttribute("href", "https://studio.youtube.com/video/v1/edit");
+    fireEvent.click(within(yt).getByRole("button", { name: /Unlink/ }));
+    await waitFor(() => expect(f.mock.calls.some(([u, i]) => u === "/api/analytics/link-video" && JSON.parse(String(i?.body)).slug === "")).toBe(true));
   });
   it("shows an empty state with the Collect button, not an error screen, when nothing is collected yet (a fresh database)", async () => {
     stub({ overview: { empty: true, reason: "no_database", db: "x", collect: { running: false } } });
-    at(); expect(await screen.findByText(/Nothing collected yet/)).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Collect now" })).toBeInTheDocument(); expect(screen.queryByText("This screen hit a problem")).toBeNull();
+    at(); expect(await screen.findByRole("heading", { name: "No Instagram data yet" })).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Collect now" })).toBeInTheDocument(); expect(screen.queryByText("This screen hit a problem")).toBeNull();
   });
   it("the Feedback tab shows reactions per song and the messages, with a reply link and mark as read", async () => {
     const rx = [{ slug: "song-001", title: "Tere Hone Se", up: 4, down: 1, love: 7 }, { slug: "song-002", title: "Pata Hi Na Chala", up: 0, down: 0, love: 0 }];
