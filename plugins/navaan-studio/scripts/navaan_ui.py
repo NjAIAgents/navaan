@@ -254,7 +254,7 @@ def start_job(slug, all_steps=False, step=None, redo=False):
 
 
 CLIENT_LOG = {}  # client address -> times of recent browser error reports
-SITE_REACT = {}; SITE_FEEDBACK = {}; SITE_INTEREST = {}; SITE_CLIP = {}   # per address: reactions and messages sent from the public site
+SITE_REACT = {}; SITE_FEEDBACK = {}; SITE_INTEREST = {}; SITE_CLIP = {}; SITE_HIT = {}   # per address: reactions, messages and visit counts sent from the public site
 GUEST_READ = {}; GUEST_PLAY = {}   # per address: how often a visitor who is not signed in reads the catalogue and asks for songs
 GUEST = {"user": "", "user_id": "", "csrf": "", "roles": ["guest"], "permissions": [], "guest": True}   # someone not signed in on a public host
 CLIENT_LOG_LOCK = threading.Lock()
@@ -376,6 +376,11 @@ class H(BaseHTTPRequestHandler):
                 if not rate_ok(SITE_INTEREST, self._ip(), 5, 3600): return self._send(429, {"error": "you have sent a few already, try again in an hour"})
                 if body.get("website"): return self._send(200, {"ok": True})
                 catalog_store.add_interest(body.get("moods"), body.get("genres"), body.get("languages"), body.get("email"))
+                return self._send(200, {"ok": True})
+            if p == "/api/site/hit":   # a page view, a play (with seconds listened) or a click on the account pitch: counted anonymously (site_visits)
+                if self._public_host() and rate_ok(SITE_HIT, self._ip(), 300, 600):   # only the public site counts; past the limit it is simply not counted
+                    import site_visits
+                    site_visits.record(str(body.get("kind") or ""), body.get("slug"), body.get("src"), body.get("ref"), self.headers.get("User-Agent"), self._ip(), body.get("seconds") or 0, self.headers.get("Host") or "")
                 return self._send(200, {"ok": True})
             if p == "/api/clip": return self._clip_reply(body)
             if not rate_ok(SITE_FEEDBACK, self._ip(), 5, 3600): return self._send(429, {"error": "you have sent a few already, try again in an hour"})
@@ -684,6 +689,10 @@ class H(BaseHTTPRequestHandler):
                 except ValueError: return self._send(400, {"error": "days is a number"})
                 return self._send(200, catalog_store.reactions(d))
             if p == "/api/site/interest": return self._send(200, catalog_store.interest_summary())   # who asked for an account and what they like
+            if p == "/api/site/visits":   # the Visitors tab: anonymous counts of the public site
+                try: d = int((parse_qs(urlparse(self.path).query).get("days") or ["30"])[0])
+                except ValueError: return self._send(400, {"error": "days is a number"})
+                return self._send(200, __import__("site_visits").summary(d))
             if p == "/api/site/feedback":   # the messages visitors sent
                 q = parse_qs(urlparse(self.path).query)
                 try: lim, off = int((q.get("limit") or ["50"])[0]), int((q.get("offset") or ["0"])[0])
@@ -751,7 +760,8 @@ class H(BaseHTTPRequestHandler):
         org = self.headers.get("Origin")
         if org and org != ("https://" if self._https() else "http://") + (self.headers.get("Host") or ""): return self._send(403, {"error": "forbidden origin"})
         ck = self.headers.get("Cookie")
-        if self.path in ("/api/site/react", "/api/site/feedback", "/api/site/interest", "/api/clip") and self._public_host(): return self._site_post(self.path)
+        if self.path in ("/api/site/react", "/api/site/feedback", "/api/site/interest", "/api/site/hit", "/api/clip") and self._public_host(): return self._site_post(self.path)
+        if self.path == "/api/site/hit": return self._site_post(self.path)   # the studio host too: the body is read and nothing is counted (an unread body breaks the connection and the browser retries)
         if self.path.startswith("/auth/"):
             sec = secrets_status()
             if self.path.startswith("/auth/setup") and sec and sec["status"] != "ok": return self._send(503, {"error": "Secrets are waiting for Vault. The login is restored from Vault once it is unsealed; try again then."})

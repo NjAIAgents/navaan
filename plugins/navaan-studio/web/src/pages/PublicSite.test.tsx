@@ -23,6 +23,26 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+const hits = (f: ReturnType<typeof stub>) => f.mock.calls.filter(([u]) => u === "/api/site/hit").map(([, i]) => JSON.parse(String(i?.body)));
+
+describe("visit counts (NAV-33)", () => {
+  it("counts a guest's page view of a song, the seconds they listened, and opening the account page", async () => {
+    const f = stub(GUEST); at("/song/song-001");
+    await waitFor(() => expect(hits(f)).toContainEqual({ kind: "view", slug: "song-001" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
+    const a = document.querySelector("audio")!; let t = 0; Object.defineProperty(a, "currentTime", { configurable: true, get: () => t, set: (v) => { t = v; } });
+    await waitFor(() => expect(paused).toBe(false));
+    for (const x of [0, 1, 2, 3]) { t = x; fireEvent.timeUpdate(a); }
+    t = 120; fireEvent.timeUpdate(a);   // a seek forward is not listening
+    window.dispatchEvent(new Event("pagehide"));
+    expect(hits(f)).toContainEqual({ kind: "play", slug: "song-001", seconds: 3 });
+    cleanup(); const g = stub(GUEST); at("/join"); await waitFor(() => expect(hits(g)).toContainEqual({ kind: "pitch" }));
+  });
+  it("never counts the owner", async () => {
+    for (const me of [OWNER_PUBLIC, OWNER_STUDIO]) { const f = stub(me); at("/song/song-001"); await screen.findByRole("heading", { name: "Tere Hone Se" }); expect(hits(f)).toEqual([]); cleanup(); }
+  });
+});
+
 describe("the free public site (not signed in)", () => {
   it("opens on Browse with Home and Library in the navigation, and the menu offers Create account, not Studio, Account or Sign out", async () => {
     stub(GUEST); at("/"); expect(await screen.findByRole("heading", { name: "Browse", level: 1 })).toBeInTheDocument();
