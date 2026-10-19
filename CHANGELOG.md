@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-10-19
+
+### Added
+- Reels, from the first real test (NAV-125): your footage's own sound (its background music or ambience) stays under the ElevenLabs voice and steps back while the voice speaks; give it footage with no narration. When your footage already shows the quote burned in, the quote is spoken but not drawn a second time. A plan can add an intro (the first frame held, with a hook line) and an end card (the last frame held and dimmed, with the account handle and the music credit), which turns a short clip into a complete reel; a voice longer than the footage holds the last frame until it finishes.
+- Fixed: with a voiceover, music (or the footage's sound) used to stop when the voice stopped; it now plays to the end of the reel.
+
 ## [0.50.0] - 2026-10-19
 
 ### Added
@@ -688,7 +694,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/NjAIAgents/navaan/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/NjAIAgents/navaan/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/NjAIAgents/navaan/compare/v0.47.3...v0.48.0
