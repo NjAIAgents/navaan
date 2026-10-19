@@ -73,6 +73,17 @@ class Aha(unittest.TestCase):
         self.assertEqual(self.P.narrated_music(True, "auto", "/lib/a.mp3", "library"), (None, "none"))   # inspiration: only the owner's own track under a voice
         self.assertEqual(self.P.MUSIC_LIB["aha"], "aha_music"); self.assertLess(self.P.LOOKS["aha"]["music"], 0.2)
 
+    def test_the_channel_music_is_fitted_and_its_beats_found_under_the_beat_pictures(self):
+        import subprocess, shutil
+        from PIL import Image
+        if not shutil.which("ffmpeg"): self.skipTest("ffmpeg is not installed")
+        self.script(2); os.makedirs(os.path.join(self.D, "scenes"))
+        for i in range(2): Image.new("RGB", (8, 8)).save(os.path.join(self.D, "scenes", "beat_%02d.png" % (i + 1)))
+        Image.new("RGB", (8, 8)).save(os.path.join(self.D, "background.png"))
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=20", os.path.join(self.D, "music_src.mp3")], check=True)
+        self.P.main("aha-001")   # the beat finder ran on the bed (it was shadowed by the picture list once)
+        T = json.load(open(os.path.join(self.D, "timing.json"))); self.assertEqual(T["music"], "music.mp3"); self.assertEqual([l["bg"] for l in T["lines"]], ["scenes/beat_01.png", "scenes/beat_02.png"])
+
     def test_each_line_gets_its_beat_picture_and_keeps_its_marks(self):
         from PIL import Image
         self.script(3); os.makedirs(os.path.join(self.D, "scenes"))
