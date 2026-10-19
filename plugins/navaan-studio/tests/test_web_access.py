@@ -103,6 +103,13 @@ class Access(unittest.TestCase):
             code, body = self.call("/api/site/visits?days=7", "owner-tok", host=studio); v = json.loads(body); self.assertEqual(code, 200)
             self.assertEqual((v["totals"]["today"]["views"], v["totals"]["today"]["plays"], v["totals"]["today"]["seconds"]), (1, 1, 30)); self.assertEqual(v["sources"][0]["name"], "youtube")
 
+    def test_only_the_studio_reads_the_sentiment_and_starts_scoring(self):
+        import sentiment
+        with mock.patch.object(sentiment, "summary", return_value={"totals": {"total": 0}}), mock.patch.object(sentiment, "run_async", return_value=True) as go:
+            self.assertEqual(self.call("/api/analytics/sentiment?days=7", "owner-tok")[0], 200); self.assertEqual(self.call("/api/analytics/sentiment", "lis-tok")[0], 403)
+            self.assertEqual(self.call("/api/analytics/sentiment/run", "lis-tok", "csrf-lis", post=True)[0], 403); go.assert_not_called()
+            self.assertEqual(self.call("/api/analytics/sentiment/run", "owner-tok", "csrf-owner", post=True)[0], 200); go.assert_called_once()
+
     def test_the_owner_sets_a_songs_mood_and_nobody_else_can(self):
         D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "drafted"}, open(os.path.join(D, "meta.json"), "w"))
         post = lambda tok, csrf, **b: self.call("/api/mood", tok, csrf, post=True, body=b)

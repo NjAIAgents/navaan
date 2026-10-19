@@ -122,6 +122,26 @@ describe("Studio > Analytics > Best time to publish", () => {
   });
 });
 
+const C3 = (p: number, n: number, x: number) => ({ positive: p, neutral: n, negative: x });
+const SENT = { days: 30, totals: { ...C3(6, 3, 1), total: 10 }, daily: [{ day: "2026-10-17", ...C3(2, 1, 0) }, { day: "2026-10-18", ...C3(4, 2, 1) }],
+  songs: [{ slug: "song-001", ...C3(5, 2, 1), total: 8 }], themes: [{ theme: "voice", n: 4, ...C3(4, 0, 0) }],
+  best: [{ src: "youtube", text: "Beautiful voice", slug: "song-001", link: "https://www.youtube.com/watch?v=v1&lc=y1", conf: 0.9, at: "2026-10-18" }], worst: [{ src: "site", text: "Audio too low", slug: null, link: null, conf: 0.8, at: "2026-10-18" }],
+  waiting: 12, running: false, last_run: { started_at: "2026-10-18T10:00:00Z", finished_at: "2026-10-18T10:01:00Z", scored: 40, usd: 0.03, error: null } };
+
+describe("Studio > Analytics > Sentiment (NAV-68)", () => {
+  it("shows how the audience feels, per song, themes and the strongest comments, and starts scoring in the background", async () => {
+    const f = mock({ "/api/analytics/sentiment/run": () => ({ started: true }), "/api/analytics/sentiment": () => SENT, "/api/analytics": () => ig() });
+    at("/studio/analytics?tab=sentiment");
+    expect(await screen.findByRole("img", { name: "All comments: 60% positive, 30% neutral, 10% negative" })).toBeInTheDocument();
+    expect(screen.getByText(/10 comments:/)).toBeInTheDocument(); expect(screen.getByText(/40 scored, about \$0\.03 of Claude use/)).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "8" })).toBeInTheDocument(); expect(screen.getByText("voice 4")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "open the post" })).toHaveAttribute("href", "https://www.youtube.com/watch?v=v1&lc=y1");
+    fireEvent.click(screen.getByRole("button", { name: "Score new comments (12 waiting)" }));
+    await waitFor(() => expect(f.mock.calls.some(([u, i]) => u === "/api/analytics/sentiment/run" && (i as RequestInit | undefined)?.method === "POST")).toBe(true));
+    expect(await screen.findByText(/Scoring started/)).toBeInTheDocument();
+  });
+});
+
 describe("Studio > Analytics > Visitors (NAV-33)", () => {
   it("shows today, 7 and 30 days, then songs, sources and devices for the chosen period", async () => {
     const f = mock({ "/api/site/visits": () => VISITS, "/api/analytics": () => ig() });
@@ -135,8 +155,8 @@ describe("Studio > Analytics > Visitors (NAV-33)", () => {
 
 describe("accessibility", () => {
   it("has no serious violations on the three tabs", async () => {
-    for (const tab of ["analytics", "recommendations", "interactions", "visitors"]) {
-      cleanup(); mock({ "/api/site/visits": () => VISITS, "/api/analytics": () => ig(), "/api/replies": () => ({ items: [{ comment_id: "u", username: "@v", text: "hi", posted_at: "2026-10-13T06:58:29Z", post_id: "v", post: "P", account: "a", link: "https://x", reply: null }] }) });
+    for (const tab of ["analytics", "recommendations", "interactions", "visitors", "sentiment"]) {
+      cleanup(); mock({ "/api/analytics/sentiment": () => SENT, "/api/site/visits": () => VISITS, "/api/analytics": () => ig(), "/api/replies": () => ({ items: [{ comment_id: "u", username: "@v", text: "hi", posted_at: "2026-10-13T06:58:29Z", post_id: "v", post: "P", account: "a", link: "https://x", reply: null }] }) });
       at(`/studio/analytics?tab=${tab}`); await screen.findAllByRole("heading", { level: 1 }); await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
       await screen.findByRole("tabpanel"); await new Promise((r) => setTimeout(r, 20));
       const r = await axe.run(document.body, { rules: { "color-contrast": { enabled: false } } });
