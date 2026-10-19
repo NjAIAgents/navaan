@@ -168,7 +168,7 @@ def with_site_link(text, slug=None, plain=False, itype="music"):
     (a song, which anyone can open once its licence is confirmed); without one, the site itself (an inspiration has no page of its own). plain drops https://, because Instagram does not link a caption.
     Only a song gets "full song" wording; an aha short is its own channel and gets no NAVAAN line at all."""
     t = str(text or "").rstrip()
-    if itype == "aha" or "navaan.online" in t.lower(): return t
+    if itype in ("aha", "blog") or "navaan.online" in t.lower(): return t
     url = f"{SITE}/app/song/{slug}" if slug else SITE
     line = ("Hear the full song free: " if itype == "music" else "More from NAVAAN: ") + (url.replace("https://", "") if plain else url)
     return (t + "\n\n" if t else "") + line
@@ -246,20 +246,21 @@ def cfg(key, default=None):
     return d
 
 
-GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "visuals_mode", "shots", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public")
+GATES = ("lyrics", "quote", "originality", "suno_download", "listen", "visuals_mode", "shots", "credits", "captions_setup", "media", "publish_youtube", "publish_short", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup", "go_public", "topic")
 
 
-CONTENT_TYPES = ("music", "inspiration", "aha", "explainer")  # every item has one; it picks the pipeline steps, prompts and checks
-TYPE_PREFIX = {"music": "song", "inspiration": "insp", "aha": "aha", "explainer": "expl"}
+CONTENT_TYPES = ("music", "inspiration", "aha", "explainer", "blog")  # every item has one; it picks the pipeline steps, prompts and checks
+TYPE_PREFIX = {"music": "song", "inspiration": "insp", "aha": "aha", "explainer": "expl", "blog": "blog"}
 SHORT_TYPES = ("inspiration", "aha")   # short vertical videos made from a few spoken lines over one picture (the inspiration pipeline)
-NO_INSTAGRAM = ("aha",)   # The Aha-lorithm (NAV-67) posts YouTube Shorts only
+NO_INSTAGRAM = ("aha", "blog")   # The Aha-lorithm (NAV-67) posts YouTube Shorts only; a blog (NAV-69) goes to dev.to and LinkedIn
 
 
 def is_short(t): return t in SHORT_TYPES
 def plain(s): return str(s).replace("*", "")   # a script line without its *highlight* marks: what is spoken and timed
 TYPE_GATES = {"music": tuple(g for g in GATES if g not in ("quote", "originality")),
               "inspiration": ("quote", "originality", "credits", "media", "publish_youtube", "instagram_caption", "go_public", "publish_instagram", "cloud_upload", "local_cleanup"),
-              "aha": ("quote", "originality", "credits", "media", "publish_youtube", "go_public", "cloud_upload", "local_cleanup")}
+              "aha": ("quote", "originality", "credits", "media", "publish_youtube", "go_public", "cloud_upload", "local_cleanup"),
+              "blog": ("topic", "cloud_upload", "local_cleanup")}   # NAV-69: the owner picks the topic; later stories add the writing, image and publish approvals
 
 
 def item_type(m):

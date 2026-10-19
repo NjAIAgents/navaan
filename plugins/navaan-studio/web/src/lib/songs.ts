@@ -17,5 +17,5 @@ export function nextAction(s: Pick<SongRow, "status" | "next" | "published">): s
 // The short-form channels: the inspiration pipeline, posted to different accounts. The Aha-lorithm (NAV-67) posts YouTube Shorts only.
 export const SHORT_TYPES = ["inspiration", "aha"];
 export const isShort = (t?: string) => SHORT_TYPES.includes(t ?? "");
-export const listPath = (type?: string) => (type === "inspiration" ? "/studio/inspiration" : type === "aha" ? "/studio/aha" : "/studio/songs");
-export const itemPath = (type: string, slug: string) => (type === "music" || isShort(type) ? `${listPath(type)}/${slug}` : null);
+export const listPath = (type?: string) => (type === "inspiration" ? "/studio/inspiration" : type === "aha" ? "/studio/aha" : type === "blog" ? "/studio/blog" : "/studio/songs");
+export const itemPath = (type: string, slug: string) => (type === "music" || type === "blog" || isShort(type) ? `${listPath(type)}/${slug}` : null);

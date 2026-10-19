@@ -4,6 +4,7 @@ export const GATE_TITLE: Record<string, string> = {
   visuals_mode: "Choose the visuals", shots: "Shot list", credits: "Approve the spend", captions_setup: "Caption tools download (about 700 MB)",
   media: "Review the videos", publish_youtube: "Upload the video to YouTube (private)", publish_short: "Upload the Short to YouTube (private)",
   instagram_caption: "Instagram caption", publish_instagram: "Publish to Instagram", cloud_upload: "Upload to the cloud bucket", local_cleanup: "Delete the local media", go_public: "Make the YouTube video public",
+  topic: "Pick the topic",
 };
 export const GATE_ASK: Record<string, string> = {
   lyrics: "I approve these lyrics.", quote: "I approve this quote and its wording.", originality: "I reviewed the originality and attribution check.",
@@ -14,6 +15,7 @@ export const GATE_ASK: Record<string, string> = {
   go_public: "Make the YouTube video and Short public now.", instagram_caption: "I approve this Instagram caption.",
   publish_instagram: "Publish to Instagram now.", cloud_upload: "Archive this finished song to my cloud bucket, then delete the local copy. Nothing is deleted unless every file is checked in the bucket first.",
   local_cleanup: "Delete the local media of this song now. The bucket copy is checked file by file first; text and meta stay.",
+  topic: "Pick one of the suggested topics. You can reword its title and angle first.",
 };
 // The file that holds what is being approved.
 export const GATE_FILE: Record<string, string> = { lyrics: "lyrics.txt", quote: "quote.json", originality: "originality.json", shots: "shots.json", instagram_caption: "instagram.txt" };
@@ -23,7 +25,7 @@ const STEP: Record<string, string> = {
   lyrics: "Write lyrics and style", suno: "Generate the song on Suno", suno_import: "Import the song from Suno", visuals_mode: "Choose the visuals", visuals: "Make the visuals", captions: "Sync the captions",
   video: "Build the video", youtube_meta: "Write the YouTube text", publish_youtube: "Upload to YouTube", youtube_short: "Make the Short", instagram_caption: "Write the Instagram caption",
   go_public: "Make it public", publish_instagram: "Post the Reel", archive: "Archive to the cloud", cleanup: "Clean up local files", quote: "Write the quote", originality: "Check originality",
-  narrate: "Narrate the quote (ElevenLabs)", narration: "Time the narration to the voice", background_prompt: "Write the background prompt",
+  narrate: "Narrate the quote (ElevenLabs)", narration: "Time the narration to the voice", background_prompt: "Write the background prompt", trends: "Look up what is trending", topics: "Suggest 5 topics", research: "Research the topic", outline: "Outline the post", write: "Write the drafts", factcheck: "Fact-check the drafts", factcheck_loop: "Send failing claims back", review: "Review the drafts", edit: "Edit the drafts",
   background: "Make the background", typeset: "Plan the typography", render: "Render the video",
   prompts: "Write the picture plan", pictures: "Create the pictures", poster: "Make the poster", shots: "Plan the shots", motion_plan: "Plan what moves", motion_clips: "Make the moving pictures", reel: "Build the vertical reel",
 };
@@ -40,6 +42,10 @@ const WHAT: Record<string, string> = {
   publish_instagram: "Posts the reel to Instagram.", archive: "Copies the finished song to the cloud bucket.", cleanup: "Deletes the local copies, only after the bucket has been checked file by file.",
   quote: "Writes or picks the quote.", originality: "Checks the quote's originality and attribution on the web.", background_prompt: "Writes the prompt for the background picture.", background: "Makes the background picture.",
   narrate: "Speaks the quote with ElevenLabs.", narration: "Times each line of the quote to the voice.", typeset: "Plans the typography, the timing and the music under the voice.", render: "Renders the vertical video.",
+  trends: "Reads what Hacker News, dev.to and Google Trends show for your keyword. Free, no keys.", topics: "Claude searches the web and suggests 5 timely topics, each with why now, the angle and its sources.",
+  research: "Reads primary sources for the topic you picked and lists every claim the post may make, each with its source.", outline: "Plans the sections and which claims each one uses.",
+  write: "Writes the dev.to post and adapts it into the LinkedIn article, stating only the listed claims.", factcheck: "Checks every statement in both drafts against its source.",
+  factcheck_loop: "Sends failing claims back to the writer, twice at most; after that it stops and asks you.", review: "Notes what to fix in structure, clarity and depth. It changes nothing.", edit: "Applies the review notes to both drafts without changing any fact.",
 };
 export const stepWhat = (id: string) => WHAT[id] ?? "";
 // What an approval does once it stops asking, for the confirmation before it is switched off.

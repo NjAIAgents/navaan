@@ -6,6 +6,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-10-19
+
+### Added
+- Studio › Blog, the first part of the blog pipeline (NAV-69, NAV-71). Start a blog post from a keyword, field or area. The pipeline reads what is trending in Hacker News, dev.to and Google Trends, with no keys needed. When Google refuses its rising searches, the day's trending searches are used instead. Claude then searches the web and suggests 5 timely topics, each with why it matters now, an angle and its sources. You pick one, and can reword its title and angle first.
+- Blog research and drafts (NAV-72, NAV-73):
+  - The picked topic is researched from primary sources into a list of claims, each with its source and quoted evidence, then outlined.
+  - Claude writes the dev.to post and a LinkedIn article adapted from it, stating only the listed claims.
+  - Every statement is fact-checked against its source. Failing claims go back to the writer twice at most; after that the run stops and names them for you.
+  - A reviewer notes what to improve without changing anything, and an editor applies the notes without changing any fact.
+  - Your voice, images and publishing to dev.to and LinkedIn come in the next releases.
+
 ## [0.48.0] - 2026-10-18
 
 ### Added
@@ -672,7 +683,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.49.0...HEAD
+[0.49.0]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/NjAIAgents/navaan/compare/v0.47.3...v0.48.0
 [0.47.3]: https://github.com/NjAIAgents/navaan/compare/v0.47.2...v0.47.3
 [0.47.2]: https://github.com/NjAIAgents/navaan/compare/v0.47.1...v0.47.2
