@@ -30,6 +30,8 @@ test("a visitor plays a whole song with its lyrics, shares it, and is told what 
 test("a visitor makes a clip of a song, plays it, and the page for it leads back to the whole song", async ({ page, request }) => {
   await page.goto("/app/song/song-011");
   await page.getByRole("button", { name: "Share a clip" }).click();   // the clip is made in a sheet the icon at the top opens
+  // once the song's length is read, the typed boxes become sliders: fill after that swap, or the first value goes into a box that is being replaced
+  await page.getByRole("slider", { name: "Start at (seconds)" }).waitFor({ timeout: 15_000 }).catch(() => undefined);   // expected: if the length never loads, the boxes stay and are filled as they are
   await page.getByLabel("Start at (seconds)").fill("1"); await page.getByLabel("End at (seconds)").fill("16"); await page.getByRole("button", { name: "Make the clip" }).click();
   const video = page.getByLabel(/^Clip of /); await expect(video).toBeVisible({ timeout: 60_000 });
   const src = (await video.getAttribute("src"))!; expect(src).toMatch(/^\/c\/song-011-1-15\.mp4$/);
