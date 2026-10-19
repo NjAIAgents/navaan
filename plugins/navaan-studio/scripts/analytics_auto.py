@@ -98,6 +98,12 @@ def run_once(ask=None):
             STATE["step"] = f"analysing {pl}"
             try: api.analyze_now("all", None, pl)
             except Exception as e: L.soft(LOG, "run_once_error"); notes.append(f"{pl} analysis: {str(e)[:160]}")
+        STATE["step"] = "scoring the sentiment of new comments"   # NAV-68: at most one batch cap per refresh
+        try:
+            import sentiment
+            r = sentiment.run()
+            if r.get("error"): notes.append(f"sentiment: {r['error'][:160]}")
+        except Exception as e: L.soft(LOG, "run_once_error"); notes.append(f"sentiment: {str(e)[:160]}")
         if do_ask:
             for pl in ("instagram", "youtube"):
                 STATE["step"] = f"asking Claude about {pl}"
