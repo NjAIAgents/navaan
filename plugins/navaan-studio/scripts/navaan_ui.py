@@ -633,6 +633,10 @@ class H(BaseHTTPRequestHandler):
                 if not analytics_api.ACCOUNT_OK.match(acc): return self._send(400, {"error": "bad account"})
                 return self._send(200, analytics_api.yt_overview(acc, (q.get("days") or ["30"])[0]))
             if p == "/api/analytics/auto": return self._send(200, analytics_auto.settings())
+            if p == "/api/analytics/sentiment":   # NAV-68: how the audience feels, scored by Claude
+                try: d = int((parse_qs(urlparse(self.path).query).get("days") or ["30"])[0])
+                except ValueError: return self._send(400, {"error": "days is a number"})
+                return self._send(200, __import__("sentiment").summary(d))
             if p == "/api/besttime":
                 q = parse_qs(urlparse(self.path).query); lab = (q.get("type") or ["music"])[0]
                 if not analytics_api.ACCOUNT_OK.match(lab): return self._send(400, {"error": "bad type"})
@@ -810,6 +814,8 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/analytics/auto":
                 try: return self._send(200, analytics_auto.set_settings(body.get("enabled"), body.get("every_days", 7), body.get("hour", 9), body.get("ask")))
                 except (ValueError, TypeError) as e: return self._send(400, {"error": str(e)})
+            if p == "/api/analytics/sentiment/run":   # score the comments not scored yet, in the background
+                return self._send(200, {"started": True}) if __import__("sentiment").run_async() else self._send(409, {"error": "scoring is already running"})
             if p == "/api/analytics/auto/run":
                 return self._send(200, {"started": True}) if analytics_auto.run_async() else self._send(409, {"error": "a refresh is already running"})
             if p == "/api/schedule/accept":
