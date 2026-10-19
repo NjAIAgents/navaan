@@ -334,3 +334,10 @@ body.lock { overflow: hidden; }
   .has-np .np { bottom: calc(12px + 60px + env(safe-area-inset-bottom)); border-radius: var(--r4) var(--r4) 0 0; border-bottom: 0; box-shadow: var(--shadow); padding-bottom: 2px; }
   .has-np .tabbar { height: 60px; border-radius: 0 0 var(--r4) var(--r4); border-top: 1px solid var(--ln); }
 }
+/* bar lists on Analytics (audience, viewers, patterns): label, bar, number */
+.barlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.barlist li { display: grid; grid-template-columns: minmax(0, 9em) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.barlist .bl-k { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mu); }
+.barlist .bl-t { height: 8px; border-radius: 4px; background: var(--s2); overflow: hidden; }
+.barlist .bl-t i { display: block; height: 100%; background: var(--ac); border-radius: 4px; }
+.th-sort { background: none; border: 0; padding: 0 4px; font: inherit; color: inherit; cursor: pointer; min-height: var(--tap, 44px); }   /* a phone needs a 44px target */

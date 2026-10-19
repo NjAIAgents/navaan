@@ -35,7 +35,7 @@ describe("Studio > Analytics", () => {
     const kpi = (label: string) => screen.getAllByText(label).map((e) => e.closest(".kpi")).find(Boolean) as HTMLElement;
     expect(kpi("Followers")).toHaveTextContent("8"); expect(kpi("Followers")).toHaveTextContent("+5"); expect(kpi("Views")).toHaveTextContent("825"); expect(kpi("Interactions")).toHaveTextContent("46"); expect(kpi("Accounts engaged")).toHaveTextContent("22");
     const row = screen.getByRole("link", { name: "Quote One" }).closest("tr")!; expect(row).toHaveTextContent("321"); expect(within(row).getByText("4.5%")).toBeInTheDocument();
-    expect(row.querySelectorAll("td[data-label]").length).toBe(7);   // each cell carries its label, so the phone can stack it
+    expect(row.querySelectorAll("td[data-label]").length).toBe(11);   // each cell carries its label, so the phone can stack it (post, 9 numbers, views over time)
     expect(f.mock.calls.some(([u]) => u === "/api/analytics?account=all&days=30")).toBe(true);
     expect(screen.getByRole("img", { name: /followers: from 3 on 2026-10-01 to 8/i })).toBeInTheDocument();
   });
@@ -110,13 +110,68 @@ const T = (v: number) => ({ views: v, plays: 2, seconds: 150, pitch: 1, visitors
 const VISITS = { days: 30, totals: { today: T(4), d7: T(9), d30: T(20) }, songs: [{ slug: "song-001", title: "Tere Hone Se", views: 7, plays: 2, seconds: 150, visitors: 3 }],
   sources: [{ name: "youtube", views: 5, plays: 2, visitors: 2 }, { name: "direct", views: 2, plays: 0, visitors: 1 }], devices: [{ name: "mobile", views: 7, plays: 2, visitors: 3 }], daily: [] };
 
+describe("Studio > Analytics > audience and what works (NAV-29)", () => {
+  const P = { language: [{ name: "hi", posts: 3, videos: 3, avg_views: 300 }, { name: "en", posts: 1, videos: 1, avg_views: 120 }], genre: [{ name: "folk", posts: 2, videos: 2, avg_views: 250 }], kind: [{ name: "short", videos: 3, avg_views: 400, avg_view_pct: 71 }, { name: "video", videos: 1, avg_views: 90, avg_view_pct: 34 }] };
+  const three = (p: object) => [p, { ...p, media_id: "m2", video_id: "v2" }, { ...p, media_id: "m3", video_id: "v3" }];
+  it("Instagram: who the followers are, when they are online, and average views by language and genre", async () => {
+    mock({ "/api/analytics": () => ig({ posts: three(ig().posts![0]), patterns: P, audience: { city: [["Mumbai, Maharashtra", 40]], country: [["IN", 70], ["US", 9]], age: [["25-34", 31]], gender: [["F", 52]] }, hours: Array.from({ length: 24 }, (_, h) => [h, h === 15 ? 90 : 10]) }) });
+    at("/studio/analytics");
+    expect(await screen.findByRole("list", { name: "Top countries" })).toHaveTextContent("IN"); expect(screen.getByRole("list", { name: "Top cities" })).toHaveTextContent("Mumbai");
+    expect(screen.getByRole("img", { name: /Most at 15:00/ })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Average views by language" })).toHaveTextContent("hi (3)"); expect(screen.getByText(/Early signal from 3 posts/)).toBeInTheDocument();
+  });
+  it("YouTube: traffic sources with shares, retention curves, and how much of Shorts and videos is watched", async () => {
+    mock({ "/api/analytics/youtube": () => ({ ...yt(), videos: three(yt().videos![0]), patterns: P, traffic: [{ source: "YT_SHORTS", views: 75 }, { source: "SUBSCRIBER", views: 25 }], audience: { country: [["IN", 80]], age: [["age25-34", 41.5]], gender: [["female", 55.2]] },
+      retention: [{ name: "Finding Your Way Back", kind: "short", points: [[0, 1], [0.5, 0.6], [1, 0.4]] }] }), "/api/analytics": () => ig() });
+    at("/studio/analytics?platform=youtube");
+    expect(await screen.findByRole("list", { name: "Traffic sources" })).toHaveTextContent("shorts75 · 75%");
+    expect(screen.getByRole("list", { name: "Age" })).toHaveTextContent("25-3441.5%");
+    expect(screen.getByRole("img", { name: /Finding Your Way Back: share still watching from start to end, 40% at the end/ })).toBeInTheDocument();
+    expect(screen.getByText("Average share of the video watched: Shorts 71%, videos 34%.")).toBeInTheDocument();
+  });
+  it("sorts the posts by any column and filters YouTube to Shorts, with a views-over-time line per row", async () => {
+    const p0 = ig().posts![0];
+    mock({ "/api/analytics": () => ig({ posts: [{ ...p0, title: "Low", media_id: "a", views: 10, like_count: 9, trend: [1, 5, 10] }, { ...p0, title: "High", media_id: "b", views: 900, like_count: 2 }] }) });
+    at("/studio/analytics");
+    const order = () => within(screen.getByRole("region", { name: /^Posts/ })).getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("link")[0].textContent);
+    await screen.findByRole("link", { name: "High" }); expect(order()).toEqual(["High", "Low"]);   // most views first
+    fireEvent.click(screen.getByRole("button", { name: "Likes" })); expect(order()).toEqual(["Low", "High"]);
+    expect(screen.getByRole("img", { name: "Low: views from 1 to 10" })).toBeInTheDocument();
+    cleanup(); const v0 = yt().videos![0];
+    mock({ "/api/analytics/youtube": () => ({ ...yt(), videos: [{ ...v0, title: "Long one" }, { ...v0, video_id: "s1", title: "Short one", kind: "short", privacy: "private" }] }), "/api/analytics": () => ig() });
+    at("/studio/analytics?platform=youtube"); await screen.findByRole("link", { name: "Short one" });
+    fireEvent.click(screen.getByRole("button", { name: "Shorts" })); expect(screen.queryByRole("link", { name: "Long one" })).toBeNull(); expect(screen.getByText("private", { exact: false })).toBeInTheDocument();
+  });
+  it("recommendations: what changed after one was done, Claude's sources, and a Claude run that did not finish", async () => {
+    const done = rec({ rec_id: "c-d1", title: "Post at 6 pm", status: "done", done_at: "2026-10-10T10:00:00Z", outcome: { verdict: "improved", change_pct: { median_views: 24 }, posts_after: 3 } });
+    const open = rec({ source: "claude", sources: [{ topic: "Shorts hooks", url: "https://example.org/hooks", title: "Hook study" }] });
+    mock({ "/api/analytics": () => ig({ reco: { ready: true, findings: 1, notes: 2, open: [open], done: [done], dismissed: [], ask: { running: false, rc: 1, tail: "claude: rate limited" } } }) });
+    at("/studio/analytics?tab=recommendations");
+    expect(await screen.findByText(/1 open finding/)).toHaveTextContent("2 market notes"); expect(screen.getByRole("heading", { name: "The last Claude run did not finish" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Hook study" })).toHaveAttribute("href", "https://example.org/hooks"); expect(screen.getByText("Claude")).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("group", { name: "Recommendation status" })).getByRole("button", { name: /^Done/ })); expect(await screen.findByText("improved")).toBeInTheDocument(); expect(screen.getByText(/median views \+24%\. 3 posts since/)).toBeInTheDocument();
+  });
+  it("tells you how to start when nothing is collected, and when YouTube shows public counts only", async () => {
+    mock({ "/api/analytics": () => ({ empty: true, reason: "no_data", db: "/data/analytics" }) });
+    at("/studio/analytics");
+    expect(await screen.findByRole("heading", { name: "No Instagram data yet" })).toBeInTheDocument(); expect(screen.getByText(/Sign in to Instagram for the account in Settings/)).toBeInTheDocument();
+    cleanup(); mock({ "/api/analytics/youtube": () => ({ ...yt(), analytics_ok: false }), "/api/analytics": () => ig() });
+    at("/studio/analytics?platform=youtube"); expect(await screen.findByText(/Showing public counts only/)).toBeInTheDocument();
+  });
+  it("says why the audience and patterns are empty instead of showing blank cards", async () => {
+    mock({ "/api/analytics": () => ig() });
+    at("/studio/analytics");
+    expect(await screen.findByText("Instagram shares audience data once the account has 100 followers.")).toBeInTheDocument(); expect(screen.getByText(/Patterns appear once at least 3 posts have numbers. Right now 1 does/)).toBeInTheDocument();
+  });
+});
+
 describe("Studio > Analytics > Best time to publish", () => {
   it("shows the hours to post in Central Time, the weekdays and the next slots, above the peers", async () => {
     mock({ "/api/analytics": () => ig({ peers: { rows: [{ username: "peer1", followers: 900 }], own: [] } }) });
     at("/studio/analytics");
     const bt = await screen.findByRole("region", { name: "Best time to publish" });
     expect(within(bt).getByRole("img", { name: /music: best hours to post, Central Time: (6pm, 7pm|5pm, 6pm)/ })).toBeInTheDocument();   // 23:00 and 00:00 UTC: 6 and 7 pm in daylight time, 5 and 6 pm in standard time
-    expect(bt).toHaveTextContent("Fri 100"); expect(bt).toHaveTextContent("Next good slots: Tue 6:00 PM CT (97)"); expect(bt).toHaveTextContent("12 own posts · 140 peer posts");
+    expect(bt).toHaveTextContent("Fri 100"); expect(within(bt).getByRole("link", { name: "Tue 6:00 PM CT · 97" })).toHaveAttribute("href", "/studio/schedule?open=1&type=music&at=2026-10-20T23%3A00%3A00Z");   // a slot opens the scheduler with that time expect(bt).toHaveTextContent("12 own posts · 140 peer posts");
     const peers = screen.getByRole("region", { name: /Peers/ });
     expect(bt.compareDocumentPosition(peers) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

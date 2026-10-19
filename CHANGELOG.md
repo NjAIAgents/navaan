@@ -12,6 +12,15 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 - Settings › AI services › Spending limits: the most one run may spend on pictures, the pictures planned per song, and the ElevenLabs narration allowed per month can be changed from the new app. Before, only the classic page could change them (NAV-29).
 - The song page warns about what no step can fix: the item's own account is not set up (with a link to Settings), there is no artist profile, or YouTube refused the custom thumbnail (with the command that sets it).
 - The song's Approvals list shows every approval, and you can give one ahead of its step. Publishing and spending approvals ask first.
+- Studio › Analytics has the classic page's analysis back (NAV-29):
+  - who the audience is: Instagram cities, countries, age and gender, and the hours followers are online; YouTube traffic sources, viewer countries, age and gender
+  - retention curves for your top videos
+  - "What seems to work": average views by language, genre, and Shorts against videos, and the share watched
+  - the posts and videos tables carry every classic column (likes, comments, average watch, save rate; watch minutes, share viewed, subscribers gained per 1,000 views), sort by any column, and have a views-over-time line per row; YouTube can show videos or Shorts only, and private videos say so
+  - every collector run is listed, with what it brought in
+  - recommendations show Claude's market sources and whether each one came from Claude or the rules, sort the surest first, report what changed after one was marked done, and show the last Claude run's error if it did not finish
+  - a slot in Best time to publish opens the scheduler with that time filled in
+  - an empty page says how to start, and YouTube says when only public counts are shown
 
 ### Changed
 - "Waiting for you" says plainly whether it needs an account switch or something done on the Mac, without sending you to the classic view. A failed step's "Show the full log" opens the step's log in the new app.

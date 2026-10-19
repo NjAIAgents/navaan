@@ -67,7 +67,7 @@ describe("Analytics extras (NAV-28)", () => {
   });
   it("shows an empty state with the Collect button, not an error screen, when nothing is collected yet (a fresh database)", async () => {
     stub({ overview: { empty: true, reason: "no_database", db: "x", collect: { running: false } } });
-    at(); expect(await screen.findByText(/Nothing collected yet/)).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Collect now" })).toBeInTheDocument(); expect(screen.queryByText("This screen hit a problem")).toBeNull();
+    at(); expect(await screen.findByRole("heading", { name: "No Instagram data yet" })).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Collect now" })).toBeInTheDocument(); expect(screen.queryByText("This screen hit a problem")).toBeNull();
   });
   it("the Feedback tab shows reactions per song and the messages, with a reply link and mark as read", async () => {
     const rx = [{ slug: "song-001", title: "Tere Hone Se", up: 4, down: 1, love: 7 }, { slug: "song-002", title: "Pata Hi Na Chala", up: 0, down: 0, love: 0 }];
