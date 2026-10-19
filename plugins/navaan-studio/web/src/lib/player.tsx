@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getJSON, type TrackRow } from "./api";
 import { errText } from "./songs";
+import { hit } from "./visits";
 
 export type QItem = { slug: string; title: string };
 type Player = {
@@ -36,6 +37,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const setShuffle = useCallback((on: boolean) => { setShuf(on); try { localStorage.setItem("navaan-shuffle", on ? "1" : "0"); } catch { /* expected: storage can be blocked */ } }, []);
   const played = useRef<string[]>([]);   // the songs played in this run, so Back goes where you were and shuffle does not repeat a song until every other one has played
   const retried = useRef(false);
+  const heard = useRef({ slug: "", s: 0, at: -1 });   // seconds actually played of the current song, reported as one play when it changes, ends or the page closes
+  const report = useCallback((closing = false) => { const h = heard.current; if (h.slug && h.s >= 1) hit("play", h.slug, h.s, closing); heard.current = { slug: "", s: 0, at: -1 }; }, []);
+  useEffect(() => { const bye = () => report(true); window.addEventListener("pagehide", bye); return () => window.removeEventListener("pagehide", bye); }, [report]);
   const start = useCallback(async (slug: string, at = 0) => {
     const a = audio.current!;
     const r = await getJSON<{ url: string }>(`/api/play?slug=${encodeURIComponent(slug)}`);
@@ -43,10 +47,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     await a.play();
   }, []);
   const begin = useCallback(async (slug: string, title: string, at = 0) => {
+    report(); heard.current = { slug, s: 0, at: -1 };
     setError(""); setCur({ slug, title }); setPos({ position: at, duration: 0 }); retried.current = false;
     if (played.current[played.current.length - 1] !== slug) played.current.push(slug);
     try { await start(slug, at); } catch (e) { setCur({ slug: null, title: "" }); setError(errText(e)); }
-  }, [start]);
+  }, [start, report]);
   const toggle = useCallback(async (slug: string, title: string, q?: QItem[]) => {
     const a = audio.current; if (!a) return;
     setError("");
@@ -100,8 +105,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     await begin(slug, title, Math.max(0, seconds));
   }, [cur.slug, queue, begin]);
   const value = useMemo(() => ({ ...cur, playing, error, expanded, hasNext, hasPrev, toggle, playAt, next, prev, seek, setExpanded, volume, muted, setVolume, toggleMute, shuffle, setShuffle }), [cur, playing, error, expanded, hasNext, hasPrev, toggle, playAt, next, prev, seek, volume, muted, setVolume, toggleMute, shuffle, setShuffle]);
-  const tick = () => { const a = audio.current; if (a) setPos({ position: a.currentTime || 0, duration: Number.isFinite(a.duration) ? a.duration : 0 }); };
-  const ended = () => { setPlaying(false); if (hasNext) next(); };
+  const tick = () => {
+    const a = audio.current; if (!a) return;
+    if (!heard.current.slug && cur.slug && !a.paused) heard.current = { slug: cur.slug, s: 0, at: -1 };   // the same song played again after it ended: a new play
+    const h = heard.current, t = a.currentTime || 0, d = t - h.at;
+    if (!a.paused && h.at >= 0 && d > 0 && d < 2) h.s += d;   // a seek is a jump, not listening
+    h.at = t; setPos({ position: t, duration: Number.isFinite(a.duration) ? a.duration : 0 });
+  };
+  const ended = () => { setPlaying(false); report(); if (hasNext) next(); };
   return (
     <Ctx.Provider value={value}>
       <PosCtx.Provider value={pos}>{children}</PosCtx.Provider>

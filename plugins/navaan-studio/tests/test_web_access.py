@@ -93,6 +93,16 @@ class Access(unittest.TestCase):
             for i in range(6): last = post("/api/site/feedback", {"message": f"spam {i}"})[0]
             self.assertEqual(last, 429)   # five messages an hour from one address
 
+    def test_visits_are_counted_from_the_public_site_and_only_the_studio_reads_them(self):
+        env = {"NAVAAN_PUBLIC_HOST": "studio.navaan.online,navaan.online", "NAVAAN_LISTENER_HOSTS": "navaan.online"}
+        with mock.patch.dict(os.environ, env):
+            pub, studio = "navaan.online", "studio.navaan.online"; post = lambda body, host=pub: self.call("/api/site/hit", None, None, post=True, body=body, host=host)
+            self.assertEqual(post({"kind": "view", "slug": "song-001", "src": "yt"})[0], 200); self.assertEqual(post({"kind": "play", "slug": "song-001", "seconds": 30})[0], 200)
+            self.assertEqual(post({"kind": "nope"})[0], 400); self.assertEqual(post({"kind": "view", "slug": "song-001"}, host=studio)[0], 200)   # answered on the studio host too, never counted there
+            self.assertEqual(self.call("/api/site/visits", host=pub)[0], 403)   # a visitor reads nothing
+            code, body = self.call("/api/site/visits?days=7", "owner-tok", host=studio); v = json.loads(body); self.assertEqual(code, 200)
+            self.assertEqual((v["totals"]["today"]["views"], v["totals"]["today"]["plays"], v["totals"]["today"]["seconds"]), (1, 1, 30)); self.assertEqual(v["sources"][0]["name"], "youtube")
+
     def test_the_owner_sets_a_songs_mood_and_nobody_else_can(self):
         D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "drafted"}, open(os.path.join(D, "meta.json"), "w"))
         post = lambda tok, csrf, **b: self.call("/api/mood", tok, csrf, post=True, body=b)
