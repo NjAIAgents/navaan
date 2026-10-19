@@ -209,10 +209,13 @@ LOOKS = {"inspiration": {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.45},
 MUSIC_LIB = {"aha": "aha_music"}   # a channel with its own library of quiet beds (<local_dir>/aha_music), picked even under a voice
 
 
+CHANNEL_HANDLE = {"aha": "TheAhalorithm"}   # the channel's own handle until its account is set up in Settings, so a short never carries another account's mark
+
+
 def handle(t):
     """The account this item posts to: its Instagram handle, or for a YouTube-only channel its YouTube handle (accounts.<type>.youtube_channel)."""
     a = C.account(t)
-    return ((a.get("youtube_channel") if t in C.NO_INSTAGRAM else a.get("handle")) or "").strip().lstrip("@")
+    return ((a.get("youtube_channel") if t in C.NO_INSTAGRAM else a.get("handle")) or CHANNEL_HANDLE.get(t, "")).strip().lstrip("@")
 
 
 def brand_name(slug):
@@ -223,8 +226,8 @@ def brand_name(slug):
 
 def watermark(slug):
     """The handle shown at the bottom is the account this item posts to (accounts.<type>), never the NAVAAN one."""
-    h = handle(C.item_type(C.item_load(slug, {})))
-    return ("@" + h) if h else "NAVAAN"
+    t = C.item_type(C.item_load(slug, {})); h = handle(t)
+    return ("@" + h) if h else ("NAVAAN" if t == "music" else "")   # an item of another account without a handle shows no mark rather than NAVAAN's
 
 
 def main(slug):
