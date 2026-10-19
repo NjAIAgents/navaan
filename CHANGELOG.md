@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- Studio warns when the server's settings disk (the 16 MB memory disk that holds the logins) is 80% full, and says how to find the file that filled it (NAV-54). The rule to keep one-off files out of it is in deploy/README.
+
 ## [0.46.3] - 2026-10-18
 
 ### Fixed
