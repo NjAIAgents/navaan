@@ -97,6 +97,16 @@ class Aha(unittest.TestCase):
             R.render_remotion(self.D, T, os.path.join(self.D, "out.mp4"))
         self.assertIn("Lyrics", run.call_args[0][0])
 
+    def test_redoing_a_step_that_an_approval_follows_keeps_the_new_output(self):   # the video was put back to the old one when it waited for approval
+        from unittest import mock
+        N = self.N; dest = os.path.join(self.tmp.name, "prev"); os.makedirs(dest); open(os.path.join(dest, "old.mp4"), "w").write("old")
+        with mock.patch.object(N, "steps", return_value=[{"id": "render"}]), mock.patch.object(N, "redo", return_value=dest), mock.patch.object(N, "run", return_value=0), \
+             mock.patch.object(N, "plan", return_value=([{"id": "render", "done": True, "status": "waiting for approval"}], None)), mock.patch.object(N, "restore") as back:
+            self.assertEqual(N.redo_run("aha-001", "render"), 0); back.assert_not_called()
+        with mock.patch.object(N, "steps", return_value=[{"id": "render"}]), mock.patch.object(N, "redo", return_value=dest), mock.patch.object(N, "run", return_value=0), \
+             mock.patch.object(N, "plan", return_value=([{"id": "render", "done": False, "status": "ready"}], None)), mock.patch.object(N, "restore") as back:
+            self.assertEqual(N.redo_run("aha-001", "render"), 1); back.assert_called_once_with("aha-001", dest)   # a real failure still puts the old files back
+
     def test_each_line_gets_its_beat_picture_and_keeps_its_marks(self):
         from PIL import Image
         self.script(3); os.makedirs(os.path.join(self.D, "scenes"))
