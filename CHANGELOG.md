@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-10-19
+
+### Added
+- Inspiration: give a short a scene video of your own (NAV-126). Add it next to the Suno link when you create the short, or on its Content tab before it is rendered. No background picture is made (and nothing is spent on one): your video plays behind the lyric captions with the Suno song's sound, and the credit page still ends the short. If the video is shorter than the song, a small gap holds its last frame; a big gap slows it down (at most 1.5 times) and then holds the last frame. You can remove the scene video before rendering and the background steps come back. Without a scene video, nothing changes.
+
 ## [0.51.0] - 2026-10-19
 
 ### Added
@@ -694,7 +699,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.51.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.52.0...HEAD
+[0.52.0]: https://github.com/NjAIAgents/navaan/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/NjAIAgents/navaan/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/NjAIAgents/navaan/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/NjAIAgents/navaan/compare/v0.48.0...v0.49.0
