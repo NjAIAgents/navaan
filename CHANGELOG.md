@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- A narrated inspiration short no longer prints its lines on top of each other (seen on insp-008). With the "rise" and "hero" caption looks every line after the first landed in the same spot and the earlier lines stayed on screen, so a script of four or five lines became unreadable and the last one of "hero" ran off the bottom. Now one line shows at a time and fades out before the next one appears, as "karaoke" already did. A short that is already made keeps its overlap until it is rendered again from its page.
+
 ## [0.56.4] - 2026-10-20
 
 ### Changed
