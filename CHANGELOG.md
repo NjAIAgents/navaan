@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.55.1] - 2026-10-20
+
 ### Fixed
 - The last step of an Aha-lorithm short, "Clean up the local copy", no longer fails with "Instagram is set up but the Reel is not posted yet" (NAV-137). The Aha-lorithm is YouTube-only, and the same waiting is skipped for any item whose Instagram you chose to skip. Music, inspiration and reel items still wait for their Instagram post.
 
@@ -722,7 +724,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...HEAD
+[0.55.1]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.55.1
 [0.55.0]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/NjAIAgents/navaan/compare/v0.52.0...v0.53.0
