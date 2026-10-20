@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-10-20
+
 ### Added
 - Aha-lorithm: change the script at its approval (NAV-133). "Edit the words" shows each beat's spoken line and caption as fields; saving keeps the beats, pictures and visual plan and asks for a fresh approval. "Use my own words" takes your script exactly as you write it and has Claude split it into beats and make the captions, picture prompts and visual plan (one Claude call). "Request changes" now really sends your note back and makes the script again; before, the note was only written to the history.
 - Blog: the finished post has a Posts tab with one tab per place it goes (NAV-134): dev.to, LinkedIn article, and LinkedIn post once that exists. Each shows the post as it will look and copies it in the format that place takes: markdown with its front matter for dev.to, rich text (headings, bold, lists and links stay) or plain text for LinkedIn, plus the title and tags on their own. The claim markers used by the fact check are removed from everything you copy. If the browser refuses to copy, the text is shown selected.
@@ -717,7 +719,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...HEAD
+[0.55.0]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/NjAIAgents/navaan/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/NjAIAgents/navaan/compare/v0.51.0...v0.52.0
