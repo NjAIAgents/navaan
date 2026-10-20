@@ -194,21 +194,30 @@ def render_ffmpeg(D, T, out):
 def render_remotion(D, T, out):
     rd = remotion_dir()
     comp, props = "Quote", os.path.join(D, "timing.json")
-    scenes = any(l.get("bg") for l in T.get("lines") or [])   # an Aha-lorithm short: a picture per line, captions, music bed and end card, all drawn by Quote
+    vis = T.get("visuals") or {}   # the visual plan (visuals_plan.py): scene treatments for beats, a caption treatment for a narration
+    scenes = any(l.get("bg") for l in T.get("lines") or []) or bool(vis.get("beats"))   # an Aha-lorithm short: a picture per line, captions, music bed and end card, all drawn by Quote
     if (T.get("narration") or T.get("background_video")) and not scenes:  # a voiced quote (or one over the owner's scene video): one line at a time, in step with the narration, then the end card
         br = T.get("brand") or {}
         np_ = {"width": W, "height": H, "fps": T.get("fps", 30), "duration": T["duration"], "bg": T["background"], "bg_is_image": not T.get("background_video"), "audio": T.get("voiceover"),
-               "cues": [{"text": l["text"], "start": l["start"], "end": l["end"]} for l in T["lines"]], "title": "", "hook": "",
+               "cues": [{"text": l["text"], "start": l["start"], "end": l["end"], **({"at": l["at"]} if l.get("at") else {})} for l in T["lines"]],   # at: when each word starts, from the voice (voice_timing.py) "title": "", "hook": "",
                "handle": ({"text": br["text"], "icon": br.get("icon", "instagram"), "start": br["start"]} if br else None),
                "style": T.get("style") or {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.4}, "mode": "reel",
                "acts": [{"kind": "calm", "from": 0, "to": T["duration"]}], "textY": 0.36}
         props = os.path.join(D, "narration_props.json"); json.dump(np_, open(props, "w", encoding="utf-8"), ensure_ascii=False, indent=2); comp = "Lyrics"
-    cmd = ["npx", "--no-install", "remotion", "render", "src/index.ts", comp, out, f"--props={props}", f"--public-dir={D}",
-           "--codec=h264", "--crf=18", "--pixel-format=yuv420p", "--log=error", "--overwrite"]
     chrome = os.environ.get("NAVAAN_CHROME") or next((c for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium") if os.path.exists(c)), "")
-    if chrome: cmd += [f"--browser-executable={chrome}", "--chrome-mode=chrome-for-testing"]  # the downloaded headless shell can crash on some Macs, a normal Chrome is steadier
     env = dict(os.environ); env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + env.get("PATH", "")
-    subprocess.run(cmd, cwd=rd, check=True, env=env)
+
+    def run(comp, props):
+        cmd = ["npx", "--no-install", "remotion", "render", "src/index.ts", comp, out, f"--props={props}", f"--public-dir={D}", "--codec=h264", "--crf=18", "--pixel-format=yuv420p", "--log=error", "--overwrite"]
+        if chrome: cmd += [f"--browser-executable={chrome}", "--chrome-mode=chrome-for-testing"]  # the downloaded headless shell can crash on some Macs, a normal Chrome is steadier
+        subprocess.run(cmd, cwd=rd, check=True, env=env)
+    if vis and comp in ("Quote", "Lyrics"):   # one renderer for a planned short; if it fails, the plain picture and captions are rendered instead so the short still ships
+        vp = os.path.join(D, "visual_props.json")
+        json.dump({**json.load(open(props, encoding="utf-8")), "base": comp.lower(), "visuals": vis}, open(vp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+        try: return run("VisualShort", vp)
+        except subprocess.CalledProcessError as e:
+            L.event(LOG, "warning", "visual_plan_render_failed", code=e.returncode, slug=T.get("slug")); print("warning: the visual plan did not render; making the short without it", flush=True)
+    run(comp, props)
 
 
 # ---------- checks ----------

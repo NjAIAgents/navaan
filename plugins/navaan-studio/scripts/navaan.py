@@ -57,7 +57,11 @@ SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json", "shots
 def file_sha(D, name):
     p = os.path.join(D, name)
     return hashlib.sha256(open(p, encoding="utf-8").read().strip().encode("utf-8")).hexdigest() if os.path.exists(p) else None
-def gate_sha(D, g): return file_sha(D, SHA_FILES[g]) if g in SHA_FILES else None
+def gate_sha(D, g):
+    sha = file_sha(D, SHA_FILES[g]) if g in SHA_FILES else None
+    if g == "quote" and sha and os.path.exists(os.path.join(D, "visual_plan.json")):   # the visual plan is approved with the script: changing either needs a new approval
+        sha = hashlib.sha256((sha + file_sha(D, "visual_plan.json")).encode("utf-8")).hexdigest()
+    return sha
 def caption_sha(D):
     """Hash of instagram.txt. The caption approval is tied to this hash, so any edit after approval needs a new approval."""
     p = os.path.join(D, "instagram.txt")
@@ -306,9 +310,10 @@ AHA_ABOUT = ("This item is for The Aha-lorithm (YouTube @TheAhalorithm), a YouTu
 
 
 def aha_beats_done(D):
-    """Every beat of the script has its picture (scenes/beat_NN.png)."""
+    """Every beat of the script that is shown by a picture has it (scenes/beat_NN.png)."""
+    import aha_pictures
     n = len([l for l in (load_json(os.path.join(D, "quote.json"), default={}) or {}).get("lines") or [] if str(l).strip()])
-    return n > 0 and all(os.path.exists(os.path.join(D, "scenes", "beat_%02d.png" % (i + 1))) for i in range(n))
+    return n > 0 and all(os.path.exists(aha_pictures.beat_file(D, i)) for i in aha_pictures.need(D, n))   # a beat the visual plan shows with a scene needs no picture
 
 
 def aha_steps(slug, D):
@@ -1051,10 +1056,23 @@ def caption_cmd(slug, a):
 TOGETHER = {"publish_youtube": ("publish_short",), "cloud_upload": ("local_cleanup",)}
 
 
+def plan_usable(slug, D):
+    """Approving the script approves the visual plan with it (visual_plan.json), so a plan that cannot be drawn is refused here, with the reasons, rather than ignored at render time."""
+    p = os.path.join(D, "visual_plan.json")
+    if not os.path.exists(p): return
+    import visuals_plan
+    try: plan = json.load(open(p, encoding="utf-8"))
+    except ValueError as e: sys.exit(f"visual_plan.json is not valid JSON ({e}). Fix it, or delete it to use pictures only.")
+    n = len([l for l in (load_json(os.path.join(D, "quote.json"), default={}) or {}).get("lines") or [] if str(l).strip()])
+    errs = visuals_plan.validate(plan, item_type(C.item_load(slug, {})), n, strict=True)
+    if errs: sys.exit("visual_plan.json is not usable, so the script cannot be approved yet: " + "; ".join(errs))
+
+
 def set_gate(slug, gate, on, via):
     if gate not in GATES: sys.exit(f"unknown gate: {gate}. Gates: {', '.join(GATES)}")
     if on and gate in SHA_FILES and not gate_sha(song_dir(slug), gate): sys.exit(f"no {SHA_FILES[gate]} to approve yet. Run that step first.")
     D = song_dir(slug); sha = gate_sha(D, gate) if (on and gate in SHA_FILES) else None
+    if on and gate == "quote": plan_usable(slug, D)
     def put(m):
         ap = m.setdefault("approvals", {})
         if on: ap[gate] = {"at": now(), "via": via, **({"sha": sha} if gate in SHA_FILES else {})}

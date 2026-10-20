@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-10-19
+
+### Added
+- Shorts drawn the way each one needs (NAV-130, NAV-129, NAV-131, NAV-132). The Aha-lorithm's script can now plan some beats as a scene instead of a picture: a chat that types out, a comparison, a checklist that ticks, a timeline, a counting number, a line chart, a progress ring, a crossed-out word, and a hook whose words come in one by one. A beat shown this way needs no generated picture, so it costs nothing. A number on screen needs a source that is checked, and the plan is approved together with the script, shown in plain words on its approval card. A narrated inspiration stays simple: one calm caption look for the whole short, chosen from its words (the spoken word lights up, words rise out of the dark, or the key words grow), or named with `- look:` in its brief (`plain` keeps the old captions). Each word now appears when the voice says it, and the glow breathes with the voice. A plan that cannot be drawn never stops a short: it is made with its pictures and plain captions instead.
+
 ## [0.53.0] - 2026-10-19
 
 ### Added
@@ -704,7 +709,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...HEAD
+[0.54.0]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/NjAIAgents/navaan/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/NjAIAgents/navaan/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/NjAIAgents/navaan/compare/v0.50.0...v0.51.0

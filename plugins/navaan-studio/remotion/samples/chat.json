@@ -1,0 +1,35 @@
+{
+ "base": "none",
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "duration": 7.0,
+ "hold_until": 6.5,
+ "style": {
+  "color": "#F4F7FF",
+  "accent": "#E2B75A"
+ },
+ "lines": [
+  {
+   "text": "Ask it, then *doubt* it",
+   "start": 0,
+   "end": 6.5
+  }
+ ],
+ "visuals": {
+  "beats": [
+   {
+    "line": 0,
+    "treatment": "chat",
+    "data": {
+     "question": "Is this answer right?",
+     "answer": "Absolutely. Here is a clear, confident answer, with three points to back it up.",
+     "tags": [
+      "sounds sure",
+      "verified?"
+     ]
+    }
+   }
+  ]
+ }
+}

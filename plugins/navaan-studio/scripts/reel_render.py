@@ -112,8 +112,8 @@ def endcard_png(path, handle, credit, face="serif"):
 
 
 def account_handle():
-    """The reel account's Instagram handle with one @, or "" when none is set."""
-    h = str((C.account("reel") or {}).get("handle") or C.cfg("publish.instagram_handle") or "").strip().lstrip("@")
+    """The reel account's Instagram handle with one @, or "" when none is set. Never the music (NAVAAN) handle: a non-music type has its own account."""
+    h = str((C.account("reel") or {}).get("handle") or "").strip().lstrip("@")
     return "@" + h if h else ""
 
 
