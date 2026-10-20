@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.56.2] - 2026-10-20
+
+### Fixed
+- Switching on the standing licence statement in Settings now confirms the songs you have already published, straight away (NAV-141). Before, only a later sync did, so songs published earlier stayed hidden from the public site. The card says which songs were confirmed. A song you marked not allowed, and a draft, are never changed.
+
 ## [0.56.1] - 2026-10-20
 
 ### Fixed
@@ -743,7 +748,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...HEAD
+[0.56.2]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...v0.56.2
 [0.56.1]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...v0.56.1
 [0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...v0.56.0
 [0.55.1]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.55.1
