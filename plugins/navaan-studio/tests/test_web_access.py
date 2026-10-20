@@ -508,6 +508,12 @@ class Access(unittest.TestCase):
         K.set_picture("song-001", "poster", pre + "poster_2x3.png", "image/png", len(cover))   # the owner put the poster on share links
         st, h2, b2 = self.raw("/img/song-001/poster-320.webp"); self.assertEqual((st, h2["Content-Type"]), (200, "image/webp")); self.assertNotEqual(h2["ETag"], h["ETag"])   # its own picture and cache entry, not the cover's
         self.assertEqual(self.raw("/img/ghost/poster-320.webp")[0], 404)
+        al = K.save_album("", "Raat Ke Baad", "album"); K.reorder(al, ["song-001"]); K.set_album_cover(al, "navaan/albums/" + al + "/cover_1x1.png", len(cover))
+        self.assertEqual(self.raw(f"/img/album/{al}/320.webp")[0], 404)   # a draft album's cover is not public
+        K.save_album(al, "Raat Ke Baad", "album", "published")
+        st, h, b = self.raw(f"/img/album/{al}/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"])
+        self.assertEqual(self.raw(f"/img/album/{al}/poster-320.webp")[0], 404); self.assertEqual(self.raw("/img/album/ghost/320.webp")[0], 404)   # an album has a cover, no poster
+        self.assertEqual(self.raw("/img/" + al + "/320.webp")[0], 404)   # and the album's name is not a song's
         self.assertEqual(post("lis-tok", "csrf-lis", "/api/poster/publish", slug="song-001")[0], 403); self.assertEqual(post("owner-tok", "csrf-owner", "/api/poster/publish", slug="song-001")[0], 400)   # a listener has no say; the owner is told there is no poster yet
         page = self.raw("/s/" + tok)[2].decode(); self.assertIn("/img/song-001/poster-1280.jpg", page); self.assertNotIn("/img/song-001/1280.jpg", page)   # the poster replaces the cover in the link preview
         code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [3])   # the page was opened three times (once, then before and after the poster was put on it); the preview does not count

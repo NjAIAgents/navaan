@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Cover } from "../components/Cover";
+import { Cover, albumFace } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
 import { ShuffleButton } from "../components/ShuffleButton";
@@ -37,12 +37,12 @@ export default function Album() {
   const reorder = (next: string[]) => run(() => postJSON("/api/albums/reorder", { album: slug, tracks: next }));
   const move = (i: number, d: number) => { const n = [...order]; [n[i], n[i + d]] = [n[i + d], n[i]]; return reorder(n); };
   const free = all.filter((t) => !order.includes(t.slug));
-  const c = coverOf(a);
+  const c = coverOf(a); const f = albumFace(a); const colour = a.art?.colour ?? c?.art?.colour;
   const playable = a.tracks.filter((t) => t.status === "published").map((t) => ({ slug: t.slug, title: t.title }));
   return (
     <>
-      <section className="hero" style={c?.art?.colour ? { background: `linear-gradient(180deg, ${c.art.colour}66, transparent 75%)` } : undefined} aria-labelledby="al-h">
-        <Cover slug={c?.slug ?? a.slug} title={a.title} size={200} art={c?.art} />
+      <section className="hero" style={colour ? { background: `linear-gradient(180deg, ${colour}66, transparent 75%)` } : undefined} aria-labelledby="al-h">
+        <Cover slug={f.slug} title={a.title} size={200} art={f.art} />
         <div className="hero-tx">
           <Link className="back" to="/albums"><Icon name="chevron" />Albums</Link>
           <h1 id="al-h" className="disp">{a.title}</h1>
