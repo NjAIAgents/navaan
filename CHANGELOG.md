@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-10-20
+
 ### Added
 - Blog posts are finished and posted from the Posts tab (NAV-74, NAV-138, NAV-139, NAV-78).
   - **Humanizer:** after the edit, a step rewrites both drafts so they read like a person wrote them (plainer words, a varied rhythm, no stock phrases). A check then compares the rewrite with the copy it started from: every claim marker, number, link, code block, image and the dev.to front matter must be unchanged, or the run stops and names what moved. The fact check does not run again.
@@ -766,7 +768,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.57.0...HEAD
+[0.57.0]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...v0.57.0
 [0.56.4]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...v0.56.4
 [0.56.3]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...v0.56.3
 [0.56.2]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...v0.56.2
