@@ -117,6 +117,26 @@ class Access(unittest.TestCase):
         code, body = call({"level": 30}); self.assertEqual(code, 200); self.assertEqual(json.loads(body)["level"], 30)
         self.assertIn("music_level: 30", open(os.path.join(D, "brief.md")).read()); self.assertFalse(os.path.exists(os.path.join(D, "timing.json")))   # the next typography takes it
 
+    def test_an_aha_script_can_be_edited_replaced_or_sent_back_at_its_approval(self):
+        import navaan_common as C
+        D = os.path.join(C.songs_root(), "aha-010"); os.makedirs(D)
+        def fresh():
+            json.dump({"type": "aha", "state": "draft", "approvals": {"quote": {"at": "x"}}}, open(os.path.join(D, "meta.json"), "w")); open(os.path.join(D, "title.txt"), "w").write("T")
+            json.dump({"text": "One. Two.", "lines": ["One.", "Two."], "captions": ["One", "Two"], "pictures": ["p" * 30, "q" * 30]}, open(os.path.join(D, "quote.json"), "w")); open(os.path.join(D, "visual_plan.json"), "w").write("{}")
+        fresh(); post = lambda path, body, tok="owner-tok", csrf="csrf-owner": self.call(path, tok, csrf, post=True, body={"slug": "aha-010", **body})
+        with mock.patch.object(U, "start_job", return_value=True) as go:
+            self.assertEqual(post("/api/aha/edit-script", {"lines": ["Uno.", "Dos."], "captions": ["Uno", "Dos"]}, "lis-tok", "csrf-lis")[0], 403)
+            self.assertEqual(post("/api/aha/edit-script", {"lines": ["only one"], "captions": ["x"]})[0], 400)
+            code, body = post("/api/aha/edit-script", {"lines": ["Uno.", "Dos."], "captions": ["Uno", "Dos"]}); self.assertEqual((code, json.loads(body)["started"]), (200, False)); go.assert_not_called()
+            self.assertEqual(json.load(open(os.path.join(D, "quote.json")))["lines"], ["Uno.", "Dos."])
+            fresh(); code, body = post("/api/aha/replace-script", {"text": "My own first sentence. My own second sentence."}); self.assertEqual((code, json.loads(body)["started"]), (200, True))
+            go.assert_called_once_with("aha-010", False, "quote", redo=True)
+            self.assertFalse(os.path.exists(os.path.join(D, "quote.json"))); self.assertFalse(os.path.exists(os.path.join(D, "visual_plan.json"))); self.assertTrue(open(os.path.join(D, "quote_feedback.txt")).read().startswith("REPLACE:"))
+            self.assertNotIn("quote", json.load(open(os.path.join(D, "meta.json")))["approvals"])
+            fresh(); go.reset_mock(); code, body = post("/api/request-changes", {"gate": "quote", "note": "Make the hook sharper"}); self.assertEqual((code, json.loads(body)["started"]), (200, True))
+            self.assertEqual(open(os.path.join(D, "quote_feedback.txt")).read().strip(), "Make the hook sharper"); self.assertFalse(os.path.exists(os.path.join(D, "quote.json"))); go.assert_called_once()
+            json.dump({"type": "music", "state": "draft"}, open(os.path.join(D, "meta.json"), "w")); self.assertEqual(post("/api/aha/replace-script", {"text": "x" * 40})[0], 400)   # only for an Aha-lorithm short
+
     def test_the_owner_sets_a_songs_mood_and_nobody_else_can(self):
         D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "drafted"}, open(os.path.join(D, "meta.json"), "w"))
         post = lambda tok, csrf, **b: self.call("/api/mood", tok, csrf, post=True, body=b)

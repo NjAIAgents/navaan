@@ -5,7 +5,7 @@ import { fileB64 } from "../lib/files";
 import { errText } from "../lib/songs";
 
 type State = { prompt: string; has: boolean; published: boolean; v: number; style: string; styles: string[]; usd: number; key: boolean; running?: boolean; error?: string };
-const LOOK: Record<string, string> = { bold: "Bold serif", brush: "Brush", hand: "Handwritten" };
+const LOOK: Record<string, string> = { modern: "Modern sans", bold: "Bold serif", brush: "Brush", hand: "Handwritten" };
 
 // The album's cover: square art from a prompt you can read and change (OpenAI images, the cost is on the button), with the NAVAAN mark, the title and the artist drawn by us. Or use your own picture. A made cover is saved for the site; listeners see it once the album is published.
 export function AlbumCoverCard({ slug }: { slug: string }) {

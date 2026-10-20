@@ -19,9 +19,10 @@ import navaan_log as L
 LOG = L.get("album_pipeline")
 import media_cfg, image_openai as IO, prompt_pack, poster as P, catalog_store as K
 from PIL import Image, ImageDraw
-from make_cover import cover_scale, shade, latin
+from make_cover import cover_scale, shade, latin, split_title, title_block, tracked, MODERN_LOOK
 
 SIZE = "1024x1024"
+STYLES = ["modern", *P.STYLES]   # modern (NAV-135) is the default lettering: a clean sans set low left; the poster's display fonts stay as choices
 W = 1080
 FINISH = " Square album cover composition with a calm open area in the lower third. No text, no letters, no logos, no watermarks."
 SUGGEST = ("You are naming a record. NAVAAN, an independent artist, is releasing an album and needs its title: the kind an artist chooses for a new release, not the name of a playlist. "
@@ -89,7 +90,7 @@ def default_prompt(album):
     lines = [l for f in facts for l in f["lines"]][:3]
     return ("Professional square album cover artwork for an album called \"%s\" with songs: %s. " % (album["title"], ", ".join(f["title"] for f in facts))
             + ("Mood: %s. " % ", ".join(moods) if moods else "") + ("Feeling of these lines: \"%s\". " % " / ".join(lines) if lines else "")
-            + "Cinematic, painterly, refined colour, timeless." + FINISH)
+            + MODERN_LOOK + FINISH)
 
 
 def cover_state(slug):
@@ -97,19 +98,24 @@ def cover_state(slug):
     pf = os.path.join(d, "cover_prompt.txt"); cv = os.path.join(d, "cover_1x1.png")
     return {"prompt": _read(d, "cover_prompt.txt") or default_prompt(a), "has": os.path.isfile(cv), "v": int(os.path.getmtime(cv)) if os.path.isfile(cv) else 0,
             "published": os.path.isfile(cv) and bool(a.get("art")) and a["art"]["v"] == os.path.getsize(cv),
-            "style": _read(d, "cover_style.txt") if _read(d, "cover_style.txt") in P.STYLES else "bold", "styles": list(P.STYLES),
+            "style": _read(d, "cover_style.txt") if _read(d, "cover_style.txt") in STYLES else "modern", "styles": STYLES,
             "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "key": bool(media_cfg.get_key("openai"))}
 
 
 def typeset(slug, art_path=None, style=None):
     a = _album(slug); d = album_dir(slug); art = Image.open(art_path or os.path.join(d, "cover_art.png")).convert("RGB")
-    style = style if style in P.STYLES else (_read(d, "cover_style.txt") if _read(d, "cover_style.txt") in P.STYLES else "bold")
-    file, px, _align = P.STYLES[style]; path = os.path.join(P.FONTS, file); pad = 70
-    im = cover_scale(art, W, W); shade(im, 0, 225, 0.5); dr = ImageDraw.Draw(im)
-    P._mark(im, W // 2, pad - 24, 110)
-    title = a["title"]; f = P._fit(dr, title, path, int(px * 0.85), W - 2 * pad, 56)
-    P._text(im, (W // 2, W - pad - 52), title, f, (255, 246, 228), "ms")
-    dr.text((W // 2, W - pad - 8), (C.cfg("artist.name") or "NAVAAN").upper(), font=latin(30), fill=P.GOLD, anchor="ms")
+    style = style if style in STYLES else (_read(d, "cover_style.txt") if _read(d, "cover_style.txt") in STYLES else "modern")
+    if style == "modern":   # art full bleed, a light shade, the artist's name small and tracked, a gold bar and the title low left (native script kept correct)
+        pad = 76; im = cover_scale(art, W, W); shade(im, 0, 150, 0.42); native, lat = split_title(a["title"]); artist = C.cfg("artist.name") or "NAVAAN"
+        tracked(ImageDraw.Draw(im), (pad, pad), artist, latin(26), (255, 255, 255), 7)
+        title_block(im, native, lat, pad, W - pad, W - 2 * pad, 150, 104, artist)
+    else:
+        file, px, _align = P.STYLES[style]; path = os.path.join(P.FONTS, file); pad = 70
+        im = cover_scale(art, W, W); shade(im, 0, 225, 0.5); dr = ImageDraw.Draw(im)
+        P._mark(im, W // 2, pad - 24, 110)
+        title = a["title"]; f = P._fit(dr, title, path, int(px * 0.85), W - 2 * pad, 56)
+        P._text(im, (W // 2, W - pad - 52), title, f, (255, 246, 228), "ms")
+        dr.text((W // 2, W - pad - 8), (C.cfg("artist.name") or "NAVAAN").upper(), font=latin(30), fill=P.GOLD, anchor="ms")
     im.save(os.path.join(d, "cover_1x1.png"), optimize=True)
     try: publish(slug)
     except Exception: L.soft(LOG, "album_cover_publish")   # the cover is made and kept; "Save for the site" tries again
@@ -136,7 +142,7 @@ def generate_cover(slug, prompt, style=None):
     raw = IO.request_image(prompt[:3500], q, key, SIZE, IO.model_name(cfg))
     media_cfg.add_usage(openai_usd=cost)   # spent now, whatever happens to the file
     Image.open(io.BytesIO(raw)).convert("RGB").save(os.path.join(d, "cover_art.png"), optimize=True)
-    for name, val in (("cover_prompt.txt", prompt), ("cover_style.txt", style if style in P.STYLES else "bold")):
+    for name, val in (("cover_prompt.txt", prompt), ("cover_style.txt", style if style in STYLES else "modern")):
         with open(os.path.join(d, name), "w", encoding="utf-8") as f: f.write(val + "\n")
     typeset(slug, style=style)
     return cost

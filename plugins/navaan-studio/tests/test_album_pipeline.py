@@ -71,6 +71,14 @@ class Albums(Base):
         with self.assertRaises(ValueError): self.A.use_picture(self.slug, b"not a picture")
         self.A.typeset(self.slug, style="brush"); self.assertEqual((self.sent, self.spent), ([], []))
 
+    def test_the_default_prompt_and_lettering_are_modern_and_an_owner_edit_is_kept(self):
+        import make_cover as M
+        st = self.A.cover_state(self.slug); self.assertIn(M.MODERN_LOOK, st["prompt"]); self.assertNotIn("Cinematic, painterly", st["prompt"]); self.assertIn("Not painterly", st["prompt"])
+        self.assertEqual((st["style"], st["styles"][0]), ("modern", "modern")); self.assertIn("bold", st["styles"], "the display fonts stay as choices")
+        self.A.generate_cover(self.slug, "My own idea for a rainy window cover art.")   # no style given: the modern one
+        d = self.A.album_dir(self.slug); self.assertEqual(open(os.path.join(d, "cover_style.txt")).read().strip(), "modern"); self.assertEqual(Image.open(os.path.join(d, "cover_1x1.png")).size, (self.A.W, self.A.W))
+        self.assertEqual(self.A.cover_state(self.slug)["prompt"], "My own idea for a rainy window cover art.")   # an edited prompt is never changed
+
     def test_a_made_cover_is_published_and_the_album_shows_it_once_it_is_published(self):
         self.assertIsNone(self.K.albums()[0]["art"]); self.assertFalse(self.A.cover_state(self.slug)["published"])
         self.A.generate_cover(self.slug, "My own idea for a rainy window cover art.", "hand")
