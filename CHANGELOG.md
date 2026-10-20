@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- The standing licence statement (Settings) is kept across restarts (NAV-140). It was stored where nothing saved it to Vault, so every deploy switched it off and newly published songs stayed hidden from navaan.online as unconfirmed. After this release, switch the statement on once more in Settings.
+
 ## [0.56.0] - 2026-10-20
 
 ### Added
