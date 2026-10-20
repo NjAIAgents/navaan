@@ -9,7 +9,7 @@ import clip_share as CLIP, poster as POST, album_pipeline as ALB, visuals_cfg as
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
-import media, objstore, share_page, reel_lyrics
+import media, objstore, share_page, reel_lyrics, script_edit
 import library_store, entitlements, uuid, pgconn
 import navaan_log as L
 LOG = L.get("web")
@@ -88,7 +88,7 @@ VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose 
 VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json"}
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "visual_plan.json", "motion.json", "caption_cues.json", "topics.json", "trend_sources.json",
-                       "research.md", "claims.json", "outline.md", "devto.md", "linkedin_article.md", "factcheck.json", "fix_notes.md", "review_notes.md", "edit.json",   # the blog's working files (NAV-72, NAV-73)
+                       "research.md", "claims.json", "outline.md", "devto.md", "linkedin_article.md", "linkedin_post.md", "factcheck.json", "fix_notes.md", "review_notes.md", "edit.json",   # the blog's working files (NAV-72, NAV-73)
                        "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json"}   # the reel's plan, the critic's notes and the footage facts
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
@@ -1042,16 +1042,30 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/answer":
                 qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
                 return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
+            if p in ("/api/aha/edit-script", "/api/aha/replace-script"):   # NAV-133: change the script at its approval: edit the words of its beats, or give your own words
+                if C.item_type(navaan.meta(slug)) != "aha": return self._send(400, {"error": "this is for an Aha-lorithm short"})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this short. Press Stop first."})
+                who = f"ui:{sess.get('user') or 'owner'}"; D = C.song_dir(slug)
+                try:
+                    if p.endswith("edit-script"):
+                        script_edit.edit(D, body.get("lines"), body.get("captions")); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"script edited via {who}"))
+                        return self._send(200, {"ok": True, "started": False})
+                    script_edit.replace(D, body.get("text")); navaan.redo(slug, "quote"); navaan.edit_meta(slug, lambda m: (m.setdefault("approvals", {}).pop("quote", None), navaan.log_hist(m, f"script replaced with the owner's own words via {who}")))
+                except (SystemExit, ValueError) as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
+                return self._send(200, {"ok": True, "started": start_job(slug, False, "quote", redo=True)})
             if p == "/api/request-changes":   # at the video review the note is about ONE video, and only that video is made again
                 video = body.get("video") if body.get("gate") == "media" else None
                 if video is not None and video not in VIDEO_STEP: return self._send(400, {"error": "say which video: " + ", ".join(VIDEO_STEP)})
                 if video and jobs.active(slug): return self._send(409, {"error": "a run is in progress for this song. Press Stop first."})
                 try:
                     nudge = reel_lyrics.check_offset(body["offset"]) if video and body.get("offset") not in (None, "") else None   # checked before anything changes
+                    rewrite = body.get("gate") == "quote" and C.is_short(C.item_type(navaan.meta(slug)))   # a note at the script approval makes the script step run again with it (it was only written to the history)
+                    if rewrite and jobs.active(slug): return self._send(409, {"error": "a run is in progress for this short. Press Stop first."})
                     navaan.request_changes(slug, body.get("gate"), body.get("note"), f"ui:{sess.get('user') or 'owner'}", about=VIDEO_STEP[video][1] if video else "")
                     if nudge is not None: reel_lyrics.save_offset(C.song_dir(slug), nudge)
+                    if rewrite: script_edit.feedback(C.song_dir(slug), body.get("note")); navaan.redo(slug, "quote")
                 except (SystemExit, ValueError) as e: return self._send(400, {"error": str(e).replace("navaan: ", "")})
-                return self._send(200, {"ok": True, "started": start_job(slug, False, VIDEO_STEP[video][0], redo=True) if video else False})
+                return self._send(200, {"ok": True, "started": start_job(slug, False, VIDEO_STEP[video][0], redo=True) if video else (start_job(slug, False, "quote", redo=True) if rewrite else False)})
             if p == "/api/reel/lyrics":   # the reel's lyrics: use it or not (Instagram then takes the reel without lyrics), and a nudge in seconds when they are early or late
                 who = f"ui:{sess.get('user') or 'owner'}"
                 if body.get("offset") is not None: nudge = reel_lyrics.check_offset(body["offset"])   # a bad number is refused before anything is saved

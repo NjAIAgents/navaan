@@ -6,6 +6,14 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- Aha-lorithm: change the script at its approval (NAV-133). "Edit the words" shows each beat's spoken line and caption as fields; saving keeps the beats, pictures and visual plan and asks for a fresh approval. "Use my own words" takes your script exactly as you write it and has Claude split it into beats and make the captions, picture prompts and visual plan (one Claude call). "Request changes" now really sends your note back and makes the script again; before, the note was only written to the history.
+- Blog: the finished post has a Posts tab with one tab per place it goes (NAV-134): dev.to, LinkedIn article, and LinkedIn post once that exists. Each shows the post as it will look and copies it in the format that place takes: markdown with its front matter for dev.to, rich text (headings, bold, lists and links stay) or plain text for LinkedIn, plus the title and tags on their own. The claim markers used by the fact check are removed from everything you copy. If the browser refuses to copy, the text is shown selected.
+
+### Changed
+- Song and album covers look modern (NAV-135): the art direction asks for one strong graphic subject or abstract form, flat or soft-gradient colour with fine grain, a limited palette and generous negative space, not painterly or cinematic. The lettering is a clean sans (Inter, installed in the image), set low left with a short gold bar, a lighter shade and a small tracked artist name. Albums get a new "Modern sans" lettering, now the default; the display fonts stay as choices. Existing covers are untouched.
+- Aha-lorithm pictures follow their topic (NAV-136): every short gets its own art direction (medium, palette, mood) and every beat a concrete scene from its own sentence, no two alike. The fixed dark-and-gold template that made every picture look the same is gone.
+
 ## [0.54.0] - 2026-10-19
 
 ### Added

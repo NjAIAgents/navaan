@@ -26,6 +26,8 @@ import { GATE_ASK, GATE_FILE, RISKY, gateTitle, stepLabel } from "../lib/gates";
 import { errText, isShort, listPath, nextAction } from "../lib/songs";
 import { ReelFootage } from "../components/ReelFootage";
 import { SceneCard } from "../components/SceneCard";
+import { ScriptEdit } from "../components/ScriptEdit";
+import { BlogPosts } from "../components/BlogPosts";
 import { Loading } from "../components/Loading";
 
 type Act = (path: string, body: Record<string, unknown>) => Promise<boolean>;
@@ -120,6 +122,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       {gate === "publish_youtube" && <PostTextEditor d={d} kind="youtube" done={reload ?? (() => undefined)} />}
       {gate === "edit_plan" && d.text["edl_summary.md"] && <pre className="art" tabIndex={0} aria-label="The edit plan in plain words">{d.text["edl_summary.md"]}</pre>}
       {gate === "quote" && d.text["visual_plan.json"] && <PlanView text={d.text["visual_plan.json"]} />}
+      {gate === "quote" && d.meta.type === "aha" && !running && d.text["quote.json"] && <ScriptEdit key={d.text["quote.json"]} d={d} done={reload ?? (() => undefined)} />}
       {gate === "media" && d.text["critique.json"] && <CritiqueView text={d.text["critique.json"]} />}
       {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && gate !== "instagram_caption" && (shown ? (Readable[gate]?.(shown) ?? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre>) : <p className="mu">{file} is not there yet. Run its step first.</p>)}
     </section>
@@ -462,9 +465,11 @@ export default function Song() {
     </section>
   ) : d.next.type === "done" ? <section className="card"><h2>All steps are done</h2></section> : null;
 
-  const TABS = [["pipeline", "Pipeline"], ["content", "Content"], ["media", "Media"], ["publish", "Publish"], ["activity", "Activity"]] as const;
-  type Tab = (typeof TABS)[number][0];
-  const asked = sp.get("tab"); const tab: Tab = TABS.some(([k]) => k === asked) ? (asked as Tab) : "pipeline";
+  const hasPosts = blog && ["devto.md", "linkedin_article.md", "linkedin_post.md"].some((f) => d.text[f]);   // the finished posts, one tab per place they go (NAV-134)
+  const TABS: readonly (readonly [string, string])[] = [["pipeline", "Pipeline"], ...(hasPosts ? [["posts", "Posts"] as const] : []), ["content", "Content"], ["media", "Media"], ["publish", "Publish"], ["activity", "Activity"]];
+  type Tab = string;
+  const postsReady = hasPosts && !!d.steps.find((x) => x.id === "edit")?.done;   // the edit is the last writing step: from then on the posts are what you came for
+  const asked = sp.get("tab"); const tab: Tab = TABS.some(([k]) => k === asked) ? (asked as Tab) : postsReady && d.next.type !== "gate" ? "posts" : "pipeline";
   return (
     <>
       <div className="ph hd">
@@ -480,7 +485,7 @@ export default function Song() {
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
       <div className="tabs" role="tablist" aria-label="Sections">
         {TABS.map(([k, l]) => (
-          <button key={k} role="tab" id={`tab-${k}`} aria-selected={tab === k} aria-controls={`panel-${k}`} onClick={() => setSp(k === "pipeline" ? {} : { tab: k }, { replace: true })}>
+          <button key={k} role="tab" id={`tab-${k}`} aria-selected={tab === k} aria-controls={`panel-${k}`} onClick={() => setSp(k === "pipeline" && !postsReady ? {} : { tab: k }, { replace: true })}>
             {l}{k === "pipeline" && needsYou && <span className="dot" role="img" aria-label="needs you" />}
           </button>
         ))}
@@ -499,6 +504,7 @@ export default function Song() {
             {(!mobile || pane === "now") && <div className="pl-now stack"><SongAlerts d={d} done={load} />{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{d.meta.skip?.instagram && <p className="mu row" role="status">Not posted to Instagram: you skipped it for this one.<button className="btn g" disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: false })}>Post to Instagram after all</button></p>}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
           </div>
         )}
+        {tab === "posts" && <BlogPosts d={d} />}
         {tab === "content" && (<>
           <TextEditors d={d} done={load} />
           <ShotsEditor key={slug} d={d} done={load} />
