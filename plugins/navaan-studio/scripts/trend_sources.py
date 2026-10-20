@@ -31,9 +31,10 @@ def keyword(D):
     try:
         with open(os.path.join(D, "brief.md"), encoding="utf-8") as f: t = f.read()
     except OSError: return ""   # expected: no brief yet; main() then says to write the keyword
-    m = re.search(r"^## Idea\s*\n(.*?)(?=^## |\Z)", t, re.S | re.M)
-    k = (m.group(1) if m else "").strip()
-    return "" if k.startswith("(write the keyword") else " ".join(k.split())
+    for m in re.finditer(r"^## Idea\s*\n(.*?)(?=^## |\Z)", t, re.S | re.M):   # every Idea section: the owner may add one below the template's empty one
+        k = m.group(1).strip()
+        if k and not k.startswith("(write the keyword"): return " ".join(k.split())
+    return ""
 
 
 def hacker_news(kw, now):

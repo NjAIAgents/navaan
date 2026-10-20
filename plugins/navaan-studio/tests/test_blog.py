@@ -50,6 +50,18 @@ class Blog(unittest.TestCase):
         open(os.path.join(self.D, "brief.md"), "w").write("## Idea\n\n(write the keyword, field or area here)\n")
         self.assertEqual(self.T.keyword(self.D), "")
 
+    def test_a_keyword_in_a_second_idea_section_counts_when_the_first_is_still_the_placeholder(self):
+        open(os.path.join(self.D, "brief.md"), "w").write("## Idea\n\n(write the keyword, field or area here)\n\n## Options\n\n- audience: auto\n\n## Idea\n\nAI agents\n")
+        self.assertEqual(self.T.keyword(self.D), "AI agents")   # a brief written this way before the creation fix still works
+        open(os.path.join(self.D, "brief.md"), "w").write("## Idea\n\n\n## Options\n\n- audience: auto\n")
+        self.assertEqual(self.T.keyword(self.D), "")
+
+    def test_a_blog_started_from_a_keyword_has_that_keyword_in_its_brief(self):
+        import new_song
+        new_song.create("blog-002", "blog", "Postgres tuning")
+        brief = open(os.path.join(self.C.songs_root(), "blog-002", "brief.md")).read()
+        self.assertEqual(self.T.keyword(os.path.join(self.C.songs_root(), "blog-002")), "Postgres tuning"); self.assertEqual(brief.count("## Idea"), 1)   # in the template's own place, not a second section after it
+
     def test_every_source_is_read_when_all_answer(self):
         with mock.patch.object(self.T, "get", fake_get()): r = self.T.collect("AI agents", now=1_800_000_000)
         s = r["sources"]; self.assertTrue(all(v["ok"] for v in s.values()))
