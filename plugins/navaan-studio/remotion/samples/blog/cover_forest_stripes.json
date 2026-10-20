@@ -1,0 +1,15 @@
+{
+ "width": 1000,
+ "height": 420,
+ "title": "Typed config without the YAML pain",
+ "kicker": "Developer tools",
+ "chips": [
+  "config",
+  "types",
+  "dx"
+ ],
+ "palette": "forest",
+ "motif": "stripes",
+ "seed": "blog-stripes",
+ "brand": "NAVAAN"
+}

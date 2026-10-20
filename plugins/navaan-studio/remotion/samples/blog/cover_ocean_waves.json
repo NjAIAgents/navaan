@@ -1,0 +1,15 @@
+{
+ "width": 1000,
+ "height": 420,
+ "title": "Streaming Postgres changes without losing a row",
+ "kicker": "Data",
+ "chips": [
+  "postgres",
+  "cdc",
+  "streams"
+ ],
+ "palette": "ocean",
+ "motif": "waves",
+ "seed": "blog-waves",
+ "brand": "NAVAAN"
+}

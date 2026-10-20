@@ -9,7 +9,7 @@ import clip_share as CLIP, poster as POST, song_cover as SC, album_pipeline as A
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
-import media, objstore, share_page, reel_lyrics, script_edit
+import media, objstore, share_page, reel_lyrics, script_edit, blog_publish
 import library_store, entitlements, uuid, pgconn
 import navaan_log as L
 LOG = L.get("web")
@@ -87,9 +87,9 @@ POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 SCOVER = {}  # the same for the song cover being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
-EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json"}
+EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json", "devto.md", "linkedin_article.md", "linkedin_post.md"}   # the blog posts are edited on the Posts tab (NAV-138)
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "visual_plan.json", "motion.json", "caption_cues.json", "topics.json", "trend_sources.json",
-                       "research.md", "claims.json", "outline.md", "devto.md", "linkedin_article.md", "linkedin_post.md", "factcheck.json", "fix_notes.md", "review_notes.md", "edit.json",   # the blog's working files (NAV-72, NAV-73)
+                       "research.md", "claims.json", "outline.md", "devto.md", "linkedin_article.md", "linkedin_post.md", "images.json", "post_images.json", "factcheck.json", "fix_notes.md", "review_notes.md", "edit.json",   # the blog's working files (NAV-72, NAV-73)
                        "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json"}   # the reel's plan, the critic's notes and the footage facts
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
@@ -240,7 +240,7 @@ def detail(slug):
     return {"slug": slug, "meta": m, "steps": rows, "next": nxt, "files": fl, "text": txt, "log": lg, "job": {"running": jv["running"], "rc": jv["rc"], "queued": jv["queued"]}, "status_text": jv["status_text"],
             "notes": (["This song has no lyrics saved. The picture plan and the captions are written from them, and without them the pictures would be invented. Add the lyrics on the Content tab" + ("; the style there can also name the singer (for example 'male vocals')." if not (txt.get("style.txt") or "").strip() else ".")] if nolyr and any(not r["done"] for r in rows if r["id"] in ("prompts", "captions")) else []),
             "failure": failure, "gates": C.type_gates(C.item_type(m)), "account": C.account(C.item_type(m)) if C.item_type(m) not in ("music", "blog") else None, "approvals": {g: a for g, a in m.get("approvals", {}).items() if navaan.gate_ok(D, m.get("approvals", {}), g)}, "logs": logs, "run": rn, "gates_off": sorted(__import__("gate_cfg").load()), "lanes": lanes, "deletable": dict(zip(("ok", "why"), navaan.deletable(slug))), "reel_lyrics": reel_lyrics.view(D, m),
-            "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "visuals_suggest": V.suggest(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
+            "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "blog_publish": (blog_publish.status(D, m) if C.item_type(m) == "blog" else None), "visuals_suggest": V.suggest(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
             "poster": {**POST.state(slug), **POSTER.get(slug, {})}, "cover": {**SC.state(slug), **SCOVER.get(slug, {})},
@@ -550,6 +550,13 @@ class H(BaseHTTPRequestHandler):
         """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3|/play.mp3]. Nothing here needs a session; everything is limited per address."""
         if not rate_ok(PUBLIC_LOG, self._ip(), 240): return self._send(429, {"error": "slow down"}, extra={"Retry-After": "30"})
         try:
+            bm = re.match(r"^/img/blog/([A-Za-z0-9_-]{1,80})/([^/]{1,100})$", p)   # a blog post's cover and images (NAV-139): dev.to and LinkedIn load them from here
+            if bm:
+                r = media.blog_image(bm.group(1), bm.group(2))
+                if not r: return self._send(404, {"error": "not found"})
+                data, etag, mime = r; hdr = {"ETag": etag, "Cache-Control": "public, max-age=31536000, immutable"}
+                if self.headers.get("If-None-Match") == etag: return self._send(304, b"", mime, hdr)
+                return self._send(200, data, mime, hdr)
             m = re.match(r"^/img/(album/)?([A-Za-z0-9_-]{1,80})/(poster-)?(\d{2,4})\.(webp|avif|jpg)$", p)
             if m and m.group(1) and m.group(3): m = None   # an album has a cover, no poster
             if m:
@@ -908,6 +915,7 @@ class H(BaseHTTPRequestHandler):
                         r = settings_api.licence_save(body.get("auto"), body.get("statement"), sess.get("user") or "owner"); auth._audit("licence_setting", user=sess.get("user"), ip=self._ip(), auto=bool(body.get("auto")))
                         return self._send(200, r)
                     if act == "media_save": return self._send(200, settings_api.media_save(body.get("settings") or {}))
+                    if act == "linkedin_save": return self._send(200, settings_api.linkedin_save(str(body.get("token") or ""), str(body.get("author") or "")))
                     if act == "media_key": return self._send(200, settings_api.media_key_save(str(body.get("provider") or ""), str(body.get("token") or "")))
                     if act == "yt_oauth_start": return self._send(200, settings_api.yt_oauth_start(ct, str(body.get("which") or "publish")))
                     if act == "yt_oauth_finish": return self._send(200, settings_api.yt_oauth_finish(ct, str(body.get("which") or "publish"), str(body.get("url") or "")))
@@ -1057,6 +1065,17 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/answer":
                 qid = navaan.set_answer(slug, body.get("choice"), body.get("text"), "ui")
                 return self._send(200, {"ok": True, "id": qid, "started": start_job(slug, True)})
+            if p == "/api/blog/post":   # NAV-78: post the finished article to dev.to (a draft, or live) or the short post to LinkedIn, with the owner's own keys from Settings
+                if C.item_type(navaan.meta(slug)) != "blog": return self._send(400, {"error": "this is for a blog post"})
+                if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this post. Press Stop first."})
+                target = body.get("target"); who = f"ui:{sess.get('user') or 'owner'}"
+                if target not in ("devto", "linkedin"): return self._send(400, {"error": "say where: devto or linkedin"})
+                try: info = blog_publish.devto_post(slug, publish=bool(body.get("publish"))) if target == "devto" else blog_publish.linkedin_post(slug)
+                except ValueError as e: return self._send(400, {"error": str(e)})
+                except RuntimeError as e: L.event(LOG, "warning", "blog_post_refused", item=slug, target=target, reason=str(e)[:200]); return self._send(502, {"error": str(e)})
+                navaan.edit_meta(slug, lambda m: navaan.log_hist(m, f"posted to {target}{' (live)' if info.get('published') else ''} via {who}: {info.get('url', '')}"))
+                auth._audit("blog_post", user=sess.get("user"), ip=self._ip(), slug=slug, target=target)
+                return self._send(200, {"ok": True, **info})
             if p in ("/api/aha/edit-script", "/api/aha/replace-script"):   # NAV-133: change the script at its approval: edit the words of its beats, or give your own words
                 if C.item_type(navaan.meta(slug)) != "aha": return self._send(400, {"error": "this is for an Aha-lorithm short"})
                 if jobs.active(slug): return self._send(409, {"error": "a run is in progress for this short. Press Stop first."})
@@ -1327,8 +1346,30 @@ class H(BaseHTTPRequestHandler):
 YT_TITLE_MAX, YT_DESC_BYTES, YT_TAGS_CHARS, IG_CAPTION_MAX = 100, 5000, 500, 2200   # what YouTube and Instagram accept; a longer text is refused when it is saved, not when it is posted
 
 
+POSTS = ("devto.md", "linkedin_article.md", "linkedin_post.md")
+LINKEDIN_POST_MAX = 3000   # characters in a LinkedIn post
+DEVTO_DESC_MAX = 160
+
+
+def post_problem(name, content):
+    """A sentence when an edited blog post could not be posted as it is, else None: it must not be empty, a LinkedIn post has a length limit, and the dev.to front matter needs a title, at most 4 simple tags and a short description."""
+    if not content.strip(): return "The post cannot be empty."
+    if len(content.encode("utf-8")) > 400_000: return "The post is over 400 KB."
+    if name == "linkedin_post.md" and len(content) > LINKEDIN_POST_MAX: return f"A LinkedIn post can have {LINKEDIN_POST_MAX:,} characters; this one has {len(content):,}."
+    if name != "devto.md": return None
+    m = re.match(r"\A---\r?\n(.*?)\r?\n---", content, re.S)
+    if not m: return "The dev.to post needs its front matter (title, description, tags) at the top."
+    fm = {k.strip(): v.strip().strip("\"'") for k, _, v in (l.partition(":") for l in m.group(1).splitlines() if ":" in l)}
+    if not fm.get("title"): return "The dev.to title cannot be empty."
+    if len(fm.get("description", "")) >= DEVTO_DESC_MAX: return f"The dev.to description must be under {DEVTO_DESC_MAX} characters."
+    tags = [t.strip() for t in fm.get("tags", "").split(",") if t.strip()]
+    if len(tags) > 4 or any(not re.fullmatch(r"[a-z0-9]+", t) for t in tags): return "dev.to takes at most 4 tags, lowercase letters and digits only."
+    return None
+
+
 def text_problem(name, content, uploaded=False):
     """A sentence when the owner's edit of the YouTube text (youtube.json) or the Instagram caption (instagram.txt) cannot be posted as it is, else None."""
+    if name in POSTS: return post_problem(name, content)
     if name == "instagram.txt":
         return f"Instagram allows {IG_CAPTION_MAX:,} characters in a caption; this one has {len(content):,}." if len(content) > IG_CAPTION_MAX else None
     if name != "youtube.json": return None

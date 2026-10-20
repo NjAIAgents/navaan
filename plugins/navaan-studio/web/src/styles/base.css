@@ -354,3 +354,16 @@ body.lock { overflow: hidden; }
 .post-preview code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; }
 .post-preview blockquote { padding-left: 14px; border-left: 3px solid var(--ln); color: var(--mu); }
 .post-preview a { color: var(--ac); }
+
+/* the finished post on white paper (PostEditor) */
+.paper { background: var(--paper); color: var(--paper-ink); border: 1px solid var(--paper-ln); border-radius: var(--r2); padding: 28px 32px; min-height: 320px; max-height: 70vh; overflow: auto; line-height: 1.7; font-size: 17px; box-shadow: var(--shadow-sm); }
+.paper h1, .paper h2, .paper h3 { color: var(--paper-ink); line-height: 1.25; margin: 1.3em 0 .45em; }
+.paper h1 { font-size: 1.9em; margin-top: 0; } .paper h2 { font-size: 1.45em; } .paper h3 { font-size: 1.2em; }
+.paper p, .paper ul, .paper ol, .paper blockquote { margin: 0 0 1em; }
+.paper blockquote { margin-left: 0; padding-left: 16px; border-left: 3px solid var(--paper-ln); color: var(--paper-mu); }
+.paper a { color: var(--paper-ac); } .paper img { max-width: 100%; height: auto; border-radius: 6px; }
+.paper pre { background: var(--paper-code); border: 1px solid var(--paper-ln); border-radius: 6px; padding: 12px 14px; overflow: auto; font-size: 14px; }
+.paper code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; background: var(--paper-code); padding: .1em .3em; border-radius: 4px; } .paper pre code { background: none; padding: 0; }
+.paper .ProseMirror { outline: none; min-height: 280px; } .paper .ProseMirror:focus-visible { outline: 2px solid var(--paper-ac); outline-offset: 6px; }
+.paper.post-preview { max-height: 70vh; }
+.btn.on { outline: 2px solid var(--ac); }

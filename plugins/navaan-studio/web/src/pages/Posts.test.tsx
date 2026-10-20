@@ -26,8 +26,11 @@ describe("The finished blog post, one tab per destination", () => {
     at("/studio/blog/blog-001");
     expect(await screen.findByRole("tab", { name: "dev.to" })).toBeInTheDocument(); expect(screen.getByRole("tab", { name: "LinkedIn article" })).toBeInTheDocument(); expect(screen.queryByRole("tab", { name: "LinkedIn post" })).toBeNull();
     expect(screen.getByRole("tab", { name: "Posts" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByLabelText("dev.to, as it will look")).toHaveTextContent("A claim with weight."); expect(screen.getByLabelText("dev.to, as it will look")).not.toHaveTextContent("[c1]");   // markers never show
-    expect(screen.getByRole("heading", { name: "Why answers sound sure", level: 3 })).toBeInTheDocument(); expect(screen.getByText("#llm")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Title")).toHaveValue("Why answers sound sure"); expect(screen.getByLabelText(/^Tags/)).toHaveValue("ai, llm");   // the front matter is three fields above the page
+    await waitFor(() => expect(document.querySelector(".ProseMirror")).toHaveTextContent("A claim with weight."));   // the white page is the editor, markers hidden
+    expect(document.querySelector(".ProseMirror")).not.toHaveTextContent("[c1]");
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByLabelText("dev.to, as it will look")).toHaveTextContent("A claim with weight."); expect(screen.getByLabelText("dev.to, as it will look")).not.toHaveTextContent("[c1]");
   });
 
   it("copies the markdown for dev.to (front matter kept, markers removed) and says it worked", async () => {

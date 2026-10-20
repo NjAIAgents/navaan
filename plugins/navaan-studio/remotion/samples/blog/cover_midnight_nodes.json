@@ -1,0 +1,15 @@
+{
+ "width": 1000,
+ "height": 420,
+ "title": "Why confident answers are not evidence",
+ "kicker": "AI engineering",
+ "chips": [
+  "agents",
+  "evals",
+  "trust"
+ ],
+ "palette": "midnight",
+ "motif": "nodes",
+ "seed": "blog-nodes",
+ "brand": "NAVAAN"
+}

@@ -1,0 +1,15 @@
+{
+ "width": 1000,
+ "height": 420,
+ "title": "Ship small: the case for boring infrastructure",
+ "kicker": "Platform",
+ "chips": [
+  "infra",
+  "ops",
+  "cost"
+ ],
+ "palette": "paper",
+ "motif": "grid",
+ "seed": "blog-grid",
+ "brand": "NAVAAN"
+}

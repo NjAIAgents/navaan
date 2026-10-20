@@ -137,6 +137,35 @@ class Access(unittest.TestCase):
             self.assertEqual(open(os.path.join(D, "quote_feedback.txt")).read().strip(), "Make the hook sharper"); self.assertFalse(os.path.exists(os.path.join(D, "quote.json"))); go.assert_called_once()
             json.dump({"type": "music", "state": "draft"}, open(os.path.join(D, "meta.json"), "w")); self.assertEqual(post("/api/aha/replace-script", {"text": "x" * 40})[0], 400)   # only for an Aha-lorithm short
 
+    def test_a_blog_post_edited_on_the_posts_tab_is_saved_within_what_each_site_accepts(self):   # NAV-138
+        import navaan_common as C
+        D = os.path.join(C.songs_root(), "blog-020"); os.makedirs(D); json.dump({"type": "blog", "state": "draft", "approvals": {}}, open(os.path.join(D, "meta.json"), "w"))
+        post = lambda f, c, tok="owner-tok", csrf="csrf-owner": self.call("/api/save", tok, csrf, post=True, body={"slug": "blog-020", "file": f, "content": c})
+        good = '---\ntitle: "Why"\ndescription: "Short"\ntags: ai, llm\npublished: false\n---\n\n## Why\n\nText.\n'
+        self.assertEqual(post("devto.md", good, "lis-tok", "csrf-lis")[0], 403)
+        self.assertEqual(post("devto.md", good)[0], 200); self.assertEqual(open(os.path.join(D, "devto.md")).read(), good)
+        for content, why in (("", "cannot be empty"), ("## No front matter\n", "front matter"), (good.replace('title: "Why"', 'title: ""'), "title cannot be empty"), (good.replace("ai, llm", "ai, llm, a, b, c"), "at most 4 tags"),
+                             (good.replace("ai, llm", "AI"), "lowercase"), (good.replace('"Short"', '"' + "x" * 170 + '"'), "under 160")):
+            code, body = post("devto.md", content); self.assertEqual(code, 400, why); self.assertIn(why, json.loads(body)["error"])
+        self.assertEqual(open(os.path.join(D, "devto.md")).read(), good, "a refused edit changes nothing")
+        self.assertEqual(post("linkedin_article.md", "## Plain\n\nNo front matter needed.\n")[0], 200)
+        self.assertEqual(post("linkedin_post.md", "x" * 3000)[0], 200); code, body = post("linkedin_post.md", "x" * 3001); self.assertEqual(code, 400); self.assertIn("3,000", json.loads(body)["error"])
+
+    def test_a_blog_post_is_posted_from_the_posts_tab_with_the_owners_keys_and_every_refusal_is_a_sentence(self):   # NAV-78
+        import navaan_common as C, blog_publish
+        D = os.path.join(C.songs_root(), "blog-030"); os.makedirs(D); json.dump({"type": "blog", "state": "draft", "approvals": {}}, open(os.path.join(D, "meta.json"), "w"))
+        post = lambda body, tok="owner-tok", csrf="csrf-owner": self.call("/api/blog/post", tok, csrf, post=True, body={"slug": "blog-030", **body})
+        self.assertEqual(post({"target": "devto"}, "lis-tok", "csrf-lis")[0], 403)
+        self.assertEqual(post({"target": "medium"})[0], 400)
+        with mock.patch.object(blog_publish, "devto_post", return_value={"id": 5, "url": "https://dev.to/me/x", "published": False}) as dv, mock.patch.object(blog_publish, "linkedin_post", return_value={"id": "urn:li:share:1", "url": "https://www.linkedin.com/feed/update/urn:li:share:1/"}) as li:
+            code, body = post({"target": "devto"}); self.assertEqual((code, json.loads(body)["url"]), (200, "https://dev.to/me/x")); dv.assert_called_once_with("blog-030", publish=False)
+            post({"target": "devto", "publish": True}); self.assertEqual(dv.call_args.kwargs, {"publish": True})
+            self.assertEqual(post({"target": "linkedin"})[0], 200); li.assert_called_once_with("blog-030")
+            self.assertTrue(any("posted to devto" in str(h) for h in json.load(open(os.path.join(D, "meta.json")))["history"]), "the history says who posted and where")
+        with mock.patch.object(blog_publish, "devto_post", side_effect=ValueError("Add your dev.to key in Settings first.")): code, body = post({"target": "devto"}); self.assertEqual((code, json.loads(body)["error"]), (400, "Add your dev.to key in Settings first."))
+        with mock.patch.object(blog_publish, "devto_post", side_effect=RuntimeError("dev.to refused the key (401).")): code, body = post({"target": "devto"}); self.assertEqual((code, json.loads(body)["error"]), (502, "dev.to refused the key (401)."))
+        json.dump({"type": "music", "state": "draft"}, open(os.path.join(D, "meta.json"), "w")); self.assertEqual(post({"target": "devto"})[0], 400)   # only for a blog post
+
     def test_the_owner_sets_a_songs_mood_and_nobody_else_can(self):
         D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "drafted"}, open(os.path.join(D, "meta.json"), "w"))
         post = lambda tok, csrf, **b: self.call("/api/mood", tok, csrf, post=True, body=b)
@@ -499,6 +528,18 @@ class Access(unittest.TestCase):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10); h = {"Host": f"127.0.0.1:{self.port}", **(headers or {})}
         if tok: h["Cookie"] = f"{auth.COOKIE}={tok}"
         c.request("GET", path, headers=h); r = c.getresponse(); b = r.read(); c.close(); return r.status, dict(r.getheaders()), b
+
+    def test_a_blog_image_is_public_cached_for_a_year_and_only_under_its_hashed_name(self):   # NAV-139
+        import objstore
+        png = b"\x89PNG\r\n\x1a\nfake"; name = "post_cover_devto-1a2b3c4d.png"; store = {"navaan/blog/blog-001/" + name: png}
+        def get(key):
+            if key not in store: raise FileNotFoundError(key)
+            return store[key]
+        with mock.patch.object(objstore, "get", get):
+            st, h, b = self.raw(f"/img/blog/blog-001/{name}")
+            self.assertEqual((st, b), (200, png)); self.assertEqual(h.get("Content-Type"), "image/png"); self.assertEqual(h.get("Cache-Control"), "public, max-age=31536000, immutable")
+            self.assertEqual(self.raw(f"/img/blog/blog-001/{name}", None, {"If-None-Match": h["ETag"]})[0], 304)
+            for path in ("/img/blog/blog-001/post_cover_devto.png", "/img/blog/blog-001/..%2Fx-1a2b3c4d.png", "/img/blog/blog-002/" + name, "/img/blog/blog-001/post_cover_devto-1a2b3c4d.gif"): self.assertEqual(self.raw(path)[0], 404, path)
 
     def test_shared_links_covers_and_play_links(self):
         import catalog_store as K, media, objstore

@@ -6,6 +6,13 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- Blog posts are finished and posted from the Posts tab (NAV-74, NAV-138, NAV-139, NAV-78).
+  - **Humanizer:** after the edit, a step rewrites both drafts so they read like a person wrote them (plainer words, a varied rhythm, no stock phrases). A check then compares the rewrite with the copy it started from: every claim marker, number, link, code block, image and the dev.to front matter must be unchanged, or the run stops and names what moved. The fact check does not run again.
+  - **Editor:** each destination's post is shown on a white page you can edit with a toolbar, preview as readers will see it, and save back to its file. The dev.to title, description and tags are fields above the page. The copy buttons copy what you saved.
+  - **Images:** a step plans a cover and two to four images around the post's idea, at no cost. The cover (dev.to and LinkedIn sizes) and the figures (a flow, a comparison, a checklist, a timeline, a chart ...) are drawn with Remotion, free, with the post's own words. Only a picture the plan asks for is made with OpenAI, and it waits for your approval with its price. The images are stored in the bucket at permanent public addresses and put into both posts; the cover goes into the dev.to front matter.
+  - **Post buttons:** with your dev.to key and LinkedIn token saved in Settings, the Posts tab saves the article on dev.to as a draft and publishes it when you confirm, and posts a short LinkedIn post (written by a new step) with the dev.to article as a link card. LinkedIn has no way to post a long article from outside, so the LinkedIn article stays copy and paste.
+
 ## [0.56.2] - 2026-10-20
 
 ### Fixed

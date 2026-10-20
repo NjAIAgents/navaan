@@ -1,0 +1,17 @@
+{
+ "width": 1080,
+ "height": 1500,
+ "treatment": "compare",
+ "data": {
+  "left": {
+   "title": "Confidence",
+   "text": "How it sounds"
+  },
+  "right": {
+   "title": "Evidence",
+   "text": "Why it holds"
+  },
+  "sign": "\u2260"
+ },
+ "text": "Sounding sure is not being right"
+}

@@ -187,6 +187,8 @@ function overview(d: SettingsData): Item[] {
   }
   items.push({ id: "claude", tab: "ai", name: "Claude", status: d.claude.state === "ok" ? { kind: "ok", text: `Working (${d.claude.credential || "signed in"})` } : d.claude.state === "missing" ? { kind: "wn", text: "No token" } : { kind: "bad", text: `Problem: ${d.claude.state}` } });
   for (const p of ["openai", "elevenlabs"] as const) items.push({ id: p, tab: "ai", name: p === "openai" ? "OpenAI" : "ElevenLabs", status: d.media.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
+  items.push({ id: "devto", tab: "accounts", name: "Blog: dev.to", status: d.media.keys.devto ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
+  items.push({ id: "linkedin", tab: "accounts", name: "Blog: LinkedIn", status: d.media.keys.linkedin ? { kind: "ok", text: "Token saved" } : { kind: "wn", text: "No token" } });
   items.push({ id: "cloud", tab: "storage", name: "Cloud storage", status: d.cloud.provider === "none" ? { kind: "wn", text: "Not set up" } : { kind: "ok", text: d.cloud.bucket || d.cloud.provider } });
   const rank = { bad: 0, wn: 1, ok: 2 };
   return items.map((x, i) => ({ x, i })).sort((a, b) => rank[a.x.status.kind] - rank[b.x.status.kind] || a.i - b.i).map(({ x }) => x);
@@ -206,6 +208,20 @@ function Board({ items, go }: { items: Item[]; go: (i: Item) => void }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+// A LinkedIn access token (permission w_member_social) and, if LinkedIn will not say whose it is, the member id (NAV-78). Kept in Vault, used only when you press Post on the Posts tab.
+function LinkedInForm({ busy, save }: { busy: boolean; save: Save }) {
+  const [token, setToken] = useState(""); const [author, setAuthor] = useState(""); const [res, setRes] = useState<{ ok: boolean; message: string } | null>(null); const [working, setWorking] = useState(false);
+  return (
+    <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (!token.trim()) return; setWorking(true); setRes(null); const r = await save("linkedin_save", { token: token.trim(), author: author.trim() }); setWorking(false); setRes(r); if (r.ok) { setToken(""); setAuthor(""); } }}>
+      <p className="mu">Posts the short LinkedIn post from the Posts tab. LinkedIn has no way to post a long article from outside, so the article stays copy and paste. Make an app at linkedin.com/developers, add the products "Share on LinkedIn" (permission w_member_social) and "Sign In with LinkedIn using OpenID Connect", then make an access token. It lasts about two months.</p>
+      <label htmlFor="li-token">LinkedIn access token</label><input id="li-token" className="field" type="password" autoComplete="off" value={token} onChange={(e) => { setToken(e.target.value); setRes(null); }} />
+      <label htmlFor="li-author">Your member id <span className="mu">(only if the token cannot say: the part after urn:li:person:)</span></label><input id="li-author" className="field" autoComplete="off" value={author} onChange={(e) => setAuthor(e.target.value)} />
+      <button className="btn" type="submit" disabled={busy || working || !token.trim()}>{working ? "Checking…" : "Save token"}</button>
+      {res && <p role={res.ok ? "status" : "alert"} className={res.ok ? "mu" : ""} style={res.ok ? undefined : { color: "var(--bad)" }}>{res.message}</p>}
+    </form>
   );
 }
 
@@ -232,6 +248,14 @@ function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; ac
           </section>
         );
       })}
+      <section className="stack" aria-label="Blog">
+        <h3>Blog</h3>
+        <Row id="devto" name="dev.to" status={d.media.keys.devto ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" }} open={open === "devto"} onToggle={() => toggle("devto")}>
+          <p className="mu">Posts the article from the Posts tab, as a draft first. On dev.to: Settings, Extensions, API keys.</p>
+          <TokenForm id="key-devto" label="dev.to API key" busy={busy} onSave={(token) => save("media_key", { provider: "devto", token })} />
+        </Row>
+        <Row id="linkedin" name="LinkedIn" status={d.media.keys.linkedin ? { kind: "ok", text: "Token saved" } : { kind: "wn", text: "No token" }} open={open === "linkedin"} onToggle={() => toggle("linkedin")}><LinkedInForm busy={busy} save={save} /></Row>
+      </section>
       <section className="stack" aria-label="Advanced">
         <h3>Advanced</h3>
         <Row id="yt-app" name="YouTube app file" status={d.secret_present ? { kind: "ok", text: "Saved" } : { kind: "wn", text: "Not set" }} open={open === "yt-app"} onToggle={() => toggle("yt-app")}>

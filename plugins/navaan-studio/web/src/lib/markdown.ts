@@ -60,3 +60,15 @@ export function toPlain(md: string): string {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1 ($2)").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, "$1$2").replace(/`([^`]+)`/g, "$1"))
     .filter((l) => !/^```/.test(l)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+// dev.to front matter put back together: only the three keys the editor shows change, every other line (published, cover_image, series ...) stays as it was
+export function withFront(raw: string, fm: { title: string; description: string; tags: string[] }, body: string): string {
+  const q = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  const set = { title: q(fm.title), description: q(fm.description), tags: fm.tags.join(", ") } as Record<string, string>;
+  const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  const lines = m ? m[1].split(/\r?\n/) : ["published: false"];
+  const done = new Set<string>();
+  const out = lines.map((l) => { const k = l.split(":")[0].trim(); if (k in set) { done.add(k); return `${k}: ${set[k]}`; } return l; });
+  for (const k of ["title", "description", "tags"]) if (!done.has(k)) out.unshift(`${k}: ${set[k]}`);
+  return `---\n${out.join("\n")}\n---\n\n${body.trim()}\n`;
+}
