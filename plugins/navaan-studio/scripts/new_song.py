@@ -26,8 +26,8 @@ def create(slug=None, ctype="music", idea=""):
     item_save(slug, m)   # into Postgres; the store writes meta.json back into the folder
     if idea.strip():
         bp = f"{dst}/brief.md"; old = open(bp, encoding="utf-8").read() if os.path.exists(bp) else ""
-        ph = "(write the quote or the idea here)"
-        open(bp, "w", encoding="utf-8").write(old.replace(ph, idea.strip()) if ph in old else old.rstrip() + f"\n\n## Idea\n\n{idea.strip()}\n")
+        ph = next((p for p in ("(write the quote or the idea here)", "(write the keyword, field or area here)") if p in old), None)   # each template's own placeholder; appending a second ## Idea would leave the first, empty one to be read
+        open(bp, "w", encoding="utf-8").write(old.replace(ph, idea.strip()) if ph else old.rstrip() + f"\n\n## Idea\n\n{idea.strip()}\n")
     tp = f"{dst}/tags.json"
     if os.path.exists(tp) and cfg("artist.name"):
         t = json.load(open(tp, encoding="utf-8"))

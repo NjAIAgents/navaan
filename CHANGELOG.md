@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- A blog post started from a keyword no longer fails its first step with "No keyword yet". The keyword you typed was written below the template's own empty Idea section, so the pipeline read the empty one. It now goes in the Idea section itself. A blog already started this way works on retry too: the pipeline now reads the first Idea section that has a keyword in it, not only the first section.
+
 ## [0.53.0] - 2026-10-19
 
 ### Added
