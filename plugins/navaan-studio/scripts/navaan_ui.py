@@ -723,7 +723,7 @@ class H(BaseHTTPRequestHandler):
                 try: art = catalog_store.cover_art()   # published songs with a cover in the bucket: the list asks /img for it and paints the dominant colour first
                 except Exception: L.exc(LOG, "cover_art_failed"); art = {}   # the list still works, with letter tiles
                 rows = [song_row(s) for s in songs()]
-                for r in rows: r["art"] = {"colour": art[r["slug"]]} if r["slug"] in art else None
+                for r in rows: r["art"] = art.get(r["slug"])
                 return self._send(200, rows)
             if p == "/api/schedule":   # every scheduled publish, for the Schedule screen
                 out = []

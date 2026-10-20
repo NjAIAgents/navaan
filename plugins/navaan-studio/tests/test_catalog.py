@@ -103,6 +103,20 @@ class Catalog(Base):
         self.assertTrue(self.K.delete_album(slug)); self.assertFalse(self.K.delete_album(slug))
         self.assertEqual(self.K._conn().execute("SELECT count(*) AS n FROM tracks").fetchone()["n"], 3)   # tracks stay
 
+    def test_every_list_carries_the_covers_version_so_a_replaced_cover_is_fetched_again(self):   # the public pictures are cached for a year per address: the address has to change with the picture
+        self.song("song-001", "One"); self.K.sync_item("song-001")
+        key = "navaan/songs/song-001/cover_1x1.png"
+        def versions():
+            slug = self.K.save_album("", "My Album", "album", "draft") if not self.K.albums() else self.K.albums()[0]["slug"]
+            return (self.K.browse(True)[0]["art"]["v"], self.K.cover_art()["song-001"]["v"], list(self.K.tracks_by_ids(list(self.K.track_ids(["song-001"]).values())).values())[0]["art"]["v"], slug)
+        b, c, t, slug = versions(); self.assertEqual((b, c, t), (50, 50, 50), "the size the bucket holds")
+        cn = self.K._conn(); aid = cn.execute("SELECT id FROM albums WHERE slug = ?", (slug,)).fetchone()["id"]
+        cn.execute("INSERT INTO album_tracks (album_id, track_id, position) SELECT ?::uuid, id, 1 FROM tracks WHERE slug = 'song-001'", (str(aid),)); cn.commit()
+        self.assertEqual(self.K.albums()[0]["tracks"][0]["art"]["v"], 50)
+        self.assertTrue(self.K.set_picture("song-001", "cover", key, "image/png", 777))   # the owner makes the cover again (song_cover.publish)
+        b, c, t, _ = versions(); self.assertEqual((b, c, t), (777, 777, 777)); self.assertEqual(self.K.albums()[0]["tracks"][0]["art"]["v"], 777)
+        self.assertEqual(self.K.browse(True)[0]["art"]["colour"], None, "the colour is measured again on the next resize")
+
     def test_a_published_album_holds_only_published_songs_and_albums_report_each_songs_cover(self):
         self.song("song-001", "One"); self.song("song-002", "Two", state="drafted", cloud=False); self.K.sync_item("song-001"); self.K.sync_item("song-002")
         slug = self.K.save_album("", "My Album", "album", "draft")

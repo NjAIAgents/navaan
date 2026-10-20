@@ -13,6 +13,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
   - **Images:** a step plans a cover and two to four images around the post's idea, at no cost. The cover (dev.to and LinkedIn sizes) and the figures (a flow, a comparison, a checklist, a timeline, a chart ...) are drawn with Remotion, free, with the post's own words. Only a picture the plan asks for is made with OpenAI, and it waits for your approval with its price. The images are stored in the bucket at permanent public addresses and put into both posts; the cover goes into the dev.to front matter.
   - **Post buttons:** with your dev.to key and LinkedIn token saved in Settings, the Posts tab saves the article on dev.to as a draft and publishes it when you confirm, and posts a short LinkedIn post (written by a new step) with the dev.to article as a link card. LinkedIn has no way to post a long article from outside, so the LinkedIn article stays copy and paste.
 
+## [0.56.4] - 2026-10-20
+
+### Changed
+- A song no longer gets a poster as a step of its pipeline (NAV-144). The poster was a second picture per song, made with OpenAI before the credits approval, and it only changed the picture in a shared link's preview; the cover now serves there. The credits approval no longer lists it. The Poster card on the Media tab is still there for a song you want one for, and a song that already has a poster keeps showing it in link previews.
+
+## [0.56.3] - 2026-10-20
+
+### Fixed
+- The free public site no longer fails with "Request failed (429)" or shows only a letter instead of a cover to a visitor without a session (NAV-143). The server's throttle for visitors without a session was meant for the studio login and counted a normal library page as too many requests; the public site now has its own, much higher limit. The studio hosts keep the strict one.
+- A song's new cover now shows in the library and on the public site (NAV-142). The pictures were cached for a year at an address that never changed, so a browser that had the old cover kept showing it. The address now carries the cover's version, so a replaced cover is fetched once. Until you update, a hard reload shows it.
+
 ## [0.56.2] - 2026-10-20
 
 ### Fixed
@@ -755,7 +766,9 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...HEAD
+[0.56.4]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...v0.56.4
+[0.56.3]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...v0.56.3
 [0.56.2]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...v0.56.2
 [0.56.1]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...v0.56.1
 [0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...v0.56.0
