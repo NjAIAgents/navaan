@@ -544,9 +544,10 @@ class H(BaseHTTPRequestHandler):
         """/img/<slug>/<size>.<format> and /s/<token>[/preview.mp3|/play.mp3]. Nothing here needs a session; everything is limited per address."""
         if not rate_ok(PUBLIC_LOG, self._ip(), 240): return self._send(429, {"error": "slow down"}, extra={"Retry-After": "30"})
         try:
-            m = re.match(r"^/img/([A-Za-z0-9_-]{1,40})/(poster-)?(\d{2,4})\.(webp|avif|jpg)$", p)
+            m = re.match(r"^/img/(album/)?([A-Za-z0-9_-]{1,80})/(poster-)?(\d{2,4})\.(webp|avif|jpg)$", p)
+            if m and m.group(1) and m.group(3): m = None   # an album has a cover, no poster
             if m:
-                try: r = media.variant(m.group(1), int(m.group(3)), m.group(4), "poster" if m.group(2) else "cover")
+                try: r = media.variant(m.group(2), int(m.group(4)), m.group(5), "album" if m.group(1) else "poster" if m.group(3) else "cover")
                 except ValueError: r = None   # expected: a size or format that does not exist is simply a 404
                 if not r: return self._send(404, {"error": "not found"})
                 data, etag, mime = r
@@ -934,6 +935,8 @@ class H(BaseHTTPRequestHandler):
                     ALB._album(al)
                     if body.get("picture"):   # your own picture as the art: free
                         ALB.use_picture(al, base64.b64decode(str(body["picture"]), validate=True)); return self._send(200, {"ok": True})
+                    if body.get("publish"):   # the cover made earlier, put in the bucket and the catalog again (free)
+                        ALB.publish(al); return self._send(200, {"ok": True})
                     if body.get("only_text"):   # redraw the title over the art already made: free
                         if body.get("style") in POST.STYLES:
                             with open(os.path.join(ALB.album_dir(al), "cover_style.txt"), "w") as f: f.write(body["style"])

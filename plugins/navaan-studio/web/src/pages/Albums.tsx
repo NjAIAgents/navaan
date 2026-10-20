@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Cover } from "../components/Cover";
+import { Cover, albumFace } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { getJSON, postJSON, type AlbumRow } from "../lib/api";
 import { errText } from "../lib/songs";
@@ -9,7 +9,7 @@ import { NewAlbum } from "../components/NewAlbum";
 
 export const coverOf = (a: AlbumRow) => a.tracks.find((t) => t.art);
 
-// Albums as real releases: a name, a kind, an order, a cover from their first song. Create one here, then open it to add songs and put them in order.
+// Albums as real releases: a name, a kind, an order, a cover (its own once made, else its first song's). Create one here, then open it to add songs and put them in order.
 export default function Albums() {
   const [rows, setRows] = useState<AlbumRow[] | null>(null);
   const [title, setTitle] = useState("");
@@ -34,10 +34,10 @@ export default function Albums() {
       {rows && (
         <div className="card" style={{ padding: 8 }}>
           {rows.length ? rows.map((a) => {
-            const c = coverOf(a);
+            const f = albumFace(a);
             return (
               <Link key={a.slug} className="q" to={`/albums/${a.slug}`}>
-                <Cover slug={c?.slug ?? a.slug} title={a.title} art={c?.art} />
+                <Cover slug={f.slug} title={a.title} art={f.art} />
                 <span className="tx"><b>{a.title}</b><span className="s">{a.kind} · {a.tracks.length} song{a.tracks.length === 1 ? "" : "s"}{a.release_date ? ` · ${a.release_date}` : ""}</span></span>
                 <span className={"chip " + (a.status === "published" ? "ok" : "")}>{a.status}</span><Icon name="chevron" />
               </Link>

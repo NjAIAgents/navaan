@@ -8,11 +8,15 @@ Description: the album pipeline: name suggestions from the chosen songs, and a s
   cover_state(album_slug)         the prompt, the cost and whether a cover exists (no spend)
   generate_cover(album_slug, prompt, style)   the art from OpenAI images (square), the NAVAAN mark, the title and the artist drawn by us
 
-The cover is kept in <project>/albums/<slug>/cover_1x1.png. Showing it on the public site is a later step.
+  publish(album_slug)             put the cover in the bucket and register it in the catalog, so the album shows it (made covers are published as they are made)
+
+The cover is kept in <project>/albums/<slug>/cover_1x1.png and copied to <artist>/albums/<slug>/cover_1x1.png in the bucket.
 """
 import os, sys, json, re, io
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
+import navaan_log as L
+LOG = L.get("album_pipeline")
 import media_cfg, image_openai as IO, prompt_pack, poster as P, catalog_store as K
 from PIL import Image, ImageDraw
 from make_cover import cover_scale, shade, latin
@@ -92,6 +96,7 @@ def cover_state(slug):
     a = _album(slug); d = album_dir(slug); cfg = media_cfg.load(); q = cfg["image_quality"]
     pf = os.path.join(d, "cover_prompt.txt"); cv = os.path.join(d, "cover_1x1.png")
     return {"prompt": _read(d, "cover_prompt.txt") or default_prompt(a), "has": os.path.isfile(cv), "v": int(os.path.getmtime(cv)) if os.path.isfile(cv) else 0,
+            "published": os.path.isfile(cv) and bool(a.get("art")) and a["art"]["v"] == os.path.getsize(cv),
             "style": _read(d, "cover_style.txt") if _read(d, "cover_style.txt") in P.STYLES else "bold", "styles": list(P.STYLES),
             "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "key": bool(media_cfg.get_key("openai"))}
 
@@ -106,6 +111,19 @@ def typeset(slug, art_path=None, style=None):
     P._text(im, (W // 2, W - pad - 52), title, f, (255, 246, 228), "ms")
     dr.text((W // 2, W - pad - 8), (C.cfg("artist.name") or "NAVAAN").upper(), font=latin(30), fill=P.GOLD, anchor="ms")
     im.save(os.path.join(d, "cover_1x1.png"), optimize=True)
+    try: publish(slug)
+    except Exception: L.soft(LOG, "album_cover_publish")   # the cover is made and kept; "Save for the site" tries again
+
+
+def publish(slug):
+    """Put the made cover in the bucket and register it as the album's cover. Raises ValueError with a sentence when it cannot."""
+    _album(slug); src = os.path.join(album_dir(slug), "cover_1x1.png")
+    if not os.path.isfile(src): raise ValueError("Make the cover first.")
+    import objstore
+    with open(src, "rb") as f: data = f.read()
+    key = f"{K.ARTIST}/albums/{slug}/cover_1x1.png"
+    objstore.put(key, data, "image/png")
+    if not K.set_album_cover(slug, key, len(data)): raise ValueError("This album is not in the catalog.")
 
 
 def generate_cover(slug, prompt, style=None):

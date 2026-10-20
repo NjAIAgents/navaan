@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Tile } from "../components/Tile";
+import { albumFace } from "../components/Cover";
 import { getJSON, type AlbumRow, type TrackRow } from "../lib/api";
 import { errText } from "../lib/songs";
 import { Loading } from "../components/Loading";
@@ -36,8 +37,8 @@ export default function Browse() {
       {albums.length > 0 && (
         <section className="sec" aria-labelledby="row-albums">
           <div className="sh"><h2 id="row-albums">Albums</h2><span className="n">{albums.length}</span></div>
-          <div className="grid tiles">{albums.map((al) => { const c = al.tracks.find((t) => t.art) ?? al.tracks[0]; return (
-            <Tile key={al.slug} to={`/album/${al.slug}`} slug={c.slug} title={al.title} art={c.art} sub={`${al.kind} · ${al.tracks.length} song${al.tracks.length === 1 ? "" : "s"}`} play={{ queue: al.tracks.map((t) => ({ slug: t.slug, title: t.title })), label: al.title }} />
+          <div className="grid tiles">{albums.map((al) => { const f = albumFace(al); return (
+            <Tile key={al.slug} to={`/album/${al.slug}`} slug={f.slug} title={al.title} art={f.art} sub={`${al.kind} · ${al.tracks.length} song${al.tracks.length === 1 ? "" : "s"}`} play={{ queue: al.tracks.map((t) => ({ slug: t.slug, title: t.title })), label: al.title }} />
           ); })}</div>
         </section>
       )}
