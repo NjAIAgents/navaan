@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- The last step of an Aha-lorithm short, "Clean up the local copy", no longer fails with "Instagram is set up but the Reel is not posted yet" (NAV-137). The Aha-lorithm is YouTube-only, and the same waiting is skipped for any item whose Instagram you chose to skip. Music, inspiration and reel items still wait for their Instagram post.
+
 ## [0.55.0] - 2026-10-20
 
 ### Added
