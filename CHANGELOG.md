@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- An album's own cover now shows on the album's tile and page, in Browse, Albums and the listener's album page, instead of its first song's cover (an album without a made cover keeps showing its first song's). A cover you make or load in Studio is saved for the site as it is made, and a listener sees it once the album is published; until then only you see it. If saving it fails, the Cover card says so and offers "Save for the site" (free).
+
 ## [0.52.0] - 2026-10-19
 
 ### Added

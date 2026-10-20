@@ -44,4 +44,17 @@ describe("AlbumCoverCard", () => {
     cleanup(); render(<AlbumCoverCard slug="raat-ke-baad" />);
     expect(await screen.findByAltText("Album cover")).toBeInTheDocument();
   });
+
+  it("says when the cover is not saved for the site and offers a free way to save it; nothing to offer once it is", async () => {
+    const state = (published: boolean) => ({ prompt: "Professional square album cover for Raat Ke Baad.", has: true, published, v: 3, style: "bold", styles: ["bold"], usd: 0.04, key: true });
+    let published = false;
+    const f = vi.fn((u: string) => Promise.resolve(u.startsWith("/api/albums/cover?") ? json(state(published)) : json({ ok: true })));
+    vi.stubGlobal("fetch", f);
+    render(<AlbumCoverCard slug="raat-ke-baad" />);
+    expect(await screen.findByText(/not saved for the site yet/)).toBeInTheDocument();
+    published = true; fireEvent.click(screen.getByRole("button", { name: "Save for the site" }));
+    await waitFor(() => expect((f.mock.calls as unknown as [string, RequestInit][]).some(([u, i]) => u === "/api/albums/cover" && JSON.stringify(JSON.parse(String(i.body))) === JSON.stringify({ album: "raat-ke-baad", publish: true }))).toBe(true));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Save for the site" })).toBeNull());
+    expect(screen.queryByText(/not saved for the site yet/)).toBeNull();
+  });
 });

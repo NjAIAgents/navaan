@@ -37,16 +37,16 @@ def dominant_colour(im):
 
 def _original(asset):
     """The picture file: the local copy while the studio still has it, else the bucket."""
-    local = os.path.join(C.song_dir(asset["slug"]), os.path.basename(asset["storage_key"]))
-    if os.path.isfile(local) and os.path.getsize(local) == asset["bytes"]:
+    local = None if asset.get("album") else os.path.join(C.song_dir(asset["slug"]), os.path.basename(asset["storage_key"]))
+    if local and os.path.isfile(local) and os.path.getsize(local) == asset["bytes"]:
         with open(local, "rb") as f: return f.read()
     return objstore.get(asset["storage_key"])
 
 
 def variant(slug, size, fmt, role="cover"):
-    """(bytes, etag, mime) of a track's picture (its cover, or its poster) in one size and format, or None when there is no such picture. Raises ValueError for a size or format that does not exist."""
-    if size not in SIZES or fmt not in FORMATS or role not in ("cover", "poster"): raise ValueError("no such size or format")
-    a = K.cover_asset(slug) if role == "cover" else K.poster_asset(slug)
+    """(bytes, etag, mime) of a picture in one size and format (a track's cover or poster, or a published album's cover), or None when there is no such picture. Raises ValueError for a size or format that does not exist."""
+    if size not in SIZES or fmt not in FORMATS or role not in ("cover", "poster", "album"): raise ValueError("no such size or format")
+    a = K.cover_asset(slug) if role == "cover" else K.album_cover_asset(slug) if role == "album" else K.poster_asset(slug)
     if not a: return None
     name = f"{a['id']}-{a['bytes']}-{size}.{fmt}" if role == "cover" else f"{role}-{a['id']}-{a['bytes']}-{size}.{fmt}"; path = os.path.join(cache_dir(), name)
     etag = '"' + hashlib.sha1(name.encode()).hexdigest()[:20] + '"'
@@ -56,7 +56,7 @@ def variant(slug, size, fmt, role="cover"):
     from PIL import Image
     im = Image.open(io.BytesIO(_original(a)))
     im.load()
-    if role == "cover" and not a.get("dominant_colour"): K.set_cover_facts(a["id"], im.width, im.height, dominant_colour(im))
+    if role in ("cover", "album") and not a.get("dominant_colour"): K.set_cover_facts(a["id"], im.width, im.height, dominant_colour(im))
     out = im.convert("RGB"); out.thumbnail((size, size), Image.LANCZOS)
     pil, _, opts = FORMATS[fmt]; buf = io.BytesIO(); out.save(buf, pil, **opts)
     data = buf.getvalue(); tmp = path + f".{os.getpid()}.tmp"
