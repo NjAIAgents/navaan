@@ -1,0 +1,33 @@
+{
+ "base": "none",
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "duration": 10,
+ "style": {
+  "color": "#EDE8DC",
+  "accent": "#D9B25F"
+ },
+ "cues": [
+  {
+   "text": "Maybe you are not behind",
+   "start": 0.6,
+   "end": 3.0
+  },
+  {
+   "text": "Maybe you are just becoming",
+   "start": 3.2,
+   "end": 5.6
+  },
+  {
+   "text": "Slow is still moving",
+   "start": 5.9,
+   "end": 8.4
+  }
+ ],
+ "visuals": {
+  "caption": {
+   "treatment": "karaoke"
+  }
+ }
+}

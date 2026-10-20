@@ -6,7 +6,8 @@ Description: one picture per beat of an Aha-lorithm short with the OpenAI image 
 
   aha_pictures.py <slug> [--estimate] [--force]
 
-Reads quote.json: "lines" (the beats) and "pictures" (one prompt per beat, written by the aha-script skill, no spend). Writes scenes/beat_01.png ...
+Reads quote.json: "lines" (the beats) and "pictures" (one prompt per beat, written by the aha-script skill, no spend). A beat that visual_plan.json shows with a scene treatment
+(a chat, a comparison, a counting number ...) needs no picture and none is made or paid for (visuals_plan.picture_beats); its prompt may be empty. Writes scenes/beat_01.png ...
 at 1080x1920 and copies the first to background.png (the thumbnail and the list use it). A beat that already has its picture is skipped, so a failed
 run resumes without paying twice; --force makes them all again. Sits behind the credits approval; refuses when the whole set would pass the run cap.
 """
@@ -15,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 import media_cfg
 import image_openai as I
+import visuals_plan as V
 
 # Every beat gets the same house look, and no text: the image model misspells words, and the renderer draws them crisp and editable.
 LOOK = ("Cinematic still, vertical 9:16, near-black background, luminous gold light with small touches of cool blue, shallow depth of field, the middle of the frame calm enough for a caption. "
@@ -24,11 +26,16 @@ LOOK = ("Cinematic still, vertical 9:16, near-black background, luminous gold li
 def beat_file(D, i): return os.path.join(D, "scenes", "beat_%02d.png" % (i + 1))
 
 
+def need(D, n):
+    """The beats that need a picture: all, except those the visual plan shows with a scene."""
+    return V.picture_beats(V.load(D, "aha", n), n)
+
+
 def prompts(D):
     q = C.load_json(os.path.join(D, "quote.json"), default={}) or {}
     lines, pics = [l for l in (q.get("lines") or []) if str(l).strip()], [str(p).strip() for p in (q.get("pictures") or [])]
     if not lines: raise ValueError("there is no script yet: write the script first")
-    if len(pics) != len(lines) or any(len(p) < 20 for p in pics): raise ValueError("quote.json needs one picture prompt (20+ characters) per line: redo the script step")
+    if len(pics) != len(lines) or any(len(pics[i]) < 20 for i in need(D, len(lines))): raise ValueError("quote.json needs one picture prompt (20+ characters) per beat that is shown by a picture: redo the script step")
     return pics
 
 
@@ -37,7 +44,7 @@ def main(argv):
     D = C.song_dir(argv[0]); cfg = media_cfg.load(); q, model = cfg["image_quality"], I.model_name(cfg)
     try: pics = prompts(D)
     except ValueError as e: sys.exit("navaan: " + str(e))
-    todo = [i for i in range(len(pics)) if "--force" in argv or not os.path.exists(beat_file(D, i))]
+    todo = [i for i in need(D, len(pics)) if "--force" in argv or not os.path.exists(beat_file(D, i))]
     each = I.estimate(q, cfg["image_size"], model); total = round(each * len(todo), 3)
     if "--estimate" in argv:
         print(json.dumps({"model": model, "size": cfg["image_size"], "quality": q, "pictures": len(todo), "usd": total})); return 0
@@ -53,7 +60,7 @@ def main(argv):
         print("beat %d of %d: %s" % (i + 1, len(pics), os.path.basename(beat_file(D, i))), flush=True)
     for old in glob.glob(os.path.join(D, "background.*")): os.remove(old)
     shutil.copyfile(beat_file(D, 0), os.path.join(D, "background.png"))
-    print("%d pictures made, %d kept, about $%.2f" % (len(todo), len(pics) - len(todo), total))
+    print("%d pictures made, %d kept, %d beats need none, about $%.2f" % (len(todo), len(need(D, len(pics))) - len(todo), len(pics) - len(need(D, len(pics))), total))
     return 0
 
 

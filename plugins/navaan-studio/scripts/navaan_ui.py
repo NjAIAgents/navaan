@@ -87,7 +87,7 @@ POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json"}
-READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "motion.json", "caption_cues.json", "topics.json", "trend_sources.json",
+READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "visual_plan.json", "motion.json", "caption_cues.json", "topics.json", "trend_sources.json",
                        "research.md", "claims.json", "outline.md", "devto.md", "linkedin_article.md", "factcheck.json", "fix_notes.md", "review_notes.md", "edit.json",   # the blog's working files (NAV-72, NAV-73)
                        "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json"}   # the reel's plan, the critic's notes and the footage facts
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
