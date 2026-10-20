@@ -25,8 +25,8 @@ def folder():
 class Step(unittest.TestCase):
     def steps(self, D): return {s["id"]: s for s in N.song_picture_steps("s", D, media_cfg.load())}
 
-    def test_the_cover_comes_after_the_pictures_before_the_poster_behind_the_credits_approval_and_says_what_it_costs(self):
-        st = self.steps(tempfile.mkdtemp()); self.assertEqual(list(st), ["prompts", "pictures", "cover", "poster"])
+    def test_the_cover_comes_after_the_pictures_behind_the_credits_approval_and_says_what_it_costs(self):
+        st = self.steps(tempfile.mkdtemp()); self.assertEqual(list(st), ["prompts", "pictures", "cover"])
         c = st["cover"]; self.assertEqual((c["before"], c["kind"]), ("credits", "script")); self.assertIn("cover_1x1.png", c["outputs"]); self.assertIn("thumb_16x9.jpg", c["outputs"])
         self.assertRegex(N.spend_what(c), r"^Make the cover with OpenAI \(1 picture, about \$\d+\.\d\d at \w+\)$")
 
