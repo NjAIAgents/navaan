@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.53.1] - 2026-10-19
+
 ### Fixed
 - A blog post started from a keyword no longer fails its first step with "No keyword yet". The keyword you typed was written below the template's own empty Idea section, so the pipeline read the empty one. It now goes in the Idea section itself. A blog already started this way works on retry too: the pipeline now reads the first Idea section that has a keyword in it, not only the first section.
 
@@ -707,7 +709,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.53.1...HEAD
+[0.53.1]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...v0.53.1
 [0.53.0]: https://github.com/NjAIAgents/navaan/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/NjAIAgents/navaan/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/NjAIAgents/navaan/compare/v0.50.0...v0.51.0
