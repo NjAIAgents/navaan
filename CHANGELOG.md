@@ -6,9 +6,16 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.56.3] - 2026-10-20
+
 ### Fixed
 - The free public site no longer fails with "Request failed (429)" or shows only a letter instead of a cover to a visitor without a session (NAV-143). The server's throttle for visitors without a session was meant for the studio login and counted a normal library page as too many requests; the public site now has its own, much higher limit. The studio hosts keep the strict one.
 - A song's new cover now shows in the library and on the public site (NAV-142). The pictures were cached for a year at an address that never changed, so a browser that had the old cover kept showing it. The address now carries the cover's version, so a replaced cover is fetched once. Until you update, a hard reload shows it.
+
+## [0.56.2] - 2026-10-20
+
+### Fixed
+- Switching on the standing licence statement in Settings now confirms the songs you have already published, straight away (NAV-141). Before, only a later sync did, so songs published earlier stayed hidden from the public site. The card says which songs were confirmed. A song you marked not allowed, and a draft, are never changed.
 
 ## [0.56.1] - 2026-10-20
 
@@ -747,7 +754,9 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...HEAD
+[0.56.3]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...v0.56.3
+[0.56.2]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...v0.56.2
 [0.56.1]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...v0.56.1
 [0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...v0.56.0
 [0.55.1]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.55.1

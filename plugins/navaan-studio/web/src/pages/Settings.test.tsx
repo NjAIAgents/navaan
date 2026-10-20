@@ -61,6 +61,12 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     fireEvent.change(box, { target: { value: "All my songs are on a paid plan." } }); fireEvent.click(sw);
     await waitFor(() => expect(posts(f, "/api/settings/licence_save")).toEqual([{ auto: true, statement: "All my songs are on a paid plan." }]));
   });
+  it("says which songs were confirmed the moment the statement was switched on", async () => {
+    route({ "/api/settings/licence_save": () => ({ licence: {}, note: "Confirmed now: song-008, song-009. They show on the site." }), "/api/settings": () => ({ ...DATA, licence: { auto: false, statement: "", suggested: "Every song I publish is made on a paid Suno plan.", set_by: "", set_at: "" } }) });
+    at(); fireEvent.click(await screen.findByRole("tab", { name: "Automation" }));
+    fireEvent.change(await screen.findByLabelText("Your statement (in your own words)"), { target: { value: "All my songs are on a paid plan." } }); fireEvent.click(screen.getByRole("switch", { name: /Confirm the licence of songs I publish automatically/ }));
+    expect(await screen.findByText(/Confirmed now: song-008, song-009/)).toBeInTheDocument();
+  });
   it("saves a pasted YouTube token file as the fallback sign-in, and has the setup guides", async () => {
     const f = route({ "/api/settings/yt_save": () => ({ ok: true }), "/api/settings": () => DATA });
     at(); await open(/YouTube publishing/);

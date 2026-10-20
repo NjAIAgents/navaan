@@ -328,6 +328,13 @@ def auto_confirm(slug):
     return bool(set_license(slug, "confirmed", "owner (auto-confirm setting)", cfg["statement"], cfg["plan"]))
 
 
+def auto_confirm_all():
+    """Apply the owner's standing statement to every published track that is still unconfirmed, at the moment they switch it on (NAV-141: before, only a later sync did, so songs published earlier stayed hidden).
+    Returns the slugs it confirmed. A track the owner already decided is never touched (auto_confirm only looks at unconfirmed ones); a draft is not published, so it is left alone."""
+    rows = _tx(lambda c: c.execute("SELECT slug FROM tracks WHERE status = 'published' AND license_status = 'unconfirmed' ORDER BY slug").fetchall())
+    return [r["slug"] for r in rows if auto_confirm(r["slug"])]
+
+
 def tracks_without_language():
     """Tracks (published or not) that have no language, so they are missing from every language filter: [{slug, studio_slug, title, lyrics}]."""
     rows = _tx(lambda c: c.execute("SELECT slug, studio_slug, title, lyrics_text FROM tracks WHERE language IS NULL OR btrim(language) = '' ORDER BY slug").fetchall())
