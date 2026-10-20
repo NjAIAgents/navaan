@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.56.5] - 2026-10-20
+
+### Fixed
+- A narrated inspiration short no longer prints its lines on top of each other (seen on insp-008). With the "rise" and "hero" caption looks every line after the first landed in the same spot and the earlier lines stayed on screen, so a script of four or five lines became unreadable and the last one of "hero" ran off the bottom. Now one line shows at a time and fades out before the next one appears, as "karaoke" already did. A short that is already made keeps its overlap until it is rendered again from its page.
+
 ## [0.56.4] - 2026-10-20
 
 ### Changed
@@ -759,7 +764,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.5...HEAD
+[0.56.5]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...v0.56.5
 [0.56.4]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...v0.56.4
 [0.56.3]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...v0.56.3
 [0.56.2]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...v0.56.2

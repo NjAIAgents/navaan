@@ -49,9 +49,9 @@ const Rise: React.FC<CaptionProps> = ({cues, plan, t, frame, color, accent}) => 
       {amp > 0 ? <div style={{position: 'absolute', left: 540 - (380 + 300 * amp), top: 760 - (380 + 300 * amp), width: 760 + 600 * amp, height: 760 + 600 * amp, borderRadius: '50%', background: `radial-gradient(circle, ${accent}${Math.round((0.12 + 0.3 * amp) * 255).toString(16).padStart(2, '0')} 0%, transparent 70%)`}} /> : null}
       <div style={{position: 'absolute', inset: 0, transform: `scale(${1 + 0.012 * amp})`}}>
         {cues.map((c, li) => {
-          const later = cues[li + 1], italic = !!plan.closing && li === cues.length - 1, dim = later ? interpolate(t, [later.start - 0.1, later.start + 0.7], [1, 0.5], CLAMP) : 1;
+          const later = cues[li + 1], italic = !!plan.closing && li === cues.length - 1, out = later ? interpolate(t, [later.start - 0.4, later.start - 0.05], [1, 0], CLAMP) : 1;   // one line at a time: every line sits at the same place, so a line is gone before the next one rises
           return (
-            <div key={li} style={{...box(TOP + Math.min(li, 1) * 250), opacity: dim}}>
+            <div key={li} style={{...box(TOP), opacity: out}}>
               {words(c, plan.emph ?? []).map((w) => {
                 const k = interpolate(t, [w.at, w.at + 0.45], [0, 1], {easing: ease, ...CLAMP});
                 return <span key={w.i} style={{fontFamily: SERIF, fontSize: italic ? 104 : 86, lineHeight: 1.35, letterSpacing: 1, textShadow: shadow, fontStyle: italic ? 'italic' : 'normal', color: italic ? accent : color, opacity: k, transform: `translateY(${(1 - k) * 34}px)`, filter: `blur(${(1 - k) * 12}px)`}}>{w.w}</span>;
@@ -67,10 +67,10 @@ const Rise: React.FC<CaptionProps> = ({cues, plan, t, frame, color, accent}) => 
 const Hero: React.FC<CaptionProps> = ({cues, plan, t, color, accent}) => (
   <>
     {cues.map((c, li) => {
-      const later = cues[li + 1], italic = !!plan.closing && li === cues.length - 1, dim = later ? interpolate(t, [later.start - 0.1, later.start + 0.7], [1, 0.5], CLAMP) : 1;
+      const later = cues[li + 1], italic = !!plan.closing && li === cues.length - 1, out = later ? interpolate(t, [later.start - 0.4, later.start - 0.05], [1, 0], CLAMP) : 1;   // one line at a time, as in the other two: stacked lines ran off the bottom and over each other
       const line = interpolate(t, [c.start - 0.2, c.start + 0.5], [0, 1], {easing: ease, ...CLAMP}), underline = interpolate(t, [c.start + 0.5, c.end + 0.7], [0, 1], {easing: Easing.inOut(Easing.cubic), ...CLAMP});
       return (
-        <div key={li} style={{...box(Math.round(1920 * 0.3) + li * 360 + (italic ? 40 : 0)), opacity: dim * (italic ? line : 1)}}>
+        <div key={li} style={{...box(Math.round(1920 * 0.3) + (italic ? 40 : 0)), opacity: out * (italic ? line : 1)}}>
           {words(c, plan.emph ?? []).map((w) => {
             const k = interpolate(t, [w.at, w.at + 0.5], [0, 1], {easing: Easing.bezier(0.34, 1.4, 0.64, 1), ...CLAMP}), big = w.hot ? 1.28 : 1;
             const spacing = italic ? interpolate(t, [c.start, c.end + 0.6], [14, 1], {easing: ease, ...CLAMP}) : 1;
