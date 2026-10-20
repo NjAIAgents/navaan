@@ -122,7 +122,7 @@ export type TrackRow = { slug: string; title: string; language: string; genre: s
 export type TrackView = TrackRow & { mood?: string | null; lyrics: string; timed: boolean; timed_lines: [number, string][] | null };
 export type Filters = { albums: { slug: string; title: string }[]; languages: string[]; genres: string[] };
 export type AlbumTrack = { slug: string; title: string; position: number; status: string; licence: string; art: { colour: string | null } | null };
-export type AlbumRow = { id: string; slug: string; title: string; kind: "album" | "ep" | "single"; status: "draft" | "scheduled" | "published"; release_date: string | null; description: string; tracks: AlbumTrack[]; art?: { colour: string | null; v: number } | null };
+export type AlbumRow = { id: string; slug: string; title: string; kind: "album" | "ep" | "single"; status: "draft" | "scheduled" | "published"; release_date: string | null; description: string; tracks: AlbumTrack[]; art?: { colour: string | null; v: number } | null; artist?: string };
 
 // Settings (NAV-24): the classic Settings payload. A token is never in it.
 export type LoginState = { present: boolean; ok?: boolean; error?: string; days_left?: number | null; expires?: string | null; username?: string | null; channel?: string };

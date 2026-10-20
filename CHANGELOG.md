@@ -10,6 +10,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ### Added
 - A song's cover is made as a step of the pipeline, before the video, in the same modern look as the album cover (one strong graphic subject, flat colour fields, the title and artist drawn by us). It becomes the song's cover: in the mp3, the YouTube thumbnail, Instagram and, once the song is in the bucket, on the site. The step is listed on the credits approval with its price (about 4 cents). A song whose videos were already approved is not sent back to make one.
+- Share an album. A published album has a Share button for listeners and a Share card in Studio: the link opens a public page with the album's cover, "Album by NAVAAN", and every song in it that may be heard, each with its own player, free and without a sign in. The preview in chats says "an album by NAVAAN". The link stops working if you stop sharing it or unpublish the album. A song whose licence is not confirmed is not on the page, as everywhere else on the public site, and an album with no such song cannot be shared yet.
+- An album's page, in Studio and for listeners, says who it is by (NAVAAN) under the title.
 - A Cover card on a song's page (Media tab): the prompt it was made from, which you can change, "Make a new cover" with the cost on the button, "Redraw the title" (free), or "Use my own picture". A new cover replaces the old one everywhere, including the bucket. If the cover is not on the site, the card says so and offers "Save for the site". The mp3's embedded picture follows the next time the video step runs.
 
 ### Changed

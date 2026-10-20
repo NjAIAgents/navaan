@@ -534,6 +534,12 @@ class Access(unittest.TestCase):
         st, h, b = self.raw(f"/img/album/{al}/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"])
         self.assertEqual(self.raw(f"/img/album/{al}/poster-320.webp")[0], 404); self.assertEqual(self.raw("/img/album/ghost/320.webp")[0], 404)   # an album has a cover, no poster
         self.assertEqual(self.raw("/img/" + al + "/320.webp")[0], 404)   # and the album's name is not a song's
+        code, body = post("owner-tok", "csrf-owner", "/api/share", album=al); self.assertEqual(code, 200); atok = json.loads(body)["token"]; self.assertTrue(json.loads(body)["url"].endswith("/s/" + atok))
+        st, h, b = self.raw("/s/" + atok); self.assertEqual(st, 200); self.assertIn("Album by", b.decode()); self.assertIn(f"/s/{atok}/play/song-001.mp3", b.decode())   # a visitor with no cookie sees the album and can play its songs
+        st, h, b = self.raw(f"/s/{atok}/play/song-001.mp3"); self.assertEqual((st, h["Location"]), (302, "https://bucket.example/navaan/songs/song-001/final.mp3"))
+        self.assertEqual(self.raw(f"/s/{atok}/play/ghost.mp3")[0], 404); self.assertEqual(self.raw(f"/s/{atok}/play.mp3")[0], 404); self.assertEqual(self.raw(f"/s/{atok}/preview.mp3")[0], 404)   # only a song of this album, only whole
+        self.assertEqual(self.raw(f"/s/{tok}/play/song-001.mp3")[0], 404)   # a song's own link plays only that song's page
+        self.assertEqual(post("owner-tok", "csrf-owner", "/api/share", album="no-such-album")[0], 404)
         self.assertEqual(post("lis-tok", "csrf-lis", "/api/poster/publish", slug="song-001")[0], 403); self.assertEqual(post("owner-tok", "csrf-owner", "/api/poster/publish", slug="song-001")[0], 400)   # a listener has no say; the owner is told there is no poster yet
         page = self.raw("/s/" + tok)[2].decode(); self.assertIn("/img/song-001/poster-1280.jpg", page); self.assertNotIn("/img/song-001/1280.jpg", page)   # the poster replaces the cover in the link preview
         code, body = self.call("/api/share", "owner-tok"); self.assertEqual([x["opens"] for x in json.loads(body)], [3])   # the page was opened three times (once, then before and after the poster was put on it); the preview does not count

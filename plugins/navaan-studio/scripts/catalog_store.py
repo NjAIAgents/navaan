@@ -204,6 +204,7 @@ def _album_rows(c, where="", params=()):
             "FROM album_tracks at JOIN tracks t ON t.id = at.track_id WHERE at.album_id = ?::uuid ORDER BY at.position", (r["id"],)).fetchall()]
         cv = c.execute("SELECT dominant_colour, bytes FROM assets WHERE owner_kind = 'album' AND owner_id = ?::uuid AND role = 'cover' LIMIT 1", (r["id"],)).fetchone()
         r["art"] = {"colour": cv["dominant_colour"], "v": cv["bytes"]} if cv else None   # the album's own cover; v changes with the picture
+        r["artist"] = C.cfg("artist.name") or "NAVAAN"   # who it is by: shown under the title and in a shared link's preview
     return rows
 
 
@@ -476,6 +477,28 @@ def create_share(slug, by, start_ms=0):
         c.execute("INSERT INTO share_links (token, subject_kind, subject_id, created_by, start_ms) VALUES (?, 'track', ?::uuid, ?, ?)", (tok, t["id"], str(by), int(start_ms)))
         return tok
     return _tx(go)
+
+
+def create_album_share(slug, by):
+    """A new link to a published album that has at least one song a listener may hear. Returns the token. LookupError when there is no such published album, ValueError when nothing in it can be played yet."""
+    a = next((x for x in public_albums() if x["slug"] == slug), None)
+    if not a:
+        if next((x for x in albums() if x["slug"] == slug and x["status"] == "published"), None): raise ValueError("no song in this album can be played yet: confirm the licence of at least one song")
+        raise LookupError("no such published album")
+    def go(c):
+        tok = secrets.token_urlsafe(16)
+        c.execute("INSERT INTO share_links (token, subject_kind, subject_id, created_by) VALUES (?, 'album', ?::uuid, ?)", (tok, a["id"], str(by)))
+        return tok
+    return _tx(go)
+
+
+def open_album_share(token, count=False):
+    """The album behind a live link, or None (unknown, revoked, expired, not published any more, or nothing in it may be played). Only the songs a listener may hear are in it. count=True records an open."""
+    r = _tx(lambda c: c.execute("SELECT s.subject_id::text AS id FROM share_links s WHERE s.token = ? AND s.subject_kind = 'album' AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at > now())", (token,)).fetchone())
+    a = r and next((x for x in public_albums() if x["id"] == r["id"]), None)
+    if not a: return None
+    if count: _tx(lambda c: c.execute("UPDATE share_links SET opens = opens + 1 WHERE token = ?", (token,)))
+    return a
 
 
 def revoke_share(token, by, owner=False):

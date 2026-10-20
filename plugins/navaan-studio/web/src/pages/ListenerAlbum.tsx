@@ -5,6 +5,7 @@ import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
 import { ShuffleButton } from "../components/ShuffleButton";
 import { AddToPlaylist } from "../components/AddToPlaylist";
+import { ShareDialog } from "../components/ShareCard";
 import { getJSON, type AlbumRow } from "../lib/api";
 import { usePlayer } from "../lib/player";
 import { errText } from "../lib/songs";
@@ -13,7 +14,7 @@ import { Loading } from "../components/Loading";
 // An album as a listener sees it: its cover, who and what it is, play from the top, and the songs in order. Only songs they may hear are in it.
 export default function ListenerAlbum() {
   const { slug = "" } = useParams();
-  const [a, setA] = useState<AlbumRow | null>(null); const [err, setErr] = useState("");
+  const [a, setA] = useState<AlbumRow | null>(null); const [err, setErr] = useState(""); const [sharing, setSharing] = useState(false);
   const pl = usePlayer();
   useEffect(() => { setA(null); getJSON<AlbumRow>(`/api/catalog/album/${slug}`).then(setA).catch((e) => setErr(errText(e))); }, [slug]);
   if (!a) return err ? <div className="card" role="alert"><h2>This album is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <Loading />;
@@ -24,9 +25,10 @@ export default function ListenerAlbum() {
         <Cover slug={f.slug} title={a.title} size={200} art={f.art} />
         <div className="hero-tx">
           <h1 id="la-h" className="disp">{a.title}</h1>
+          <p className="mu">by {a.artist || "NAVAAN"}</p>
           <div className="row chips"><span className="chip">{a.kind}</span>{a.release_date && <span className="chip">{a.release_date}</span>}<span className="chip">{a.tracks.length} song{a.tracks.length === 1 ? "" : "s"}</span></div>
           {a.description && <p className="mu">{a.description}</p>}
-          <div className="row"><PlayButton queue={queue} label={a.title} size="big" /><ShuffleButton queue={queue} label={a.title} /></div>
+          <div className="row"><PlayButton queue={queue} label={a.title} size="big" /><ShuffleButton queue={queue} label={a.title} /><button className="btn sq" onClick={() => setSharing(true)} aria-label="Share"><Icon name="share" /></button></div>
         </div>
       </section>
       <section className="sec" aria-labelledby="lt-h">
@@ -42,6 +44,7 @@ export default function ListenerAlbum() {
           ))}</ol>
         </div>
       </section>
+      {sharing && <ShareDialog kind="album" slug={a.slug} title={a.title} onClose={() => setSharing(false)} />}
     </>
   );
 }

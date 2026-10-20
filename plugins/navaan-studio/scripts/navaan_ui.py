@@ -508,6 +508,11 @@ class H(BaseHTTPRequestHandler):
             if p in ("/api/share", "/api/share/revoke"):   # a link to a published, licence-confirmed song: the page and preview are public, the owner can stop any link
                 who = sess.get("user") or "owner"
                 if p.endswith("/revoke"): return self._send(200, {"revoked": catalog_store.revoke_share(str(body.get("token") or ""), who, auth.can(sess, "studio.settings"))})
+                if body.get("album"):   # a link to a published album: the page lists its songs, each plays without a sign in
+                    try: tok = catalog_store.create_album_share(str(body["album"]), who)
+                    except LookupError as e: return self._send(404, {"error": str(e)})
+                    except ValueError as e: return self._send(400, {"error": str(e)})
+                    return self._send(200, {"token": tok, "url": f"{self._base()}/s/{tok}"})
                 sl = str(body.get("slug") or "")
                 if not auth.can(sess, "studio.access") and not catalog_store.track_view(sl, False): return self._send(404, {"error": "no such published track"})   # to a listener an unconfirmed song does not exist, so its state is not given away
                 tok = catalog_store.create_share(sl, who, int(body.get("start_ms") or 0))
@@ -565,10 +570,19 @@ class H(BaseHTTPRequestHandler):
                     return self._send(200, share_page.render_clip(slug, tv["title"], m.group(1), self._base(), has_poster=bool(catalog_store.poster_asset(slug))), "text/html")
                 except (LookupError, ValueError): return self._send(404, {"error": "not found"})
                 except RuntimeError: L.exc(LOG, "clip_failed", item=slug); return self._send(502, {"error": "not available right now"})
-            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3)?$", p)
+            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3|/play/[A-Za-z0-9_-]{1,40}\.mp3)?$", p)
             if m:
                 t = catalog_store.open_share(m.group(1), count=not m.group(2))
-                if not t: return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if not t:   # not a song's link: an album's
+                    al = catalog_store.open_album_share(m.group(1), count=not m.group(2))
+                    if al and not m.group(2):
+                        face = next((x["slug"] for x in al["tracks"] if x.get("art")), None)
+                        return self._send(200, share_page.render_album(al, m.group(1), self._base(), face, bool(al.get("art"))), "text/html")
+                    if al and m.group(2).startswith("/play/") and m.group(2)[6:-4] in {x["slug"] for x in al["tracks"]}:   # only a song that is in this album
+                        key = catalog_store.play_key(m.group(2)[6:-4], confirmed_only=True)
+                        if key: return self._send(302, b"", "text/plain", {"Location": objstore.par_url(key, 300)})
+                    return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if (m.group(2) or "").startswith("/play/"): return self._send(404, {"error": "not found"})   # a song's link plays only its own song
                 if m.group(2) == "/play.mp3":   # the whole song: the site is free, so a shared link plays it without a sign in
                     key = catalog_store.play_key(t["slug"], confirmed_only=True)
                     if not key: return self._send(404, {"error": "not found"})

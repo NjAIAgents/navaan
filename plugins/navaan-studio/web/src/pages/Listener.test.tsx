@@ -266,6 +266,12 @@ describe("Albums", () => {
     fireEvent.change(screen.getByLabelText("New album title"), { target: { value: "Road" } }); fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "ep" } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByRole("link", { name: /Road/ })).toHaveTextContent("ep"); expect(posts(f, "/api/albums/save")).toEqual([{ title: "Road", kind: "ep" }]);
   });
+  it("shows who an album is by, and its Share button makes a link to the album, not to a song", async () => {
+    const f = route(LISTENER, { "/api/catalog/album/first-light": () => ({ ...album({ status: "published" }), artist: "NAVAAN" }), "/api/share": () => ({ token: "tok", url: "https://navaan.online/s/tok" }) });
+    at("/album/first-light"); expect(await screen.findByText("by NAVAAN")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Share" }));
+    await waitFor(() => expect(posts(f, "/api/share")).toEqual([{ album: "first-light" }])); expect(await screen.findByDisplayValue("https://navaan.online/s/tok")).toBeInTheDocument();
+  });
   it("reorders, adds and removes songs, saves details, and shows why an album cannot be published", async () => {
     const f = route(OWNER, { "/api/albums/save": () => json({ error: "every song in a published album must be published; not yet: song-002" }, 400), "/api/albums/reorder": () => ({ tracks: [] }), "/api/albums/delete": () => ({ deleted: true }), "/api/albums": () => [album()], "/api/catalog/tracks": () => tracks });
     at("/albums/first-light"); await screen.findByRole("heading", { name: "First Light", level: 1 });
