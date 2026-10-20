@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.56.1] - 2026-10-20
+
 ### Fixed
 - The standing licence statement (Settings) is kept across restarts (NAV-140). It was stored where nothing saved it to Vault, so every deploy switched it off and newly published songs stayed hidden from navaan.online as unconfirmed. After this release, switch the statement on once more in Settings.
 
@@ -741,7 +743,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...HEAD
+[0.56.1]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...v0.56.1
 [0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...v0.56.0
 [0.55.1]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.55.1
 [0.55.0]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...v0.55.0
