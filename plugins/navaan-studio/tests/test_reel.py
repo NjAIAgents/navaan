@@ -317,6 +317,21 @@ class Render(Env):
         rep = self.check(8.0); self.assertEqual(rep["music"], "owner upload")
 
 
+class Handle(Env):
+    def cfgfile(self, d):
+        json.dump(d, open(os.path.join(self.tmp.name, "navaan.config.json"), "w"))
+
+    def test_no_reel_account_never_shows_the_music_handle(self):
+        self.cfgfile({"publish": {"instagram_handle": "@navaan_p5l"}, "accounts": {"inspiration": {"instagram_handle": "x"}}})
+        import reel_render as R
+        self.assertEqual(R.account_handle(), "")
+
+    def test_reel_account_handle_is_used(self):
+        self.cfgfile({"publish": {"instagram_handle": "@navaan_p5l"}, "accounts": {"reel": {"instagram_handle": "my.reels"}}})
+        import reel_render as R
+        self.assertEqual(R.account_handle(), "@my.reels")
+
+
 @unittest.skipUnless(HAVE_FF, "ffmpeg not installed")
 class Pipeline(unittest.TestCase):
     """The real orchestrator walks a reel from the upload to the final-cut approval: script steps run as subprocesses, Claude steps are stood in for by writing their files."""
