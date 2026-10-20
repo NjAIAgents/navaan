@@ -202,6 +202,8 @@ def _album_rows(c, where="", params=()):
             "EXISTS (SELECT 1 FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover') AS has_cover, "
             "(SELECT a.dominant_colour FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS colour "
             "FROM album_tracks at JOIN tracks t ON t.id = at.track_id WHERE at.album_id = ?::uuid ORDER BY at.position", (r["id"],)).fetchall()]
+        cv = c.execute("SELECT dominant_colour, bytes FROM assets WHERE owner_kind = 'album' AND owner_id = ?::uuid AND role = 'cover' LIMIT 1", (r["id"],)).fetchone()
+        r["art"] = {"colour": cv["dominant_colour"], "v": cv["bytes"]} if cv else None   # the album's own cover; v changes with the picture
     return rows
 
 
@@ -269,7 +271,9 @@ def delete_album(slug):
     """Remove the album; its tracks stay. True when it existed."""
     def go(c):
         r = c.execute("DELETE FROM albums WHERE slug = ? RETURNING id", (slug,)).fetchone()
-        if r: _unindex(c, "album", str(r["id"]))
+        if r:
+            _unindex(c, "album", str(r["id"]))
+            c.execute("DELETE FROM assets WHERE owner_kind = 'album' AND owner_id = ?::uuid", (str(r["id"]),))   # assets point at an owner by id only, so nothing cascades
         return bool(r)
     return _tx(go)
 
@@ -345,6 +349,25 @@ def delete_draft(slug):
         c.execute("DELETE FROM tracks WHERE id = ?::uuid", (t["id"],))   # genres, album entries and reactions go with it
         return True
     return _tx(go)
+
+
+def set_album_cover(slug, key, size):
+    """Register (or replace) an album's own cover that is already in the bucket. A new row each time, so the sizes cut from the old picture are not reused. False when there is no such album."""
+    def go(c):
+        a = c.execute("SELECT id FROM albums WHERE slug = ?", (slug,)).fetchone()
+        if not a: return False
+        c.execute("DELETE FROM assets WHERE owner_kind = 'album' AND owner_id = ?::uuid AND role = 'cover'", (str(a["id"]),))
+        c.execute("INSERT INTO assets (owner_kind, owner_id, role, storage_key, mime, bytes) VALUES ('album', ?::uuid, 'cover', ?, 'image/png', ?)", (str(a["id"]), key, size))
+        return True
+    return _tx(go)
+
+
+def album_cover_asset(slug):
+    """The cover of a published album, or None: a draft's cover is not for listeners to find by guessing its name."""
+    r = _tx(lambda c: c.execute(
+        "SELECT a.id::text AS id, a.storage_key, a.bytes, a.dominant_colour, al.slug FROM assets a JOIN albums al ON al.id = a.owner_id "
+        "WHERE a.owner_kind = 'album' AND a.role = 'cover' AND al.slug = ? AND al.status = 'published' LIMIT 1", (slug,)).fetchone())
+    return {**r, "album": True} if r else None
 
 
 def set_cover_facts(asset_id, width, height, colour):

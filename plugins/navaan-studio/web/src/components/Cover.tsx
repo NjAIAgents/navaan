@@ -1,6 +1,15 @@
 import { useState } from "react";
+import type { AlbumRow } from "../lib/api";
 
-export type Art = { colour: string | null } | null | undefined;
+// album: the picture is an album's own cover (/img/album/<slug>); src: show this one file instead of the sized public pictures (an album that is not published yet, for its owner).
+export type Art = { colour: string | null; album?: boolean; src?: string } | null | undefined;
+
+// What to show for an album: its own cover when it has one, else the cover of its first song with a picture, else its initial.
+export function albumFace(a: AlbumRow): { slug: string; art: Art } {
+  if (a.art) return { slug: a.slug, art: { colour: a.art.colour, album: true, ...(a.status === "published" ? {} : { src: `/api/albums/cover/${a.slug}.png?v=${a.art.v}` }) } };
+  const t = a.tracks.find((x) => x.art);
+  return { slug: (t ?? a.tracks[0])?.slug ?? a.slug, art: t?.art };
+}
 
 // A cover tile. A published song with a cover in the bucket shows the picture in the right size (320/640/1280, AVIF or WebP, JPEG as the fallback) over its dominant
 // colour, fading in when it has loaded (a blur-up without a layout shift: the tile has its size before the picture arrives). Anything else, or a picture that
@@ -10,15 +19,15 @@ export function Cover({ slug, title, size = 56, art }: { slug: string; title: st
   const [loaded, setLoaded] = useState(false);
   let h = 0;
   for (const ch of slug) h = (h * 31 + ch.charCodeAt(0)) % 997;
-  const set = (f: string) => [320, 640, 1280].map((w) => `/img/${slug}/${w}.${f} ${w}w`).join(", ");
+  const base = art?.album ? `/img/album/${slug}` : `/img/${slug}`;
+  const set = (f: string) => [320, 640, 1280].map((w) => `${base}/${w}.${f} ${w}w`).join(", ");
   return (
     <span className="cover" data-v={h % 4} style={{ width: size, fontSize: size / 2.4, ...(art?.colour ? { background: art.colour } : {}) }} aria-hidden="true">
       <b>{(title || slug).slice(0, 1).toUpperCase()}</b>
       {art && ok && (
         <picture>
-          <source type="image/avif" srcSet={set("avif")} sizes={`${size}px`} />
-          <source type="image/webp" srcSet={set("webp")} sizes={`${size}px`} />
-          <img src={`/img/${slug}/640.jpg`} alt="" loading="lazy" decoding="async" className={loaded ? "in" : ""} onLoad={() => setLoaded(true)} onError={() => setOk(false)} />
+          {!art.src && <><source type="image/avif" srcSet={set("avif")} sizes={`${size}px`} /><source type="image/webp" srcSet={set("webp")} sizes={`${size}px`} /></>}
+          <img src={art.src ?? `${base}/640.jpg`} alt="" loading="lazy" decoding="async" className={loaded ? "in" : ""} onLoad={() => setLoaded(true)} onError={() => setOk(false)} />
         </picture>
       )}
     </span>

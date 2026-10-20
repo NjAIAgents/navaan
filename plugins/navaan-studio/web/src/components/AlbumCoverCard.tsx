@@ -4,10 +4,10 @@ import { getJSON, postJSON } from "../lib/api";
 import { fileB64 } from "../lib/files";
 import { errText } from "../lib/songs";
 
-type State = { prompt: string; has: boolean; v: number; style: string; styles: string[]; usd: number; key: boolean; running?: boolean; error?: string };
+type State = { prompt: string; has: boolean; published: boolean; v: number; style: string; styles: string[]; usd: number; key: boolean; running?: boolean; error?: string };
 const LOOK: Record<string, string> = { bold: "Bold serif", brush: "Brush", hand: "Handwritten" };
 
-// The album's cover: square art from a prompt you can read and change (OpenAI images, the cost is on the button), with the NAVAAN mark, the title and the artist drawn by us. Or use your own picture.
+// The album's cover: square art from a prompt you can read and change (OpenAI images, the cost is on the button), with the NAVAAN mark, the title and the artist drawn by us. Or use your own picture. A made cover is saved for the site; listeners see it once the album is published.
 export function AlbumCoverCard({ slug }: { slug: string }) {
   const [s, setS] = useState<State | null>(null); const [text, setText] = useState<string | null>(null); const [style, setStyle] = useState<string | null>(null);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
@@ -21,6 +21,7 @@ export function AlbumCoverCard({ slug }: { slug: string }) {
     <section className="card stack" aria-labelledby="ac-h">
       <h2 id="ac-h">Cover</h2>
       {s.has ? <ZoomImage src={`/api/albums/cover/${slug}.png?v=${s.v}`} alt="Album cover" width={180} height={180} style={{ borderRadius: 10, objectFit: "cover" }} /> : <span className="mu">No cover yet.</span>}
+      {s.has && !s.published && <p className="mu" role="status">This cover is not saved for the site yet.</p>}
       <label htmlFor="ac-prompt">Prompt for the art (change it as you like)</label>
       <textarea id="ac-prompt" className="field" rows={5} value={prompt} onChange={(e) => setText(e.target.value)} disabled={running} />
       <label htmlFor="ac-style">Lettering</label>
@@ -29,6 +30,7 @@ export function AlbumCoverCard({ slug }: { slug: string }) {
       <div className="row">
         <button className="btn p" disabled={running || !s.key || prompt.trim().length < 20} onClick={() => void go({ prompt, style: look })}>{running ? "Making…" : `${s.has ? "Make a new cover" : "Make cover"} (about $${s.usd.toFixed(2)})`}</button>
         <label className="btn g" style={{ cursor: running ? "default" : "pointer" }}>Use my own picture<input type="file" accept="image/*" hidden disabled={running} onChange={(e) => { const f = e.target.files?.[0]; if (f) void fileB64(f).then((picture) => go({ picture })); e.target.value = ""; }} /></label>
+        {s.has && !s.published && <button className="btn g" disabled={running} onClick={() => void go({ publish: true })}>Save for the site</button>}
         {text !== null && <button className="btn g" disabled={running} onClick={() => setText(null)}>Reset prompt</button>}
       </div>
       {(err || s.error) && <p role="alert" style={{ color: "var(--bad)" }}>{err || s.error}</p>}

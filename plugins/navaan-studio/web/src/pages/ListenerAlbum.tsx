@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Cover } from "../components/Cover";
+import { Cover, albumFace } from "../components/Cover";
 import { Icon } from "../components/Icon";
 import { PlayButton } from "../components/PlayButton";
 import { ShuffleButton } from "../components/ShuffleButton";
@@ -17,11 +17,11 @@ export default function ListenerAlbum() {
   const pl = usePlayer();
   useEffect(() => { setA(null); getJSON<AlbumRow>(`/api/catalog/album/${slug}`).then(setA).catch((e) => setErr(errText(e))); }, [slug]);
   if (!a) return err ? <div className="card" role="alert"><h2>This album is not available</h2><p className="mu">{err}</p><Link className="btn" to="/">Back to Browse</Link></div> : <Loading />;
-  const queue = a.tracks.map((t) => ({ slug: t.slug, title: t.title })); const c = a.tracks.find((t) => t.art);
+  const queue = a.tracks.map((t) => ({ slug: t.slug, title: t.title })); const c = a.tracks.find((t) => t.art); const f = albumFace(a); const colour = a.art?.colour ?? c?.art?.colour;
   return (
     <>
-      <section className="hero" style={c?.art?.colour ? { background: `linear-gradient(180deg, ${c.art.colour}66, transparent 75%)` } : undefined} aria-labelledby="la-h">
-        <Cover slug={c?.slug ?? a.tracks[0].slug} title={a.title} size={200} art={c?.art} />
+      <section className="hero" style={colour ? { background: `linear-gradient(180deg, ${colour}66, transparent 75%)` } : undefined} aria-labelledby="la-h">
+        <Cover slug={f.slug} title={a.title} size={200} art={f.art} />
         <div className="hero-tx">
           <h1 id="la-h" className="disp">{a.title}</h1>
           <div className="row chips"><span className="chip">{a.kind}</span>{a.release_date && <span className="chip">{a.release_date}</span>}<span className="chip">{a.tracks.length} song{a.tracks.length === 1 ? "" : "s"}</span></div>
