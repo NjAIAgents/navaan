@@ -1,0 +1,62 @@
+{
+ "base": "none",
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "duration": 7.0,
+ "hold_until": 6.5,
+ "style": {
+  "color": "#F4F7FF",
+  "accent": "#E2B75A"
+ },
+ "lines": [
+  {
+   "text": "Trust grows faster than proof",
+   "start": 0,
+   "end": 6.5
+  }
+ ],
+ "visuals": {
+  "beats": [
+   {
+    "line": 0,
+    "treatment": "chart",
+    "data": {
+     "series": [
+      {
+       "label": "sample A",
+       "points": [
+        0.18,
+        0.3,
+        0.26,
+        0.5,
+        0.62,
+        0.9
+       ]
+      },
+      {
+       "label": "sample B",
+       "points": [
+        0.2,
+        0.28,
+        0.4,
+        0.46,
+        0.52,
+        0.58
+       ]
+      }
+     ],
+     "xlabels": [
+      "w1",
+      "w2",
+      "w3",
+      "w4",
+      "w5",
+      "w6"
+     ],
+     "sample": true
+    }
+   }
+  ]
+ }
+}

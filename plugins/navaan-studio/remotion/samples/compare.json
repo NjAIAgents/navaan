@@ -1,0 +1,38 @@
+{
+ "base": "none",
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "duration": 7.0,
+ "hold_until": 6.5,
+ "style": {
+  "color": "#F4F7FF",
+  "accent": "#E2B75A"
+ },
+ "lines": [
+  {
+   "text": "Sounding sure is not being right",
+   "start": 0,
+   "end": 6.5
+  }
+ ],
+ "visuals": {
+  "beats": [
+   {
+    "line": 0,
+    "treatment": "compare",
+    "data": {
+     "left": {
+      "title": "Confidence",
+      "text": "How it sounds"
+     },
+     "right": {
+      "title": "Evidence",
+      "text": "Why it holds"
+     },
+     "sign": "≠"
+    }
+   }
+  ]
+ }
+}

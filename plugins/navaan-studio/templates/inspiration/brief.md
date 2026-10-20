@@ -13,3 +13,4 @@
 - camera: auto
 - transition: rise
 - duration: auto
+- look: auto
