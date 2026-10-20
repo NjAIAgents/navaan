@@ -20,6 +20,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Fixed
 - A blog post started from a keyword no longer fails its first step with "No keyword yet". The keyword you typed was written below the template's own empty Idea section, so the pipeline read the empty one. It now goes in the Idea section itself. A blog already started this way works on retry too: the pipeline now reads the first Idea section that has a keyword in it, not only the first section.
 
+## [0.55.1] - 2026-10-20
+
+### Fixed
+- The last step of an Aha-lorithm short, "Clean up the local copy", no longer fails with "Instagram is set up but the Reel is not posted yet" (NAV-137). The Aha-lorithm is YouTube-only, and the same waiting is skipped for any item whose Instagram you chose to skip. Music, inspiration and reel items still wait for their Instagram post.
+
 ## [0.55.0] - 2026-10-20
 
 ### Added
@@ -734,7 +739,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
 [Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...HEAD
-[0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.56.0
+[0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...v0.56.0
+[0.55.1]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.55.1
 [0.55.0]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/NjAIAgents/navaan/compare/v0.52.0...v0.53.0
