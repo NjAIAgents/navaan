@@ -105,7 +105,7 @@ SPEND_WHAT = {"suno": "Suno: makes the song from your lyrics (from your plan's c
 
 def spend_what(s):
     """One line for the credits approval: the service and what it makes. The pictures step already carries its own count and price in its label."""
-    if s["id"] in ("pictures", "poster"): return s["label"]   # these carry their own count and price in the label
+    if s["id"] in ("pictures", "poster", "cover"): return s["label"]   # these carry their own count and price in the label
     if s["id"] == "background" and "(Flow)" in s.get("label", ""): return "Flow: the background picture"
     if s["id"] == "background":   # the price beside it, as the pictures step has, so the approval says what it costs
         try:
@@ -124,12 +124,18 @@ def song_picture_steps(slug, D, mc):
     label = "Create the pictures with OpenAI"
     if n: label += " (%d pictures, about $%.2f at %s)" % (n, SI.total_cost(n, mc["image_quality"], mc["image_size_landscape"], IO.model_name(mc)), mc["image_quality"])
     import poster as POSTER
+    import song_cover as SCOVER
+    clabel = "Make the cover with OpenAI (1 picture, about $%.2f at %s)" % (IO.estimate(mc["image_quality"], SCOVER.SIZE, IO.model_name(mc)), mc["image_quality"])
     plabel = "Make the poster with OpenAI (1 picture, about $%.2f at %s)" % (IO.estimate(mc["image_quality"], POSTER.SIZE, IO.model_name(mc)), mc["image_quality"])
     return [
         dict(id="prompts", outputs=["prompt_pack.json"], label="Director writes the picture plan: story, character, places, motion", kind="script",
              cmds=[sc("prompt_pack.py", slug)], done=lambda m: bool((prompt_pack.load(D) or {}).get("prompts")) or len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),   # read the folder when asked, not when the step list was built
         dict(id="pictures", outputs=["images/*"], label=label, kind="script", before="credits",
              cmds=[sc("song_images_openai.py", slug)], done=lambda m: len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),
+        # the cover: square art in the modern look from the song's own words (the prompt is on the Media tab's Cover card, where it can be changed first), with the title drawn over it by make_cover. It becomes the
+        # cover of the mp3, the YouTube thumbnail, Instagram and the site; the video step keeps a cover that exists. Done once it exists, or once the videos were approved, so an older song is not sent back to spend.
+        dict(id="cover", outputs=["cover_art.png", "cover_prompt.txt", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg"], label=clabel, kind="script", before="credits", cmds=[sc("song_cover.py", slug)],
+             done=lambda m: has(D, "cover_1x1.png") or bool((m.get("approvals") or {}).get("media"))),
         # the poster: portrait art from the song's own words (the prompt is on the Media tab's Poster card, where it can be changed first), with the title drawn over it.
         # Done once it exists, or once the videos were approved, so a song made before this step existed is not sent back to make one (and spend) on its next run.
         dict(id="poster", outputs=["poster_2x3.png", "poster_art.png"], label=plabel, kind="script", before="credits", cmds=[sc("poster.py", slug)],

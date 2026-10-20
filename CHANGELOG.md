@@ -8,6 +8,10 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [0.56.0] - 2026-10-20
 
+### Added
+- A song's cover is made as a step of the pipeline, before the video, in the same modern look as the album cover (one strong graphic subject, flat colour fields, the title and artist drawn by us). It becomes the song's cover: in the mp3, the YouTube thumbnail, Instagram and, once the song is in the bucket, on the site. The step is listed on the credits approval with its price (about 4 cents). A song whose videos were already approved is not sent back to make one.
+- A Cover card on a song's page (Media tab): the prompt it was made from, which you can change, "Make a new cover" with the cost on the button, "Redraw the title" (free), or "Use my own picture". A new cover replaces the old one everywhere, including the bucket. If the cover is not on the site, the card says so and offers "Save for the site". The mp3's embedded picture follows the next time the video step runs.
+
 ### Changed
 - A song now goes to NAVAAN first. "Publish to NAVAAN" (the cloud archive, which puts the song on the site) comes right after you approve the video, before the YouTube and Instagram steps, and it no longer waits for Instagram. Before, it was the last step and waited for both YouTube and Instagram, so a song you chose not to post to Instagram never reached NAVAAN. YouTube and Instagram wait for your approval of this step, and clean up is still last. A song already in progress follows the new order from its next step.
 

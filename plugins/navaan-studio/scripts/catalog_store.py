@@ -310,7 +310,7 @@ def set_picture(slug, role, key, mime, size):
         t = c.execute("SELECT id FROM tracks WHERE slug = ?", (slug,)).fetchone()
         if not t: return False
         c.execute("INSERT INTO assets (owner_kind, owner_id, role, storage_key, mime, bytes) VALUES ('track', ?::uuid, ?, ?, ?, ?) "
-                  "ON CONFLICT (owner_kind, owner_id, role, storage_key) DO UPDATE SET bytes = excluded.bytes", (str(t["id"]), role, key, mime, size))
+                  "ON CONFLICT (owner_kind, owner_id, role, storage_key) DO UPDATE SET bytes = excluded.bytes, dominant_colour = NULL, width = NULL, height = NULL", (str(t["id"]), role, key, mime, size))   # a new picture: its colour and size are read again on the first resize
         return True
     return _tx(go)
 

@@ -12,6 +12,7 @@ import type { SetGate } from "../components/GateSwitch";
 import { ShotsPreview } from "../components/ShotsPreview";
 import { MoodCard } from "../components/MoodCard";
 import { PosterCard } from "../components/PosterCard";
+import { SongCoverCard } from "../components/SongCoverCard";
 import { VisualsCard } from "../components/VisualsCard";
 import { SongAnalytics } from "../components/SongAnalytics";
 import { ScheduleCard } from "../components/SchedulePanel";
@@ -383,7 +384,7 @@ export default function Song() {
   const load = useCallback(() => getJSON<SongDetail>(`/api/song/${slug}`).then((x) => { setD(x); setErr(""); }).catch((e) => setErr(errText(e))), [slug]);
   useEffect(() => { void load(); }, [load]);
   const running = !!(d?.job.running || d?.job.queued);
-  const making = !!(d?.try?.running || d?.vertical?.running || d?.poster?.running);   // a test or 9:16 picture is being made by a background thread
+  const making = !!(d?.try?.running || d?.vertical?.running || d?.poster?.running || d?.cover?.running);   // a test or 9:16 picture is being made by a background thread
   useEffect(() => { if (!running && !making) return; const t = setInterval(() => void load(), 3000); return () => clearInterval(t); }, [running, making, load]);
 
   const stepParam = sp.get("step");
@@ -518,6 +519,7 @@ export default function Song() {
           <StillsCard d={d} />
           <PicturesCard d={d} done={load} />
           {d.cloud && <ArchiveCard slug={slug} />}
+          {!insp && !blog && <SongCoverCard d={d} done={load} />}
           {!blog && <PosterCard d={d} done={load} />}
           {!isShort(d.meta.type) && !blog && <MoodCard d={d} done={load} />}
         </>)}
