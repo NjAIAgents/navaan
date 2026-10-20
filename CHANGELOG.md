@@ -15,6 +15,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
   - **Images:** a step plans a cover and two to four images around the post's idea, at no cost. The cover (dev.to and LinkedIn sizes) and the figures (a flow, a comparison, a checklist, a timeline, a chart ...) are drawn with Remotion, free, with the post's own words. Only a picture the plan asks for is made with OpenAI, and it waits for your approval with its price. The images are stored in the bucket at permanent public addresses and put into both posts; the cover goes into the dev.to front matter.
   - **Post buttons:** with your dev.to key and LinkedIn token saved in Settings, the Posts tab saves the article on dev.to as a draft and publishes it when you confirm, and posts a short LinkedIn post (written by a new step) with the dev.to article as a link card. LinkedIn has no way to post a long article from outside, so the LinkedIn article stays copy and paste.
 
+## [0.56.5] - 2026-10-20
+
+### Fixed
+- A narrated inspiration short no longer prints its lines on top of each other (seen on insp-008). With the "rise" and "hero" caption looks every line after the first landed in the same spot and the earlier lines stayed on screen, so a script of four or five lines became unreadable and the last one of "hero" ran off the bottom. Now one line shows at a time and fades out before the next one appears, as "karaoke" already did. A short that is already made keeps its overlap until it is rendered again from its page.
+
 ## [0.56.4] - 2026-10-20
 
 ### Changed
@@ -769,7 +774,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
 [Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.57.0...HEAD
-[0.57.0]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...v0.57.0
+[0.57.0]: https://github.com/NjAIAgents/navaan/compare/v0.56.5...v0.57.0
+[0.56.5]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...v0.56.5
 [0.56.4]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...v0.56.4
 [0.56.3]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...v0.56.3
 [0.56.2]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...v0.56.2
