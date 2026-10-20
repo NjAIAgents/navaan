@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-10-20
+
 ### Changed
 - A song now goes to NAVAAN first. "Publish to NAVAAN" (the cloud archive, which puts the song on the site) comes right after you approve the video, before the YouTube and Instagram steps, and it no longer waits for Instagram. Before, it was the last step and waited for both YouTube and Instagram, so a song you chose not to post to Instagram never reached NAVAAN. YouTube and Instagram wait for your approval of this step, and clean up is still last. A song already in progress follows the new order from its next step.
 
@@ -725,7 +727,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...HEAD
+[0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.56.0
 [0.55.0]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/NjAIAgents/navaan/compare/v0.52.0...v0.53.0
