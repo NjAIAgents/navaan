@@ -35,6 +35,7 @@ from navaan_common import find_root, song_dir, load_json, cfg, GATES, songs_root
 import navaan_common as C
 import publish_schedule as PS
 import blog_loop as BL
+import blog_images as BI
 import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -105,7 +106,7 @@ SPEND_WHAT = {"suno": "Suno: makes the song from your lyrics (from your plan's c
 
 def spend_what(s):
     """One line for the credits approval: the service and what it makes. The pictures step already carries its own count and price in its label."""
-    if s["id"] in ("pictures", "cover"): return s["label"]   # these carry their own count and price in the label
+    if s["id"] in ("pictures", "cover", "blog_pictures"): return s["label"]   # these carry their own count and price in the label
     if s["id"] == "background" and "(Flow)" in s.get("label", ""): return "Flow: the background picture"
     if s["id"] == "background":   # the price beside it, as the pictures step has, so the approval says what it costs
         try:
@@ -388,6 +389,17 @@ def topic_chosen(D):
     return bool((load_json(os.path.join(D, "topics.json"), default={}) or {}).get("chosen"))
 
 
+def blog_picture_label(D):
+    """The pictures step says what it will make and cost, because the credits approval shows this line."""
+    plan = BI.load_plan(D); n = len(BI.pictures(plan)) if plan else 0
+    if not n: return "Make the planned pictures (OpenAI): none planned"
+    try:
+        import image_openai as IO
+        mc = media_cfg.load(); each = IO.estimate(mc["image_quality"], mc.get("image_size_landscape") or "1536x1024", IO.model_name(mc))
+        return "Make %d picture%s with OpenAI (about $%.2f at %s)" % (n, "" if n == 1 else "s", n * each, mc["image_quality"])
+    except Exception: L.soft(LOG, "blog_picture_price_unavailable"); return "Make %d picture%s with OpenAI" % (n, "" if n == 1 else "s")   # expected: no settings yet, the line goes without a price
+
+
 def blog_steps(slug, D):
     """A blog (NAV-69): one topic becomes a dev.to post, a LinkedIn article and a LinkedIn post. NAV-71: free trend sources, 5 topics from Claude's
     web search, and the owner's pick. Research, writing, images and publishing follow in later stories; the archive and cleanup are shared."""
@@ -413,6 +425,23 @@ def blog_steps(slug, D):
              hint=BLOG_ABOUT, done=lambda m: fresh(D, ["review_notes.md"], ["factcheck.json"])),
         dict(id="edit", outputs=["edit.json", *BL.DRAFTS], label="Edit both drafts with the review notes", kind="claude", skill="blog-editor", chrome=False,
              hint=BLOG_ABOUT, done=lambda m: fresh(D, ["edit.json"], ["review_notes.md"])),
+        # NAV-74/89: the humanizer changes how the drafts sound, never what they say; a script keeps the edited text first and checks the facts after (it does not touch draft.json, so the fact check does not run again)
+        dict(id="humanize_prep", outputs=[f"{BL.BEFORE}/*"], label="Keep the edited drafts before the humanizer", kind="script", cmds=[sc("blog_loop.py", "humanize-prep", slug)],
+             done=lambda m: has(D, *[f"{BL.BEFORE}/{n}" for n in BL.DRAFTS]) and fresh(D, [f"{BL.BEFORE}/{BL.DRAFTS[0]}"], ["edit.json"])),
+        dict(id="humanize", outputs=["humanize.json"], label="Make both drafts read like a person wrote them (facts untouched)", kind="claude", skill="blog-humanizer", chrome=False,
+             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["humanize.json"], [f"{BL.BEFORE}/{BL.DRAFTS[0]}"])),
+        dict(id="humanize_check", outputs=["humanize_check.json"], label="Check the humanizer kept every fact, number, link and marker", kind="script", cmds=[sc("blog_loop.py", "humanize-check", slug)],
+             done=lambda m: BL.humanized_ok(D)),
+        # NAV-139: a cover and a few images around the idea. The plan costs nothing; the cover and the figures are drawn with Remotion (free); only a planned `picture` is made with OpenAI, behind the credits approval.
+        dict(id="images_plan", outputs=["images.json"], label="Plan the cover and the images (no cost)", kind="claude", skill="blog-images", chrome=False, hint=BLOG_ABOUT,
+             done=lambda m: fresh(D, ["images.json"], ["humanize_check.json"]) and BI.plan_ok(D)),
+        dict(id="images", outputs=["post_cover_devto.png", "post_cover_linkedin.png", "post_fig_*.png", BI.MANIFEST], label="Draw the cover and the figures (Remotion, free)", kind="script", cmds=[sc("blog_images.py", "render", slug)],
+             done=lambda m: BI.rendered(D)),
+        dict(id="blog_pictures", outputs=["post_pic_*.jpg"], label=blog_picture_label(D), kind="script", before="credits", cmds=[sc("blog_images.py", "pictures", slug)], done=lambda m: BI.pictures_done(D)),
+        dict(id="images_embed", outputs=[], label="Put the cover and the images into both posts", kind="script", cmds=[sc("blog_images.py", "embed", slug)], done=lambda m: BI.embedded(D)),
+        # NAV-78: the short LinkedIn post that links to the dev.to article; the owner posts both from the Posts tab (the APIs are called there, not here)
+        dict(id="linkedin_post", outputs=["linkedin_post.md"], label="Write the short LinkedIn post (it links to the article)", kind="claude", skill="blog-linkedin-post", chrome=False, hint=BLOG_ABOUT,
+             done=lambda m: has(D, "linkedin_post.md") and fresh(D, ["linkedin_post.md"], ["humanize_check.json"])),
         *tail,
     ]
 

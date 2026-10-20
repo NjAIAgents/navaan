@@ -43,6 +43,8 @@ DEFAULTS = {"image_provider": "flow", "picture_director": "openai", "image_model
 KEYS = {  # provider: (file, variable, pattern, live test url, auth header builder)
     "openai": ("openai.env", "OPENAI_API_KEY", r"sk-[A-Za-z0-9_\-]{20,300}", "https://api.openai.com/v1/models", lambda k: {"Authorization": "Bearer " + k}),
     "elevenlabs": ("elevenlabs.env", "ELEVENLABS_API_KEY", r"[A-Za-z0-9_\-]{20,200}", "https://api.elevenlabs.io/v1/user", lambda k: {"xi-api-key": k}),
+    "devto": ("devto.env", "DEVTO_API_KEY", r"[A-Za-z0-9_\-]{16,120}", "https://dev.to/api/users/me", lambda k: {"api-key": k, "Accept": "application/vnd.forem.api-v1+json"}),   # the owner's key from dev.to Settings, Extensions (NAV-78)
+    "linkedin": ("linkedin.env", "LINKEDIN_TOKEN", r"[A-Za-z0-9_\-.~+/=]{20,2500}", "https://api.linkedin.com/v2/userinfo", lambda k: {"Authorization": "Bearer " + k}),   # an access token with w_member_social; saved by linkedin_save, with the member's URN
 }
 
 
@@ -137,7 +139,7 @@ def _live_test(provider, key):
     """One cheap read call. Returns (ok, why, note). Never echoes the key. A provider that says the key is genuine but lacks the permission this test needs (ElevenLabs: missing_permissions)
     counts as a good key, with a note: the key is recognised, and what it is for is only found out when it is used."""
     url, hdr = KEYS[provider][3], KEYS[provider][4](key)
-    name = {"elevenlabs": "ElevenLabs", "openai": "OpenAI"}.get(provider, provider.capitalize())
+    name = {"elevenlabs": "ElevenLabs", "openai": "OpenAI", "devto": "dev.to", "linkedin": "LinkedIn"}.get(provider, provider.capitalize())
     try:
         urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=20).read(1)
         return True, "", ""
@@ -162,7 +164,7 @@ def _live_test(provider, key):
 def key_save(provider, key):
     """Paste a key. It is tested first so a wrong paste never replaces a working key."""
     if provider not in KEYS:
-        raise ValueError("provider must be openai or elevenlabs")
+        raise ValueError("provider must be one of: " + ", ".join(KEYS))
     file, var, pat = KEYS[provider][:3]
     k = (key or "").strip().strip("\"'")
     if "=" in k:
@@ -174,6 +176,37 @@ def key_save(provider, key):
         raise ValueError(why)
     _atomic_write(os.path.join(conf_dir(), file), "%s=%s\n" % (var, k))
     return {"ok": True, "provider": provider, "note": note}
+
+
+def linkedin_author():
+    """The member's URN (urn:li:person:<id>) saved with the LinkedIn token, or ''."""
+    return _read_env(os.path.join(conf_dir(), KEYS["linkedin"][0])).get("LINKEDIN_AUTHOR", "")
+
+
+def linkedin_save(token, author=""):
+    """Paste a LinkedIn access token (permission w_member_social) and, when it cannot be asked for, the member id. The token is not tested by posting: it is tested by asking LinkedIn who it belongs to, which
+    needs the openid scope; a token without it is kept if the member id is given. Nothing is written when neither works, so a wrong paste never replaces a working login."""
+    file, var, pat = KEYS["linkedin"][:3]
+    t = (token or "").strip().strip("\"'")
+    if "=" in t: t = t.split("=", 1)[1].strip().strip("\"'")
+    if not re.fullmatch(pat, t): raise ValueError("That does not look like a LinkedIn access token. No spaces or line breaks.")
+    a = (author or "").strip()
+    if a and not re.fullmatch(r"(urn:li:person:)?[A-Za-z0-9_\-]{3,60}", a): raise ValueError("The member id is letters, digits, - and _ (or urn:li:person:<id>).")
+    if a and not a.startswith("urn:li:"): a = "urn:li:person:" + a
+    note = ""
+    try:
+        req = urllib.request.Request(KEYS["linkedin"][3], headers=KEYS["linkedin"][4](t)); me = json.loads(urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "replace"))
+        if not a and me.get("sub"): a = "urn:li:person:" + str(me["sub"]); note = "LinkedIn says this token is for " + (str(me.get("name") or "your profile")) + "."
+    except urllib.error.HTTPError as e:
+        L.ignored(LOG, "linkedin_save: userinfo refused", e)
+        if e.code == 401: raise ValueError("LinkedIn refused the token (HTTP 401): it is wrong or has expired. Make a new one.")
+        if not a: raise ValueError("LinkedIn would not say whose token this is (it needs the openid and profile scopes). Add your member id too, or make the token with those scopes.")
+    except Exception as e:
+        L.soft(LOG, "linkedin_save_error")
+        if not a: raise ValueError("Could not reach LinkedIn: " + str(e).replace(t, "<token>")[:120])
+    if not a: raise ValueError("LinkedIn did not give a member id. Add it in the second box.")
+    _atomic_write(os.path.join(conf_dir(), file), "%s=%s\nLINKEDIN_AUTHOR=%s\n" % (var, t, a))
+    return {"ok": True, "provider": "linkedin", "note": note or "Saved. Posting uses " + a + "."}
 
 
 def _month():

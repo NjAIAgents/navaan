@@ -1,0 +1,15 @@
+{
+ "width": 1000,
+ "height": 420,
+ "title": "What an agent harness actually does",
+ "kicker": "LLM agents",
+ "chips": [
+  "tools",
+  "loops",
+  "state"
+ ],
+ "palette": "indigo",
+ "motif": "blocks",
+ "seed": "blog-blocks",
+ "brand": "NAVAAN"
+}

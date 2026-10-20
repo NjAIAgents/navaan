@@ -505,7 +505,7 @@ export default function Song() {
             {(!mobile || pane === "now") && <div className="pl-now stack"><SongAlerts d={d} done={load} />{now}{hasLanes && <LanesView d={d} act={act} busy={busy} pending={pending} reload={load} running={running} stopping={stopping} onStop={() => void stop()} />}{d.meta.skip?.instagram && <p className="mu row" role="status">Not posted to Instagram: you skipped it for this one.<button className="btn g" disabled={pending} onClick={() => void act("/api/skip_lane", { lane: "instagram", skip: false })}>Post to Instagram after all</button></p>}{selId && <StepDetail d={d} id={selId} events={eventsFor(selId)} onBack={() => pick(selId)} done={load} setGate={setGate} busy={busy} />}</div>}
           </div>
         )}
-        {tab === "posts" && <BlogPosts d={d} />}
+        {tab === "posts" && <BlogPosts d={d} onSaved={load} />}
         {tab === "content" && (<>
           <TextEditors d={d} done={load} />
           <ShotsEditor key={slug} d={d} done={load} />

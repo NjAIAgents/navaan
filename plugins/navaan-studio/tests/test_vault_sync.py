@@ -19,7 +19,8 @@ class SettingsFiles(unittest.TestCase):
     def test_every_settings_file_the_studio_writes_there_is_kept_in_vault(self):
         sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
         import licence_cfg, gate_cfg
-        for name in (licence_cfg.FILE, gate_cfg.FILE, "media.json"): self.assertTrue(V.is_known(name), f"{name} would be lost at the next restart")
+        import media_cfg
+        for name in (licence_cfg.FILE, gate_cfg.FILE, "media.json", *[k[0] for k in media_cfg.KEYS.values()]): self.assertTrue(V.is_known(name), f"{name} would be lost at the next restart")   # every key file Settings can write (OpenAI, ElevenLabs, dev.to, LinkedIn)
 
     def test_the_licence_statement_is_pushed_and_comes_back_after_a_restart(self):
         vault = {}

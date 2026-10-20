@@ -168,6 +168,58 @@ class Loop(unittest.TestCase):
         self.assertEqual(self.due()["step"], "edit"); self.put("devto.md", "edited"); self.put("linkedin_article.md", "edited"); self.put("edit.json", {})
         self.assertNotIn(self.due().get("step"), ("write", "factcheck", "factcheck_loop", "review", "edit"))
 
+    # ---- NAV-74 / NAV-89: the humanizer changes the sound, never the facts ----
+    FRONT = '---\ntitle: "Why answers sound sure"\ndescription: "Confidence is not evidence"\ntags: ai, llm\npublished: false\n---\n\n'
+    BODY = ("In today's fast-paced world, models are not just fast, they are robust [c1]. The study found 40% fewer errors across 1,200 runs [c2], see https://example.org/study.\n\n"
+            "```py\nprint(1 + 2)\n```\n\n![chart](https://x.test/c1.png)\n\nIt took 3 ms on 2 cores [c3].\n")
+
+    def test_a_rewrite_that_only_changes_the_sound_passes_the_check(self):
+        after = self.FRONT + ("Models are fast and they hold up [c1]. The study found 40% fewer errors across 1,200 runs [c2]; the details are at https://example.org/study.\n\n"
+                              "```py\nprint(1 + 2)\n```\n\n![chart](https://x.test/c1.png)\n\nThat was 3 ms on 2 cores [c3].\n")
+        self.assertEqual(self.B.humanize_problems(self.FRONT + self.BODY, after, devto=True), [])
+
+    def test_a_rewrite_that_drops_or_moves_a_fact_is_named(self):
+        before = self.FRONT + self.BODY
+        for old, new, word in (("[c2]", "", "claim markers"), ("40%", "50%", "numbers"), ("1,200", "1,000", "numbers"), ("https://example.org/study", "https://example.org/other", "links"),
+                               ("print(1 + 2)", "print(3)", "code blocks"), ("![chart](https://x.test/c1.png)", "", "images"), ("3 ms on 2 cores", "3 ms on 2 cores and 4 threads", "numbers")):
+            problems = self.B.humanize_problems(before, before.replace(old, new), devto=True)
+            self.assertTrue(any(word in x for x in problems), (old, problems))
+
+    def test_the_front_matter_must_stay_valid_and_the_length_close(self):
+        before = self.FRONT + self.BODY
+        self.assertTrue(any("front matter is gone" in x for x in self.B.humanize_problems(before, self.BODY, devto=True)))
+        self.assertTrue(any("published must stay false" in x for x in self.B.humanize_problems(before, before.replace("published: false", "published: true"), devto=True)))
+        self.assertTrue(any("tags" in x for x in self.B.humanize_problems(before, before.replace("tags: ai, llm", "tags: ai, llm, a, b, c"), devto=True)))
+        self.assertTrue(any("tags" in x for x in self.B.humanize_problems(before, before.replace("tags: ai, llm", "tags: AI, llm"), devto=True)))
+        self.assertTrue(any("160" in x for x in self.B.humanize_problems(before, before.replace("Confidence is not evidence", "x" * 170), devto=True)))
+        self.assertTrue(any("words" in x for x in self.B.humanize_problems(before, before + "word " * 200, devto=True)))
+
+    def test_prep_keeps_the_edited_drafts_and_the_check_reads_them_and_asks_the_owner_when_a_fact_moved(self):
+        self.put("devto.md", self.FRONT + self.BODY); self.put("linkedin_article.md", self.BODY)
+        self.assertEqual(self.B.humanize_prep("blog-001"), 0); self.assertTrue(os.path.isfile(os.path.join(self.D, "humanize_before", "devto.md")))
+        self.assertEqual(self.B.humanize_check("blog-001"), 0); self.assertTrue(json.load(open(os.path.join(self.D, "humanize_check.json")))["ok"])   # nothing changed yet
+        self.put("devto.md", (self.FRONT + self.BODY).replace("40%", "45%")); rc = self.B.humanize_check("blog-001")
+        self.assertEqual(rc, 5); said = open(os.path.join(self.D, "needs_you.txt")).read(); self.assertIn("humanize_before/", said); self.assertIn("devto.md: the numbers changed", said)
+        self.put("devto.md", self.FRONT + self.BODY); self.assertEqual(self.B.humanize_check("blog-001"), 0); self.assertFalse(os.path.exists(os.path.join(self.D, "needs_you.txt")), "fixed: no longer waiting")
+
+    def test_the_humanizer_runs_after_the_edit_in_three_steps_and_does_not_restart_the_fact_check(self):
+        json.dump({"candidates": [{"title": "T"}], "chosen": {"title": "T", "index": 0}}, open(os.path.join(self.D, "topics.json"), "w")); os.utime(os.path.join(self.D, "topics.json"), (self.t, self.t))
+        json.dump({**json.load(open(os.path.join(self.D, "meta.json"))), "approvals": {"topic": {"by": "test"}}}, open(os.path.join(self.D, "meta.json"), "w"))
+        self.put("trend_sources.json", {}); self.put("research.md", "r"); self.put("claims.json", {"claims": [{"id": "c1", "text": "A", "source_url": "https://a.dev", "evidence": "A", "primary": True}]}); self.put("outline.md", "o")
+        self.draft(); self.check("pass"); self.put("review_notes.md", "n"); self.put("edit.json", {})
+        self.assertEqual(self.due()["step"], "humanize_prep")
+        self.put("devto.md", self.FRONT + self.BODY); self.put("linkedin_article.md", self.BODY); self.put("edit.json", {}); self.B.humanize_prep("blog-001")
+        for n in ("devto.md", "linkedin_article.md"): self.t += 1; os.utime(os.path.join(self.D, "humanize_before", n), (self.t, self.t))
+        self.assertEqual(self.due()["step"], "humanize")
+        self.put("humanize.json", {"changed": ["opener"]}); self.put("devto.md", self.FRONT + self.BODY.replace("In today's fast-paced world, ", "")); self.put("linkedin_article.md", self.BODY)   # the drafts change, draft.json does not
+        self.assertEqual(self.due()["step"], "humanize_check"); self.assertTrue(self.B.checked(self.D), "the fact check still stands")
+        self.B.humanize_check("blog-001"); self.t += 1; os.utime(os.path.join(self.D, "humanize_check.json"), (self.t, self.t))
+        self.assertNotIn(self.due().get("step"), ("humanize_prep", "humanize", "humanize_check", "factcheck", "write", "edit"))
+
+    def test_the_skill_keeps_markers_numbers_links_code_and_does_not_touch_the_fact_check_files(self):
+        t = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "blog-humanizer", "SKILL.md"), encoding="utf-8").read()
+        for w in ("claim marker", "fenced code block", "humanize.json", "draft.json", "factcheck.json", "published: false", "Do not add a fact"): self.assertIn(w, t)
+
 
 if __name__ == "__main__":
     unittest.main()

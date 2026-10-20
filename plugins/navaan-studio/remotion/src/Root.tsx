@@ -4,6 +4,8 @@ import {Quote, QuoteProps, defaultProps} from './Quote';
 import {Lyrics, LyricsProps, lyricsDefaults} from './Lyrics';
 import {Shots, ShotsProps, shotsDefaults} from './Shots';
 import {VisualShort, VisualShortProps, visualShortDefaults} from './VisualShort';
+import {BlogCover, CoverProps, coverDefaults} from './BlogCover';
+import {BlogFigure, FigureProps, figureDefaults} from './BlogFigure';
 
 // The renderer passes the song folder's timing.json as props. Duration, size and fps all come from it,
 // so one composition serves every inspiration short.
@@ -21,6 +23,10 @@ export const Root: React.FC = () => (
     <Composition id="LyricsCover" component={Lyrics} width={1080} height={1920} fps={30} durationInFrames={30} defaultProps={{...lyricsDefaults, mode: 'cover' as const}} calculateMetadata={lyricsMeta} />
     <Composition id="VisualShort" component={VisualShort} width={1080} height={1920} fps={30} durationInFrames={240} defaultProps={visualShortDefaults}
       calculateMetadata={({props}) => { const p = props as unknown as VisualShortProps; return {durationInFrames: Math.max(1, Math.round(p.duration * p.fps)), fps: p.fps, width: p.width, height: p.height}; }} />
+    <Composition id="BlogCover" component={BlogCover} width={1000} height={420} fps={30} durationInFrames={1} defaultProps={coverDefaults}
+      calculateMetadata={({props}) => { const p = props as unknown as CoverProps; return {width: p.width, height: p.height}; }} />
+    <Composition id="BlogFigure" component={BlogFigure} width={1080} height={1500} fps={30} durationInFrames={1} defaultProps={figureDefaults}
+      calculateMetadata={({props}) => { const p = props as unknown as FigureProps; return {width: p.width, height: p.height}; }} />
     <Composition
       id="Quote"
       component={Quote}

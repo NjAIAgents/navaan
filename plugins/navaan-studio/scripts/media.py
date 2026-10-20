@@ -11,7 +11,7 @@ Rules
   a cached file is named by the asset id, its size in bytes, the size and the format: replacing the original (a new size in bytes) makes new names, old ones are never served for it
   the first resize also records the original's width, height and dominant colour on its asset row (the colour shows while the picture loads)
 """
-import os, io, hashlib, subprocess, tempfile
+import os, io, re, hashlib, subprocess, tempfile
 import navaan_common as C
 import navaan_log as L
 import catalog_store as K
@@ -63,6 +63,17 @@ def variant(slug, size, fmt, role="cover"):
     with open(tmp, "wb") as f: f.write(data)
     os.replace(tmp, path)   # atomic: another request never reads half a file
     return data, etag, mime
+
+
+BLOG_IMAGE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,90}-[0-9a-f]{8}\.(png|jpg)$")   # a blog image's name carries its hash (blog_images.store): a replaced image is a new address, so a year-long cache is right
+
+
+def blog_image(slug, name):
+    """(bytes, etag, mime) of a blog post's image from the bucket, or None when it is not there or the name is not one the studio makes. Nothing is resized: it is the picture the post links to."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", slug or "") or not BLOG_IMAGE.fullmatch(name or ""): return None
+    try: data = objstore.get(f"{K.ARTIST}/blog/{slug}/{name}")
+    except Exception as e: L.ignored(LOG, "blog_image: not in the bucket (a 404 for the visitor)", e); return None
+    return data, '"' + hashlib.sha1(f"{slug}/{name}".encode()).hexdigest()[:20] + '"', "image/png" if name.endswith(".png") else "image/jpeg"
 
 
 def cut_preview(audio, seconds=PREVIEW_S):

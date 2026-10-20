@@ -23,4 +23,6 @@
           radial-gradient(circle at 64% 90%, rgba(169, 111, 82, .5) 0 18%, transparent 19%), radial-gradient(circle at 8% 84%, rgba(90, 70, 160, .4) 0 12%, transparent 13%);
   --field: radial-gradient(ellipse 60% 50% at 6% -8%, rgba(60, 100, 170, .36), transparent 62%), radial-gradient(ellipse 55% 45% at 98% 0%, rgba(214, 180, 119, .18), transparent 62%),
            radial-gradient(ellipse 70% 50% at 60% 114%, rgba(169, 111, 82, .22), transparent 62%);
+  /* the finished post is read on white paper in every theme (BlogPosts editor) */
+  --paper: #FFFFFF; --paper-ink: #1F2328; --paper-mu: #57606A; --paper-ln: #D0D7DE; --paper-ac: #0969DA; --paper-code: #F6F8FA;
 }

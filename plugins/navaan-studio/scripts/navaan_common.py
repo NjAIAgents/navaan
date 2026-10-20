@@ -262,7 +262,7 @@ TYPE_GATES = {"music": tuple(g for g in GATES if g not in ("quote", "originality
               "inspiration": ("quote", "originality", "credits", "media", "publish_youtube", "instagram_caption", "go_public", "publish_instagram", "cloud_upload", "local_cleanup"),
               "aha": ("quote", "originality", "credits", "media", "publish_youtube", "go_public", "cloud_upload", "local_cleanup"),
               "reel": ("quote", "originality", "edit_plan", "credits", "media", "instagram_caption", "publish_instagram", "cloud_upload", "local_cleanup"),
-              "blog": ("topic", "cloud_upload", "local_cleanup")}   # NAV-69: the owner picks the topic; later stories add the writing, image and publish approvals
+              "blog": ("topic", "credits", "cloud_upload", "local_cleanup")}   # NAV-69: the owner picks the topic; later stories add the writing, image and publish approvals
 
 
 def item_type(m):

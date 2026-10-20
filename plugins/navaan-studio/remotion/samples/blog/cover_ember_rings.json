@@ -1,0 +1,15 @@
+{
+ "width": 1000,
+ "height": 420,
+ "title": "The retry loop that took the site down",
+ "kicker": "Reliability",
+ "chips": [
+  "retries",
+  "outages",
+  "backoff"
+ ],
+ "palette": "ember",
+ "motif": "rings",
+ "seed": "blog-rings",
+ "brand": "NAVAAN"
+}

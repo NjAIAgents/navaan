@@ -444,6 +444,12 @@ def media_save(updates):
     return media_cfg.status()
 
 
+def linkedin_save(token, author=""):
+    """Paste a LinkedIn access token and, if needed, the member id. Tested first, written to linkedin.env (mode 600), never returned."""
+    r = media_cfg.linkedin_save(token, author)
+    return {**media_cfg.status(), "note": r.get("note", "")}
+
+
 def media_key_save(provider, token):
     """Paste an OpenAI or ElevenLabs key. Tested first, written to openai.env or elevenlabs.env (mode 600), never returned."""
     r = media_cfg.key_save(provider, token)
