@@ -9,12 +9,18 @@ meta.json with the cloud URLs, youtube.json, instagram.txt, plans) and logs. Not
 """
 import os, sys, json, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, cfg, require_approval, meta_path, load_json, item_load, item_save
+from navaan_common import song_dir, cfg, require_approval, meta_path, load_json, item_load, item_save, item_type, NO_INSTAGRAM
 import storage
 import navaan_log as L
 LOG = L.get("cleanup")
 
 KEEP_EXT = (".txt", ".json", ".md", ".srt", ".log")
+
+
+def ig_expected(m):
+    """Whether this item should have been posted to Instagram before its local copy goes: the profile names a handle, unless the item's type has no Instagram (the Aha-lorithm posts YouTube Shorts only) or the owner skipped it for this item."""
+    if item_type(m) in NO_INSTAGRAM or (m.get("skip") or {}).get("instagram"): return False
+    return bool(cfg("publish.instagram_handle"))
 
 
 def main(argv):
@@ -27,7 +33,7 @@ def main(argv):
     pub = m.get("published", {})
     if not pub.get("youtube_items"): print("The song is not on YouTube yet. Clean up only after publishing."); return 4
     if any(i.get("privacy") != "public" for i in pub.get("youtube_items", [])): print("The YouTube video is not public yet. Run the go_public step first."); return 4
-    if cfg("publish.instagram_handle") and not pub.get("instagram"): print("Instagram is set up but the Reel is not posted yet. Clean up after it is."); return 4
+    if ig_expected(m) and not pub.get("instagram"): print("Instagram is set up but the Reel is not posted yet. Clean up after it is."); return 4
     try:
         dest, ns, local, remote, missing, mism = storage.compare(prov, cfg("storage.cloud_bucket"), cfg("storage.cloud_prefix", ""), cfg("storage.cloud_region", ""), D, slug)
     except RuntimeError as e: print(f"cannot check the bucket: {e}"); return 1
