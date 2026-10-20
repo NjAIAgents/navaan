@@ -246,8 +246,10 @@ def main(slug):
     text = (q.get("text") or "").strip()
     if not text: sys.exit("navaan: quote.json has no text")
     lines = [l.strip() for l in (q.get("lines") or []) if l.strip()] or split_lines(text, q.get("language", ""))   # an aha script keeps its *highlight* marks: the renderer colours them
-    pics = [os.path.join("scenes", "beat_%02d.png" % (i + 1)) for i in range(len(lines))] if itype == "aha" else []
-    pics = pics if pics and all(os.path.exists(os.path.join(D, b)) for b in pics) else []   # one picture per line, else the one background (not `beats`: that is the music's beat finder)
+    import visuals_plan
+    aplan = visuals_plan.load(D, "aha", len(lines)) if itype == "aha" else None   # the visual plan of an Aha-lorithm short (NAV-129): a beat shown by a scene has no picture
+    pics = {i: os.path.join("scenes", "beat_%02d.png" % (i + 1)) for i in visuals_plan.picture_beats(aplan, len(lines))} if itype == "aha" else {}
+    pics = pics if pics and all(os.path.exists(os.path.join(D, b)) for b in pics.values()) else {}   # a picture per beat that needs one, else the one background (not `beats`: that is the music's beat finder)
     author = (q.get("author") or "").strip()
     bg = next((os.path.basename(p) for ext in ("jpg", "jpeg", "png", "webp") for p in glob.glob(os.path.join(D, f"background.{ext}"))), None)
     scene = itype == "inspiration" and os.path.exists(os.path.join(D, "scene_src.mp4"))   # the owner's own scene video stands in for the picture (inspire_scene.py)
@@ -302,8 +304,8 @@ def main(slug):
     if len(caps) == len(out_lines) and all(caps):   # an aha beat shows its short caption while its full line is spoken
         for l, c in zip(out_lines, caps): l["text"] = c
     if isinstance(q.get("aha"), int) and 0 <= q["aha"] < len(out_lines): out_lines[q["aha"]]["aha"] = True   # the music drops back while the takeaway lands
-    if pics and len(pics) == len(out_lines):
-        for l, b in zip(out_lines, pics): l["bg"] = b
+    if pics and len(out_lines) == len(lines):
+        for i, b in pics.items(): out_lines[i]["bg"] = b
     scene_info = None
     if scene:   # fitted to the finished length (the audio plus the end card), so the credit page still ends the short
         import inspire_scene; scene_info = inspire_scene.fit(D, dur); bg = inspire_scene.BG
@@ -324,6 +326,16 @@ def main(slug):
         "watermark": watermark(slug),
         "music_source": how, "beat_source": bkind, "beats": bts[:80],
     }
+    plan = aplan   # the short's visual plan: the renderer draws the beats and captions it names (NAV-130)
+    if itype == "inspiration" and narr:   # a narrated inspiration: the plan somebody wrote, else a calm caption chosen from its words (`- look:` in the brief names one, or plain for none) (NAV-131)
+        plan = visuals_plan.load(D, itype, len(out_lines)) or visuals_plan.auto_caption([l["text"] for l in out_lines], opt(D, "look", "auto"))
+        if plan and plan.get("caption"):   # the voice itself times the words and drives the glow (NAV-132)
+            import voice_timing
+            vt = voice_timing.analyse(voice, FPS, out_lines)
+            if vt:
+                plan["caption"]["amp"] = vt["amp"]
+                for l, at in zip(out_lines, vt["at"]): l["at"] = at
+    if plan: timing["visuals"] = plan
     json.dump(timing, open(os.path.join(D, "timing.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     json.dump({"source": bkind, "beats": bts}, open(os.path.join(D, "beats.json"), "w"), indent=1)
     print(f"timing.json: {len(out_lines)} lines, {dur:.1f}s, camera {cam}, transition {tr}, music {how} ({bkind} beats)")

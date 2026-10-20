@@ -119,6 +119,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       {gate === "instagram_caption" && <PostTextEditor d={d} kind="instagram" done={reload ?? (() => undefined)} />}
       {gate === "publish_youtube" && <PostTextEditor d={d} kind="youtube" done={reload ?? (() => undefined)} />}
       {gate === "edit_plan" && d.text["edl_summary.md"] && <pre className="art" tabIndex={0} aria-label="The edit plan in plain words">{d.text["edl_summary.md"]}</pre>}
+      {gate === "quote" && d.text["visual_plan.json"] && <PlanView text={d.text["visual_plan.json"]} />}
       {gate === "media" && d.text["critique.json"] && <CritiqueView text={d.text["critique.json"]} />}
       {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && gate !== "instagram_caption" && (shown ? (Readable[gate]?.(shown) ?? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre>) : <p className="mu">{file} is not there yet. Run its step first.</p>)}
     </section>
@@ -237,6 +238,20 @@ const Readable: Record<string, (text: string) => React.ReactNode | null> = {
     return <div className="stack"><p><span className={`chip ${clear ? "ok" : "wn"}`}><span className="dot" />{clear ? "Clear: no earlier use of these words found" : "Check this: similar wording found"}</span></p>{o.recommendation ? <p>{String(o.recommendation)}</p> : null}
       {m.length > 0 && <ul className="matches">{m.map((x, i) => <li key={i}><a href={x.url} target="_blank" rel="noreferrer">{x.title || x.url}</a>{x.note && <span className="mu"> · {x.note}</span>}</li>)}</ul>}<RawFile text={t} name="originality.json" /></div>; },
 };
+
+// The visual plan approved together with an Aha-lorithm script, or the caption look of an inspiration: one line per beat, in words.
+const TREATMENTS: Record<string, string> = { hook: "the words come in one by one over its picture", compare: "two things side by side", bars: "bars that fill (an illustration, not data)", stat: "one number counting up", chat: "a chat that types out", flow: "a chain of steps",
+  chart: "a line chart that draws itself", checklist: "a checklist that ticks", timeline: "a timeline", ring: "a progress ring", strike: "a word crossed out for a better one" };
+const CAPTIONS: Record<string, string> = { karaoke: "the spoken word lights up, one line at a time", rise: "words rise out of the dark as they are spoken", hero: "the key words grow, and the closing line is underlined" };
+function PlanView({ text }: { text: string }) {
+  const p = parse(text); if (!p) return null;
+  const beats = Array.isArray(p.beats) ? p.beats as { line: number; treatment: string; data?: { source?: string } }[] : [];
+  const cap = p.caption as { treatment?: string } | undefined;
+  return <div className="stack" aria-label="The visual plan in plain words"><h4>Visual plan</h4>
+    <ul>{beats.map((b, i) => <li key={i}>Beat {b.line + 1}: {TREATMENTS[b.treatment] ?? b.treatment}{b.treatment === "hook" ? "" : ", instead of a picture"}{b.data?.source ? ` (source: ${b.data.source})` : ""}</li>)}
+      {cap?.treatment && <li>Captions: {CAPTIONS[cap.treatment] ?? cap.treatment}</li>}</ul>
+    <RawFile text={text} name="visual_plan.json" /></div>;
+}
 
 // The reel critic's verdict beside the video you are about to approve: advice, never a block.
 function CritiqueView({ text }: { text: string }) {

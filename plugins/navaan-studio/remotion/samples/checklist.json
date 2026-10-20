@@ -1,0 +1,34 @@
+{
+ "base": "none",
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "duration": 7.0,
+ "hold_until": 6.5,
+ "style": {
+  "color": "#F4F7FF",
+  "accent": "#E2B75A"
+ },
+ "lines": [
+  {
+   "text": "Three questions before you *believe* it",
+   "start": 0,
+   "end": 6.5
+  }
+ ],
+ "visuals": {
+  "beats": [
+   {
+    "line": 0,
+    "treatment": "checklist",
+    "data": {
+     "items": [
+      "Check the source",
+      "Check the date",
+      "Ask for evidence"
+     ]
+    }
+   }
+  ]
+ }
+}

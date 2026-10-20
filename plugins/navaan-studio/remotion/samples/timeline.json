@@ -1,0 +1,47 @@
+{
+ "base": "none",
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "duration": 7.0,
+ "hold_until": 6.5,
+ "style": {
+  "color": "#F4F7FF",
+  "accent": "#E2B75A"
+ },
+ "lines": [
+  {
+   "text": "Four steps between an answer and the truth",
+   "start": 0,
+   "end": 6.5
+  }
+ ],
+ "visuals": {
+  "beats": [
+   {
+    "line": 0,
+    "treatment": "timeline",
+    "data": {
+     "steps": [
+      {
+       "head": "Ask",
+       "sub": "You pose the question"
+      },
+      {
+       "head": "Read",
+       "sub": "The answer sounds sure"
+      },
+      {
+       "head": "Doubt",
+       "sub": "You stop and wonder"
+      },
+      {
+       "head": "Verify",
+       "sub": "You check the claim"
+      }
+     ]
+    }
+   }
+  ]
+ }
+}
