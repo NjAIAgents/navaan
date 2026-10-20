@@ -322,7 +322,7 @@ def aha_steps(slug, D):
     out = []
     for s in inspiration_steps(slug, D, scene_ok=False):   # a scene video is for inspiration shorts only
         if s["id"] in ("instagram_caption", "publish_instagram", "background_prompt"): continue
-        if s["id"] == "quote": s = {**s, "skill": "aha-script", "label": "Write the script: hook, explanation, the aha (one picture per beat)"}
+        if s["id"] == "quote": s = {**s, "skill": "aha-script", "label": "Write the script: hook, explanation, the aha (one picture per beat)", "outputs": [*s["outputs"], "visual_plan.json"]}   # a redo clears the old visual plan with the old script
         if s["id"] == "originality": s = {**s, "skill": "aha-check", "label": "Fact-check every claim on the web"}
         if s["id"] == "youtube_meta": s = {**s, "hint": ("Title: the hook, one fitting emoji at most. Description: three short parts only: the hook line (a few words, no explanation), then "
                                                          "'Follow The Aha-lorithm for AI explained in seconds.' and the hashtags #AI #ArtificialIntelligence #AIExplained #AIAwareness #TheAhalorithm, one or two on the topic, then #Shorts. Example: 'Confidence is not evidence.' / 'Follow The Aha-lorithm for AI explained in seconds.' / '#AI ... #CriticalThinking #Shorts'. " + s.get("hint", "")).strip()}
