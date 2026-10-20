@@ -40,12 +40,13 @@ export function ShareLinks({ title, url }: { title: string; url: string }) {
   );
 }
 
-// A link anyone can open to hear the whole song. Only a published song with a confirmed licence can have one; the server says so if not.
-export function ShareCard({ slug, title = "" }: { slug: string; title?: string }) {
+// A link anyone can open to hear the whole song (or, for an album, every song in it that may be heard). Only a published song with a confirmed licence, or a published album with such a song, can have one; the server says so if not.
+const shareBody = (kind: "song" | "album", slug: string) => (kind === "album" ? { album: slug } : { slug });
+export function ShareCard({ slug, title = "", kind = "song" }: { slug: string; title?: string; kind?: "song" | "album" }) {
   const [link, setLink] = useState<Link | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const make = async () => { setBusy(true); setMsg(""); try { setLink(await postJSON<Link>("/api/share", { slug })); } catch (e) { setMsg(errText(e)); } finally { setBusy(false); } };
+  const make = async () => { setBusy(true); setMsg(""); try { setLink(await postJSON<Link>("/api/share", shareBody(kind, slug))); } catch (e) { setMsg(errText(e)); } finally { setBusy(false); } };
   const stop = async () => { if (!link) return; setBusy(true); try { await postJSON("/api/share/revoke", { token: link.token }); setLink(null); setMsg("That link no longer works."); } catch (e) { setMsg(errText(e)); } finally { setBusy(false); } };
   return (
     <section className="card stack" aria-labelledby="share-h">
@@ -62,12 +63,12 @@ export function ShareCard({ slug, title = "" }: { slug: string; title?: string }
 }
 
 // The Share button on a song: opens a sheet that makes the link and offers the platforms at once.
-export function ShareDialog({ slug, title, onClose }: { slug: string; title: string; onClose: () => void }) {
+export function ShareDialog({ slug, title, onClose, kind = "song" }: { slug: string; title: string; onClose: () => void; kind?: "song" | "album" }) {
   const [link, setLink] = useState<Link | null>(null); const [err, setErr] = useState(""); const [stopped, setStopped] = useState(false);
   const x = useRef<HTMLButtonElement>(null);
   const { guest } = useMe();
-  useEffect(() => { if (guest) { setLink({ token: "", url: `${location.origin}/app/song/${slug}` }); return; }   // a visitor shares the page itself
-    postJSON<Link>("/api/share", { slug }).then(setLink).catch((e) => { if (e instanceof ApiError && e.status === 403) setLink({ token: "", url: `${location.origin}/app/song/${slug}` }); else setErr(errText(e)); }); }, [slug, guest]);   // refused (403): share the song's page itself, as a visitor does, rather than a dead end
+  useEffect(() => { if (guest) { setLink({ token: "", url: `${location.origin}/app/${kind}/${slug}` }); return; }   // a visitor shares the page itself
+    postJSON<Link>("/api/share", shareBody(kind, slug)).then(setLink).catch((e) => { if (e instanceof ApiError && e.status === 403) setLink({ token: "", url: `${location.origin}/app/${kind}/${slug}` }); else setErr(errText(e)); }); }, [slug, guest, kind]);   // refused (403): share the song's page itself, as a visitor does, rather than a dead end
   useEffect(() => {
     x.current?.focus(); const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", key); return () => document.removeEventListener("keydown", key);

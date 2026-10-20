@@ -18,7 +18,7 @@ class Step(unittest.TestCase):
 
     def test_the_poster_comes_after_the_pictures_behind_the_same_credits_approval_and_says_what_it_costs(self):
         D = tempfile.mkdtemp(); st = self.steps(D)
-        self.assertEqual(list(st), ["prompts", "pictures", "poster"])
+        self.assertEqual(list(st), ["prompts", "pictures", "cover", "poster"])
         p = st["poster"]; self.assertEqual((p["before"], p["kind"]), ("credits", "script")); self.assertEqual(p["outputs"], ["poster_2x3.png", "poster_art.png"])
         self.assertRegex(N.spend_what(p), r"^Make the poster with OpenAI \(1 picture, about \$\d+\.\d\d at \w+\)$")   # the credits approval lists it with its price
 

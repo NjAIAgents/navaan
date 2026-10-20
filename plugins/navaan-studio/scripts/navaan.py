@@ -105,7 +105,7 @@ SPEND_WHAT = {"suno": "Suno: makes the song from your lyrics (from your plan's c
 
 def spend_what(s):
     """One line for the credits approval: the service and what it makes. The pictures step already carries its own count and price in its label."""
-    if s["id"] in ("pictures", "poster"): return s["label"]   # these carry their own count and price in the label
+    if s["id"] in ("pictures", "poster", "cover"): return s["label"]   # these carry their own count and price in the label
     if s["id"] == "background" and "(Flow)" in s.get("label", ""): return "Flow: the background picture"
     if s["id"] == "background":   # the price beside it, as the pictures step has, so the approval says what it costs
         try:
@@ -124,12 +124,18 @@ def song_picture_steps(slug, D, mc):
     label = "Create the pictures with OpenAI"
     if n: label += " (%d pictures, about $%.2f at %s)" % (n, SI.total_cost(n, mc["image_quality"], mc["image_size_landscape"], IO.model_name(mc)), mc["image_quality"])
     import poster as POSTER
+    import song_cover as SCOVER
+    clabel = "Make the cover with OpenAI (1 picture, about $%.2f at %s)" % (IO.estimate(mc["image_quality"], SCOVER.SIZE, IO.model_name(mc)), mc["image_quality"])
     plabel = "Make the poster with OpenAI (1 picture, about $%.2f at %s)" % (IO.estimate(mc["image_quality"], POSTER.SIZE, IO.model_name(mc)), mc["image_quality"])
     return [
         dict(id="prompts", outputs=["prompt_pack.json"], label="Director writes the picture plan: story, character, places, motion", kind="script",
              cmds=[sc("prompt_pack.py", slug)], done=lambda m: bool((prompt_pack.load(D) or {}).get("prompts")) or len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),   # read the folder when asked, not when the step list was built
         dict(id="pictures", outputs=["images/*"], label=label, kind="script", before="credits",
              cmds=[sc("song_images_openai.py", slug)], done=lambda m: len(visuals_cfg.own_images(D)) >= visuals_cfg.MIN_VIDEO),
+        # the cover: square art in the modern look from the song's own words (the prompt is on the Media tab's Cover card, where it can be changed first), with the title drawn over it by make_cover. It becomes the
+        # cover of the mp3, the YouTube thumbnail, Instagram and the site; the video step keeps a cover that exists. Done once it exists, or once the videos were approved, so an older song is not sent back to spend.
+        dict(id="cover", outputs=["cover_art.png", "cover_prompt.txt", "cover_1x1.png", "cover_16x9.png", "thumb_16x9.jpg"], label=clabel, kind="script", before="credits", cmds=[sc("song_cover.py", slug)],
+             done=lambda m: has(D, "cover_1x1.png") or bool((m.get("approvals") or {}).get("media"))),
         # the poster: portrait art from the song's own words (the prompt is on the Media tab's Poster card, where it can be changed first), with the title drawn over it.
         # Done once it exists, or once the videos were approved, so a song made before this step existed is not sent back to make one (and spend) on its next run.
         dict(id="poster", outputs=["poster_2x3.png", "poster_art.png"], label=plabel, kind="script", before="credits", cmds=[sc("poster.py", slug)],
@@ -203,6 +209,8 @@ def music_steps(slug, D):
              done=lambda m: fresh(D, [FULL] + ([REEL] if REELS else []) + ["final_tagged.mp3"], ["clips/*.mp4"]), after="media", sets="approved"),
     ]
     tail = [
+        dict(id="archive", outputs=[], redo=False, label="Publish to NAVAAN: archive the song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True, sets_after="published",   # first: the song is on NAVAAN before YouTube or Instagram, and neither lane has to finish for it to get there
+             cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube title, description and tags from the lyrics", kind="claude", skill="youtube-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
         dict(id="publish_youtube", outputs=["published.json"], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
@@ -220,8 +228,6 @@ def music_steps(slug, D):
              done=lambda m: has(D, "instagram.txt")),
         dict(id="publish_instagram", outputs=["published.json"], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
              cmds=None, done=lambda m: ig_done(m)),
-        dict(id="archive", outputs=[], redo=False, label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
-             cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
         dict(id="cleanup", outputs=[], redo=False, label="Clean up the local copy (last step, only after the bucket is checked)", kind="script", before="local_cleanup", optional_cloud=True,
              cmds=[sc("cleanup.py", slug, "--yes")], done=lambda m: bool(m.get("cleanup", {}).get("at"))),
     ]

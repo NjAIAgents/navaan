@@ -10,6 +10,7 @@ import { errText } from "../lib/songs";
 import { coverOf } from "./Albums";
 import { Loading } from "../components/Loading";
 import { AlbumCoverCard } from "../components/AlbumCoverCard";
+import { ShareCard } from "../components/ShareCard";
 
 // One album: the hero with its cover, title, kind and status; the details; the songs in order (up, down, remove) and a way to add more. A published album may only hold published songs: the server says so.
 export default function Album() {
@@ -46,6 +47,7 @@ export default function Album() {
         <div className="hero-tx">
           <Link className="back" to="/albums"><Icon name="chevron" />Albums</Link>
           <h1 id="al-h" className="disp">{a.title}</h1>
+          <p className="mu">by {a.artist || "NAVAAN"}</p>
           {playable.length > 0 && <div className="row"><PlayButton queue={playable} label={a.title} size="big" /><ShuffleButton queue={playable} label={a.title} /></div>}
           <div className="row chips"><span className="chip">{a.kind}</span><span className={"chip " + (a.status === "published" ? "ok" : "")}>{a.status}</span>{a.release_date && <span className="chip">{a.release_date}</span>}<span className="chip">{a.tracks.length} song{a.tracks.length === 1 ? "" : "s"}</span></div>
         </div>
@@ -62,6 +64,7 @@ export default function Album() {
         <div className="row"><button className="btn p" type="submit" disabled={busy || !form.title.trim()}>Save details</button></div>
       </form>
       <AlbumCoverCard slug={slug} />
+      {a.status === "published" && <ShareCard kind="album" slug={slug} title={a.title} />}
       <section className="sec" aria-labelledby="tl-h">
         <div className="sh"><h2 id="tl-h">Songs</h2><span className="n">{a.tracks.length}</span></div>
         <div className="card" style={{ padding: 8 }}>

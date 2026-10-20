@@ -111,6 +111,32 @@ class Albums(Base):
         self.A.use_picture(self.slug, png(300, 300)); self.assertTrue(self.K.delete_album(self.slug))
         n = self.K._conn().execute("SELECT count(*) AS n FROM assets WHERE owner_kind = 'album'").fetchone()["n"]; self.assertEqual(n, 0)
 
+    def test_an_album_is_shared_only_when_published_with_a_song_a_listener_may_hear_and_the_link_lists_only_those(self):
+        K = self.K
+        with self.assertRaises(LookupError): K.create_album_share(self.slug, "owner")   # a draft album has no link
+        K.save_album(self.slug, "Raat Ke Baad", "album", "published")
+        with self.assertRaises(ValueError): K.create_album_share(self.slug, "owner")   # published, but no song has a confirmed licence yet
+        with self.assertRaises(LookupError): K.create_album_share("no-such-album", "owner")
+        K.set_license("song-001", "confirmed", "owner", "paid plan")
+        tok = K.create_album_share(self.slug, "owner")
+        a = K.open_album_share(tok, count=True)
+        self.assertEqual((a["slug"], a["artist"], [t["slug"] for t in a["tracks"]]), (self.slug, "NAVAAN", ["song-001"]))   # song-002 is not confirmed, so it is not on the page or playable
+        self.assertEqual(K.open_share(tok), None)   # an album's token is not a song's
+        K.set_license("song-002", "confirmed", "owner", "paid plan"); self.assertEqual([t["slug"] for t in K.open_album_share(tok)["tracks"]], ["song-001", "song-002"])
+        self.assertEqual(K._conn().execute("SELECT opens FROM share_links WHERE token = ?", (tok,)).fetchone()["opens"], 1)
+        self.assertTrue(K.revoke_share(tok, "owner")); self.assertIsNone(K.open_album_share(tok))
+        tok = K.create_album_share(self.slug, "owner"); K.save_album(self.slug, "Raat Ke Baad", "album", "draft"); self.assertIsNone(K.open_album_share(tok))   # unpublished again: the link stops
+
+    def test_the_album_page_names_the_artist_lists_the_songs_with_players_and_escapes_everything(self):
+        import share_page
+        al = {"slug": "raat", "title": "Raat <b>Ke</b> Baad", "artist": "NAVAAN", "description": "late <i>night</i>", "art": {"colour": "#445566"}, "tracks": [{"slug": "song-001", "title": "One & Two"}, {"slug": "song-002", "title": "Three"}]}
+        h = share_page.render_album(al, "tok123456", "https://navaan.online", None, True)
+        for want in ("Album by NAVAAN", "Raat &lt;b&gt;Ke&lt;/b&gt; Baad", "One &amp; Two", 'src="/s/tok123456/play/song-001.mp3"', 'src="/s/tok123456/play/song-002.mp3"', 'og:type" content="music.album"',
+                     "an album by NAVAAN. Listen free on NAVAAN.", "https://navaan.online/img/album/raat/1280.jpg", 'href="/app/album/raat"', "late &lt;i&gt;night&lt;/i&gt;"): self.assertIn(want, h)
+        self.assertNotIn("<b>Ke", h); self.assertNotIn("<script", h)
+        self.assertIn("/img/song-001/1280.jpg", share_page.render_album({**al, "art": None}, "tok123456", "https://navaan.online", "song-001", False))   # no cover of its own: the first song's
+        self.assertNotIn("og:image", share_page.render_album({**al, "art": None}, "tok123456", "https://navaan.online", None, False))
+
 
 if __name__ == "__main__":
     unittest.main()
