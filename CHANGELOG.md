@@ -6,6 +6,20 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-10-20
+
+### Added
+- A song's cover is made as a step of the pipeline, before the video, in the same modern look as the album cover (one strong graphic subject, flat colour fields, the title and artist drawn by us). It becomes the song's cover: in the mp3, the YouTube thumbnail, Instagram and, once the song is in the bucket, on the site. The step is listed on the credits approval with its price (about 4 cents). A song whose videos were already approved is not sent back to make one.
+- Share an album. A published album has a Share button for listeners and a Share card in Studio: the link opens a public page with the album's cover, "Album by NAVAAN", and every song in it that may be heard, each with its own player, free and without a sign in. The preview in chats says "an album by NAVAAN". The link stops working if you stop sharing it or unpublish the album. A song whose licence is not confirmed is not on the page, as everywhere else on the public site, and an album with no such song cannot be shared yet.
+- An album's page, in Studio and for listeners, says who it is by (NAVAAN) under the title.
+- A Cover card on a song's page (Media tab): the prompt it was made from, which you can change, "Make a new cover" with the cost on the button, "Redraw the title" (free), or "Use my own picture". A new cover replaces the old one everywhere, including the bucket. If the cover is not on the site, the card says so and offers "Save for the site". The mp3's embedded picture follows the next time the video step runs.
+
+### Changed
+- A song now goes to NAVAAN first. "Publish to NAVAAN" (the cloud archive, which puts the song on the site) comes right after you approve the video, before the YouTube and Instagram steps, and it no longer waits for Instagram. Before, it was the last step and waited for both YouTube and Instagram, so a song you chose not to post to Instagram never reached NAVAAN. YouTube and Instagram wait for your approval of this step, and clean up is still last. A song already in progress follows the new order from its next step.
+
+### Fixed
+- A blog post started from a keyword no longer fails its first step with "No keyword yet". The keyword you typed was written below the template's own empty Idea section, so the pipeline read the empty one. It now goes in the Idea section itself. A blog already started this way works on retry too: the pipeline now reads the first Idea section that has a keyword in it, not only the first section.
+
 ## [0.55.1] - 2026-10-20
 
 ### Fixed
@@ -724,7 +738,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...HEAD
+[0.56.0]: https://github.com/NjAIAgents/navaan/compare/v0.55.1...v0.56.0
 [0.55.1]: https://github.com/NjAIAgents/navaan/compare/v0.55.0...v0.55.1
 [0.55.0]: https://github.com/NjAIAgents/navaan/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/NjAIAgents/navaan/compare/v0.53.0...v0.54.0

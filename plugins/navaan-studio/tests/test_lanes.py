@@ -14,9 +14,8 @@ def step(sid, done=False, before=None, after=None): return {"id": sid, "label": 
 
 
 class Lanes(unittest.TestCase):
-    def walk(self, done=(), approved=(), media=True, posted=False, published=None):
-        """plan_lanes over a song whose steps in `done` are finished and whose gates in `approved` are approved."""
-        ids = ["video", "youtube_meta", "publish_youtube", "youtube_short", "go_public", "instagram_caption", "publish_instagram", "archive", "cleanup"]
+    def walk(self, done=(), approved=(), media=True, posted=False, published=None, ids=("video", "youtube_meta", "publish_youtube", "youtube_short", "go_public", "instagram_caption", "publish_instagram", "archive", "cleanup")):
+        """plan_lanes over a song whose steps in `done` are finished and whose gates in `approved` are approved (`ids` is the order of the steps)."""
         gates = {"video": (None, "media"), "publish_youtube": ("publish_youtube", None), "youtube_short": ("publish_short", None), "go_public": ("go_public", None), "instagram_caption": (None, "instagram_caption"),
                  "publish_instagram": ("publish_instagram", None), "archive": ("cloud_upload", None), "cleanup": ("local_cleanup", None)}
         st = [step(i, i in done, *gates.get(i, (None, None))) for i in ids]
@@ -65,6 +64,25 @@ class Lanes(unittest.TestCase):
         self.assertEqual(list(lanes), ["instagram"]); self.assertEqual(nxt, {"type": "run", "step": "instagram_caption"})   # Instagram is not done, so clean up and archive are not next
         rows, nxt, lanes = self.walk(done=done + ("instagram_caption", "publish_instagram"), approved=("publish_youtube", "publish_short", "go_public", "instagram_caption", "publish_instagram"), published={"instagram": "x"})
         self.assertEqual(lanes, {}); self.assertEqual(nxt, {"type": "gate", "step": "archive", "gate": "cloud_upload"})   # both lanes finished: archive is next
+
+    def test_a_song_goes_to_navaan_before_either_lane_and_the_lanes_wait_for_it(self):
+        order = ("video", "archive", "youtube_meta", "publish_youtube", "youtube_short", "go_public", "instagram_caption", "publish_instagram", "cleanup")
+        rows, nxt, lanes = self.walk(done=("video",), ids=order)
+        self.assertEqual((nxt, lanes), ({"type": "gate", "step": "archive", "gate": "cloud_upload"}, {}))   # the archive approval is next, and it does not need Instagram (or YouTube) to be finished
+        self.assertEqual((self.status(rows)["archive"], self.status(rows)["youtube_meta"], self.status(rows)["instagram_caption"]), ("waiting for approval", "blocked", "blocked"))
+        rows, nxt, lanes = self.walk(done=("video",), approved=("cloud_upload",), ids=order)
+        self.assertEqual(nxt, {"type": "run", "step": "archive"})
+        rows, nxt, lanes = self.walk(done=("video", "archive"), approved=("cloud_upload",), ids=order)
+        self.assertEqual(set(lanes), {"youtube", "instagram"}); self.assertEqual(nxt, {"type": "run", "step": "youtube_meta"})   # once it is there, both lanes open as before
+        rows, nxt, lanes = self.walk(done=("video", "archive", "youtube_meta", "publish_youtube", "youtube_short", "go_public"), approved=("cloud_upload", "publish_youtube", "publish_short", "go_public"), ids=order)
+        self.assertEqual(list(lanes), ["instagram"]); self.assertEqual(nxt, {"type": "run", "step": "instagram_caption"})   # clean up is not next: it still waits for Instagram, since it deletes what that lane needs
+
+    def test_the_song_pipeline_archives_before_the_youtube_and_instagram_steps_and_marks_the_song_published(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as D: st = N.music_steps("song-001", D)
+        ids = [x["id"] for x in st]
+        self.assertLess(ids.index("archive"), ids.index("youtube_meta")); self.assertLess(ids.index("archive"), ids.index("instagram_caption")); self.assertEqual(ids[-1], "cleanup")
+        self.assertEqual(next(x for x in st if x["id"] == "archive")["sets_after"], "published")
 
 
 if __name__ == "__main__":

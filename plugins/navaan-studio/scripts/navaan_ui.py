@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
 from urllib.parse import parse_qs, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
-import clip_share as CLIP, poster as POST, album_pipeline as ALB, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
+import clip_share as CLIP, poster as POST, song_cover as SC, album_pipeline as ALB, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
 import jobs, worker
 import catalog_store, search as SEARCH
@@ -84,6 +84,7 @@ def scheduler_state():
 TRY = {}  # slug -> {"running": bool, "error": str}, the 2 picture test
 ALBUM_COVER = {}  # album slug -> {"running": bool, "error": str}, the album cover being made
 POSTER = {}  # slug -> {"running": bool, "error": str}, the poster being made
+SCOVER = {}  # the same for the song cover being made
 VERT = {}  # slug -> {"running": bool, "error": str}, the native 9:16 recompose of chosen pictures
 VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel without lyrics"), "reel_lyrics": ("reel", "the reel with lyrics")}   # which step makes each video, and what the history calls it
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json"}
@@ -242,7 +243,7 @@ def detail(slug):
             "cameras": list(shots_prep.CAMERAS), "cloud": bool((m.get("cloud") or {}).get("uploaded_at")), "visuals": V.load(D), "visuals_suggest": V.suggest(D), "images": [os.path.basename(x) for x in V.own_images(D)], "visuals_problems": V.problems(D), "openai_pictures": __import__("media_cfg").load()["image_provider"] == "openai", "prompt_pack": prompt_pack.load(D),
             "try": {**TRY.get(slug, {}), "files": [n for n in ("try_01.png", "try_02.png") if os.path.isfile(os.path.join(D, n))], "v": int(os.path.getmtime(os.path.join(D, "try_01.png"))) if os.path.isfile(os.path.join(D, "try_01.png")) else 0},
             "vertical": {**VERT.get(slug, {}), "done": sorted(int(m.group(1)) for f in (os.listdir(os.path.join(D, "images", "vert")) if os.path.isdir(os.path.join(D, "images", "vert")) else []) for m in [re.match(r"pic_(\d+)\.png$", f)] if m)},
-            "poster": {**POST.state(slug), **POSTER.get(slug, {})},
+            "poster": {**POST.state(slug), **POSTER.get(slug, {})}, "cover": {**SC.state(slug), **SCOVER.get(slug, {})},
             "scene": ({"ready": os.path.exists(os.path.join(D, "scene_src.mp4")), "pending": any(not p.endswith(".part") for p in glob.glob(os.path.join(D, ".cache", "raw.*"))), "fit": C.load_json(os.path.join(D, "scene.json"), default=None)} if C.item_type(m) == "inspiration" else None),
             "narrate": (__import__("narrate_eleven").info(D) if C.is_short(C.item_type(m)) else None), "music": (__import__("bg_music").info(D) if C.is_short(C.item_type(m)) else None), "music_level": (round(100 * __import__("inspire_prep").music_level(D, C.item_type(m))) if C.is_short(C.item_type(m)) else None),
             "profile": bool(C.profile()), "question": navaan.question_open(slug),
@@ -507,6 +508,11 @@ class H(BaseHTTPRequestHandler):
             if p in ("/api/share", "/api/share/revoke"):   # a link to a published, licence-confirmed song: the page and preview are public, the owner can stop any link
                 who = sess.get("user") or "owner"
                 if p.endswith("/revoke"): return self._send(200, {"revoked": catalog_store.revoke_share(str(body.get("token") or ""), who, auth.can(sess, "studio.settings"))})
+                if body.get("album"):   # a link to a published album: the page lists its songs, each plays without a sign in
+                    try: tok = catalog_store.create_album_share(str(body["album"]), who)
+                    except LookupError as e: return self._send(404, {"error": str(e)})
+                    except ValueError as e: return self._send(400, {"error": str(e)})
+                    return self._send(200, {"token": tok, "url": f"{self._base()}/s/{tok}"})
                 sl = str(body.get("slug") or "")
                 if not auth.can(sess, "studio.access") and not catalog_store.track_view(sl, False): return self._send(404, {"error": "no such published track"})   # to a listener an unconfirmed song does not exist, so its state is not given away
                 tok = catalog_store.create_share(sl, who, int(body.get("start_ms") or 0))
@@ -564,10 +570,19 @@ class H(BaseHTTPRequestHandler):
                     return self._send(200, share_page.render_clip(slug, tv["title"], m.group(1), self._base(), has_poster=bool(catalog_store.poster_asset(slug))), "text/html")
                 except (LookupError, ValueError): return self._send(404, {"error": "not found"})
                 except RuntimeError: L.exc(LOG, "clip_failed", item=slug); return self._send(502, {"error": "not available right now"})
-            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3)?$", p)
+            m = re.match(r"^/s/([A-Za-z0-9_-]{8,64})(/preview\.mp3|/play\.mp3|/play/[A-Za-z0-9_-]{1,40}\.mp3)?$", p)
             if m:
                 t = catalog_store.open_share(m.group(1), count=not m.group(2))
-                if not t: return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if not t:   # not a song's link: an album's
+                    al = catalog_store.open_album_share(m.group(1), count=not m.group(2))
+                    if al and not m.group(2):
+                        face = next((x["slug"] for x in al["tracks"] if x.get("art")), None)
+                        return self._send(200, share_page.render_album(al, m.group(1), self._base(), face, bool(al.get("art"))), "text/html")
+                    if al and m.group(2).startswith("/play/") and m.group(2)[6:-4] in {x["slug"] for x in al["tracks"]}:   # only a song that is in this album
+                        key = catalog_store.play_key(m.group(2)[6:-4], confirmed_only=True)
+                        if key: return self._send(302, b"", "text/plain", {"Location": objstore.par_url(key, 300)})
+                    return self._send(404, "<!doctype html><meta charset=utf-8><title>NAVAAN</title><p style=\"font:16px system-ui;padding:2em\">This link is no longer available.</p>", "text/html")
+                if (m.group(2) or "").startswith("/play/"): return self._send(404, {"error": "not found"})   # a song's link plays only its own song
                 if m.group(2) == "/play.mp3":   # the whole song: the site is free, so a shared link plays it without a sign in
                     key = catalog_store.play_key(t["slug"], confirmed_only=True)
                     if not key: return self._send(404, {"error": "not found"})
@@ -1178,6 +1193,29 @@ class H(BaseHTTPRequestHandler):
                 try: r = POST.publish(slug)
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "poster published for share links via ui"))
+                return self._send(200, {"ok": True, **r})
+            if p == "/api/cover/generate":   # the song's cover: made from a prompt, redrawn, or your own picture; it replaces the cover everywhere (and in the bucket, when the song is there)
+                if SCOVER.get(slug, {}).get("running"): return self._send(409, {"error": "A cover is already being made."})
+                try:
+                    if body.get("picture"):   # your own picture as the art: free
+                        SC.use_picture(slug, base64.b64decode(str(body["picture"]), validate=True)); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "cover set from a picture via ui")); return self._send(200, {"ok": True})
+                    if body.get("only_text"):   # redraw title and artist over the art already made: free
+                        if not SC.has_art(C.song_dir(slug)): return self._send(400, {"error": "Make the art first."})
+                        SC.typeset(slug); return self._send(200, {"ok": True})
+                    prompt = str(body.get("prompt") or ""); SC.IO.check_cap(SC.media_cfg.load()["image_quality"], None, SC.SIZE)
+                except (OSError, ValueError) as e: L.ignored(LOG, "cover refused (shown to the owner)", e); return self._send(400, {"error": str(e)[:200]})
+                SCOVER[slug] = {"running": True, "error": ""}
+                def cw():
+                    err = ""
+                    try: SC.generate(slug, prompt); navaan.edit_meta(slug, lambda m: navaan.log_hist(m, "cover made via ui"))
+                    except (ValueError, RuntimeError) as e: L.ignored(LOG, "cw: refused or failed (shown to the owner)", e); err = str(e)[:300]
+                    except Exception as e: L.soft(LOG, "cw_error"); err = str(e)[:300]
+                    SCOVER[slug] = {"running": False, "error": err}
+                threading.Thread(target=cw, daemon=True).start()
+                return self._send(200, {"ok": True})
+            if p == "/api/cover/publish":   # put the cover in the bucket again (when saving it after the make failed)
+                try: r = SC.publish(slug)
+                except ValueError as e: return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True, **r})
             if p == "/api/poster/generate":
                 if POSTER.get(slug, {}).get("running"): return self._send(409, {"error": "A poster is already being made."})

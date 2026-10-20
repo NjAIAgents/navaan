@@ -52,6 +52,50 @@ a.go:focus-visible,audio:focus-visible{{outline:2px solid #F2EEE7;outline-offset
 """
 
 
+def render_album(album, token, base, art_slug=None, has_album_art=False):
+    """album from catalog_store.open_album_share (title, artist, description, tracks the listener may hear); art_slug the first song with a cover, used when the album has none of its own."""
+    title, artist = album["title"], album.get("artist") or "NAVAAN"
+    url = f"{base}/s/{E(token)}"; site = f"/app/album/{E(album['slug'])}"
+    face = f"/img/album/{E(album['slug'])}" if has_album_art else (f"/img/{E(art_slug)}" if art_slug else None)
+    desc = f"{title}: an album by {artist}. Listen free on NAVAAN."
+    bg = E(album["art"]["colour"]) if (album.get("art") or {}).get("colour") and len(album["art"]["colour"]) == 7 else "#17243A"
+    pic = (f'<picture><source type="image/avif" srcset="{face}/320.avif 320w, {face}/640.avif 640w, {face}/1280.avif 1280w" sizes="(max-width: 520px) 100vw, 480px">'
+           f'<source type="image/webp" srcset="{face}/320.webp 320w, {face}/640.webp 640w, {face}/1280.webp 1280w" sizes="(max-width: 520px) 100vw, 480px">'
+           f'<img src="{face}/640.jpg" width="480" height="480" alt="Cover of {E(title)}" style="background:{bg}"></picture>') if face else f'<div class="ph" style="background:{bg}"></div>'
+    og = f"{base}{face}/1280.jpg" if face else ""
+    rows = "".join(f'<li><span class="n">{i}.</span><b>{E(t["title"])}</b><audio controls preload="none" src="/s/{E(token)}/play/{E(t["slug"])}.mp3">Your browser cannot play audio.</audio></li>' for i, t in enumerate(album["tracks"], 1))
+    about = f"<p>{E(album['description'])}</p>" if album.get("description") else ""
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{E(title)} · {E(artist)} · NAVAAN</title>
+<meta name="robots" content="noindex">
+<meta property="og:type" content="music.album"><meta property="og:site_name" content="NAVAAN"><meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}">
+<meta property="og:url" content="{url}">{f'<meta property="og:image" content="{og}">' if og else ''}
+<meta name="twitter:card" content="summary"><meta name="twitter:title" content="{E(title)}"><meta name="twitter:description" content="{E(desc)}">{f'<meta name="twitter:image" content="{og}">' if og else ''}
+<style>
+:root{{color-scheme:dark}}*{{box-sizing:border-box}}
+body{{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(900px 500px at 50% -10%,#17243A,#0B1020);color:#F2EEE7;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}}
+main{{width:min(480px,100%);text-align:center}}
+.brand{{letter-spacing:.2em;font-weight:700;color:#D6B477;font-size:13px;margin-bottom:20px}}
+img,.ph{{width:100%;aspect-ratio:1/1;border-radius:22px;display:block;object-fit:cover;box-shadow:0 20px 60px rgba(0,0,0,.5)}}
+h1{{font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;font-size:34px;line-height:1.15;margin:22px 0 4px}}
+p{{color:#B9B4AA;margin:0 0 18px}}.by{{letter-spacing:.14em;text-transform:uppercase;font-size:13px;margin:0 0 14px}}
+ol{{list-style:none;margin:0 0 18px;padding:0;text-align:left}}li{{padding:10px 0;border-top:1px solid rgba(242,238,231,.12)}}li .n{{color:#D6B477;margin-right:8px}}audio{{width:100%;margin:8px 0 0}}
+a.go{{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 24px;border-radius:14px;background:linear-gradient(135deg,#D6B477,#B58B4A);color:#0B1020;font-weight:700;text-decoration:none}}
+a.go:focus-visible,audio:focus-visible{{outline:2px solid #F2EEE7;outline-offset:3px}}
+</style></head>
+<body><main>
+<div class="brand"><img src="/app/brand/mark.png" alt="" width="63" height="42" style="width:63px;height:42px;aspect-ratio:auto;border-radius:0;box-shadow:none;display:block;margin:0 auto 6px">NAVAAN</div>
+{pic}
+<h1>{E(title)}</h1>
+<p class="by">Album by {E(artist)}</p>
+{about}<p>Free to listen. No sign in.</p>
+<ol>{rows}</ol>
+<a class="go" href="{site}">Open on NAVAAN</a>
+</main></body></html>
+"""
+
+
 def render_clip(slug, title, token, base, has_poster=False):
     """The page a shared clip opens: the clip playing, the way back to the whole song, and a way to pass it on: Download always, Share (the phone's share sheet, with the video itself) where the browser has one."""
     url = f"{base}/c/{E(token)}"; vid = f"{base}/c/{E(token)}.mp4"; img = f"{base}/img/{E(slug)}/{'poster-' if has_poster else ''}1280.jpg"
