@@ -203,6 +203,8 @@ def music_steps(slug, D):
              done=lambda m: fresh(D, [FULL] + ([REEL] if REELS else []) + ["final_tagged.mp3"], ["clips/*.mp4"]), after="media", sets="approved"),
     ]
     tail = [
+        dict(id="archive", outputs=[], redo=False, label="Publish to NAVAAN: archive the song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True, sets_after="published",   # first: the song is on NAVAAN before YouTube or Instagram, and neither lane has to finish for it to get there
+             cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube title, description and tags from the lyrics", kind="claude", skill="youtube-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
         dict(id="publish_youtube", outputs=["published.json"], redo=False, label="Upload to YouTube (API)", kind="script", before="publish_youtube",
@@ -220,8 +222,6 @@ def music_steps(slug, D):
              done=lambda m: has(D, "instagram.txt")),
         dict(id="publish_instagram", outputs=["published.json"], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
              cmds=None, done=lambda m: ig_done(m)),
-        dict(id="archive", outputs=[], redo=False, label="Archive the finished song to cloud storage", kind="script", before="cloud_upload", optional_cloud=True,
-             cmds=[sc("upload_cloud.py", slug, "--yes")], done=lambda m: bool(m.get("cloud", {}).get("uploaded_at")) and m["cloud"].get("verified", True)),
         dict(id="cleanup", outputs=[], redo=False, label="Clean up the local copy (last step, only after the bucket is checked)", kind="script", before="local_cleanup", optional_cloud=True,
              cmds=[sc("cleanup.py", slug, "--yes")], done=lambda m: bool(m.get("cleanup", {}).get("at"))),
     ]

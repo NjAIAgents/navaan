@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Changed
+- A song now goes to NAVAAN first. "Publish to NAVAAN" (the cloud archive, which puts the song on the site) comes right after you approve the video, before the YouTube and Instagram steps, and it no longer waits for Instagram. Before, it was the last step and waited for both YouTube and Instagram, so a song you chose not to post to Instagram never reached NAVAAN. YouTube and Instagram wait for your approval of this step, and clean up is still last. A song already in progress follows the new order from its next step.
+
 ## [0.54.0] - 2026-10-19
 
 ### Added
