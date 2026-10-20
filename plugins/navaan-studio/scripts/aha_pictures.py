@@ -6,7 +6,7 @@ Description: one picture per beat of an Aha-lorithm short with the OpenAI image 
 
   aha_pictures.py <slug> [--estimate] [--force]
 
-Reads quote.json: "lines" (the beats) and "pictures" (one prompt per beat, written by the aha-script skill, no spend). A beat that visual_plan.json shows with a scene treatment
+Reads quote.json: "lines" (the beats), "pictures" (one prompt per beat, written by the aha-script skill, no spend) and "look" (the short's art direction, the same for all its beats). A beat that visual_plan.json shows with a scene treatment
 (a chat, a comparison, a counting number ...) needs no picture and none is made or paid for (visuals_plan.picture_beats); its prompt may be empty. Writes scenes/beat_01.png ...
 at 1080x1920 and copies the first to background.png (the thumbnail and the list use it). A beat that already has its picture is skipped, so a failed
 run resumes without paying twice; --force makes them all again. Sits behind the credits approval; refuses when the whole set would pass the run cap.
@@ -18,9 +18,22 @@ import media_cfg
 import image_openai as I
 import visuals_plan as V
 
-# Every beat gets the same house look, and no text: the image model misspells words, and the renderer draws them crisp and editable.
-LOOK = ("Cinematic still, vertical 9:16, near-black background, luminous gold light with small touches of cool blue, shallow depth of field, the middle of the frame calm enough for a caption. "
-        "No words, letters, numbers, captions, logos or readable screen text anywhere in the image; screens and cards show only soft abstract shapes.")
+# The pictures of a short belong together through its own art direction (`look` in quote.json, chosen by the script for this topic), not through one house look for every short.
+# What every picture gets regardless: the technical limits. The image model misspells words, so no text is asked of it; the renderer draws the words crisp and editable.
+LIMITS = ("Vertical 9:16. The middle of the frame stays calm enough for a caption. "
+          "No words, letters, numbers, captions, logos or readable screen text anywhere in the image; screens and cards show only soft abstract shapes.")
+DEFAULT_LOOK = "Cohesive modern editorial look: one consistent palette and one medium across the beats, natural light, clear subject."   # a short written before `look` existed
+
+
+def look(D):
+    q = C.load_json(os.path.join(D, "quote.json"), default={}) or {}
+    t = " ".join(str(q.get("look") or "").split())
+    return t[:400] if len(t) >= 10 else DEFAULT_LOOK
+
+
+def prompt_for(beat_prompt, art_direction):
+    """What is sent to the image model for one beat: the scene of that beat, the art direction of the whole short, the technical limits."""
+    return (beat_prompt + "\n\nArt direction for the whole short: " + art_direction + "\n\n" + LIMITS)[:3500]
 
 
 def beat_file(D, i): return os.path.join(D, "scenes", "beat_%02d.png" % (i + 1))
@@ -52,9 +65,9 @@ def main(argv):
         sys.exit("navaan: %d %s pictures cost about $%.2f, over the run cap of $%.2f set in Settings." % (len(todo), q, total, float(cfg["max_run_usd"])))
     key = media_cfg.get_key("openai")
     if todo and not key: sys.exit("navaan: no OpenAI key. Paste it in Settings, Pictures and voice.")
-    os.makedirs(os.path.join(D, "scenes"), exist_ok=True)
+    os.makedirs(os.path.join(D, "scenes"), exist_ok=True); art = look(D)
     for i in todo:
-        raw = I.request_image((pics[i] + "\n\n" + LOOK)[:3500], q, key, cfg["image_size"], model)
+        raw = I.request_image(prompt_for(pics[i], art), q, key, cfg["image_size"], model)
         media_cfg.add_usage(openai_usd=each)   # spent now, whatever happens to the file
         I.fit_portrait(raw).save(beat_file(D, i), optimize=True)
         print("beat %d of %d: %s" % (i + 1, len(pics), os.path.basename(beat_file(D, i))), flush=True)

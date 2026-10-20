@@ -345,3 +345,12 @@ body.lock { overflow: hidden; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
 .q.tile { flex-direction: column; align-items: flex-start; }
 .q.tile .cover { width: 100%; height: auto; aspect-ratio: 1; }
+
+/* the finished blog post as a reader sees it (BlogPosts) */
+.post-preview { max-height: 560px; overflow: auto; padding: 4px 2px; line-height: 1.6; overflow-wrap: anywhere; }
+.post-preview h1, .post-preview h2, .post-preview h3 { margin: 1.2em 0 .4em; line-height: 1.25; }
+.post-preview p, .post-preview ul, .post-preview ol, .post-preview blockquote { margin: 0 0 1em; }
+.post-preview pre { margin: 0 0 1em; padding: 12px; border-radius: var(--r2); background: var(--s2); border: 1px solid var(--ln); overflow: auto; font-size: 13px; }
+.post-preview code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; }
+.post-preview blockquote { padding-left: 14px; border-left: 3px solid var(--ln); color: var(--mu); }
+.post-preview a { color: var(--ac); }
