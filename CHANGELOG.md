@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- Switching on the standing licence statement in Settings now confirms the songs you have already published, straight away (NAV-141). Before, only a later sync did, so songs published earlier stayed hidden from the public site. The card says which songs were confirmed. A song you marked not allowed, and a draft, are never changed.
+
 ## [0.56.1] - 2026-10-20
 
 ### Fixed
