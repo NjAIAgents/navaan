@@ -14,6 +14,24 @@ class Known(unittest.TestCase):
         for n in ("auth_setup_code", "secrets.status", "youtube_token_../x.json", "notes.txt", "youtube_token_.json"): self.assertFalse(V.is_known(n), n)
 
 
+class SettingsFiles(unittest.TestCase):
+    """NAV-140: a settings file in the config folder (a tmpfs on prod, refilled from Vault) that Vault does not list is lost at every restart; the standing licence statement was."""
+    def test_every_settings_file_the_studio_writes_there_is_kept_in_vault(self):
+        sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
+        import licence_cfg, gate_cfg
+        for name in (licence_cfg.FILE, gate_cfg.FILE, "media.json"): self.assertTrue(V.is_known(name), f"{name} would be lost at the next restart")
+
+    def test_the_licence_statement_is_pushed_and_comes_back_after_a_restart(self):
+        vault = {}
+        web, fresh = tempfile.TemporaryDirectory(), tempfile.TemporaryDirectory(); self.addCleanup(web.cleanup); self.addCleanup(fresh.cleanup)
+        with open(os.path.join(web.name, "licence.json"), "w") as f: f.write('{"auto": true, "statement": "paid plan"}')
+        with mock.patch.multiple(V, store=lambda n, d, m, t: vault.__setitem__(n, (d, m)), names=lambda t: list(vault), fetch=lambda n, t: vault.get(n)):
+            with mock.patch.object(V, "DIR", web.name): V.cycle("t", {})
+            self.assertIn("licence.json", vault)
+            with mock.patch.object(V, "DIR", fresh.name): V.cycle("t", {})   # a new container: an empty config folder
+        self.assertEqual(open(os.path.join(fresh.name, "licence.json")).read(), '{"auto": true, "statement": "paid plan"}')
+
+
 class Cycle(unittest.TestCase):
     def test_a_new_channel_token_is_pushed_from_one_container_and_pulled_by_the_other(self):
         vault = {}
