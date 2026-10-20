@@ -39,6 +39,20 @@ class Auto(Base):
         d = r["origin_detail"]; self.assertEqual((d["license_set_by"], d["license_note"], d["suno_plan"]), ("owner (auto-confirm setting)", "Owner statement: every song is on a paid Suno plan.", "paid"))
         rows = self.K.browse(); self.assertEqual([t["slug"] for t in rows], ["song-001"])   # a listener sees it
 
+    def test_switching_it_on_confirms_the_songs_already_published_at_once(self):   # NAV-141: before, only a later sync did
+        import settings_api
+        self.song("song-001", "One"); self.song("song-002", "Two"); self.song("song-003", "Three"); self.song("song-004", "Four", state="drafted", cloud=False)
+        for s in ("song-001", "song-002", "song-003", "song-004"): self.K.sync_item(s)
+        self.K.set_license("song-003", "not_allowed", "owner", "the vocals are a cover"); self.K.sync_item("song-003")
+        self.assertEqual([self.lic(s)["license_status"] for s in ("song-001", "song-002")], ["unconfirmed", "unconfirmed"], "off: nothing is confirmed")
+        r = settings_api.licence_save(False, "Every song is on a paid plan.", "owner1"); self.assertEqual(r["licence"]["applied"], [])   # switching it off confirms nothing
+        self.assertEqual(self.lic("song-001")["license_status"], "unconfirmed")
+        r = settings_api.licence_save(True, "Every song is on a paid plan.", "owner1"); self.assertEqual(r["licence"]["applied"], ["song-001", "song-002"])
+        self.assertEqual([self.lic(s)["license_status"] for s in ("song-001", "song-002", "song-003", "song-004")], ["confirmed", "confirmed", "not_allowed", "unconfirmed"], "a decision of the owner and a draft are left alone")
+        d = self.lic("song-001")["origin_detail"]; self.assertEqual((d["license_set_by"], d["license_note"]), ("owner (auto-confirm setting)", "Every song is on a paid plan."))
+        self.assertEqual(settings_api.licence_save(True, "Every song is on a paid plan.", "owner1")["licence"]["applied"], [], "saving again changes nothing more")
+        self.assertEqual(sorted(t["slug"] for t in self.K.browse()), ["song-001", "song-002"])   # listeners see them now
+
     def test_it_never_changes_a_decision_the_owner_made_or_a_draft(self):
         self.L.save(True, "Every song is on a paid plan.", "owner1")
         self.song("song-001", "One"); self.song("song-002", "Two", state="drafted", cloud=False); self.song("song-003", "Three")

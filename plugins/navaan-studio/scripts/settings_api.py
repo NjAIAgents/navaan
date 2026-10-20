@@ -430,7 +430,12 @@ def gates_save(updates):
 def licence_save(auto, statement, by):
     """Automatic licence confirmation: on or off, with the owner's statement. Returns the new state."""
     import licence_cfg
-    return {"licence": (licence_cfg.save(bool(auto), statement, by), licence_cfg.status())[1]}
+    state = licence_cfg.save(bool(auto), statement, by); applied = []
+    if state["auto"]:   # switched on: the songs already published are confirmed now, not at the next sync (NAV-141)
+        try:
+            import catalog_store; applied = catalog_store.auto_confirm_all()
+        except Exception: L.exc(LOG, "licence_apply_failed")   # the setting is saved; the next sync still applies it, and the owner can confirm a song by hand
+    return {"licence": {**licence_cfg.status(), "applied": applied}, "note": ("Confirmed now: " + ", ".join(applied) + ". They show on the site.") if applied else "Saved."}
 
 
 def media_save(updates):
