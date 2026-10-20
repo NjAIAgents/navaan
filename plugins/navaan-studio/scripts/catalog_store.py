@@ -197,10 +197,11 @@ def _album_rows(c, where="", params=()):
     rows = c.execute(f"SELECT id, slug, title, kind, status, release_date, description FROM albums {where} ORDER BY release_date DESC NULLS LAST, title", params).fetchall()
     for r in rows:
         r["id"] = str(r["id"]); r["release_date"] = r["release_date"].isoformat() if r["release_date"] else None
-        r["tracks"] = [{"slug": x["slug"], "title": x["title"], "position": x["position"], "status": x["status"], "licence": x["licence"], "art": {"colour": x["colour"]} if x["has_cover"] else None} for x in c.execute(
+        r["tracks"] = [{"slug": x["slug"], "title": x["title"], "position": x["position"], "status": x["status"], "licence": x["licence"], "art": {"colour": x["colour"], "v": x["cover_bytes"]} if x["has_cover"] else None} for x in c.execute(
             "SELECT t.slug, t.title, t.status, t.license_status AS licence, at.position, "
             "EXISTS (SELECT 1 FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover') AS has_cover, "
-            "(SELECT a.dominant_colour FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS colour "
+            "(SELECT a.dominant_colour FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS colour, "
+            "(SELECT a.bytes FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS cover_bytes "
             "FROM album_tracks at JOIN tracks t ON t.id = at.track_id WHERE at.album_id = ?::uuid ORDER BY at.position", (r["id"],)).fetchall()]
         cv = c.execute("SELECT dominant_colour, bytes FROM assets WHERE owner_kind = 'album' AND owner_id = ?::uuid AND role = 'cover' LIMIT 1", (r["id"],)).fetchone()
         r["art"] = {"colour": cv["dominant_colour"], "v": cv["bytes"]} if cv else None   # the album's own cover; v changes with the picture
@@ -381,10 +382,10 @@ def add_preview_asset(audio_asset_id, track_id, key, size):
 
 
 def cover_art():
-    """{slug: dominant colour or None} for every published track that has a cover in the bucket: what a list needs to paint a placeholder and ask for /img."""
-    rows = _tx(lambda c: c.execute("SELECT DISTINCT ON (t.slug) t.slug, a.dominant_colour FROM tracks t JOIN assets a ON a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' "
+    """{slug: {"colour": dominant colour or None, "v": the picture's size in bytes}} for every published track that has a cover in the bucket: what a list needs to paint a placeholder and ask for /img (v goes in the address, so a replaced cover is fetched again)."""
+    rows = _tx(lambda c: c.execute("SELECT DISTINCT ON (t.slug) t.slug, a.dominant_colour, a.bytes FROM tracks t JOIN assets a ON a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' "
                                    "WHERE t.status = 'published' ORDER BY t.slug, a.created_at").fetchall())
-    return {r["slug"]: r["dominant_colour"] for r in rows}
+    return {r["slug"]: {"colour": r["dominant_colour"], "v": r["bytes"]} for r in rows}
 
 
 def track_ids(slugs):
@@ -393,10 +394,11 @@ def track_ids(slugs):
 
 
 def tracks_by_ids(ids):
-    """{id: {"slug", "title", "art"}} for these track ids; art is {"colour"} when the track has a cover, else None (what a tile needs to show it)."""
-    return {r["id"]: {"slug": r["slug"], "title": r["title"], "art": {"colour": r["colour"]} if r["has_cover"] else None} for r in _tx(lambda c: c.execute(
+    """{id: {"slug", "title", "art"}} for these track ids; art is {"colour", "v"} when the track has a cover (v: the picture's size in bytes, it changes when the cover is replaced), else None (what a tile needs to show it)."""
+    return {r["id"]: {"slug": r["slug"], "title": r["title"], "art": {"colour": r["colour"], "v": r["cover_bytes"]} if r["has_cover"] else None} for r in _tx(lambda c: c.execute(
         "SELECT t.id::text AS id, t.slug, t.title, EXISTS(SELECT 1 FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover') AS has_cover, "
-        "(SELECT a.dominant_colour FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS colour FROM tracks t WHERE t.id = ANY(?::uuid[])", (list(ids),)).fetchall())}
+        "(SELECT a.dominant_colour FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS colour, "
+        "(SELECT a.bytes FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover' LIMIT 1) AS cover_bytes FROM tracks t WHERE t.id = ANY(?::uuid[])", (list(ids),)).fetchall())}
 
 
 def album_ids(slugs):
@@ -431,7 +433,8 @@ def browse(all_licences=False, album=None, language=None, genre=None, limit=200,
          "COALESCE((SELECT g.name FROM track_genres tg JOIN genres g ON g.id = tg.genre_id WHERE tg.track_id = t.id LIMIT 1), '') AS genre, "
          "COALESCE((SELECT json_agg(json_build_object('slug', a.slug, 'title', a.title) ORDER BY a.title) FROM album_tracks at JOIN albums a ON a.id = at.album_id WHERE at.track_id = t.id AND a.status = 'published'), '[]'::json) AS albums, "
          "EXISTS (SELECT 1 FROM assets x WHERE x.owner_id = t.id AND x.owner_kind = 'track' AND x.role = 'cover') AS has_cover, "
-         "(SELECT x.dominant_colour FROM assets x WHERE x.owner_id = t.id AND x.owner_kind = 'track' AND x.role = 'cover' LIMIT 1) AS colour "
+         "(SELECT x.dominant_colour FROM assets x WHERE x.owner_id = t.id AND x.owner_kind = 'track' AND x.role = 'cover' LIMIT 1) AS colour, "
+         "(SELECT x.bytes FROM assets x WHERE x.owner_id = t.id AND x.owner_kind = 'track' AND x.role = 'cover' LIMIT 1) AS cover_bytes "
          f"FROM tracks t WHERE {_visible(all_licences)} "
          "AND (?::text IS NULL OR t.language = ?::text) "
          "AND (?::text IS NULL OR EXISTS (SELECT 1 FROM track_genres tg JOIN genres g ON g.id = tg.genre_id WHERE tg.track_id = t.id AND g.name = ?::text)) "
@@ -439,7 +442,7 @@ def browse(all_licences=False, album=None, language=None, genre=None, limit=200,
          "ORDER BY t.published_at DESC NULLS LAST, t.title, t.slug LIMIT ? OFFSET ?")
     rows = _tx(lambda c: c.execute(q, (language, language, genre, genre, album, album, max(1, min(int(limit), 500)), max(0, int(offset)))).fetchall())
     return [{"slug": r["slug"], "title": r["title"], "language": r["language"] or "", "genre": r["genre"], "albums": r["albums"], "licence": r["licence"],
-             "art": {"colour": r["colour"]} if r["has_cover"] else None} for r in rows]
+             "art": {"colour": r["colour"], "v": r["cover_bytes"]} if r["has_cover"] else None} for r in rows]
 
 
 def filters(all_licences=False):
