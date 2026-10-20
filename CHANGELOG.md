@@ -6,6 +6,8 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.56.4] - 2026-10-20
+
 ### Changed
 - A song no longer gets a poster as a step of its pipeline (NAV-144). The poster was a second picture per song, made with OpenAI before the credits approval, and it only changed the picture in a shared link's preview; the cover now serves there. The credits approval no longer lists it. The Poster card on the Media tab is still there for a song you want one for, and a song that already has a poster keeps showing it in link previews.
 
@@ -757,7 +759,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...HEAD
+[0.56.4]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...v0.56.4
 [0.56.3]: https://github.com/NjAIAgents/navaan/compare/v0.56.2...v0.56.3
 [0.56.2]: https://github.com/NjAIAgents/navaan/compare/v0.56.1...v0.56.2
 [0.56.1]: https://github.com/NjAIAgents/navaan/compare/v0.56.0...v0.56.1
