@@ -1,0 +1,14 @@
+{
+ "width": 1080,
+ "height": 1500,
+ "treatment": "flow",
+ "data": {
+  "nodes": [
+   "Your question",
+   "Patterns it has seen",
+   "A plausible answer",
+   "Your check"
+  ]
+ },
+ "text": "How an answer is made"
+}

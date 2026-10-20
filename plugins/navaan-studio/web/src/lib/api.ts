@@ -42,6 +42,7 @@ export type Step = {
   status: "done" | "ready" | "blocked" | "waiting for approval"; needs_gate: string | null; scheduled_for: string | null; lane?: "youtube" | "instagram";
 };
 export type Question = { id: string; text: string; allow_text: boolean; options: { id: string; label: string; text: boolean }[] };
+export type BlogPublish = { devto: { key: boolean; posted: boolean; published: boolean; url: string }; linkedin: { key: boolean; posted: boolean; url: string; ready: boolean; text: boolean } };
 export type SongDetail = {
   slug: string; steps: Step[]; next: SongRow["next"]; text: Record<string, string>;
   meta: { type?: string; state?: string; album?: string; mood?: string; history?: (string | { at?: string; event?: string; note?: string; [k: string]: unknown })[]; source?: string; suno?: { auto_failed?: string }; cleanup?: unknown; skip?: { instagram?: boolean }; schedule?: Schedule; published?: { instagram?: unknown; youtube?: unknown; youtube_items?: { id?: string; url?: string; file?: string; privacy?: string }[] }; step_seconds?: Record<string, number> };
@@ -54,7 +55,7 @@ export type SongDetail = {
   question: Question | null; needs_you: string;
   gates?: string[]; profile?: boolean; account?: { configured?: boolean } | null; thumb_pending?: { id: string }[];   // the warnings on the song page: no artist profile, the item's own account not set up, a YouTube thumbnail not set
   cameras: string[]; cloud: boolean; images: string[];
-  visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; visuals_suggest?: { camera: string; scene: string }; openai_pictures?: boolean;
+  visuals?: { mode?: string; layout?: string; camera?: string; scene?: string }; visuals_suggest?: { camera: string; scene: string }; blog_publish?: BlogPublish | null; openai_pictures?: boolean;
   prompt_pack?: { aspect?: string; concept?: string; character?: string; style_line: string; look?: Record<string, unknown>; prompts: { n: number; section: string; lyric?: string; prompt: string; camera?: string; motion?: string }[] } | null;
   run?: { step?: string; attempt?: number; attempts?: number; elapsed?: number; quiet_s?: number; pct?: number; done?: number; total?: number; label?: string; failed?: string | null };
   lanes?: Record<string, { type: "gate" | "run"; step: string; gate?: string }>;

@@ -31,7 +31,7 @@ export const visualShortDefaults: VisualShortProps = {
   lines: [{text: 'Your *words* here', start: 0, end: 7.5}], visuals: {beats: [{line: 0, treatment: 'hook'}]},
 };
 
-const Backdrop: React.FC<{t: number; accent: string}> = ({t, accent}) => (
+export const Backdrop: React.FC<{t: number; accent: string}> = ({t, accent}) => (
   <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 38%, #1c2540 0%, #0a0f1c 55%, #05070d 100%)'}}>
     <div style={{position: 'absolute', width: 980, height: 980, borderRadius: '50%', left: 50 + 70 * Math.sin(t * 0.6), top: 380 + 50 * Math.cos(t * 0.5), background: `radial-gradient(circle, ${accent}26 0%, transparent 65%)`}} />
     {Array.from({length: 30}).map((_, i) => {   // slow dust rising
@@ -41,7 +41,7 @@ const Backdrop: React.FC<{t: number; accent: string}> = ({t, accent}) => (
   </AbsoluteFill>
 );
 
-const Title: React.FC<{text: string; accent: string; color: string; k: number}> = ({text, accent, color, k}) => (
+export const Title: React.FC<{text: string; accent: string; color: string; k: number}> = ({text, accent, color, k}) => (
   <div style={{position: 'absolute', left: 120, right: 120, top: 170, height: 250, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', textAlign: 'center', opacity: k, transform: `translateY(${(1 - k) * 36}px)`}}>
     <span style={{fontFamily: SANS, fontSize: Array.from(text).length > 44 ? 62 : Array.from(text).length > 26 ? 76 : 92, lineHeight: 1.12, fontWeight: 800, letterSpacing: -0.5, color, textShadow: shadow}}>{marked(text, accent)}</span>
   </div>

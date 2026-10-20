@@ -67,6 +67,16 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     fireEvent.change(await screen.findByLabelText("Your statement (in your own words)"), { target: { value: "All my songs are on a paid plan." } }); fireEvent.click(screen.getByRole("switch", { name: /Confirm the licence of songs I publish automatically/ }));
     expect(await screen.findByText(/Confirmed now: song-008, song-009/)).toBeInTheDocument();
   });
+  it("saves the dev.to key and the LinkedIn token for the blog's Post buttons, and says whose token it is", async () => {
+    const f = route({ "/api/settings/media_key": () => ({ note: "" }), "/api/settings/linkedin_save": () => ({ note: "LinkedIn says this token is for Navjyot N." }), "/api/settings": () => ({ ...DATA, media: { ...DATA.media, keys: { openai: true, elevenlabs: true } } }) });
+    at(); await screen.findByRole("heading", { name: "Blog" });
+    fireEvent.click(screen.getByRole("button", { name: /^dev\.to/ })); fireEvent.change(await screen.findByLabelText("dev.to API key"), { target: { value: "devkey-0123456789abcdef" } }); fireEvent.click(screen.getByRole("button", { name: "Save token" }));
+    await waitFor(() => expect(posts(f, "/api/settings/media_key")).toEqual([{ provider: "devto", token: "devkey-0123456789abcdef" }]));
+    fireEvent.click(screen.getByRole("button", { name: /^LinkedIn/ })); expect(await screen.findByText(/has no way to post a long article from outside/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("LinkedIn access token"), { target: { value: "AQV" + "x".repeat(60) } }); fireEvent.change(screen.getByLabelText(/Your member id/), { target: { value: "abc123" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Save token" }).at(-1)!);
+    await waitFor(() => expect(posts(f, "/api/settings/linkedin_save")).toEqual([{ token: "AQV" + "x".repeat(60), author: "abc123" }])); expect(await screen.findByText("LinkedIn says this token is for Navjyot N.")).toBeInTheDocument();
+  });
   it("saves a pasted YouTube token file as the fallback sign-in, and has the setup guides", async () => {
     const f = route({ "/api/settings/yt_save": () => ({ ok: true }), "/api/settings": () => DATA });
     at(); await open(/YouTube publishing/);
