@@ -263,3 +263,11 @@ One version, set in `plugins/navaan-studio/.claude-plugin/plugin.json`, mirrored
 1. **While you work**: add entries under `## [Unreleased]` in `CHANGELOG.md` when a change is one a person using or running the studio would notice (a feature, a fix, a change, a removal, a security fix). Refactors, tests and docs-only edits are not listed. `/changelog` writes the entries from the commits.
 2. **To release**: `python3 deploy/bump-version.py X.Y.Z` (patch for fixes, minor for features while 0.y.z). It refuses an empty `[Unreleased]`, edits the four version files and turns `[Unreleased]` into `[X.Y.Z] - <date>`, then prints the commit and tag commands. It never runs git.
 3. Commit that on a branch, merge to `develop`, release `develop` to `main` as usual (the deploy is the release), then tag the release merge commit: `git tag -a vX.Y.Z -m "NAVAAN Studio X.Y.Z" <sha>` and `git push origin vX.Y.Z`. The GitHub Release body can be the changelog section (`/release-notes`).
+
+## The nginx vhost is applied by hand
+The deploy workflow ships the app, not `deploy/nginx/navaan.conf`: the file nginx runs is `/opt/navaan/nginx/navaan.conf` on the VM (mounted into `engagehub-nginx`). After you change the repo file, apply it yourself or prod keeps the old one (NAV-143: the public site was throttled as if it were the studio login for days after the fix was in the repo).
+```sh
+scp deploy/nginx/navaan.conf ods@<vm>:/tmp/navaan.conf.new
+ssh ods@<vm> 'cp -a /opt/navaan/nginx/navaan.conf /opt/navaan/nginx/navaan.conf.bak-$(date +%Y%m%d); cat /tmp/navaan.conf.new > /opt/navaan/nginx/navaan.conf; sudo docker exec engagehub-nginx nginx -t && sudo docker exec engagehub-nginx nginx -s reload'
+```
+Write it in place with `cat >` (not `cp` or `install`): the mount is a single file, and replacing the file by a new one leaves the container looking at the old one. If `nginx -t` fails, put the backup back the same way. Then run `deploy/check-neighbours.sh` and compare with the snapshot.
