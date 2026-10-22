@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""image_openai.py <slug> [--estimate] [--force]  make the background picture for an inspiration short with the OpenAI image API.
+"""image_openai.py <slug> [--estimate] [--force]  make the background picture for an inspiration short with the image API chosen in Settings (OpenAI, or Meta Muse Image).
 
 Reads the prompt from songs/<slug>/scenes/background.txt (written by the inspiration-visual skill, no spend). Makes ONE portrait
 picture at the model, quality and size chosen in Settings (default gpt-image-2.5-flare, high, 1152x2048 which is exactly 9:16), fits it to 1080x1920 without stretching, writes background.png and
 keeps the raw answer as scenes/background_openai.png. Refuses when the month or run cap would be passed, and when a background
 already exists unless --force. The key comes from media_cfg (openai.env or OPENAI_API_KEY) and is never printed.
 
-This file is also the one place that talks to the OpenAI image API for songs: request_image (a new picture from words) and
+This file is also the one place that talks to the image APIs for songs (OpenAI, and Muse when Settings, Picture maker says so): request_image (a new picture from words) and
 request_edit (a new picture from words plus reference pictures, which is how one person stays the same person across a film).
 """
 import os, sys, io, json, base64, time, glob, uuid, urllib.request, urllib.error
@@ -17,6 +17,10 @@ import navaan_log as L
 LOG = L.get("image_openai")
 
 DEFAULT_MODEL = "gpt-image-2.5-flare"
+# Meta Muse Image (OpenAI-shaped API at api.meta.ai): flat $0.01 per picture, no quality knob, size sets only the aspect ratio. Edits take
+# the reference pictures as a JSON "images" list of data URLs. It answers webp by default, so the bytes are re-saved as PNG.
+MUSE_MODEL, MUSE_USD, MUSE_URL = "muse-image-1.0", 0.01, "https://api.meta.ai/v1/images/"
+NAME = {"openai": "OpenAI", "muse": "Muse"}
 # Dollars for one picture on the older gpt-image-2 by size and quality. Used for the cap and the estimate card, not for billing.
 OLD_PRICE = {"1024x1536": {"low": 0.005, "medium": 0.041, "high": 0.165}, "1152x2048": {"low": 0.008, "medium": 0.062, "high": 0.248},
              "1792x1008": {"low": 0.007, "medium": 0.048, "high": 0.19}, "1536x864": {"low": 0.005, "medium": 0.035, "high": 0.14}}
@@ -28,8 +32,20 @@ QUALITY_X = {"low": 0.2, "medium": 0.45, "high": 1.0, "xhigh": 2.0, "max": 3.5}
 OUT_W, OUT_H = 1080, 1920
 
 
+def engine(cfg=None):
+    """Which image API paints: openai (default) or muse, from Settings."""
+    try: return (cfg or media_cfg.load()).get("image_engine") or "openai"
+    except Exception as _e: L.soft(LOG, "engine_error"); return "openai"
+
+
+def key_for(cfg=None):
+    """The saved key of the chosen image API, or an empty string."""
+    return media_cfg.get_key(engine(cfg))
+
+
 def model_name(cfg=None):
-    """The image model: the environment override, else the Settings choice, else the default."""
+    """The image model: Muse has one; for OpenAI the environment override, else the Settings choice, else the default."""
+    if engine(cfg) == "muse": return MUSE_MODEL
     env = os.environ.get("NAVAAN_OPENAI_IMAGE_MODEL")
     if env: return env
     try: return (cfg or media_cfg.load()).get("image_model") or DEFAULT_MODEL
@@ -39,6 +55,7 @@ def model_name(cfg=None):
 def estimate(quality, size="1152x2048", model=None, refs=0):
     """Approximate dollars for one picture. refs is the number of reference pictures sent with it (an edit)."""
     model = model or model_name()
+    if model == MUSE_MODEL: return MUSE_USD   # flat, whatever the size, quality or number of references
     if model == "gpt-image-2":
         t = OLD_PRICE.get(size, OLD_PRICE["1152x2048"])
         return t.get(quality, t["high"])
@@ -66,7 +83,7 @@ def fit_portrait(raw, w=OUT_W, h=OUT_H):
     return im.crop((l, t, l + w, t + h))
 
 
-def _send(req, key):
+def _send(req, key, who="OpenAI"):
     try:
         with urllib.request.urlopen(req, timeout=300) as r:
             d = json.load(r)
@@ -74,33 +91,49 @@ def _send(req, key):
         msg = ""
         try: msg = json.load(e).get("error", {}).get("message", "")
         except Exception as _e: L.soft(LOG, "send_error"); pass
-        raise RuntimeError("OpenAI refused the picture (HTTP %s). %s" % (e.code, msg.replace(key, "<key>")[:200]))
+        raise RuntimeError("%s refused the picture (HTTP %s). %s" % (who, e.code, msg.replace(key, "<key>")[:200]))
     except Exception as e:
-        raise RuntimeError("Could not reach OpenAI: " + str(e).replace(key, "<key>")[:160])
+        raise RuntimeError("Could not reach %s: %s" % (who, str(e).replace(key, "<key>")[:160]))
     item = (d.get("data") or [{}])[0]
     if item.get("b64_json"):
-        return base64.b64decode(item["b64_json"])
-    if item.get("url"):
+        raw = base64.b64decode(item["b64_json"])
+    elif item.get("url"):
         with urllib.request.urlopen(item["url"], timeout=120) as r:
-            return r.read()
-    raise RuntimeError("OpenAI answered without a picture.")
+            raw = r.read()
+    else:
+        raise RuntimeError("%s answered without a picture." % who)
+    if who == "Muse":   # webp by default; everything downstream expects PNG bytes
+        from PIL import Image
+        b = io.BytesIO(); Image.open(io.BytesIO(raw)).convert("RGB").save(b, "PNG"); raw = b.getvalue()
+    return raw
 
 
 def request_image(prompt, quality, key, size="1152x2048", model=None):
     """A new picture from words."""
-    body = json.dumps({"model": model or model_name(), "prompt": prompt, "size": size, "quality": quality, "n": 1}).encode()
+    model = model or model_name()
+    if model == MUSE_MODEL:
+        body = json.dumps({"model": model, "prompt": prompt, "size": size, "n": 1}).encode()
+        req = urllib.request.Request(MUSE_URL + "generations", data=body, method="POST", headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        return _send(req, key, "Muse")
+    body = json.dumps({"model": model, "prompt": prompt, "size": size, "quality": quality, "n": 1}).encode()
     req = urllib.request.Request("https://api.openai.com/v1/images/generations", data=body, method="POST",
                                  headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     return _send(req, key)
 
 
 def request_edit(prompt, refs, quality, key, size="1152x2048", model=None):
-    """A new picture from words plus 1 to 16 reference pictures (file paths or bytes). The people in the references are kept."""
+    """A new picture from words plus 1 to 16 reference pictures (file paths or bytes); Muse takes up to 10. The people in the references are kept."""
+    model = model or model_name()
+    blobs = [r if isinstance(r, (bytes, bytearray)) else open(r, "rb").read() for r in refs]
+    if model == MUSE_MODEL:
+        imgs = [{"image_url": "data:image/png;base64," + base64.b64encode(bytes(x)).decode()} for x in blobs[:10]]
+        body = json.dumps({"model": model, "prompt": prompt, "images": imgs, "size": size, "n": 1}).encode()
+        req = urllib.request.Request(MUSE_URL + "edits", data=body, method="POST", headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        return _send(req, key, "Muse")
     b = uuid.uuid4().hex; parts = []
-    for k, v in (("model", model or model_name()), ("prompt", prompt), ("size", size), ("quality", quality)):
+    for k, v in (("model", model), ("prompt", prompt), ("size", size), ("quality", quality)):
         parts.append(("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n" % (b, k, v)).encode())
-    for i, r in enumerate(refs):
-        data = r if isinstance(r, (bytes, bytearray)) else open(r, "rb").read()
+    for i, data in enumerate(blobs):
         parts.append(("--%s\r\nContent-Disposition: form-data; name=\"image[]\"; filename=\"ref_%d.png\"\r\nContent-Type: image/png\r\n\r\n" % (b, i)).encode() + bytes(data) + b"\r\n")
     parts.append(("--%s--\r\n" % b).encode())
     req = urllib.request.Request("https://api.openai.com/v1/images/edits", data=b"".join(parts), method="POST",
@@ -132,9 +165,9 @@ def main(argv):
     prompt = open(pf, encoding="utf-8").read().strip() if os.path.exists(pf) else ""
     if len(prompt) < 20:
         sys.exit("navaan: scenes/background.txt is missing or empty. Run the prompt step first.")
-    key = media_cfg.get_key("openai")
+    key = key_for(cfg)
     if not key:
-        sys.exit("navaan: no OpenAI key. Paste it in Settings, Pictures and voice.")
+        sys.exit("navaan: no %s key. Paste it in Settings, Pictures and voice." % NAME[engine(cfg)])
     raw = request_image(prompt[:3500], q, key, cfg["image_size"], model)
     media_cfg.add_usage(openai_usd=cost)  # spent now, whatever happens to the file
     os.makedirs(os.path.join(D, "scenes"), exist_ok=True)
@@ -144,7 +177,7 @@ def main(argv):
     for p in have:  # keep the old one out of the way, not as background.*
         os.replace(p, os.path.join(D, "scenes", "background_prev" + os.path.splitext(p)[1]))
     out.save(os.path.join(D, "background.png"), optimize=True)
-    print("background.png %dx%d from OpenAI %s %s, about $%.3f" % (OUT_W, OUT_H, model, q, cost))
+    print("background.png %dx%d from %s %s %s, about $%.3f" % (OUT_W, OUT_H, NAME[engine(cfg)], model, q, cost))
     return 0
 
 

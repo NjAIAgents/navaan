@@ -123,7 +123,7 @@ def song_picture_steps(slug, D, mc):
     have = len(visuals_cfg.own_images(D))
     pack = prompt_pack.load(D)
     n = len(pack["prompts"]) if pack and pack.get("prompts") else 0
-    label = "Create the pictures with OpenAI"
+    label = "Create the pictures with " + IO.NAME[IO.engine(mc)]
     if n: label += " (%d pictures, about $%.2f at %s)" % (n, SI.total_cost(n, mc["image_quality"], mc["image_size_landscape"], IO.model_name(mc)), mc["image_quality"])
     import song_cover as SCOVER
     clabel = "Make the cover with OpenAI (1 picture, about $%.2f at %s)" % (IO.estimate(mc["image_quality"], SCOVER.SIZE, IO.model_name(mc)), mc["image_quality"])
@@ -251,11 +251,12 @@ def ig_enabled(m):
 def background_steps(slug, D, gen, has_bg):
     """Flow (a Chrome step on the Mac) or, when Settings says openai, a prompt step the agent does without spending plus one OpenAI picture behind the credits gate."""
     if gen and media_cfg.load()["image_provider"] == "openai":
+        import image_openai as IO
         return [
             dict(id="background_prompt", outputs=["scenes/background.txt"], label="Write the background picture prompt", kind="claude", skill="inspiration-visual", chrome=False,
-                 hint="The picture will be made by the OpenAI image API, not Flow. Write only scenes/background.txt (the prompt) and stop. Do not open a browser and do not make the image.",
+                 hint="The picture will be made by an image API (set in Settings), not Flow. Write only scenes/background.txt (the prompt) and stop. Do not open a browser and do not make the image.",
                  done=lambda m: has_bg(m) or has(D, "scenes/background.txt")),
-            dict(id="background", outputs=["background.*"], label="Create the background image (OpenAI)", kind="script", cmds=[sc("image_openai.py", slug)],
+            dict(id="background", outputs=["background.*"], label="Create the background image (%s)" % IO.NAME[IO.engine()], kind="script", cmds=[sc("image_openai.py", slug)],
                  before="credits", done=has_bg),
         ]
     return [dict(id="background", outputs=["background.*", "scenes/background.txt"], label=("Create the background image (Flow)" if gen else "Pick the background image"), kind="claude", skill="inspiration-visual", chrome=gen,
