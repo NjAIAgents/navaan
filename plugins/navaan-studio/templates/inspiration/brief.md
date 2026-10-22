@@ -10,6 +10,7 @@
 - music: auto
 - voiceover: none
 - background: generate
+- pictures: single
 - camera: auto
 - transition: rise
 - duration: auto

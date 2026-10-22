@@ -19,6 +19,7 @@ export type LyricsProps = {
   mode?: 'reel' | 'cover';
   acts?: Act[];
   textY?: number;
+  bgs?: {bg: string; start: number; end: number}[];   // a picture per beat (NAV-145), each shown from start to end: a dissolve through dark between them; without it the one `bg`
   lyricFont?: string;
   lyricSize?: number;
 };
@@ -97,7 +98,13 @@ export const Lyrics: React.FC<LyricsProps> = (p) => {
   return (
     <AbsoluteFill style={{backgroundColor: '#000', opacity: master}}>
       <AbsoluteFill style={cover ? undefined : {transform: `scale(${zoom})`, filter: `brightness(${grade[0] * (1 - dip)}) saturate(${grade[1]}) contrast(${grade[2]})`}}>
-        {p.bg_is_image ? (
+        {p.bgs && p.bgs.length > 0 && !cover ? p.bgs.map((b, i) => {
+          const first = i === 0, last = i === p.bgs!.length - 1, d = Math.min(0.3, (b.end - b.start) / 2.5);
+          const k = interpolate(t, [b.start, b.start + d, b.end - d, b.end], [first ? 1 : 0, 1, 1, last ? 1 : 0], clamp01);   // out through dark, then the next one in
+          if (k <= 0) return null;
+          const local = interpolate(t, [b.start, b.end], [0, 1], clamp01), push = i % 2 === 0 ? 1.03 + 0.07 * local : 1.1 - 0.07 * local;   // a slow push in, then a slow pull back, so two cuts never repeat the same move
+          return <Img key={i} src={staticFile(b.bg)} style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: k, transform: `scale(${push})`}} />;
+        }) : p.bg_is_image ? (
           <Img src={staticFile(p.bg)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
         ) : (
           <OffthreadVideo src={staticFile(p.bg)} muted style={{width: '100%', height: '100%', objectFit: 'cover'}} />

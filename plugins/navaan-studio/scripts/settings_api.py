@@ -451,6 +451,6 @@ def linkedin_save(token, author=""):
 
 
 def media_key_save(provider, token):
-    """Paste an OpenAI or ElevenLabs key. Tested first, written to openai.env or elevenlabs.env (mode 600), never returned."""
+    """Paste an OpenAI, Muse or ElevenLabs key. Tested first where a test exists, written to openai.env, muse.env or elevenlabs.env (mode 600), never returned."""
     r = media_cfg.key_save(provider, token)
     return {**media_cfg.status(), "note": r.get("note", "")}

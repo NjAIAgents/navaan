@@ -2,10 +2,10 @@
 """media_cfg.py  which services make the pictures, the narration and the music, and the keys they need.
 
 load() / save(updates)   the choices, in <conf>/media.json (not secret). Unknown keys and bad values are refused.
-key_state()              which keys are saved: {"openai": bool, "elevenlabs": bool}. A key is never returned to the page.
-key_save(provider, key)  test the key against the provider first, then write <conf>/openai.env or elevenlabs.env (mode 600).
+key_state()              which keys are saved: {"openai": bool, "muse": bool, "elevenlabs": bool}. A key is never returned to the page.
+key_save(provider, key)  test the key against the provider first, then write <conf>/openai.env, muse.env or elevenlabs.env (mode 600).
 get_key(provider)        the key for a step that needs it: the environment variable first, then the file.
-usage() / add_usage()    this month's ElevenLabs seconds and OpenAI dollars, so a run can be stopped at the cap.
+usage() / add_usage()    this month's ElevenLabs seconds and picture dollars (openai_usd counts Muse pictures too), so a run can be stopped at the cap.
 The conf folder is ~/.config/navaan (NAVAAN_CONF_DIR overrides it). On the server the files are synced to Vault.
 """
 import os, re, json, time, datetime, urllib.request, urllib.error
@@ -21,7 +21,8 @@ VOICES = {
     "nj": {"label": "NJ (my own voice)", "id": "r3RejoyX9duc0wFH79cE"},
 }
 CHOICES = {
-    "image_provider": ("flow", "openai"),
+    "image_provider": ("flow", "openai"),       # "openai" means an image API paints the pictures (not Flow); image_engine says which one
+    "image_engine": ("openai", "muse"),         # the image API: OpenAI (default) or Meta Muse Image
     "picture_director": ("openai", "claude"),   # who writes the picture plan: OpenAI chat model (default) or Claude
     "image_model": ("gpt-image-2.5-flare", "gpt-image-2.5-sunburst", "gpt-image-2"),   # flare: fast and cheap (default); sunburst: more precise; gpt-image-2: the older one
     "image_quality": ("low", "medium", "high", "xhigh", "max"),   # on the 2.5 models high is about the old medium
@@ -38,13 +39,14 @@ NUMBERS = {  # key: (default, min, max)
     "song_pictures": (16, 6, 40),                 # pictures the director plans per song (16 at high 1792x1008 on flare is about 0.77 dollars)
     "eleven_monthly_seconds": (1500, 60, 36000),  # ElevenLabs audio allowed per calendar month
 }
-DEFAULTS = {"image_provider": "flow", "picture_director": "openai", "image_model": "gpt-image-2.5-flare", "image_quality": "high", "image_size": "1152x2048", "image_size_landscape": "1792x1008", "narration_source": "upload", "voice": "suno1",
+DEFAULTS = {"image_provider": "flow", "image_engine": "openai", "picture_director": "openai", "image_model": "gpt-image-2.5-flare", "image_quality": "high", "image_size": "1152x2048", "image_size_landscape": "1792x1008", "narration_source": "upload", "voice": "suno1",
             "eleven_model": "eleven_v4", "music": "auto", "motion": "subtle", "max_run_usd": 0.8, "song_pictures": 16, "eleven_monthly_seconds": 1500}
 KEYS = {  # provider: (file, variable, pattern, live test url, auth header builder)
     "openai": ("openai.env", "OPENAI_API_KEY", r"sk-[A-Za-z0-9_\-]{20,300}", "https://api.openai.com/v1/models", lambda k: {"Authorization": "Bearer " + k}),
     "elevenlabs": ("elevenlabs.env", "ELEVENLABS_API_KEY", r"[A-Za-z0-9_\-]{20,200}", "https://api.elevenlabs.io/v1/user", lambda k: {"xi-api-key": k}),
     "devto": ("devto.env", "DEVTO_API_KEY", r"[A-Za-z0-9_\-]{16,120}", "https://dev.to/api/users/me", lambda k: {"api-key": k, "Accept": "application/vnd.forem.api-v1+json"}),   # the owner's key from dev.to Settings, Extensions (NAV-78)
     "linkedin": ("linkedin.env", "LINKEDIN_TOKEN", r"[A-Za-z0-9_\-.~+/=]{20,2500}", "https://api.linkedin.com/v2/userinfo", lambda k: {"Authorization": "Bearer " + k}),   # an access token with w_member_social; saved by linkedin_save, with the member's URN
+    "muse": ("muse.env", "MUSE_API_KEY", r"[A-Za-z0-9_\-|.]{16,400}", None, lambda k: {"Authorization": "Bearer " + k}),   # Meta Model API; no free read call is documented, so the key is not live-tested
 }
 
 
@@ -140,6 +142,7 @@ def _live_test(provider, key):
     counts as a good key, with a note: the key is recognised, and what it is for is only found out when it is used."""
     url, hdr = KEYS[provider][3], KEYS[provider][4](key)
     name = {"elevenlabs": "ElevenLabs", "openai": "OpenAI", "devto": "dev.to", "linkedin": "LinkedIn"}.get(provider, provider.capitalize())
+    if not url: return True, "", ""   # Muse: no free read call is documented, so its key is not live-tested
     try:
         urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=20).read(1)
         return True, "", ""

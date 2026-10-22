@@ -202,7 +202,7 @@ def render_remotion(D, T, out):
                "cues": [{"text": l["text"], "start": l["start"], "end": l["end"], **({"at": l["at"]} if l.get("at") else {})} for l in T["lines"]],   # at: when each word starts, from the voice (voice_timing.py) "title": "", "hook": "",
                "handle": ({"text": br["text"], "icon": br.get("icon", "instagram"), "start": br["start"]} if br else None),
                "style": T.get("style") or {"color": "#FFFFFF", "accent": "#FF4D7E", "dim": 0.4}, "mode": "reel",
-               "acts": [{"kind": "calm", "from": 0, "to": T["duration"]}], "textY": 0.36}
+               "acts": [{"kind": "calm", "from": 0, "to": T["duration"]}], "textY": 0.36, **({"bgs": T["scenes"]} if T.get("scenes") else {})}   # bgs: a picture per beat (NAV-145)
         props = os.path.join(D, "narration_props.json"); json.dump(np_, open(props, "w", encoding="utf-8"), ensure_ascii=False, indent=2); comp = "Lyrics"
     chrome = os.environ.get("NAVAAN_CHROME") or next((c for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium") if os.path.exists(c)), "")
     env = dict(os.environ); env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + env.get("PATH", "")

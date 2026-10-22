@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-10-22
+
+### Added
+- A second output for an inspiration short: a picture for each thought instead of one background (NAV-145). Tick "A picture for each thought, not one background" on the new-item form (it needs the narration and is off with a scene video). Claude groups the script's lines into a few beats, always fewer than lines, and plans one scene for each, with one look for the whole short and no cost; you approve how many pictures and the price before any picture is made. In the video the picture changes where the voice moves on to the next beat, with a slow push in or out and a dissolve through dark, and the closing line keeps the last picture. The short without the tick is made exactly as before.
+- Meta Muse Image as an alternative to OpenAI for automatic pictures. Settings, Pictures and voice has a new "Picture maker" (OpenAI stays the default) and a Muse key row. Muse costs a flat $0.01 a picture, has no quality setting, and works for the inspiration background, the song pictures, the same-faces edits and the vertical recompose. The Muse key is saved without a live check, so a wrong one shows on the first picture.
+
 ## [0.57.0] - 2026-10-20
 
 ### Added
@@ -773,7 +779,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.57.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.0...HEAD
+[0.58.0]: https://github.com/NjAIAgents/navaan/compare/v0.57.0...v0.58.0
 [0.57.0]: https://github.com/NjAIAgents/navaan/compare/v0.56.5...v0.57.0
 [0.56.5]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...v0.56.5
 [0.56.4]: https://github.com/NjAIAgents/navaan/compare/v0.56.3...v0.56.4
