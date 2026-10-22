@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.58.1] - 2026-10-22
+
+### Fixed
+- Muse as the picture maker now works for a blog post's pictures too. The blog image step still asked for an OpenAI key and would have sent it to Muse. It now uses the key of the maker chosen in Settings and names it in its message.
+- The Muse key box and the Picture maker choice were only on the classic Settings page. The new app's Settings, AI services now has both.
+
 ## [0.58.0] - 2026-10-22
 
 ### Added
@@ -779,7 +785,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.1...HEAD
+[0.58.1]: https://github.com/NjAIAgents/navaan/compare/v0.58.0...v0.58.1
 [0.58.0]: https://github.com/NjAIAgents/navaan/compare/v0.57.0...v0.58.0
 [0.57.0]: https://github.com/NjAIAgents/navaan/compare/v0.56.5...v0.57.0
 [0.56.5]: https://github.com/NjAIAgents/navaan/compare/v0.56.4...v0.56.5

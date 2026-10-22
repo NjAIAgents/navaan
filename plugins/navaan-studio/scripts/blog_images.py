@@ -6,7 +6,7 @@ Description: the images of a blog post (NAV-139): a cover drawn with Remotion an
 
   blog_images.py check <slug>       say what is wrong with images.json, or that it can be made (the images skill runs this before it stops)
   blog_images.py render <slug>      draw the covers (dev.to 1000x420, LinkedIn 1200x627) and the planned figures as PNG stills with Remotion, free; a cover falls back to a Pillow drawing when Remotion is not installed
-  blog_images.py pictures <slug>    make the planned `picture` images with the OpenAI image API (behind the credits approval; --estimate prints the cost)
+  blog_images.py pictures <slug>    make the planned `picture` images with the image API chosen in Settings (OpenAI or Muse) (behind the credits approval; --estimate prints the cost)
   blog_images.py embed <slug>       put the cover and the images into devto.md and linkedin_article.md
 
 images.json:  {"cover": {"title", "kicker", "chips": [..], "palette", "motif"},
@@ -212,8 +212,8 @@ def make_pictures(slug, estimate_only=False):
     if estimate_only: print(json.dumps({"model": model, "size": size, "quality": q, "pictures": len(todo), "usd": total})); return 0
     if not todo: print("no pictures to make"); return 0
     if total > float(cfg["max_run_usd"]): print("navaan: %d %s pictures cost about $%.2f, over the run cap of $%.2f set in Settings." % (len(todo), q, total, float(cfg["max_run_usd"]))); return 4
-    key = media_cfg.get_key("openai")
-    if not key: print("navaan: no OpenAI key. Paste it in Settings, Pictures and voice."); return 4
+    key = IO.key_for(cfg)   # the key of the image API chosen in Settings (OpenAI or Muse)
+    if not key: print("navaan: no %s key. Paste it in Settings, Pictures and voice." % IO.NAME[IO.engine(cfg)]); return 4
     look = (plan.get("look") or DEFAULT_LOOK)
     for x in todo:
         raw = IO.request_image((x["prompt"] + "\n\nArt direction: " + look + "\n\n" + LIMITS)[:3500], q, key, size, model)
