@@ -50,6 +50,13 @@ class Cfg(Base):
 class Keys(Base):
     GOOD = "sk-" + "a" * 40
 
+    def test_the_key_check_sends_a_user_agent_because_devto_refuses_the_python_default_with_403(self):
+        for prov, key in (("devto", "d" * 24), ("openai", self.GOOD)):
+            with mock.patch("urllib.request.urlopen") as u:
+                u.return_value.read.return_value = b"x"
+                settings_api.media_key_save(prov, key)
+            self.assertEqual(u.call_args[0][0].get_header("User-agent"), "navaan-studio")
+
     def test_key_saved_after_live_test_and_not_returned(self):
         with mock.patch("urllib.request.urlopen") as u:
             u.return_value.read.return_value = b"x"
