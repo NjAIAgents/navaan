@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.58.5] - 2026-10-22
+
+### Fixed
+- The word timing tools added in 0.58.3 (NAV-146) could not start on the server: the recogniser's library needs `libatomic1`, which the server image did not have, so narrations were still timed the old way. The image now has it; checked with the real narrations inside a clean container of the same base image.
+
 ## [0.58.4] - 2026-10-22
 
 ### Fixed
@@ -801,7 +806,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.4...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.5...HEAD
+[0.58.5]: https://github.com/NjAIAgents/navaan/compare/v0.58.4...v0.58.5
 [0.58.4]: https://github.com/NjAIAgents/navaan/compare/v0.58.3...v0.58.4
 [0.58.3]: https://github.com/NjAIAgents/navaan/compare/v0.58.2...v0.58.3
 [0.58.2]: https://github.com/NjAIAgents/navaan/compare/v0.58.1...v0.58.2
