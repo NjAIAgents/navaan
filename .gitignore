@@ -5,6 +5,8 @@
 *.png
 !plugins/navaan-studio/scripts/brand/*.png
 !plugins/navaan-studio/web/public/brand/*.png
+# two trimmed real narrations (NAV-146), the reference for the word timing tests
+!plugins/navaan-studio/tests/fixtures/narration/*.mp3
 songs/*/takes/
 .venv/
 

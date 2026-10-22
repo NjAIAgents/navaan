@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- The captions and the voice stay in step on a slow narration with long pauses or a hum between lines (NAV-146). On insp-008 and insp-009 a line could light 1.5 to 4.7 s away from where it is spoken, and the last words of a line up to 8 s late, because the lines were cut by letter count and each line's words were spread over its whole slot. A small offline recogniser (Vosk) now hears every word with its own start and end, and its words are matched to your script, so a line starts where its first word is spoken and each word lights up when it is said. It needs a one-time install of the word timing tools (about 40 MB, English only): run `setup_captions.py --vosk --yes`, or approve the captions setup, which now includes it. Without them, or when fewer than half of your words are heard right, the narration is timed exactly as before and the step's log says so. Hindi narrations are timed as before (not tested with the recogniser).
+
 ## [0.58.1] - 2026-10-22
 
 ### Fixed
