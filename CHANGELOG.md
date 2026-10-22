@@ -6,6 +6,10 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- Muse as the picture maker now works for a blog post's pictures too. The blog image step still asked for an OpenAI key and would have sent it to Muse. It now uses the key of the maker chosen in Settings and names it in its message.
+- The Muse key box and the Picture maker choice were only on the classic Settings page. The new app's Settings, AI services now has both.
+
 ## [0.58.0] - 2026-10-22
 
 ### Added
