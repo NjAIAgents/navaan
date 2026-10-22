@@ -141,6 +141,7 @@ def _live_test(provider, key):
     """One cheap read call. Returns (ok, why, note). Never echoes the key. A provider that says the key is genuine but lacks the permission this test needs (ElevenLabs: missing_permissions)
     counts as a good key, with a note: the key is recognised, and what it is for is only found out when it is used."""
     url, hdr = KEYS[provider][3], KEYS[provider][4](key)
+    hdr.setdefault("User-Agent", "navaan-studio")   # dev.to (Varnish) answers 403 to the default Python-urllib agent before it reads the key
     name = {"elevenlabs": "ElevenLabs", "openai": "OpenAI", "devto": "dev.to", "linkedin": "LinkedIn"}.get(provider, provider.capitalize())
     if not url: return True, "", ""   # Muse: no free read call is documented, so its key is not live-tested
     try:

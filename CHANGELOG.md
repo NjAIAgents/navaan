@@ -6,6 +6,12 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.58.2] - 2026-10-22
+
+### Fixed
+- A correct dev.to key was refused with "HTTP 403" when saved in Settings. dev.to rejects the check request before it reads the key unless it names who is asking; the check now does, as the Post buttons already did. The same applies to every key check.
+- Settings, AI services, Pictures: the choices now read in words. "Made by: openai" next to "Picture maker: muse" looked like a contradiction; it now reads "Automatic (an image API, chosen below)" and "Muse (Meta, $0.01 a picture)". With Muse chosen, a note says the Model and Quality boxes are not used.
+
 ## [0.58.1] - 2026-10-22
 
 ### Fixed
@@ -785,7 +791,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.2...HEAD
+[0.58.2]: https://github.com/NjAIAgents/navaan/compare/v0.58.1...v0.58.2
 [0.58.1]: https://github.com/NjAIAgents/navaan/compare/v0.58.0...v0.58.1
 [0.58.0]: https://github.com/NjAIAgents/navaan/compare/v0.57.0...v0.58.0
 [0.57.0]: https://github.com/NjAIAgents/navaan/compare/v0.56.5...v0.57.0
