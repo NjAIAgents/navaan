@@ -207,6 +207,15 @@ class Access(unittest.TestCase):
         code, body = post(type="inspiration", idea="Another quote that stays quiet.", narrate="none"); D2 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D2, "narrate"), "none")   # skipped when asked
         code, body = post(type="inspiration", idea="A third quote.", narrate="eleven", voice="bogus"); D3 = C.song_dir(json.loads(body)["slug"]); self.assertEqual(narration.get_option(D3, "voice"), "suno1")   # an unknown voice falls back to the default
 
+    def test_a_picture_per_beat_is_only_set_for_a_narrated_inspiration(self):
+        import narration, navaan_common as C
+        post = lambda **b: self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=b)
+        D = lambda r: C.song_dir(json.loads(r[1])["slug"])
+        d = D(post(type="inspiration", idea="You are allowed to outgrow your old life.", narrate="eleven", voice="nj", pictures="beats")); self.assertEqual(narration.get_option(d, "pictures"), "beats")
+        d = D(post(type="inspiration", idea="Another quote that stays quiet.", narrate="none", pictures="beats")); self.assertEqual(narration.get_option(d, "pictures", "single"), "single")   # no narration: no cuts to follow, nothing is paid for pictures that would not show
+        d = D(post(type="inspiration", idea="A third quote about the dusk.", narrate="eleven", voice="nj")); self.assertEqual(narration.get_option(d, "pictures", "single"), "single")   # the default stays one background
+        d = D(post(type="aha", idea="Why AI sounds sure.", narrate="eleven", voice="nj", pictures="beats")); self.assertEqual(narration.get_option(d, "pictures", "single"), "single")   # an Aha-lorithm short already has its own picture per beat
+
     def test_changing_the_voice_or_pace_drops_a_voice_made_the_old_way_until_the_video_is_approved(self):
         import narration, navaan, navaan_common as C
         code, body = self.call("/api/new", "owner-tok", "csrf-owner", post=True, body=dict(type="inspiration", idea="Stay soft, stay kind.", narrate="eleven", voice="suno1")); D = C.song_dir(json.loads(body)["slug"]); slug = json.loads(body)["slug"]

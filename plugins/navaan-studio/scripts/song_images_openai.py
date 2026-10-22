@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""song_images_openai.py <slug> [--estimate] [--force] [--count N] [--try] [--vertical 3,5|all]  make the song's pictures with the OpenAI image API.
+"""song_images_openai.py <slug> [--estimate] [--force] [--count N] [--try] [--vertical 3,5|all]  make the song's pictures with the image API chosen in Settings (OpenAI, or Meta Muse Image).
 
 Reads songs/<slug>/prompt_pack.json (written by prompt_pack.py, no spend). Picture 1 is made from words and is also the reference: it
 shows the main people clearly. Every other picture is an edit of picture 1 (the reference image goes in with the scene), so the same
@@ -101,7 +101,7 @@ def retry(fn, tries=3):
 
 
 def make_scene(pack, item, ref, q, size, key, model):
-    """An edit of the reference picture. When OpenAI refuses the edit, one try from words alone. Returns (bytes, dollars)."""
+    """An edit of the reference picture. When the API refuses the edit, one try from words alone. Returns (bytes, dollars)."""
     try:
         return retry(lambda: IO.request_edit(scene_prompt(pack, item), [ref], q, key, size, model), 2), IO.estimate(q, size, model, refs=1)
     except RuntimeError as _e:
@@ -132,7 +132,7 @@ def vertical_main(D, pack, items, which, q, key, model, cfg, estimate_only):
     if failed:
         for i, why in sorted(failed): print("vertical picture %d failed: %s" % (i, why))
         sys.exit("navaan: %d of %d vertical pictures failed." % (len(failed), len(todo)))
-    print("%d vertical pictures made with OpenAI %s %s, about $%.2f" % (len(todo), model, q, cost))
+    print("%d vertical pictures made with %s %s %s, about $%.2f" % (len(todo), IO.NAME[IO.engine(cfg)], model, q, cost))
     return 0
 
 
@@ -144,9 +144,9 @@ def main(argv):
     pack = prompt_pack.load(D)
     if not pack or not pack.get("prompts"): sys.exit("navaan: prompt_pack.json is missing. Run the prompt step first.")
     count = int(argv[argv.index("--count") + 1]) if "--count" in argv else None
-    key = media_cfg.get_key("openai")
+    key, who = IO.key_for(cfg), IO.NAME[IO.engine(cfg)]
     if "--vertical" in argv:
-        if not key and "--estimate" not in argv: sys.exit("navaan: no OpenAI key. Paste it in Settings, Pictures and voice.")
+        if not key and "--estimate" not in argv: sys.exit("navaan: no %s key. Paste it in Settings, Pictures and voice." % who)
         return vertical_main(D, pack, plan(pack, count), (argv[argv.index("--vertical") + 1] if len(argv) > argv.index("--vertical") + 1 else "all"), q, key, model, cfg, "--estimate" in argv)
     tr = "--try" in argv   # a test: only the first 2 prompts, saved as try_01.png and try_02.png next to the song files, never used by the video
     items = plan(pack, 2 if tr else count)
@@ -159,7 +159,7 @@ def main(argv):
     if "--estimate" in argv:
         print(json.dumps({"model": model, "size": size, "quality": q, "pictures": len(todo), "usd": cost})); return 0
     if not todo: print("all %d pictures already exist. Use --force to make them again." % len(items)); return 0
-    if not key: sys.exit("navaan: no OpenAI key. Paste it in Settings, Pictures and voice.")
+    if not key: sys.exit("navaan: no %s key. Paste it in Settings, Pictures and voice." % who)
     if not tr and len(V.own_images(D)) + len(todo) > V.MAX_IMAGES and "--force" not in argv:
         sys.exit("navaan: this would pass the limit of %d pictures for a song." % V.MAX_IMAGES)
     ref = os.path.join(imgdir, nm(1))
@@ -189,7 +189,7 @@ def main(argv):
     if failed:
         for i, why in sorted(failed): print("picture %d failed: %s" % (i, why))
         sys.exit("navaan: %d of %d pictures failed. Retry the step, it only makes the missing ones." % (len(failed), len(items)))
-    print("%d pictures made with OpenAI %s %s %s, about $%.2f" % (len(items), model, size, q, cost))
+    print("%d pictures made with %s %s %s %s, about $%.2f" % (len(items), who, model, size, q, cost))
     return 0
 
 
