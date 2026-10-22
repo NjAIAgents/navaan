@@ -269,12 +269,19 @@ function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; ac
   );
 }
 
+// What each raw choice means, so "openai" under Pictures is not read as the picture maker (that is the next box).
+const CHOICE_LABELS: Record<string, Record<string, string>> = {
+  image_provider: { flow: "Flow (Chrome, on the Mac)", openai: "Automatic (an image API, chosen below)" },
+  image_engine: { openai: "OpenAI", muse: "Muse (Meta, $0.01 a picture)" },
+  picture_director: { openai: "OpenAI", claude: "Claude (local, no OpenAI cost)" },
+};
+
 const KEY_NAMES = { openai: "OpenAI", muse: "Muse", elevenlabs: "ElevenLabs" } as const;
 
 function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Save; act: Do; busy: boolean; open: string; toggle: (id: string) => void }) {
   const m = d.media; const [edit, setEdit] = useState<Record<string, string>>({});
   const groups: [string, [string, string][]][] = [
-    ["Pictures", [["image_provider", "Made by"], ["image_engine", "Picture maker"], ["picture_director", "Plan written by"], ["image_model", "Model"], ["image_quality", "Quality"], ["image_size_landscape", "Landscape size"], ["image_size", "Vertical size"]]],
+    ["Pictures", [["image_provider", "Pictures are made by"], ["image_engine", "Picture maker"], ["picture_director", "Plan written by"], ["image_model", "Model"], ["image_quality", "Quality"], ["image_size_landscape", "Landscape size"], ["image_size", "Vertical size"]]],
     ["Narration, music and motion", [["narration_source", "Narration from"], ["voice", "Voice"], ["music", "Music"], ["motion", "Motion"]]],
   ];
   const claude = overview(d).find((i) => i.id === "claude")!.status;
@@ -296,11 +303,12 @@ function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Sa
       {groups.map(([title, names]) => (
         <section key={title} className="card stack" aria-label={title}>
           <h3>{title}</h3>
+          {title === "Pictures" && (edit.image_engine ?? String(m.settings.image_engine ?? "")) === "muse" && <p className="mu">Muse has no model or quality choice: every picture costs $0.01, so the Model and Quality boxes below are not used.</p>}
           {names.filter(([k]) => m.choices[k]).map(([k, l]) => (
             <div key={k} className="stack">
               <label htmlFor={`m-${k}`}>{l}</label>
               <select id={`m-${k}`} className="field" value={edit[k] ?? String(m.settings[k] ?? "")} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })}>
-                {m.choices[k].map((c) => <option key={c} value={c}>{k === "voice" ? m.voices[c] ?? c : c}</option>)}
+                {m.choices[k].map((c) => <option key={c} value={c}>{k === "voice" ? m.voices[c] ?? c : CHOICE_LABELS[k]?.[c] ?? c}</option>)}
               </select>
             </div>
           ))}
