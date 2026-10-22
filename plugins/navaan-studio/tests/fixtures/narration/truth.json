@@ -1,0 +1,17 @@
+{
+  "about": "NAV-146. insp-008 and insp-009: the owner's own uploaded narration (slow, long pauses, a hum between lines), audio taken from the published Shorts. The lines are the script. `onset` and `end`: when the first word of the line starts and the last word ends, in seconds, each the value two independent recognisers (Vosk word times; faster-whisper base.en word ends, whose starts are stretched over pauses) and the loudness of the audio agree on within about 0.2 s. Tolerances: onset 0.3 s, end 0.5 s. The times the published videos used were 1.5 to 8 s off these.",
+  "onset_tolerance": 0.3,
+  "end_tolerance": 0.5,
+  "insp-008": {
+    "lines": ["You were never meant to carry everything.", "Not their expectations.", "Not their guilt.", "Let it go.", "Your peace matters too."],
+    "onset": [2.2, 7.3, 10.45, 16.0, 22.55],
+    "end": [3.75, 8.2, 11.05, 16.65, 23.8],
+    "used_by_the_video_at": [0.03, 8.8, 13.96, 17.32, 19.13]
+  },
+  "insp-009": {
+    "lines": ["Sometimes, you don't miss the past.", "You miss the future you once imagined.", "The person you thought you'd become…", "the life you thought you'd have.", "And maybe growing up…", "is learning to love the life that found you."],
+    "onset": [2.7, 6.85, 13.5, 17.95, 24.2, 29.3],
+    "end": [4.3, 8.5, 15.0, 19.2, 25.2, 33.7],
+    "used_by_the_video_at": [0.0, 5.06, 10.87, 16.31, 24.08, 29.19]
+  }
+}

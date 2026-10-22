@@ -337,11 +337,14 @@ def main(slug):
     if itype == "inspiration" and narr:   # a narrated inspiration: the plan somebody wrote, else a calm caption chosen from its words (`- look:` in the brief names one, or plain for none) (NAV-131)
         plan = visuals_plan.load(D, itype, len(out_lines)) or visuals_plan.auto_caption([l["text"] for l in out_lines], opt(D, "look", "auto"))
         if plan and plan.get("caption"):   # the voice itself times the words and drives the glow (NAV-132)
-            import voice_timing
+            import voice_timing, word_align
             vt = voice_timing.analyse(voice, FPS, out_lines)
             if vt:
                 plan["caption"]["amp"] = vt["amp"]
                 for l, at in zip(out_lines, vt["at"]): l["at"] = at
+            real = word_align.load(D, [l["text"] for l in out_lines])   # when each word is really spoken, from a recogniser (NAV-146): it wins over the guess from the sound
+            if real:
+                for l, at in zip(out_lines, real): l["at"] = at
     if plan: timing["visuals"] = plan
     if scenes: timing["scenes"] = scenes
     json.dump(timing, open(os.path.join(D, "timing.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
