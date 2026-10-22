@@ -309,6 +309,13 @@ def main(slug):
     scene_info = None
     if scene:   # fitted to the finished length (the audio plus the end card), so the credit page still ends the short
         import inspire_scene; scene_info = inspire_scene.fit(D, dur); bg = inspire_scene.BG
+    scenes = None   # NAV-145: a picture per beat, changing where a beat's first line starts in the voice (a narrated inspiration only; otherwise the one background stays)
+    if itype == "inspiration" and narr and opt(D, "pictures", "single").lower() == "beats":
+        import beat_plan
+        if beat_plan.pictures_done(D):
+            scenes = beat_plan.segments(D, [l["start"] for l in out_lines], dur)
+            if not scenes: print("note: the beats do not fit this voice's lines (too short, or the line count changed); keeping the one background", flush=True)
+        else: print("note: the picture plan or its pictures are missing; keeping the one background", flush=True)
     h = int(hashlib.sha1(slug.encode()).hexdigest(), 16)
     presets = ["push_in", "pan_left", "pull_out", "pan_right", "drift"]
     cam = opt(D, "camera", presets[h % len(presets)]).lower()
@@ -336,9 +343,10 @@ def main(slug):
                 plan["caption"]["amp"] = vt["amp"]
                 for l, at in zip(out_lines, vt["at"]): l["at"] = at
     if plan: timing["visuals"] = plan
+    if scenes: timing["scenes"] = scenes
     json.dump(timing, open(os.path.join(D, "timing.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     json.dump({"source": bkind, "beats": bts}, open(os.path.join(D, "beats.json"), "w"), indent=1)
-    print(f"timing.json: {len(out_lines)} lines, {dur:.1f}s, camera {cam}, transition {tr}, music {how} ({bkind} beats)")
+    print(f"timing.json: {len(out_lines)} lines, {dur:.1f}s, camera {cam}, transition {tr}, music {how} ({bkind} beats)" + (f", {len(scenes)} pictures" if scenes else ""))
 
 
 if __name__ == "__main__":

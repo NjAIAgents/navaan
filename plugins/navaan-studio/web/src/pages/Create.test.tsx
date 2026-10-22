@@ -170,6 +170,15 @@ describe("narration offered for an inspiration", () => {
     fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "You are allowed to outgrow your old life." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "You are allowed to outgrow your old life.", narrate: "eleven", voice: "nj" }]));
   });
+  it("offers a picture for each thought, off by default, only with a narration, and sends it when ticked (NAV-145)", async () => {
+    const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-005" }), "/api/songs": () => [], "/api/settings": () => SET(true), "/api/song/": () => detail({ slug: "insp-005" }) });
+    at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));
+    const pics = await screen.findByLabelText(/A picture for each thought/); expect(pics).not.toBeChecked(); expect(pics).toBeEnabled();
+    const narr = screen.getByLabelText(/Narrate the quote with ElevenLabs/); fireEvent.click(narr); expect(pics).toBeDisabled();   // no narration: no voice to cut on
+    fireEvent.click(narr); expect(pics).toBeEnabled(); fireEvent.click(pics); expect(pics).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Quote or idea"), { target: { value: "Let it go." } }); fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(posts(f, "/api/new")).toEqual([{ type: "inspiration", idea: "Let it go.", narrate: "eleven", voice: "frank", pictures: "beats" }]));
+  });
   it("stays a standard step without a key, says the key is needed before it runs, and can be unticked for a music and text only short", async () => {
     const f = route(OWNER, { "/api/new": () => ({ rc: 0, slug: "insp-005" }), "/api/songs": () => [], "/api/settings": () => SET(false), "/api/song/": () => detail({ slug: "insp-005" }) });
     at("/studio/inspiration"); fireEvent.click(await screen.findByRole("button", { name: "New inspiration" }));

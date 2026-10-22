@@ -20,6 +20,7 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
   const [err, setErr] = useState("");
   const [later, setLater] = useState(false); const [at, setAt] = useState("");   // publish when the pipeline finishes (default) or at a set time, US Central
   const reel = type === "reel"; const [video, setVideo] = useState<File | null>(null); const [pct, setPct] = useState(0);   // a reel starts from your own video
+  const [beats, setBeats] = useState(false);   // an inspiration may have a picture for each thought instead of one background (NAV-145)
   const [scene, setScene] = useState<File | null>(null);   // an inspiration may bring its own scene video, used instead of a generated picture
   const song = type === "music"; const aha = type === "aha"; const blog = type === "blog";   // an Aha-lorithm short starts from an idea, your own narration, or nothing (Claude picks the topic); never from Suno. A blog starts from a keyword, field or area: no voice, no publishing time
   const [nar, setNar] = useState<{ key: boolean; voices: Record<string, string> } | null>(null); const [narrate, setNarrate] = useState(true); const [voice, setVoice] = useState("suno1");
@@ -39,7 +40,7 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
     if (!song && !aha && !blog && !reel && !idea.trim() && !sunoUrl.trim()) return setErr("Write the quote or the idea first, or paste a Suno link.");
     if (later && !at) return setErr("Pick the date and time to publish, or choose to publish when the pipeline finishes.");
     setBusy(true);
-    try { const r = await postJSON<{ slug: string }>("/api/new", blog ? { type, idea: idea.trim() } : { type, ...when, idea: !song && sunoUrl.trim() ? "" : idea.trim(), ...(song ? {} : { ...(useNarr ? { narrate: "eleven", voice } : { narrate: "none" }), ...(sunoUrl.trim() ? { suno_url: sunoUrl.trim() } : {}) }) });
+    try { const r = await postJSON<{ slug: string }>("/api/new", blog ? { type, idea: idea.trim() } : { type, ...when, idea: !song && sunoUrl.trim() ? "" : idea.trim(), ...(song ? {} : { ...(useNarr ? { narrate: "eleven", voice } : { narrate: "none" }), ...(beats && !scene && !aha && !reel && (useNarr || sunoUrl.trim()) ? { pictures: "beats" } : {}), ...(sunoUrl.trim() ? { suno_url: sunoUrl.trim() } : {}) }) });
       if (reel && video) {   // the footage goes up as it is, then the pipeline starts; if this fails the reel's own page offers the upload again
         try { await uploadVideo(r.slug, video, (a, b) => setPct(Math.round((100 * a) / Math.max(1, b)))); await postJSON("/api/run", { slug: r.slug, all: true }); } catch { /* expected: the reel page shows the upload again */ }
       }
@@ -86,6 +87,8 @@ export function NewItem({ type }: { type: "music" | "inspiration" | "aha" | "blo
               <label htmlFor="ni-scene">Scene video (optional; mp4 or mov, up to 2 GB)</label>
               <input id="ni-scene" className="field" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm,.mpg,.mpeg" onChange={(e) => setScene(e.target.files?.[0] ?? null)} />
               <p className="mu">With a scene video, no background picture is made (and nothing is spent on one): the video plays behind the words with the song's sound, and the credit page ends the short. Without one, nothing changes.</p>
+              <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={beats && !scene && (useNarr || !!sunoUrl.trim())} disabled={!!scene || !(useNarr || !!sunoUrl.trim())} onChange={(e) => setBeats(e.target.checked)} /> A picture for each thought, not one background</label>
+              <p className="mu">Claude groups the lines into a few beats and plans a scene for each; the picture changes where the voice moves on. It makes one picture per beat, and the approval shows how many and the price before anything is spent. It needs a narration, and it is off with a scene video. Unticked, nothing changes.</p>
             </>
           )}
           <label htmlFor="ni-idea">{song ? "Idea (optional)" : aha ? "Idea, topic or your narration (optional)" : blog ? "Keyword, field or area" : reel ? "What is it about, or your own words (optional)" : "Quote or idea"}</label>

@@ -36,6 +36,7 @@ import navaan_common as C
 import publish_schedule as PS
 import blog_loop as BL
 import blog_images as BI
+import beat_plan as BP
 import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -106,7 +107,7 @@ SPEND_WHAT = {"suno": "Suno: makes the song from your lyrics (from your plan's c
 
 def spend_what(s):
     """One line for the credits approval: the service and what it makes. The pictures step already carries its own count and price in its label."""
-    if s["id"] in ("pictures", "cover", "blog_pictures"): return s["label"]   # these carry their own count and price in the label
+    if s["id"] in ("pictures", "cover", "blog_pictures", "beat_pictures"): return s["label"]   # these carry their own count and price in the label
     if s["id"] == "background" and "(Flow)" in s.get("label", ""): return "Flow: the background picture"
     if s["id"] == "background":   # the price beside it, as the pictures step has, so the approval says what it costs
         try:
@@ -267,6 +268,7 @@ def inspiration_steps(slug, D, scene_ok=True):
     FINAL = "final_reel_9x16.mp4"
     gen = brief_opt(D, "background", "generate").lower() == "generate"
     has_bg = lambda m: any(glob.glob(os.path.join(D, f"background.{e}")) for e in ("jpg", "jpeg", "png", "webp"))
+    beats = scene_ok and brief_opt(D, "pictures", "single").lower() == "beats"   # NAV-145: a picture per beat instead of one background (not with the owner's own scene video)
     scene = scene_ok and (os.path.exists(os.path.join(D, "scene_src.mp4")) or any(not p.endswith(".part") for p in glob.glob(os.path.join(D, ".cache", "raw.*"))))
     # a narration uploaded as audio only: its lines are timed against the voice (pauses first, Whisper when they do not fit)
     narr = any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac"))
@@ -276,17 +278,17 @@ def inspiration_steps(slug, D, scene_ok=True):
     narr_step = dict(id="narration", outputs=["voiceover.srt"], label="Time the narration lines to the voice", kind="script", before=("captions_setup" if need_w else None),
                      cmds=([sc("setup_captions.py", "--yes")] if need_w else []) + [sc("narration_sync.py", slug)], done=lambda m: has(D, "voiceover.srt"))
     return [
-        dict(id="quote", outputs=["quote.json", "title.txt"], label="Write or pick the quote", kind="claude", skill="inspiration-quote", chrome=False, state="draft",
+        dict(id="quote", outputs=["quote.json", "title.txt", *(["picture_plan.json"] if beats else [])], label="Write or pick the quote", kind="claude", skill="inspiration-quote", chrome=False, state="draft",
              done=lambda m: has(D, "quote.json", "title.txt"), after="quote", sets="quote_ok"),
         dict(id="originality", outputs=["originality.json"], label="Check originality and attribution on the web", kind="claude", skill="inspiration-check", chrome=False, tools=["WebSearch", "WebFetch"],
              done=lambda m: has(D, "originality.json"), after="originality"),
         *([dict(id="scene", outputs=["scene_src.mp4", "scene_upload.json"], label="Prepare the scene video", kind="script", cmds=[sc("inspire_scene.py", slug)],
-                done=lambda m: has(D, "scene_src.mp4"))] if scene else background_steps(slug, D, gen, has_bg)),
+                done=lambda m: has(D, "scene_src.mp4"))] if scene else (beat_steps(slug, D) if beats else background_steps(slug, D, gen, has_bg))),
         *([dict(id="narrate", outputs=["voiceover.mp3"], label="Narrate the quote (ElevenLabs)", kind="script", cmds=[sc("narrate_eleven.py", slug)], before="credits",
                 done=lambda m: any(glob.glob(os.path.join(D, "voiceover" + e)) for e in (".mp3", ".wav", ".m4a", ".aac")) or bool((m.get("approvals") or {}).get("media")))] if eleven else []),   # a voice exists, or the video was already approved (a short made before narration existed is not reopened)
         *([narr_step] if narr else []),
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
-             done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*", "scene_src.mp4"])),
+             done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*", "scene_src.mp4", "picture_plan.json"])),
         dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 7 to 15 s without a voice)", kind="script", sets_after="media_ready",
              cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "scene_bg.mp4", "music.mp3", "voiceover.*", "send_line.txt"]), after="media", sets="approved"),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube Shorts title, description and tags", kind="claude", skill="inspiration-meta",
@@ -398,6 +400,28 @@ def blog_picture_label(D):
         mc = media_cfg.load(); each = IO.estimate(mc["image_quality"], mc.get("image_size_landscape") or "1536x1024", IO.model_name(mc))
         return "Make %d picture%s with OpenAI (about $%.2f at %s)" % (n, "" if n == 1 else "s", n * each, mc["image_quality"])
     except Exception: L.soft(LOG, "blog_picture_price_unavailable"); return "Make %d picture%s with OpenAI" % (n, "" if n == 1 else "s")   # expected: no settings yet, the line goes without a price
+
+
+def beat_picture_label(D):
+    """The picture-per-beat step says what it will make and cost, because the credits approval shows this line."""
+    n = BP.count(D) if BP.valid(D) else 0
+    if not n: return "Make one picture per beat (OpenAI): not planned yet"
+    left = sum(1 for k in range(n) if not os.path.exists(BP.beat_file(D, k)))
+    try:
+        import image_openai as IO
+        mc = media_cfg.load(); each = IO.estimate(mc["image_quality"], mc["image_size"], IO.model_name(mc))
+        return "Make %d picture%s with OpenAI, one per beat (about $%.2f at %s)" % (left, "" if left == 1 else "s", left * each, mc["image_quality"])
+    except Exception: L.soft(LOG, "beat_picture_price_unavailable"); return "Make %d picture%s with OpenAI, one per beat" % (left, "" if left == 1 else "s")   # expected: no settings yet, the line goes without a price
+
+
+def beat_steps(slug, D):
+    """NAV-145: a picture per beat in place of the one background. Claude groups the script's lines into beats and writes a scene for each (no spend); the pictures are made behind the credits approval."""
+    return [
+        dict(id="beat_plan", outputs=["picture_plan.json"], label="Plan the pictures: group the lines into beats, one scene each", kind="claude", skill="inspiration-beats", chrome=False,
+             done=lambda m: has(D, "picture_plan.json")),
+        dict(id="beat_pictures", outputs=["scenes/beat_*.png", "background.png"], label=beat_picture_label(D), kind="script", cmds=[sc("beat_pictures.py", slug)], before="credits",
+             done=lambda m: BP.pictures_done(D)),
+    ]
 
 
 def blog_steps(slug, D):

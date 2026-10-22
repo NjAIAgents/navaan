@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Added
+- A second output for an inspiration short: a picture for each thought instead of one background (NAV-145). Tick "A picture for each thought, not one background" on the new-item form (it needs the narration and is off with a scene video). Claude groups the script's lines into a few beats, always fewer than lines, and plans one scene for each, with one look for the whole short and no cost; you approve how many pictures and the price before any picture is made. In the video the picture changes where the voice moves on to the next beat, with a slow push in or out and a dissolve through dark, and the closing line keeps the last picture. The short without the tick is made exactly as before.
+
 ## [0.57.0] - 2026-10-20
 
 ### Added

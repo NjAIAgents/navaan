@@ -1006,6 +1006,8 @@ class H(BaseHTTPRequestHandler):
                     navaan.edit_meta(sl, lambda m: navaan.log_hist(m, f"voice taken from the Suno song {suno_url} (via ui); narrating with ElevenLabs instead stays possible"))
                 if C.is_short(body.get("type") or "music"):   # the quote is narrated by ElevenLabs unless this short skips it; the spend is still approved at the credits gate
                     import narration, media_cfg
+                    if body.get("pictures") == "beats" and C.item_type(C.item_load(sl, {})) == "inspiration" and (body.get("narrate") != "none" or body.get("suno_url")):   # NAV-145: a picture per beat, only for a narrated inspiration (ElevenLabs or the Suno song's own voice)
+                        narration.set_options(C.song_dir(sl), {"pictures": "beats"})
                     if body.get("narrate") == "none": narration.set_options(C.song_dir(sl), {"narrate": "none"})
                     else:
                         v = str(body.get("voice") or ""); v = v if v in media_cfg.VOICES else media_cfg.load()["voice"]
