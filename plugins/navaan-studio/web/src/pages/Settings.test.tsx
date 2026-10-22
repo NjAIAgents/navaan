@@ -92,6 +92,12 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     fireEvent.change(cap, { target: { value: "1.5" } }); fireEvent.click(screen.getByRole("button", { name: "Save these choices" }));
     await waitFor(() => expect(posts(f, "/api/settings/media_save")).toEqual([{ settings: { max_run_usd: "1.5" } }]));
   });
+  it("has a Muse key box and a Picture maker choice, and saves the Muse key as provider muse", async () => {
+    const f = route({ "/api/settings/media_key": () => ({ note: "" }), "/api/settings": () => ({ ...DATA, media: { ...DATA.media, settings: { ...DATA.media.settings, image_engine: "openai" }, keys: { openai: true, muse: false, elevenlabs: false }, choices: { ...DATA.media.choices, image_engine: ["openai", "muse"] } } }) });
+    at(); fireEvent.click(await screen.findByRole("tab", { name: "AI services" })); expect(await screen.findByLabelText("Picture maker")).toHaveValue("openai");
+    await open(/^Muse/); fireEvent.change(await screen.findByLabelText("Muse key"), { target: { value: "LLM|0123456789abcdef" } }); fireEvent.click(screen.getByRole("button", { name: "Save token" }));
+    await waitFor(() => expect(posts(f, "/api/settings/media_key")).toEqual([{ provider: "muse", token: "LLM|0123456789abcdef" }]));
+  });
   it("shows the server's refusal under the box", async () => {
     route({ "/api/settings/claude_save": () => json({ error: "that token was refused" }, 400), "/api/settings": () => DATA });
     at(); fireEvent.click(await screen.findByRole("tab", { name: "AI services" })); await open(/^Claude/);

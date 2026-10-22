@@ -186,7 +186,7 @@ function overview(d: SettingsData): Item[] {
     if (!IG_ONLY.has(a.type)) items.push({ id: `yt-${a.type}`, tab: "accounts", name: `${t}: YouTube publishing`, status: loginStatus(a.yt) });
   }
   items.push({ id: "claude", tab: "ai", name: "Claude", status: d.claude.state === "ok" ? { kind: "ok", text: `Working (${d.claude.credential || "signed in"})` } : d.claude.state === "missing" ? { kind: "wn", text: "No token" } : { kind: "bad", text: `Problem: ${d.claude.state}` } });
-  for (const p of ["openai", "elevenlabs"] as const) items.push({ id: p, tab: "ai", name: p === "openai" ? "OpenAI" : "ElevenLabs", status: d.media.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
+  for (const p of ["openai", "muse", "elevenlabs"] as const) items.push({ id: p, tab: "ai", name: KEY_NAMES[p], status: d.media.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
   items.push({ id: "devto", tab: "accounts", name: "Blog: dev.to", status: d.media.keys.devto ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
   items.push({ id: "linkedin", tab: "accounts", name: "Blog: LinkedIn", status: d.media.keys.linkedin ? { kind: "ok", text: "Token saved" } : { kind: "wn", text: "No token" } });
   items.push({ id: "cloud", tab: "storage", name: "Cloud storage", status: d.cloud.provider === "none" ? { kind: "wn", text: "Not set up" } : { kind: "ok", text: d.cloud.bucket || d.cloud.provider } });
@@ -269,10 +269,12 @@ function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; ac
   );
 }
 
+const KEY_NAMES = { openai: "OpenAI", muse: "Muse", elevenlabs: "ElevenLabs" } as const;
+
 function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Save; act: Do; busy: boolean; open: string; toggle: (id: string) => void }) {
   const m = d.media; const [edit, setEdit] = useState<Record<string, string>>({});
   const groups: [string, [string, string][]][] = [
-    ["Pictures", [["image_provider", "Made by"], ["picture_director", "Plan written by"], ["image_model", "Model"], ["image_quality", "Quality"], ["image_size_landscape", "Landscape size"], ["image_size", "Vertical size"]]],
+    ["Pictures", [["image_provider", "Made by"], ["image_engine", "Picture maker"], ["picture_director", "Plan written by"], ["image_model", "Model"], ["image_quality", "Quality"], ["image_size_landscape", "Landscape size"], ["image_size", "Vertical size"]]],
     ["Narration, music and motion", [["narration_source", "Narration from"], ["voice", "Voice"], ["music", "Music"], ["motion", "Motion"]]],
   ];
   const claude = overview(d).find((i) => i.id === "claude")!.status;
@@ -283,10 +285,10 @@ function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Sa
         <Row id="claude" name="Claude" status={claude} open={open === "claude"} onToggle={() => toggle("claude")}>
           <TokenForm id="claude-token" label="Claude token (run claude setup-token where Claude Code is signed in)" busy={busy} onSave={(token) => save("claude_save", { token })} />
         </Row>
-        {(["openai", "elevenlabs"] as const).map((p) => (
-          <Row key={p} id={p} name={p === "openai" ? "OpenAI" : "ElevenLabs"} status={m.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" }} open={open === p} onToggle={() => toggle(p)}>
-            <p className="mu">{p === "openai" ? "Makes the pictures and posters." : "Makes the narration. The key needs Text to Speech."}</p>
-            <TokenForm id={`key-${p}`} label={`${p === "openai" ? "OpenAI" : "ElevenLabs"} key`} busy={busy} onSave={(token) => save("media_key", { provider: p, token })} />
+        {(["openai", "muse", "elevenlabs"] as const).map((p) => (
+          <Row key={p} id={p} name={KEY_NAMES[p]} status={m.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" }} open={open === p} onToggle={() => toggle(p)}>
+            <p className="mu">{p === "openai" ? "Makes the pictures and posters." : p === "muse" ? "Meta Muse Image, $0.01 a picture. Used when Picture maker is Muse; the key is saved without a check, so a wrong one shows on the first picture." : "Makes the narration. The key needs Text to Speech."}</p>
+            <TokenForm id={`key-${p}`} label={`${KEY_NAMES[p]} key`} busy={busy} onSave={(token) => save("media_key", { provider: p, token })} />
           </Row>
         ))}
         <p className="mu">This month: OpenAI ${Number(m.usage.openai_usd ?? 0).toFixed(2)}, ElevenLabs {Math.round(Number(m.usage.eleven_seconds ?? 0))} seconds.</p>

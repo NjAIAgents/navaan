@@ -143,6 +143,16 @@ class Pictures(Env):
         with mock.patch("builtins.print") as pr: self.assertEqual(B.make_pictures("blog-001"), 4)
         self.assertIn("no OpenAI key", pr.call_args[0][0]); self.assertEqual(self.sent, [])
 
+    def test_with_muse_chosen_the_muse_key_is_used_and_named_and_the_picture_costs_a_cent(self):
+        asked = []
+        self.M.load = lambda: {"image_quality": "low", "image_size_landscape": "1536x1024", "max_run_usd": 5.0, "image_model": "", "image_engine": "muse"}
+        self.M.get_key = lambda n: (asked.append(n), "")[1]
+        with mock.patch("builtins.print") as pr: self.assertEqual(B.make_pictures("blog-001"), 4)
+        self.assertEqual(asked, ["muse"]); self.assertIn("no Muse key", pr.call_args[0][0]); self.assertEqual(self.sent, [])
+        self.M.get_key = lambda n: (asked.append(n), "k")[1]
+        with mock.patch("builtins.print"): self.assertEqual(B.make_pictures("blog-001"), 0)
+        self.assertEqual((asked[-1], self.spent), ("muse", [0.01]))
+
 
 class Embed(Env):
     def drawn(self):
