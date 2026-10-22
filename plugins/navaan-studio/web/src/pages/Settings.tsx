@@ -285,6 +285,7 @@ function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Sa
     ["Narration, music and motion", [["narration_source", "Narration from"], ["voice", "Voice"], ["music", "Music"], ["motion", "Motion"]]],
   ];
   const claude = overview(d).find((i) => i.id === "claude")!.status;
+  const muse = (edit.image_engine ?? String(m.settings.image_engine ?? "")) === "muse";   // Muse has one model and no quality: those two boxes are OpenAI's
   return (
     <div className="stack">
       <section className="stack" aria-label="Keys">
@@ -303,8 +304,8 @@ function AiTab({ d, save, act, busy, open, toggle }: { d: SettingsData; save: Sa
       {groups.map(([title, names]) => (
         <section key={title} className="card stack" aria-label={title}>
           <h3>{title}</h3>
-          {title === "Pictures" && (edit.image_engine ?? String(m.settings.image_engine ?? "")) === "muse" && <p className="mu">Muse has no model or quality choice: every picture costs $0.01, so the Model and Quality boxes below are not used.</p>}
-          {names.filter(([k]) => m.choices[k]).map(([k, l]) => (
+          {title === "Pictures" && muse && <p className="mu">Muse has one model and no quality setting: every picture costs $0.01, so OpenAI's Model and Quality boxes are hidden.</p>}
+          {names.filter(([k]) => m.choices[k] && !(muse && (k === "image_model" || k === "image_quality"))).map(([k, l]) => (
             <div key={k} className="stack">
               <label htmlFor={`m-${k}`}>{l}</label>
               <select id={`m-${k}`} className="field" value={edit[k] ?? String(m.settings[k] ?? "")} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })}>
