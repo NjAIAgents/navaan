@@ -14,9 +14,9 @@ RUN npm run build
 FROM python:3.13-slim-bookworm
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 NPM_CONFIG_UPDATE_NOTIFIER=false
 
-# ffmpeg; fonts (Devanagari for Hindi lyrics, Inter for cover lettering); shared libraries headless Chrome needs (Remotion renders with it)
+# ffmpeg; fonts (Devanagari for Hindi lyrics, Inter for cover lettering); shared libraries headless Chrome needs (Remotion renders with it); libatomic1 for the word timing recogniser (Vosk's libvosk.so will not load without it)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl ffmpeg tini fonts-noto-core fonts-noto-color-emoji fonts-inter libraqm0 \
+      ca-certificates curl ffmpeg tini fonts-noto-core fonts-noto-color-emoji fonts-inter libraqm0 libatomic1 \
       libnss3 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libgbm1 libxkbcommon0 \
       libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libasound2 libpango-1.0-0 libcairo2 libxshmfence1 \
  && rm -rf /var/lib/apt/lists/*
