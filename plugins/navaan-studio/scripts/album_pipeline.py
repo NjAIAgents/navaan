@@ -99,7 +99,7 @@ def cover_state(slug):
     return {"prompt": _read(d, "cover_prompt.txt") or default_prompt(a), "has": os.path.isfile(cv), "v": int(os.path.getmtime(cv)) if os.path.isfile(cv) else 0,
             "published": os.path.isfile(cv) and bool(a.get("art")) and a["art"]["v"] == os.path.getsize(cv),
             "style": _read(d, "cover_style.txt") if _read(d, "cover_style.txt") in STYLES else "modern", "styles": STYLES,
-            "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "key": bool(media_cfg.get_key("openai"))}
+            "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "key": bool(IO.key_for(cfg))}
 
 
 def typeset(slug, art_path=None, style=None):
@@ -136,8 +136,8 @@ def generate_cover(slug, prompt, style=None):
     prompt = (prompt or "").strip()
     if len(prompt) < 20: raise ValueError("Write a prompt of at least a sentence.")
     cfg = media_cfg.load(); q = cfg["image_quality"]; cost = IO.check_cap(q, cfg, SIZE)
-    key = media_cfg.get_key("openai")
-    if not key: raise ValueError("No OpenAI key. Paste it in Settings.")
+    key, who = IO.key_for(cfg), IO.NAME[IO.engine(cfg)]   # the key of the picture maker chosen in Settings, not always OpenAI's
+    if not key: raise ValueError("No %s key. Paste it in Settings." % who)
     d = album_dir(slug); _album(slug)
     raw = IO.request_image(prompt[:3500], q, key, SIZE, IO.model_name(cfg))
     media_cfg.add_usage(openai_usd=cost)   # spent now, whatever happens to the file

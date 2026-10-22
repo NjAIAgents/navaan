@@ -30,8 +30,8 @@ def main(argv):
         print(json.dumps({"model": model, "size": cfg["image_size"], "quality": q, "pictures": len(todo), "usd": total})); return 0
     if total > float(cfg["max_run_usd"]):
         sys.exit("navaan: %d %s pictures cost about $%.2f, over the run cap of $%.2f set in Settings." % (len(todo), q, total, float(cfg["max_run_usd"])))
-    key = media_cfg.get_key("openai")
-    if todo and not key: sys.exit("navaan: no OpenAI key. Paste it in Settings, Pictures and voice.")
+    key, who = I.key_for(cfg), I.NAME[I.engine(cfg)]   # the key of the picture maker chosen in Settings (OpenAI or Muse), not always OpenAI's
+    if todo and not key: sys.exit("navaan: no %s key. Paste it in Settings, Pictures and voice." % who)
     os.makedirs(os.path.join(D, "scenes"), exist_ok=True); art = B.look(D)
     for k in todo:
         raw = I.request_image(A.prompt_for(pics[k], art), q, key, cfg["image_size"], model)
