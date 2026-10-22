@@ -99,10 +99,11 @@ describe("Settings (NAV-24) and the alerts banner (NAV-27)", () => {
     await waitFor(() => expect(posts(f, "/api/settings/media_key")).toEqual([{ provider: "muse", token: "LLM|0123456789abcdef" }]));
   });
   it("says in words what Made by and Picture maker mean, and that Muse ignores model and quality", async () => {
-    route({ "/api/settings": () => ({ ...DATA, media: { ...DATA.media, settings: { ...DATA.media.settings, image_provider: "openai", image_engine: "muse" }, choices: { ...DATA.media.choices, image_engine: ["openai", "muse"] } } }) });
+    route({ "/api/settings": () => ({ ...DATA, media: { ...DATA.media, settings: { ...DATA.media.settings, image_provider: "openai", image_engine: "muse" }, choices: { ...DATA.media.choices, image_engine: ["openai", "muse"], image_model: ["gpt-image-2.5-flare"], image_quality: ["high"] } } }) });
     at(); fireEvent.click(await screen.findByRole("tab", { name: "AI services" }));
     expect(await screen.findByLabelText("Pictures are made by")).toHaveDisplayValue("Automatic (an image API, chosen below)"); expect(screen.getByLabelText("Picture maker")).toHaveDisplayValue("Muse (Meta, $0.01 a picture)");
-    expect(screen.getByText(/Muse has no model or quality choice/)).toBeInTheDocument();
+    expect(screen.getByText(/Muse has one model and no quality setting/)).toBeInTheDocument(); expect(screen.queryByLabelText("Model")).toBeNull(); expect(screen.queryByLabelText("Quality")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Picture maker"), { target: { value: "openai" } }); expect(await screen.findByLabelText("Model")).toBeInTheDocument(); expect(screen.getByLabelText("Quality")).toBeInTheDocument();
   });
   it("shows the server's refusal under the box", async () => {
     route({ "/api/settings/claude_save": () => json({ error: "that token was refused" }, 400), "/api/settings": () => DATA });

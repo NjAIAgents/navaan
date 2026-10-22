@@ -6,6 +6,9 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+### Fixed
+- Settings, AI services, Pictures: with Muse as the picture maker, OpenAI's Model and Quality boxes are hidden (Muse ignores them), instead of listing gpt-image models that do nothing.
+
 ## [0.58.3] - 2026-10-22
 
 ### Fixed
