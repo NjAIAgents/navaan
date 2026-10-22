@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """narration_sync.py <slug> [--whisper]  make voiceover.srt for a narration you uploaded as audio only.
 
-Two ways, Whisper first when the caption tools are installed:
+Three ways. Word timing first when its tools are installed (NAV-146), then Whisper, then the pauses:
+  words    A small recogniser (Vosk, word_align.py) hears every word with its own start and end, and its words are matched to your lines by text. Each line starts where its first
+           word is spoken and every word's time is kept in voiceover.words.json for the captions. English only; setup_captions.py --vosk --yes installs it. Not used (and nothing breaks)
+           when it is missing, or when fewer than half of your words were heard right.
+Then, as before:
   whisper  The audio is transcribed with Whisper (timestamp tokens) and the lines are placed where they are spoken. Needs the caption
            tools (setup_captions.py, one time download), which this script runs itself in. It is the only way that is right when music plays under the voice.
   pauses   Your text lines (quote.json) are matched to the pauses in the audio. No model, instant, nothing to download. Used only when Whisper cannot run
@@ -248,6 +252,19 @@ def by_whisper_lines(x, lines, lang="en"):
     return cues, {"method": "whisper-aligned", "phrases": len(segs)}
 
 
+def by_words(x, lines, lang="en"):
+    """Your own lines timed by the words a recogniser hears (word_align). RuntimeError with the reason when it cannot be used, and the caller tries Whisper."""
+    import setup_captions as S, word_align as W
+    if lang != "en": raise RuntimeError("word timing is English only for now")
+    if not S.vosk_ready(): raise RuntimeError("the word timing tools are not installed (python3 setup_captions.py --vosk --yes)")
+    res = W.align(x, lines, S.VOSK)
+    if not res: raise RuntimeError("too few of your words were heard right to trust the word times")
+    starts = [l["start"] for l in res["lines"]]
+    ends = starts[1:] + [max(res["lines"][-1]["end"], starts[-1] + 1.0) + 0.3]   # a line stays up until the next one starts
+    cues = [[round(a, 2), round(b, 2), l] for a, b, l in zip(starts, ends, lines)]
+    return cues, {"method": "word-aligned", "heard_right": f"{res['matched']} of {res['words']}", "word_times": [l["at"] for l in res["lines"]]}
+
+
 # ---------------------------------------------------------------- srt and the command
 
 def to_srt(cues):
@@ -268,8 +285,13 @@ def sync(D, lines, allow_whisper=True, force_whisper=False, lang="en", ffmpeg="f
     if not audio: raise RuntimeError("no voiceover audio in the folder")
     x = decode(audio, ffmpeg)
     if len(x) / SR > MAX_SECONDS: raise RuntimeError(f"the narration is {len(x) / SR:.0f} s, the video limit is 60 s")
-    cues = None; info = {}
+    cues = None; info = {}; words_err = None
+    words_file = os.path.join(D, "voiceover.words.json")
+    if os.path.exists(words_file): os.remove(words_file)   # the times of an older take of the voice are never reused
     if lines and not force_pauses and not force_whisper:
+        try: cues, info = by_words(x, lines, lang)
+        except Exception as e: L.soft(LOG, "word_timing_unavailable"); cues, words_err = None, str(e)[:140]   # expected: not installed, another language, or too few words heard right
+    if lines and not force_pauses and not force_whisper and cues is None:
         try: cues, info = by_whisper_lines(x, lines, lang)  # Whisper's positions first, the pauses only when it is not available
         except Exception as e: L.soft(LOG, "sync_error"); cues, info = None, {"whisper_lines_failed": str(e)[:120]}
     if lines and not force_whisper and cues is None:
@@ -284,6 +306,8 @@ def sync(D, lines, allow_whisper=True, force_whisper=False, lang="en", ffmpeg="f
         except RuntimeError as e: raise RuntimeError(f"the pauses did not fit your lines ({why}). {e}")
         info["pauses_failed"] = why
     open(os.path.join(D, "voiceover.srt"), "w", encoding="utf-8").write(to_srt(cues))
+    if info.get("word_times"): json.dump({"method": "vosk", "lines": [{"at": at} for at in info.pop("word_times")]}, open(words_file, "w"))
+    elif words_err: info["words_unavailable"] = words_err
     info.update({"cues": len(cues), "seconds": round(cues[-1][1], 1)})
     return info
 
@@ -313,6 +337,7 @@ def main(a):
         sys.exit(f"navaan: {e}")
     if os.path.exists(flag): os.remove(flag)
     print(f"voiceover.srt written ({info['method']}, {info['cues']} lines, {info['seconds']} s)" + (f". Pauses did not fit: {info['pauses_failed']}" if info.get("pauses_failed") else ""))
+    if info.get("words_unavailable"): print(f"note: word-level timing was not used ({info['words_unavailable']}); each word's time is a guess inside its line.")
     if info.get("whisper_lines_failed"):   # said plainly, in the log of the step: the times are a guess, and a voice with music under it has no pauses to find
         print(f"WARNING: the lines were timed from pauses only, which is approximate, because the speech timing could not run ({info['whisper_lines_failed']}). If the text drifts from the voice, run Time the narration again once the caption tools work.", flush=True)
     return 0
