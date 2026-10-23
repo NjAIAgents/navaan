@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { SongDetail } from "../lib/api";
 import { frontMatter, stripMarkers, toHtml, toPlain } from "../lib/markdown";
-import { PostEditor } from "./PostEditor";
 import { PostImages } from "./PostImages";
 import { PostPublish } from "./PostPublish";
+
+// The rich text editor (TipTap, about 450 KB of script) is loaded when a post is opened, not with every song page: Song.tsx imports this file, and the whole editor sat on the way to the first paint of every song (NAV-149).
+const PostEditor = lazy(() => import("./PostEditor").then((m) => ({ default: m.PostEditor })));
 
 // The finished blog post, one tab per place it goes (NAV-134): the post on a white page you can edit and preview (NAV-138), and buttons that copy what is saved in the format that place takes.
 type Dest = { key: string; label: string; file: string; where: string };
@@ -53,7 +55,7 @@ export function BlogPosts({ d, onSaved }: { d: SongDetail; onSaved: () => Promis
         </div>
         {shown && <div className="stack"><p role="alert" className="err">The browser did not allow copying. Select the text below and copy it yourself.</p><textarea className="field" readOnly rows={8} value={shown} onFocus={(e) => e.currentTarget.select()} aria-label="The text to copy" /></div>}
         <PostPublish d={d} target={dest.key as "devto" | "linkedin_article" | "linkedin_post"} dirty={dirty} onDone={onSaved} />
-        <PostEditor key={`${dest.file}:${d.text[dest.file]}`} slug={d.slug} file={dest.file} raw={d.text[dest.file]} devto={dest.key === "devto"} label={dest.label} onSaved={onSaved} onDirty={setDirty} />
+        <Suspense fallback={<p className="mu" role="status">Opening the editor…</p>}><PostEditor key={`${dest.file}:${d.text[dest.file]}`} slug={d.slug} file={dest.file} raw={d.text[dest.file]} devto={dest.key === "devto"} label={dest.label} onSaved={onSaved} onDirty={setDirty} /></Suspense>
         <p className="mu">Copy buttons copy what is saved; claim markers such as [c3] are removed from it.</p>
       </div>
     </section>

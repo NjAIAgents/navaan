@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.59.1] - 2026-10-23
+
+### Fixed
+- Song pages open faster (NAV-149). Every song page, music or blog, downloaded the whole rich text editor of the blog Posts view (about 150 KB compressed) before it could show anything, which put the song page on the edge of the speed check that gates a deploy (it failed the 0.59.0 deploy). The editor now loads only when a blog post is opened ("Opening the editor…" shows for a moment); the song page's script is a quarter of the size.
+
 ## [0.59.0] - 2026-10-23
 
 ### Added
@@ -819,7 +824,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.59.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.59.1...HEAD
+[0.59.1]: https://github.com/NjAIAgents/navaan/compare/v0.59.0...v0.59.1
 [0.59.0]: https://github.com/NjAIAgents/navaan/compare/v0.58.6...v0.59.0
 [0.58.6]: https://github.com/NjAIAgents/navaan/compare/v0.58.5...v0.58.6
 [0.58.5]: https://github.com/NjAIAgents/navaan/compare/v0.58.4...v0.58.5
