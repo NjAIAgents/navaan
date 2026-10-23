@@ -12,6 +12,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 ### Fixed
 - The images of a blog post look like a blog's, not a reel's (NAV-148). The cover no longer carries "NAVAAN" in its corner. The figures (a comparison, a number, a flow, a checklist, a timeline, a chart, a ring, bars, a chat, a struck-out word) are drawn on white in the cover's own colour with dark text, 1200 wide, with the source, "sample data" or "illustration" noted under each, instead of the dark starfield scene of a short. Each figure is cut to its content, so none has an empty foot and none is cut off (the checklist on blog-001 lost its third item before). A figure with too much in it is skipped with a note instead of being cut. Existing images are drawn again when the images step is redone.
 
+## [0.58.6] - 2026-10-22
+
+### Fixed
+- With Muse chosen as the picture maker, the pictures of an Aha-lorithm short, the pictures of a "picture for each thought" short, the poster, the song cover and the album cover failed with "Muse refused the picture (HTTP 401)" even with a working Muse key: they still sent the OpenAI key to Muse. Each now sends the key of the picture maker chosen in Settings, and says "no Muse key" (not "no OpenAI key") when that one is missing. The "key saved" marker on the poster, song cover and album cover cards now follows the chosen picture maker too.
+
 ## [0.58.5] - 2026-10-22
 
 ### Fixed
@@ -812,7 +817,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.5...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.6...HEAD
+[0.58.6]: https://github.com/NjAIAgents/navaan/compare/v0.58.5...v0.58.6
 [0.58.5]: https://github.com/NjAIAgents/navaan/compare/v0.58.4...v0.58.5
 [0.58.4]: https://github.com/NjAIAgents/navaan/compare/v0.58.3...v0.58.4
 [0.58.3]: https://github.com/NjAIAgents/navaan/compare/v0.58.2...v0.58.3

@@ -82,7 +82,7 @@ def state(slug):
     D = C.song_dir(slug); cfg = media_cfg.load(); q = cfg["image_quality"]
     return {"prompt": _read(D, "poster_prompt.txt") or default_prompt(slug), "default": default_prompt(slug), **published(slug), "has": os.path.isfile(os.path.join(D, "poster_2x3.png")),
             "v": int(os.path.getmtime(os.path.join(D, "poster_2x3.png"))) if os.path.isfile(os.path.join(D, "poster_2x3.png")) else 0,
-            "style": current_style(D), "styles": list(STYLES), "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "quality": q, "key": bool(media_cfg.get_key("openai"))}
+            "style": current_style(D), "styles": list(STYLES), "usd": IO.estimate(q, SIZE, IO.model_name(cfg)), "quality": q, "key": bool(IO.key_for(cfg))}
 
 
 def _fit(d, text, path, size, max_w, min_size=48):
@@ -139,8 +139,8 @@ def generate(slug, prompt, style=None):
     prompt = (prompt or "").strip()
     if len(prompt) < 20: raise ValueError("Write a prompt of at least a sentence.")
     cfg = media_cfg.load(); q = cfg["image_quality"]; cost = IO.check_cap(q, cfg, SIZE)   # ValueError when over the run cap
-    key = media_cfg.get_key("openai")
-    if not key: raise ValueError("No OpenAI key. Paste it in Settings, Pictures and voice.")
+    key, who = IO.key_for(cfg), IO.NAME[IO.engine(cfg)]   # the key of the picture maker chosen in Settings, not always OpenAI's
+    if not key: raise ValueError("No %s key. Paste it in Settings, Pictures and voice." % who)
     D = C.song_dir(slug)
     raw = IO.request_image(prompt[:3500], q, key, SIZE, IO.model_name(cfg))
     media_cfg.add_usage(openai_usd=cost)   # spent now, whatever happens to the file
