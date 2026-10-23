@@ -26,7 +26,7 @@ AUTHORIZE = "https://slack.com/oauth/v2/authorize"
 API = "https://slack.com/api/"
 SCOPES = "chat:write,commands,channels:read,groups:read"   # post, slash commands (NAV-156/157), see the channels to pick one; more only when a story needs them (then: Reconnect)
 STATE_TTL = 600            # Slack's code lives ten minutes; a Connect left longer starts again
-STATES = {}                # state -> expiry: Connects started from this server, single use (the web process is one process)
+STATES = {}                # state -> (expiry, who started it): Connects started from this server, single use (the web process is one process)
 PATTERNS = {"SLACK_CLIENT_ID": r"\d{6,20}\.\d{6,20}", "SLACK_CLIENT_SECRET": r"[0-9a-f]{32}", "SLACK_SIGNING_SECRET": r"[0-9a-f]{32}", "SLACK_APP_TOKEN": r"xapp-[A-Za-z0-9-]{20,300}"}
 NAMES = {"SLACK_CLIENT_ID": "Client ID", "SLACK_CLIENT_SECRET": "Client Secret", "SLACK_SIGNING_SECRET": "Signing Secret", "SLACK_APP_TOKEN": "App-level token"}
 
@@ -80,24 +80,25 @@ def app_save(client_id, client_secret, signing_secret, app_token):
     return status()
 
 
-def start():
+def start(who=""):
     """The address of Slack's authorize page for a new Connect. ValueError in words when the app is not saved or there is no https address to come back to."""
     e = _env()
     if not e.get("SLACK_CLIENT_ID") or not e.get("SLACK_CLIENT_SECRET"): raise ValueError("Save the Slack app's Client ID and Client Secret first.")
     back = redirect_uri()
     if not back.startswith("https://"): raise ValueError("Slack sends you back only to an https address, and this studio has none (NAVAAN_STUDIO_HOST is not set). Connect from the studio's own site.")
     now = time.time()
-    for s in [s for s, exp in STATES.items() if exp < now]: STATES.pop(s, None)
-    state = secrets.token_urlsafe(24); STATES[state] = now + STATE_TTL
+    for s in [s for s, v in STATES.items() if v[0] < now]: STATES.pop(s, None)
+    state = secrets.token_urlsafe(24); STATES[state] = (now + STATE_TTL, who)
     return AUTHORIZE + "?" + urllib.parse.urlencode({"client_id": e["SLACK_CLIENT_ID"], "scope": SCOPES, "redirect_uri": back, "state": state})
 
 
 def finish(query):
-    """The callback (its query as a dict of lists or strings). Returns status(); ValueError in words when anything is wrong, and nothing is saved then."""
+    """The callback (its query as a dict of lists or strings). Returns who started the Connect; ValueError in words when anything is wrong, and nothing is saved then.
+    The browser comes back from slack.com without the studio's session cookie (SameSite=Strict), so the state is the proof: unguessable, single use, ten minutes, made only for the owner."""
     q = {k: (v[0] if isinstance(v, list) else v) for k, v in (query or {}).items()}
     if q.get("error"): raise ValueError("Slack says the connection was not approved (" + str(q["error"])[:60] + ").")
     state, code = str(q.get("state") or ""), str(q.get("code") or "")
-    exp = STATES.pop(state, None) if state else None   # single use: a state is gone after its first callback, right or wrong
+    exp, who_started = STATES.pop(state, None) if state in STATES else (None, "")   # single use: a state is gone after its first callback, right or wrong
     if not exp: raise ValueError("This sign-in did not start here, or it was already used. Press Connect Slack again.")
     if exp < time.time(): raise ValueError("The sign-in took too long (more than ten minutes). Press Connect Slack again.")
     if not code: raise ValueError("Slack sent no code back. Press Connect Slack again.")
@@ -113,8 +114,8 @@ def finish(query):
     old = _meta()
     if old.get("team_id") == m["team_id"] and old.get("channel_id"): m.update(channel_id=old["channel_id"], channel_name=old.get("channel_name", ""))   # a Reconnect keeps the channel
     _write_meta(m)
-    L.event(LOG, "info", "slack_connected", team=m["team_id"], owner_known=bool(who))
-    return status()
+    L.event(LOG, "info", "slack_connected", team=m["team_id"], owner_known=bool(who), by=who_started)
+    return who_started
 
 
 def _bot():

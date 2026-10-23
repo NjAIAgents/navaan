@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.60.1] - 2026-10-23
+
+### Fixed
+- Connect Slack no longer ends on a "sign in" error when Slack sends you back (NAV-151). The browser does not carry the studio's sign-in back from slack.com, so the return address now checks the one-time code made for you when you pressed Connect, and then takes you to Settings.
+
 ## [0.60.0] - 2026-10-23
 
 ### Added
@@ -834,7 +839,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.60.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.60.1...HEAD
+[0.60.1]: https://github.com/NjAIAgents/navaan/compare/v0.60.0...v0.60.1
 [0.60.0]: https://github.com/NjAIAgents/navaan/compare/v0.59.2...v0.60.0
 [0.59.2]: https://github.com/NjAIAgents/navaan/compare/v0.59.1...v0.59.2
 [0.59.1]: https://github.com/NjAIAgents/navaan/compare/v0.59.0...v0.59.1
