@@ -600,6 +600,15 @@ class H(BaseHTTPRequestHandler):
         except Exception:
             L.exc(LOG, "public_failed", path=p[:60]); return self._send(502, {"error": "not available right now"})
         return self._send(404, {"error": "not found"})
+    def _slack_back(self):
+        """Slack sends the browser back here from slack.com, so the SameSite=Strict session cookie is not sent: the single-use state made for the owner is the proof (slack_cfg.finish).
+        The answer is a page that moves to Settings itself; that move starts on this site, so the cookie goes with it (a redirect from here would still count as coming from Slack)."""
+        import slack_cfg, html
+        back = "/app/studio/settings?tab=accounts&open=slack"
+        try: who = slack_cfg.finish(parse_qs(urlparse(self.path).query)); auth._audit("slack_connected", user=who, ip=self._ip()); back += "&slack=connected"; said = "Slack is connected."
+        except ValueError as e: back += "&slack_error=" + quote(str(e)[:300]); said = str(e)   # expected: the reason is shown on Settings
+        u = html.escape(back, quote=True)
+        return self._send(200, f'<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={u}"><title>Slack</title><p>{html.escape(said)} <a href="{u}">Back to Settings</a></p>', "text/html")
     def _do_GET(self):
         if not self._host_ok(): return self._send(403, {"error": "bad host"})
         p = self.path.split("?")[0]
@@ -611,6 +620,7 @@ class H(BaseHTTPRequestHandler):
             f = web_file(p[5:]) if ".." not in p else None
             if not f: return self._send(404, {"error": "not found"})
             return self._send(200, f[0], f[1], {"Cache-Control": "public, max-age=86400"})
+        if p == "/api/slack/callback" and not self._public_host(): return self._slack_back()
         ck = self.headers.get("Cookie")
         if p == "/auth/state":
             st = auth.state(ck, self.headers.get("Host"), ip=self._ip(), https=self._https()); sec = secrets_status()
@@ -666,15 +676,11 @@ class H(BaseHTTPRequestHandler):
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", csrf)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
-            if p in ("/api/slack/connect", "/api/slack/callback"):   # NAV-151: the Connect Slack button sends the browser to Slack, and Slack sends it back here
+            if p == "/api/slack/connect":   # NAV-151: the Connect Slack button sends the browser to Slack; Slack sends it back to /api/slack/callback (before the sign in check)
                 if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner connects Slack"})
                 import slack_cfg
-                back = "/app/studio/settings?tab=accounts&open=slack"
-                try:
-                    if p == "/api/slack/connect": return self._send(302, b"", "text/plain", {"Location": slack_cfg.start()})
-                    slack_cfg.finish(parse_qs(urlparse(self.path).query)); auth._audit("slack_connected", user=sess.get("user"), ip=self._ip())
-                    return self._send(302, b"", "text/plain", {"Location": back + "&slack=connected"})
-                except ValueError as e: return self._send(302, b"", "text/plain", {"Location": back + "&slack_error=" + quote(str(e)[:300])})
+                try: return self._send(302, b"", "text/plain", {"Location": slack_cfg.start(sess.get("user") or "owner")})
+                except ValueError as e: return self._send(302, b"", "text/plain", {"Location": "/app/studio/settings?tab=accounts&open=slack&slack_error=" + quote(str(e)[:300])})
             if p == "/api/alerts":
                 try: return self._send(200, {"alerts": settings_api.alerts()})
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})

@@ -24,8 +24,9 @@ class Slack(unittest.TestCase):
 
     def connect(self, fake):
         S.app_save(**APP)
-        url = S.start(); state = url.split("state=")[1]
-        with mock.patch.object(S, "HTTP", fake): return S.finish({"state": [state], "code": ["c0de"]}), state
+        url = S.start("owner1"); state = url.split("state=")[1]
+        with mock.patch.object(S, "HTTP", fake): self.assertEqual(S.finish({"state": [state], "code": ["c0de"]}), "owner1")
+        return S.status(), state
 
     def test_the_app_keys_are_checked_and_never_shown(self):
         with self.assertRaises(ValueError): S.app_save(**{**APP, "client_secret": "nope"})
@@ -51,7 +52,7 @@ class Slack(unittest.TestCase):
         S.app_save(**APP)
         with self.assertRaisesRegex(ValueError, "did not start here"): S.finish({"state": "forged", "code": "x"})
         with self.assertRaisesRegex(ValueError, "not approved"): S.finish({"error": "access_denied"})
-        state = S.start().split("state=")[1]; S.STATES[state] = time.time() - 1
+        state = S.start().split("state=")[1]; S.STATES[state] = (time.time() - 1, "")
         with self.assertRaisesRegex(ValueError, "too long"): S.finish({"state": state, "code": "x"})
         state = S.start().split("state=")[1]
         with mock.patch.object(S, "HTTP", Fake({"oauth.v2.access": {"ok": False, "error": "invalid_code"}})), self.assertRaisesRegex(ValueError, "invalid_code"): S.finish({"state": state, "code": "x"})
