@@ -24,7 +24,7 @@ LOG = L.get("slack_cfg")
 ENV, META = "slack.env", "slack.json"
 AUTHORIZE = "https://slack.com/oauth/v2/authorize"
 API = "https://slack.com/api/"
-SCOPES = "chat:write,commands,channels:read,groups:read"   # post, slash commands (NAV-156/157), see the channels to pick one; more only when a story needs them (then: Reconnect)
+SCOPES = "chat:write,commands,channels:read,groups:read,channels:history,groups:history"   # post, slash commands (NAV-156/157), see the channels to pick one, read the owner's messages in it (NAV-158); a new scope needs a Reconnect
 STATE_TTL = 600            # Slack's code lives ten minutes; a Connect left longer starts again
 STATES = {}                # state -> (expiry, who started it): Connects started from this server, single use (the web process is one process)
 PATTERNS = {"SLACK_CLIENT_ID": r"\d{6,20}\.\d{6,20}", "SLACK_CLIENT_SECRET": r"[0-9a-f]{32}", "SLACK_SIGNING_SECRET": r"[0-9a-f]{32}", "SLACK_APP_TOKEN": r"xapp-[A-Za-z0-9-]{20,300}"}
@@ -62,7 +62,7 @@ def redirect_uri():
 
 def setup():
     """What the owner enters in the Slack app once (shown in Settings)."""
-    return {"redirect_url": redirect_uri(), "bot_scopes": SCOPES.split(","), "socket_mode": True, "app_token_scope": "connections:write"}
+    return {"redirect_url": redirect_uri(), "bot_scopes": SCOPES.split(","), "socket_mode": True, "app_token_scope": "connections:write", "bot_events": ["message.channels", "message.groups"], "slash_command": "/navaan"}
 
 
 def app_save(client_id, client_secret, signing_secret, app_token):
@@ -183,7 +183,8 @@ def status(check=False):
     e, m = _env(), _meta()
     out = {"setup": setup(), "app_saved": bool(e.get("SLACK_CLIENT_ID") and e.get("SLACK_CLIENT_SECRET") and e.get("SLACK_SIGNING_SECRET")), "app_token": bool(e.get("SLACK_APP_TOKEN")),
            "connected": bool(e.get("SLACK_BOT_TOKEN")), "team": m.get("team_name", ""), "owner_user_id": m.get("owner_user_id", ""), "channel": m.get("channel_name", ""), "channel_id": m.get("channel_id", ""),
-           "connected_at": m.get("connected_at", ""), "problem": ""}
+           "connected_at": m.get("connected_at", ""), "problem": "",
+           "missing_scopes": [s for s in SCOPES.split(",") if m.get("team_id") and s not in str(m.get("scopes", "")).split(",")]}   # granted before a scope was added: Reconnect
     if out["connected"] and check and time.time() - _CHECK["at"] > 60:
         try: _call("auth.test"); _CHECK.update(problem="")
         except ValueError as x: _CHECK.update(problem=str(x))   # expected: shown on Settings as the problem, in words
