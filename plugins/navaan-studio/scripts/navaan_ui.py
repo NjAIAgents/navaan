@@ -3,7 +3,7 @@ Create songs, edit and review text, play media, approve gates (human clicks only
 import os, re, json, glob, gzip, hashlib, hmac, mimetypes, threading, secrets, subprocess, sys, html, logging, shutil
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import time
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 import navaan, navaan_common as C, storage, analytics_api, settings_api
 import clip_share as CLIP, poster as POST, song_cover as SC, album_pipeline as ALB, visuals_cfg as V, prompt_pack, shots_prep, publish_schedule as PS, besttime, analytics_auto
 import auth
@@ -666,6 +666,15 @@ class H(BaseHTTPRequestHandler):
                 page = open(os.path.join(navaan.HERE, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", csrf)
                 return self._send(200, page, "text/html")
             if p == "/api/cloud": return self._send(200, cloud_view("refresh=1" in self.path))
+            if p in ("/api/slack/connect", "/api/slack/callback"):   # NAV-151: the Connect Slack button sends the browser to Slack, and Slack sends it back here
+                if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner connects Slack"})
+                import slack_cfg
+                back = "/app/studio/settings?tab=accounts&open=slack"
+                try:
+                    if p == "/api/slack/connect": return self._send(302, b"", "text/plain", {"Location": slack_cfg.start()})
+                    slack_cfg.finish(parse_qs(urlparse(self.path).query)); auth._audit("slack_connected", user=sess.get("user"), ip=self._ip())
+                    return self._send(302, b"", "text/plain", {"Location": back + "&slack=connected"})
+                except ValueError as e: return self._send(302, b"", "text/plain", {"Location": back + "&slack_error=" + quote(str(e)[:300])})
             if p == "/api/alerts":
                 try: return self._send(200, {"alerts": settings_api.alerts()})
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})
@@ -922,6 +931,15 @@ class H(BaseHTTPRequestHandler):
                     if act == "yt_save": return self._send(200, settings_api.yt_save(ct, str(body.get("which") or "publish"), str(body.get("content") or "")))
                     if act == "yt_secret": return self._send(200, settings_api.save_secret(str(body.get("content") or "")))
                     if act == "account": return self._send(200, settings_api.add_account(ct, body.get("handle"), body.get("channel")))
+                    if act.startswith("slack_"):   # NAV-151: the Slack connection; only the owner (studio.settings), never an editor
+                        if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner changes the Slack connection"})
+                        import slack_cfg
+                        if act == "slack_app": return self._send(200, slack_cfg.app_save(body.get("client_id"), body.get("client_secret"), body.get("signing_secret"), body.get("app_token")))
+                        if act == "slack_status": return self._send(200, slack_cfg.status(check=True))
+                        if act == "slack_channels": return self._send(200, {"channels": slack_cfg.channels()})
+                        if act == "slack_channel": return self._send(200, slack_cfg.set_channel(body.get("channel")))
+                        if act == "slack_owner": return self._send(200, slack_cfg.set_owner(body.get("member")))
+                        if act == "slack_disconnect": auth._audit("slack_disconnected", user=sess.get("user"), ip=self._ip()); return self._send(200, slack_cfg.disconnect())
                     return self._send(404, {"error": "unknown settings action"})
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 except Exception as e: return self._send(500, {"error": str(e)[:300]})

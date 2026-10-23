@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-10-23
+
+### Added
+- Connect Slack from Settings (NAV-151, first part of the Slack epic NAV-153). Make a Slack app once and save its keys under Settings, Accounts, Slack; Connect Slack sends you to Slack to approve and brings you back. Then pick the channel the studio talks in (the bot must be in it; it says hello there). Reconnect and Disconnect (the bot token is revoked at Slack) are on the same row. Only the owner sees or changes it. Messages, approvals and commands in Slack come in the next stories.
+
 ## [0.59.2] - 2026-10-23
 
 ### Fixed
@@ -829,7 +834,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.59.2...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.60.0...HEAD
+[0.60.0]: https://github.com/NjAIAgents/navaan/compare/v0.59.2...v0.60.0
 [0.59.2]: https://github.com/NjAIAgents/navaan/compare/v0.59.1...v0.59.2
 [0.59.1]: https://github.com/NjAIAgents/navaan/compare/v0.59.0...v0.59.1
 [0.59.0]: https://github.com/NjAIAgents/navaan/compare/v0.58.6...v0.59.0
