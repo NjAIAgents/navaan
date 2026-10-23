@@ -125,6 +125,7 @@ function GateCard({ d, gate, act, busy, running = false, stopping = false, onSto
       {gate === "quote" && d.text["visual_plan.json"] && <PlanView text={d.text["visual_plan.json"]} />}
       {gate === "quote" && d.meta.type === "aha" && !running && d.text["quote.json"] && <ScriptEdit key={d.text["quote.json"]} d={d} done={reload ?? (() => undefined)} />}
       {gate === "media" && d.text["critique.json"] && <CritiqueView text={d.text["critique.json"]} />}
+      {gate === "media" && d.text["qa.json"] && <CritiqueView text={d.text["qa.json"]} who="The automatic check" />}
       {gate === "shots" && shown ? <details><summary>The raw shot list</summary><pre className="art" tabIndex={0} aria-label="shots.json, what you are approving">{shown}</pre></details> : file && gate !== "instagram_caption" && (shown ? (Readable[gate]?.(shown) ?? <pre className="art" tabIndex={0} aria-label={`${file}, what you are approving`}>{shown}</pre>) : <p className="mu">{file} is not there yet. Run its step first.</p>)}
     </section>
   );
@@ -258,10 +259,10 @@ function PlanView({ text }: { text: string }) {
 }
 
 // The reel critic's verdict beside the video you are about to approve: advice, never a block.
-function CritiqueView({ text }: { text: string }) {
+function CritiqueView({ text, who = "The reviewer" }: { text: string; who?: string }) {
   const c = parse(text); if (!c) return null;
   const fixes = Array.isArray(c.fixes) ? (c.fixes as unknown[]).map(String) : [];
-  return <div className="stack" aria-label="The reviewer's notes"><p><span className={`chip ${c.verdict === "pass" ? "ok" : "wn"}`}><span className="dot" />{c.verdict === "pass" ? "The reviewer found nothing to fix" : "The reviewer suggests changes"}</span></p>
+  return <div className="stack" aria-label={`${who}'s notes`}><p><span className={`chip ${c.verdict === "pass" ? "ok" : "wn"}`}><span className="dot" />{c.verdict === "pass" ? `${who} found nothing to fix` : `${who} suggests changes`}</span></p>
     {c.summary ? <p>{String(c.summary)}</p> : null}{fixes.length > 0 && <ul>{fixes.map((f, i) => <li key={i}>{f}</li>)}</ul>}</div>;
 }
 

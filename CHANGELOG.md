@@ -6,6 +6,14 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-10-23
+
+### Added
+- Every inspiration and Aha-lorithm short is now checked after it is rendered and before you are asked to approve the video (NAV-147). A free automatic check looks at the finished video: a black stretch in the middle, sound that clips or is nearly silent, and whether each caption word lights up when the word is actually spoken (it listens to the video's own audio with the word timing tools; it says "not checked" when they are not installed). If it finds a problem, the short stops there with the finding shown beside Approve (for example "line 5 is lit 6.4 s from where it is spoken"), and Claude's look is not spent on a video already known to be bad. If the checks pass, Claude looks at about 12 stills for stacked or unreadable lines, text over a face, and pictures that do not fit their lines, and gives a verdict with a fix per line. If you switch the video approval to automatic in Settings, it is approved only when the check passed; with a problem found, or no check yet, it waits for you. Nothing is published or redone by the check, and it spends nothing. Run on the published insp-008 and insp-009 it flags both (their last lines were lit 6.4 s and 11.2 s from where they are spoken). Reels keep their own review.
+
+### Fixed
+- The images of a blog post look like a blog's, not a reel's (NAV-148). The cover no longer carries "NAVAAN" in its corner. The figures (a comparison, a number, a flow, a checklist, a timeline, a chart, a ring, bars, a chat, a struck-out word) are drawn on white in the cover's own colour with dark text, 1200 wide, with the source, "sample data" or "illustration" noted under each, instead of the dark starfield scene of a short. Each figure is cut to its content, so none has an empty foot and none is cut off (the checklist on blog-001 lost its third item before). A figure with too much in it is skipped with a note instead of being cut. Existing images are drawn again when the images step is redone.
+
 ## [0.58.6] - 2026-10-22
 
 ### Fixed
@@ -811,7 +819,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.58.6...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.59.0...HEAD
+[0.59.0]: https://github.com/NjAIAgents/navaan/compare/v0.58.6...v0.59.0
 [0.58.6]: https://github.com/NjAIAgents/navaan/compare/v0.58.5...v0.58.6
 [0.58.5]: https://github.com/NjAIAgents/navaan/compare/v0.58.4...v0.58.5
 [0.58.4]: https://github.com/NjAIAgents/navaan/compare/v0.58.3...v0.58.4

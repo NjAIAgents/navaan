@@ -25,7 +25,7 @@ export const Root: React.FC = () => (
       calculateMetadata={({props}) => { const p = props as unknown as VisualShortProps; return {durationInFrames: Math.max(1, Math.round(p.duration * p.fps)), fps: p.fps, width: p.width, height: p.height}; }} />
     <Composition id="BlogCover" component={BlogCover} width={1000} height={420} fps={30} durationInFrames={1} defaultProps={coverDefaults}
       calculateMetadata={({props}) => { const p = props as unknown as CoverProps; return {width: p.width, height: p.height}; }} />
-    <Composition id="BlogFigure" component={BlogFigure} width={1080} height={1500} fps={30} durationInFrames={1} defaultProps={figureDefaults}
+    <Composition id="BlogFigure" component={BlogFigure} width={1200} height={2400} fps={30} durationInFrames={1} defaultProps={figureDefaults}
       calculateMetadata={({props}) => { const p = props as unknown as FigureProps; return {width: p.width, height: p.height}; }} />
     <Composition
       id="Quote"

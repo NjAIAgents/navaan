@@ -59,7 +59,7 @@ export const BlogCover: React.FC<CoverProps> = (p) => {
       <div style={{position: 'absolute', left: pad, top: pad, bottom: pad, width: textW, display: 'flex', flexDirection: 'column', justifyContent: 'space-between'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: h * 0.04}}>
           <span style={{fontSize: h * 0.05, letterSpacing: h * 0.011, textTransform: 'uppercase', fontWeight: 800, color: pal.accent}}>{p.kicker}</span>
-          <span style={{fontSize: h * 0.04, letterSpacing: h * 0.008, fontWeight: 700, color: pal.mute, textTransform: 'uppercase'}}>{p.brand}</span>
+          {p.brand ? <span style={{fontSize: h * 0.04, letterSpacing: h * 0.008, fontWeight: 700, color: pal.mute, textTransform: 'uppercase'}}>{p.brand}</span> : null}   {/* no brand mark by default: a blog image carries the post, not NAVAAN's name (NAV-148) */}
         </div>
         <div style={{fontSize: base, lineHeight: 1.06, fontWeight: 800, letterSpacing: -base * 0.02, color: pal.ink, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical'}}>{p.title}</div>
         <div style={{display: 'flex', alignItems: 'center', gap: h * 0.03, flexWrap: 'wrap'}}>
