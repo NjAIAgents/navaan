@@ -24,8 +24,7 @@ LOG = L.get("blog_images")
 PALETTES = ("midnight", "indigo", "forest", "ember", "ocean", "slate", "paper", "mono")   # mirrored in remotion/src/BlogCover.tsx (a test keeps them equal)
 MOTIFS = ("nodes", "grid", "waves", "rings", "blocks", "stripes", "none")
 COVERS = {"devto": (1000, 420), "linkedin": (1200, 627)}
-FIGURE_W = 1080
-FIGURE_H = {"flow": 1500, "timeline": 1400, "chat": 1250, "chart": 1350, "ring": 1350, "compare": 1400, "checklist": 1100, "bars": 1250, "stat": 1100, "strike": 1200}   # the height of each treatment's content, so a figure has no empty foot
+FIGURE_W, FIGURE_CANVAS_H, FIGURE_PAD = 1200, 2400, 64   # a figure is drawn on a tall white canvas (remotion/src/BlogFigure.tsx) and cropped to its content: no empty foot, nothing cut off
 FIGURES = tuple(t for t in V.SCENES if t != "hook")   # a figure is a treatment that makes sense as a still
 MANIFEST = "post_images.json"
 DRAFTS = ("devto.md", "linkedin_article.md")
@@ -108,6 +107,18 @@ def _remotion(comp, props, out):
     finally: os.unlink(pf)
 
 
+def crop_figure(path):
+    """Cut the tall canvas to the figure's content with the page's own margin at the foot and a thin frame, so it sits on a white page. ValueError when the content reaches the bottom of the canvas (it
+    would be cut off: the figure has too much in it). A canvas with nothing on it is left as it is."""
+    from PIL import Image, ImageChops, ImageDraw
+    im = Image.open(path).convert("RGB"); box = ImageChops.difference(im, Image.new("RGB", im.size, (255, 255, 255))).getbbox()
+    if not box: return
+    if box[3] >= im.height - 2: raise ValueError("the figure is taller than its canvas (%d px): shorten its text or its list" % im.height)
+    out = im.crop((0, 0, im.width, min(im.height, box[3] + FIGURE_PAD))); d = ImageDraw.Draw(out)
+    d.rectangle((0, 0, out.width - 1, out.height - 1), outline=(227, 230, 236), width=2)
+    out.save(path, optimize=True)
+
+
 def cover_fallback(plan, title, size, out):
     """A plain cover with Pillow when Remotion is not there: the palette as a gradient, the title, the chips. The step must not block on a missing renderer."""
     from PIL import Image, ImageDraw
@@ -144,7 +155,7 @@ def render(slug):
     title = post_title(D, plan); cv = plan["cover"]; made = {"cover": {}, "inline": []}; notes = []
     for dest, (w, h) in COVERS.items():
         name = f"post_cover_{dest}.png"; out = _p(D, name)
-        props = {"width": w, "height": h, "title": title, "kicker": cv["kicker"], "chips": cv.get("chips", []), "palette": cv["palette"], "motif": cv["motif"], "seed": slug, "brand": (C.cfg("artist.name") or "NAVAAN")}
+        props = {"width": w, "height": h, "title": title, "kicker": cv["kicker"], "chips": cv.get("chips", []), "palette": cv["palette"], "motif": cv["motif"], "seed": slug, "brand": ""}   # no name on a blog cover: it carries the post, not NAVAAN (NAV-148)
         try: _remotion("BlogCover", props, out)
         except (RuntimeError, subprocess.CalledProcessError, OSError) as e:
             L.event(LOG, "warning", "cover_fallback", slug=slug, dest=dest, reason=str(e)[:200]); notes.append(f"the {dest} cover was drawn without Remotion ({str(e)[:80]})"); cover_fallback(plan, title, (w, h), out)
@@ -152,9 +163,9 @@ def render(slug):
         print(f"cover {dest}: {name}", flush=True)
     for x in figures(plan):
         name = f"post_fig_{x['id']}.png"
-        props = {"width": FIGURE_W, "height": FIGURE_H.get(x["treatment"], 1400), "treatment": x["treatment"], "data": x.get("data") or {}, "text": x.get("title") or x["alt"][:60]}
-        try: _remotion("BlogFigure", props, _p(D, name)); made["inline"].append({"id": x["id"], "kind": "figure", "file": name, "alt": x["alt"], "after": x.get("after")}); print(f"figure {x['id']}: {name}", flush=True)
-        except (RuntimeError, subprocess.CalledProcessError, OSError) as e:
+        props = {"width": FIGURE_W, "height": FIGURE_CANVAS_H, "treatment": x["treatment"], "data": x.get("data") or {}, "text": x.get("title") or x["alt"][:60], "palette": cv["palette"]}
+        try: _remotion("BlogFigure", props, _p(D, name)); crop_figure(_p(D, name)); made["inline"].append({"id": x["id"], "kind": "figure", "file": name, "alt": x["alt"], "after": x.get("after")}); print(f"figure {x['id']}: {name}", flush=True)
+        except (RuntimeError, subprocess.CalledProcessError, OSError, ValueError) as e:
             L.event(LOG, "warning", "figure_skipped", slug=slug, id=x["id"], reason=str(e)[:200]); notes.append(f"figure {x['id']} was skipped: Remotion could not draw it ({str(e)[:80]})")
     keep = [i for i in _manifest(D).get("inline", []) if i.get("kind") == "picture"]   # pictures made earlier stay
     made["inline"] += [i for i in keep if i["id"] in {p["id"] for p in pictures(plan)}]
