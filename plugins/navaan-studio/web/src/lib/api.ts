@@ -119,7 +119,7 @@ export type PlansData = {
 };
 
 // Listener catalog (NAV-18)
-export type SlackStatus = { setup: { redirect_url: string; bot_scopes: string[]; socket_mode: boolean; app_token_scope: string }; app_saved: boolean; app_token: boolean; connected: boolean; team: string; owner_user_id: string; channel: string; channel_id: string; connected_at: string; problem: string };
+export type SlackStatus = { setup: { redirect_url: string; bot_scopes: string[]; socket_mode: boolean; app_token_scope: string; bot_events?: string[]; slash_command?: string }; app_saved: boolean; app_token: boolean; connected: boolean; team: string; owner_user_id: string; channel: string; channel_id: string; connected_at: string; problem: string; missing_scopes?: string[] };
 export type TrackRow = { slug: string; title: string; language: string; genre: string; albums: { slug: string; title: string }[]; licence: string; art: { colour: string | null; v?: number } | null };
 export type TrackView = TrackRow & { mood?: string | null; lyrics: string; timed: boolean; timed_lines: [number, string][] | null };
 export type Filters = { albums: { slug: string; title: string }[]; languages: string[]; genres: string[] };

@@ -95,6 +95,43 @@ services:
       driver: json-file
       options: {max-size: 50m, max-file: "5"}
 
+  slack:                    # the Slack bridge (NAV-153): notifications, approvals and /navaan over Socket Mode. Its own process, so a Slack failure never stalls a pipeline
+    image: navaan:local
+    container_name: navaan-slack
+    restart: unless-stopped
+    stop_grace_period: 10s
+    environment:
+      NAVAAN_ROLE: slack
+      NAVAAN_STUDIO_HOST: studio.navaan.online   # the Open in Studio links
+      NAVAAN_LOG_DIR: /home/navaan/.local/share/navaan/logs/slack
+      NAVAAN_PG_HOST: navaan-postgres
+      NAVAAN_PG_USER: navaan_app
+      NAVAAN_PG_PASSWORD_FILE: /pgsecret/pg_app_password
+      NAVAAN_VAULT_ADDR: ${NAVAAN_VAULT_ADDR:-http://engagehub-vault:8200}
+      NAVAAN_VAULT_ROLE_ID_FILE: /run/secrets/vault_role_id
+      NAVAAN_VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id
+    secrets: [vault_role_id, vault_secret_id]
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes:
+      - pgapp:/pgsecret:ro
+      - /opt/navaan/data/songs:/app/songs
+      - /opt/navaan/data/state:/home/navaan/.local/share/navaan
+      - /opt/navaan/data/navaan.config.json:/app/navaan.config.json
+    tmpfs:
+      - /home/navaan/.config/navaan:mode=0700,uid=10001,gid=10001,size=16m
+      - /tmp:size=256m
+    networks: [navaan-network, navaan-db, vault]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys, time; sys.exit(0 if time.time() - float(open('/tmp/navaan-slack.alive').read()) < 90 else 1)"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options: {max-size: 20m, max-file: "3"}
+
   # Postgres, dedicated to this project (NAV-3, spec 002). Always part of the stack: the app waits for it to be healthy. No published port; it is on the
   # navaan-db network, which only the app joins (internal: no outside route either). Data in /opt/navaan/data/pg, backed up nightly by pg_dump (backup.sh).
   pg-init:                  # makes the two passwords once, each in its own volume (the app can read only its own); nothing else ever sees them in the repo or in logs

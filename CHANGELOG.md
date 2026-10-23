@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-10-23
+
+### Added
+- The studio talks to you in your Slack channel (NAV-154 to NAV-158, epic NAV-153). A new small service, `navaan-slack`, posts once when an item waits for your approval, when a run stops, when a QA verdict asks for fixes, and when something needs you (an expired sign-in, a full settings disk); a restart never posts the same thing twice. The video, quote and originality approvals have an Approve button (the video's message shows the QA verdict); spending and publishing say "Open in Studio". `/navaan status`, `/navaan status <item>` and `/navaan new <inspiration|aha|blog> <idea>` (with a Start button first) work in the channel, and you can also just write ("how is insp-012 doing", "start an aha about…"): Claude turns it into one of those actions, and anything that changes something asks for a button press first. Only you may approve or start things; everyone in the channel can read. Plain messages need two more Slack permissions: add `channels:history` and `groups:history` and the bot events `message.channels` and `message.groups` to the Slack app, then press Reconnect Slack in Settings.
+
 ## [0.60.1] - 2026-10-23
 
 ### Fixed
@@ -839,7 +844,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.60.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.0...HEAD
+[0.61.0]: https://github.com/NjAIAgents/navaan/compare/v0.60.1...v0.61.0
 [0.60.1]: https://github.com/NjAIAgents/navaan/compare/v0.60.0...v0.60.1
 [0.60.0]: https://github.com/NjAIAgents/navaan/compare/v0.59.2...v0.60.0
 [0.59.2]: https://github.com/NjAIAgents/navaan/compare/v0.59.1...v0.59.2
