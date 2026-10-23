@@ -24,6 +24,11 @@ LI = "The hook paragraph.\n\n## Why it sounds sure\n\nFirst paragraph under the 
 def png(path, size=(40, 20)): Image.new("RGB", size, (30, 40, 60)).save(path)
 
 
+def fig_png(path, size=(1200, 2400), content=600):
+    """What Remotion draws for a figure: a white canvas with the content at the top and nothing below."""
+    im = Image.new("RGB", size, (255, 255, 255)); im.paste((30, 40, 60), (64, 64, size[0] - 64, 64 + content)); im.save(path)
+
+
 class Plan(unittest.TestCase):
     def test_a_good_plan_passes_and_each_mistake_is_named(self):
         self.assertEqual(B.plan_errors(PLAN), [])
@@ -72,21 +77,36 @@ class Draw(Env):
     def fake_still(self, fail=()):
         def still(comp, props, out):
             if comp in fail: raise RuntimeError("remotion is not installed")
-            png(out, (props["width"] // 10, props["height"] // 10))
+            if comp == "BlogFigure": fig_png(out, (props["width"], props["height"]))
+            else: png(out, (props["width"] // 10, props["height"] // 10))
         return still
 
     def test_the_covers_and_figures_are_drawn_at_the_right_sizes_and_the_pictures_wait(self):
         calls = []
-        def still(comp, props, out): calls.append((comp, props)); png(out)
+        def still(comp, props, out): calls.append((comp, props)); (fig_png(out, (props["width"], props["height"])) if comp == "BlogFigure" else png(out))
         with mock.patch.object(B, "_remotion", still): self.assertEqual(B.render("blog-001"), 0)
         self.assertEqual([c[0] for c in calls], ["BlogCover", "BlogCover", "BlogFigure"])
-        self.assertEqual([(c[1]["width"], c[1]["height"]) for c in calls], [(1000, 420), (1200, 627), (1080, 1500)])   # the flow figure is the tallest
+        self.assertEqual([(c[1]["width"], c[1]["height"]) for c in calls], [(1000, 420), (1200, 627), (1200, 2400)])   # a figure is drawn on a tall canvas and cropped to its content afterwards
+        self.assertEqual([c[1]["brand"] for c in calls[:2]], ["", ""], "no NAVAAN name on a blog cover"); self.assertEqual(calls[2][1]["palette"], "midnight", "a figure takes the cover's colour")
+        self.assertEqual(Image.open(os.path.join(self.D, "post_fig_i1.png")).size, (1200, 728), "cropped to the content (64 px of margin top and bottom) and nothing cut off")
         self.assertEqual(calls[0][1]["title"], "Why answers sound sure", "the cover carries the post's own title"); self.assertEqual((calls[0][1]["palette"], calls[0][1]["motif"], calls[0][1]["seed"]), ("midnight", "nodes", "blog-001"))
         m = json.load(open(os.path.join(self.D, "post_images.json"))); self.assertEqual(sorted(m["cover"]), ["devto", "linkedin"]); self.assertEqual([i["id"] for i in m["inline"]], ["i1"])
         self.assertTrue(B.rendered(self.D)); self.assertFalse(B.pictures_done(self.D), "the picture still has to be made")
 
-    def test_every_figure_treatment_has_a_height_and_a_checklist_is_shorter_than_a_flow(self):
-        self.assertEqual(set(B.FIGURE_H), set(B.FIGURES)); self.assertLess(B.FIGURE_H["checklist"], B.FIGURE_H["flow"])
+    def test_every_figure_treatment_has_a_blog_drawing_and_every_cover_colour_has_a_figure_accent(self):
+        t = open(os.path.join(REMOTION, "BlogFigure.tsx"), encoding="utf-8").read()
+        drawn = set(re.findall(r"(\w+): \w+", re.search(r"export const FIGURES[^=]*= \{(.*?)\};", t).group(1))); self.assertEqual(drawn, set(B.FIGURES))
+        accents = set(re.findall(r"(\w+): '#", re.search(r"export const ACCENTS[^=]*= \{(.*?)\};", t).group(1))); self.assertEqual(accents, set(B.PALETTES))
+        self.assertNotIn("VisualShort", t, "a blog figure is not drawn with the shorts' dark vertical stage"); self.assertNotIn("treatments/scenes", t)
+
+    def test_a_figure_is_cropped_to_its_content_and_one_that_does_not_fit_is_skipped_with_a_note(self):
+        p = os.path.join(self.D, "f.png"); fig_png(p, (1200, 2400), 500); B.crop_figure(p); im = Image.open(p); self.assertEqual(im.size, (1200, 64 + 500 + 64))
+        self.assertEqual(im.getpixel((0, 0)), (227, 230, 236), "a thin frame, so it sits on a white page"); self.assertEqual(im.getpixel((600, 5)), (255, 255, 255))
+        Image.new("RGB", (1200, 2400), (255, 255, 255)).save(p); B.crop_figure(p); self.assertEqual(Image.open(p).size, (1200, 2400), "an empty canvas is left alone")
+        fig_png(p, (1200, 2400), 2400); self.assertRaises(ValueError, B.crop_figure, p)   # the content runs off the canvas: it would be cut off
+        def still(comp, props, out): fig_png(out, (props["width"], props["height"]), 2400) if comp == "BlogFigure" else png(out)
+        with mock.patch.object(B, "_remotion", still), mock.patch("builtins.print"): self.assertEqual(B.render("blog-001"), 0)
+        m = json.load(open(os.path.join(self.D, "post_images.json"))); self.assertEqual(m["inline"], []); self.assertTrue(any("taller than its canvas" in n for n in m["notes"]), m["notes"])
 
     def test_without_remotion_the_cover_is_drawn_with_pillow_and_a_figure_is_skipped_with_a_note(self):
         with mock.patch.object(B, "_remotion", self.fake_still(fail=("BlogCover", "BlogFigure"))), mock.patch("builtins.print"): self.assertEqual(B.render("blog-001"), 0)
@@ -156,7 +176,7 @@ class Pictures(Env):
 
 class Embed(Env):
     def drawn(self):
-        with mock.patch.object(B, "_remotion", lambda c, p, o: png(o)), mock.patch("builtins.print"): B.render("blog-001")
+        with mock.patch.object(B, "_remotion", lambda c, p, o: fig_png(o, (p["width"], p["height"])) if c == "BlogFigure" else png(o)), mock.patch("builtins.print"): B.render("blog-001")
         png(os.path.join(self.D, "post_pic_i2.jpg"))
         m = json.load(open(os.path.join(self.D, "post_images.json"))); m["inline"].append({"id": "i2", "kind": "picture", "file": "post_pic_i2.jpg", "alt": PIC["alt"], "after": PIC["after"]}); json.dump(m, open(os.path.join(self.D, "post_images.json"), "w"))
 

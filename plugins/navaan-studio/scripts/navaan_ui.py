@@ -90,7 +90,7 @@ VIDEO_STEP = {"full": ("video", "the full video"), "reel": ("reel", "the reel wi
 EDITABLE = {"brief.md", "lyrics.txt", "style.txt", "title.txt", "tags.json", "instagram.txt", "quote.json", "youtube.json", "edl.json", "devto.md", "linkedin_article.md", "linkedin_post.md"}   # the blog posts are edited on the Posts tab (NAV-138)
 READABLE = EDITABLE | {"originality.json", "timing.json", "render_report.json", "reel_report.json", "youtube.json", "shots.json", "visuals.json", "visual_plan.json", "motion.json", "caption_cues.json", "topics.json", "trend_sources.json",
                        "research.md", "claims.json", "outline.md", "devto.md", "linkedin_article.md", "linkedin_post.md", "images.json", "post_images.json", "factcheck.json", "fix_notes.md", "review_notes.md", "edit.json",   # the blog's working files (NAV-72, NAV-73)
-                       "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json"}   # the reel's plan, the critic's notes and the footage facts
+                       "edl_summary.md", "edl_report.json", "scenes.json", "copy_options.json", "critique.json", "probe.json", "audio.json", "qa.json", "qa_checks.json"}   # the reel's plan, the critic's notes and the footage facts
 THUMB_W = (160, 480, 960)  # the only widths served, so the cache cannot grow without bound
 THUMB_DIR = os.path.join(os.path.expanduser("~"), ".cache", "navaan", "thumbs")
 MEDIA_EXT = {".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".webp", ".json", ".txt", ".md", ".log"}

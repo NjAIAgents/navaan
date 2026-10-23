@@ -80,6 +80,12 @@ def fresh(D, outs, src):
 def sc(name, *args): return [PY, os.path.join(HERE, name), *args]
 
 
+def qa_passed(D):
+    """The video's QA found nothing to fix (NAV-147): qa.json says pass and is newer than the video."""
+    q = load_json(os.path.join(D, "qa.json"), default={}) or {}
+    return q.get("verdict") == "pass" and fresh(D, ["qa.json"], ["final_reel_9x16.mp4"])
+
+
 def auto_gates(slug):
     """Approve the gates the user switched off in Settings, Gates (gate_cfg). Returns the gates approved now. A gate whose file is not
     there yet (a quote or shot list still to be written) is left for later."""
@@ -90,6 +96,7 @@ def auto_gates(slug):
     D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); published = ig_done(m)
     for g in C.type_gates(item_type(m)):
         if g in off and not gate_ok(D, ap, g, published):
+            if g == "media" and item_type(m) in ("inspiration", "aha") and not qa_passed(D): continue   # never approved for the owner while the QA has not passed (NAV-147)
             try:
                 if g == "visuals_mode" and not os.path.exists(os.path.join(D, "visuals.json")):   # nobody chose, so take the default: own pictures, a moving video
                     import visuals_cfg, media_cfg
@@ -291,7 +298,12 @@ def inspiration_steps(slug, D, scene_ok=True):
         dict(id="typeset", outputs=["timing.json", "music.mp3", "beats.json"], label="Plan typography, timing and music", kind="script", cmds=[sc("inspire_prep.py", slug)],
              done=lambda m: fresh(D, ["timing.json"], ["quote.json", "background.*", "voiceover.*", "scene_src.mp4", "picture_plan.json"])),
         dict(id="render", outputs=[FINAL, "thumb_9x16.jpg", "render_report.json"], label="Render the vertical video (9:16, 7 to 15 s without a voice)", kind="script", sets_after="media_ready",
-             cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "scene_bg.mp4", "music.mp3", "voiceover.*", "send_line.txt"]), after="media", sets="approved"),
+             cmds=[sc("inspire_render.py", slug)], done=lambda m: fresh(D, [FINAL], ["timing.json", "background.*", "scene_bg.mp4", "music.mp3", "voiceover.*", "send_line.txt"])),
+        # NAV-147: the video is checked before anyone is asked to approve it: free checks first (sound, black frames, caption sync), and Claude's look only when they pass
+        dict(id="qa_checks", outputs=["qa_checks.json"], label="Check the video automatically (sound, black frames, caption sync)", kind="script", cmds=[sc("inspire_qa.py", slug)],
+             done=lambda m: fresh(D, ["qa_checks.json"], [FINAL])),
+        dict(id="qa", outputs=["qa.json"], redo=True, label="Look at the rendered video and judge it", kind="claude", skill="inspiration-qa", chrome=False,
+             done=lambda m: fresh(D, ["qa.json"], [FINAL]), after="media", sets="approved"),
         dict(id="youtube_meta", outputs=["youtube.json"], redo=True, label="Write the YouTube Shorts title, description and tags", kind="claude", skill="inspiration-meta",
              done=lambda m: has(D, "youtube.json") or yt_done(m)),
         dict(id="publish_youtube", outputs=["published.json"], redo=False, label="Upload to YouTube as a Short (API, private)", kind="script", before="publish_youtube",

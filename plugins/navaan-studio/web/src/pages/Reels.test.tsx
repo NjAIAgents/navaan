@@ -86,4 +86,19 @@ describe("Reels", () => {
     expect(await screen.findByText("The reviewer suggests changes")).toBeInTheDocument();
     expect(screen.getByText("Move the quote up (edit plan)")).toBeInTheDocument();
   });
+
+  it("shows the automatic check of an inspiration at the video approval, in its own words, beside Approve (NAV-147)", async () => {
+    const qa = (o: object) => JSON.stringify({ source: "checks", ...o });
+    route(OWNER, { "/api/songs": () => [], "/api/song/": () => detail({ slug: "insp-008", files: { "final_reel_9x16.mp4": 5000 }, next: { type: "gate", step: "qa", gate: "media" }, gates: ["media"], meta: { type: "inspiration", state: "rendered", history: [] },
+      text: { "title.txt": "Let it go", "qa.json": qa({ verdict: "fix", summary: "insp-008: the automatic checks found 1 problem.", fixes: ["line 5 (\"Your peace matters too.\") is lit 6.4 s from where it is spoken"] }) } }) });
+    at("/studio/inspiration/insp-008");
+    expect(await screen.findByText("The automatic check suggests changes")).toBeInTheDocument();
+    expect(screen.getByText(/lit 6\.4 s from where it is spoken/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeInTheDocument();   // the owner can still decide
+    cleanup();
+    route(OWNER, { "/api/songs": () => [], "/api/song/": () => detail({ slug: "insp-008", files: { "final_reel_9x16.mp4": 5000 }, next: { type: "gate", step: "qa", gate: "media" }, gates: ["media"], meta: { type: "inspiration", state: "rendered", history: [] },
+      text: { "title.txt": "Let it go", "qa.json": qa({ verdict: "pass", summary: "Nothing to fix.", fixes: [] }) } }) });
+    at("/studio/inspiration/insp-008");
+    expect(await screen.findByText("The automatic check found nothing to fix")).toBeInTheDocument();
+  });
 });
