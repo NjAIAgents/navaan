@@ -51,6 +51,41 @@ class DevTo(Env):
         self.assertEqual(a["main_image"], "https://navaan.online/img/blog/blog-001/post_cover_devto-1a2b3c4d.png"); self.assertEqual(a["body_markdown"], "The hook.\n\n## Why\n\nBody text.")
         open(os.path.join(self.D, "devto.md"), "w").write("---\ndescription: x\n---\n\nbody"); self.assertRaises(ValueError, P.devto_article, self.D, False)
 
+    def relative(self):
+        """The draft as the worker wrote it on the server: the images step ran where the public host was not known, so every blog image address has no host (blog-001, NAV-150)."""
+        t = open(os.path.join(self.D, "devto.md")).read().replace("https://navaan.online/img/blog/", "/img/blog/") + "\n\n![A figure](/img/blog/blog-001/post_fig_i1-6d35f964.png)\n\nA relative path that is not a blog image: ![x](/static/a.png)\n"
+        open(os.path.join(self.D, "devto.md"), "w").write(t)
+
+    def test_a_blog_image_written_without_a_host_is_completed_with_the_public_address_when_it_is_sent(self):
+        self.relative()
+        with mock.patch.dict(os.environ, {"NAVAAN_PUBLIC_URL": "https://navaan.online/"}):
+            a = P.devto_article(self.D, False)["article"]
+            self.assertEqual(a["main_image"], "https://navaan.online/img/blog/blog-001/post_cover_devto-1a2b3c4d.png", "dev.to said 'Main image is not a valid URL' for the path without a host")
+            self.assertIn("![A figure](https://navaan.online/img/blog/blog-001/post_fig_i1-6d35f964.png)", a["body_markdown"]); self.assertIn("![x](/static/a.png)", a["body_markdown"], "only blog images are completed")
+            self.assertNotRegex(a["body_markdown"], r"[(]/img/blog/")
+            f = Fake(self.ANS)
+            with mock.patch.object(P, "HTTP", f): P.devto_post("blog-001")
+            self.assertTrue(f.calls[0]["body"]["article"]["main_image"].startswith("https://navaan.online/img/blog/"))
+        with mock.patch.dict(os.environ, {"NAVAAN_PUBLIC_URL": ""}):   # the same from the listener hosts when only those are known
+            os.environ["NAVAAN_LISTENER_HOSTS"] = "navaan.online,www.navaan.online"
+            try: self.assertTrue(P.devto_article(self.D, False)["article"]["main_image"].startswith("https://navaan.online/"))
+            finally: os.environ.pop("NAVAAN_LISTENER_HOSTS", None)
+
+    def test_with_no_public_address_known_it_says_so_in_words_and_sends_nothing(self):
+        self.relative(); f = Fake(self.ANS)
+        with mock.patch.dict(os.environ, {"NAVAAN_PUBLIC_URL": "", "NAVAAN_LISTENER_HOSTS": "", "NAVAAN_PUBLIC_HOST": ""}), mock.patch.object(P, "HTTP", f):
+            with self.assertRaises(ValueError) as e: P.devto_post("blog-001")
+        self.assertIn("no public address", str(e.exception)); self.assertIn("NAVAAN_PUBLIC_URL", str(e.exception)); self.assertEqual(f.calls, [])
+
+    def test_an_address_that_already_has_a_host_is_left_alone(self):
+        with mock.patch.dict(os.environ, {"NAVAAN_PUBLIC_URL": "https://other.example"}): a = P.devto_article(self.D, False)["article"]
+        self.assertTrue(a["main_image"].startswith("https://navaan.online/img/blog/")); self.assertNotIn("other.example", a["main_image"] + a["body_markdown"])
+
+    def test_the_worker_that_runs_the_images_step_is_given_the_public_address_too(self):
+        t = open(os.path.join(HERE, "..", "..", "..", "deploy", "compose.yml"), encoding="utf-8").read()
+        web, worker = t.split("  worker:")[0], t.split("  worker:")[1]
+        self.assertIn("NAVAAN_PUBLIC_URL: https://navaan.online", web); self.assertIn("NAVAAN_PUBLIC_URL: https://navaan.online", worker)
+
     def test_the_first_post_is_a_draft_the_second_updates_it_and_going_live_is_asked_for(self):
         f = Fake(self.ANS, self.ANS, self.ANS, self.ANS)
         with mock.patch.object(P, "HTTP", f):
