@@ -13,6 +13,7 @@ services:
     restart: unless-stopped
     environment:
       NAVAAN_PUBLIC_HOST: navaan.njlabs.dev,studio.navaan.online,navaan.online,www.navaan.online   # every Host the portal answers to
+      NAVAAN_PUBLIC_URL: https://navaan.online   # the address a blog image has on the public site (blog_images.public_base); the worker needs it too, see below
       NAVAAN_LISTENER_HOSTS: navaan.online,www.navaan.online   # the public face: a session there sees the listener app only (the studio is on the other hosts)
       NAVAAN_COOKIE_DOMAIN: navaan.online   # one sign in for navaan.online and studio.navaan.online (the cookie covers the domain); the old address keeps its own
       NAVAAN_STUDIO_HOST: studio.navaan.online   # where the public site sends the owner (Studio, Settings, sign in)
@@ -61,6 +62,7 @@ services:
     environment:
       NAVAAN_ROLE: worker
       NAVAAN_WORKER: external
+      NAVAAN_PUBLIC_URL: https://navaan.online   # the images step runs here: without it a blog image's address had no host and dev.to refused the cover (NAV-150)
       NAVAAN_WORKER_SLOTS: ${NAVAAN_WORKER_SLOTS:-2}     # items run in parallel; ffmpeg and Remotion are heavy, raise only after watching memory
       NAVAAN_LOG_DIR: /home/navaan/.local/share/navaan/logs/worker   # its own folder: two processes must not rotate the same file
       OCI_CLI_AUTH: instance_principal

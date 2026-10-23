@@ -62,13 +62,26 @@ def front(text):
     return fm, (text[m.end():] if m else text).strip()
 
 
+REL_IMG = re.compile(r"(?:^|(?<=[(\s\"']))/img/blog/")
+
+
+def absolute(text):
+    """dev.to cannot reach a path on our host. A blog image written without a host (the images step ran where the public host was not known: the worker container had none) is completed with
+    the public address here, where the post is sent. ValueError, in words, when there is no public address to complete it with. Addresses that already have a host are left alone."""
+    if not REL_IMG.search(text): return text
+    import blog_images as BI
+    base = BI.public_base()
+    if not base: raise ValueError("The images of this post have no public address, so dev.to could not show them. Set NAVAAN_PUBLIC_URL (for example https://navaan.online) where the studio runs and try again.")
+    return REL_IMG.sub(base + "/img/blog/", text)
+
+
 def devto_article(D, publish):
     """The article as dev.to takes it: title, body without the front matter, tags as one comma list (at most 4), the cover (set by the images step), the description."""
-    fm, body = front(_read(D, "devto.md"))
+    fm, body = front(_read(D, "devto.md")); body = absolute(body)
     if not fm.get("title"): raise ValueError("The dev.to post has no title. Add it on the Posts tab.")
     tags = ",".join(t.strip() for t in fm.get("tags", "").split(",") if t.strip())
     a = {"title": fm["title"], "body_markdown": body, "published": bool(publish), "tags": tags, "description": fm.get("description", "")}
-    if fm.get("cover_image"): a["main_image"] = fm["cover_image"]
+    if fm.get("cover_image"): a["main_image"] = absolute(fm["cover_image"])
     return {"article": a}
 
 
