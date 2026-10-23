@@ -1,5 +1,5 @@
 """NAV-5 stage 1 over HTTP: a signed-in owner reaches the studio with a CSRF token of their own session, a listener reaches no studio route, a signed-out visitor reaches nothing (spec 002 SC-005)."""
-import json, os, sys, tempfile, threading, unittest, urllib.error, urllib.request
+import json, os, sys, tempfile, threading, unittest, urllib.error, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer
 from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
@@ -449,7 +449,12 @@ class Access(unittest.TestCase):
             code, body = self.call("/api/settings/slack_app", "owner-tok", "csrf-owner", post=True, body=dict(client_id="1234567.7654321", client_secret="a" * 32, signing_secret="b" * 32))
             self.assertEqual(code, 200); self.assertTrue(json.loads(body)["app_saved"])
             code, where = loc("/api/slack/connect"); self.assertEqual(code, 302); self.assertTrue(where.startswith("https://slack.com/oauth/v2/authorize?"))
-            code, where = loc("/api/slack/callback?state=forged&code=x"); self.assertIn("slack_error=", where)
+            code, body = self.call("/api/slack/callback?state=forged&code=x"); self.assertEqual(code, 200); self.assertIn(b"slack_error=", body)   # no cookie comes back from slack.com: answered, not "sign in"
+            state = urllib.parse.parse_qs(urllib.parse.urlparse(where).query)["state"][0]
+            grant = {"ok": True, "token_type": "bot", "access_token": "xoxb-1-2-x", "team": {"id": "T0TEAM1", "name": "Navaan"}, "authed_user": {"id": "U0OWNER1"}}
+            with mock.patch.object(slack_cfg, "HTTP", lambda *a, **k: (200, grant)): code, body = self.call(f"/api/slack/callback?state={state}&code=c0de")
+            self.assertEqual(code, 200); self.assertIn(b"slack=connected", body); self.assertIn(b'http-equiv="refresh"', body)
+            self.assertTrue(json.loads(self.call("/api/settings", "owner-tok")[1])["slack"]["connected"])
             self.assertIn("slack", json.loads(self.call("/api/settings", "owner-tok")[1]))   # the Settings page reads it
 
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
