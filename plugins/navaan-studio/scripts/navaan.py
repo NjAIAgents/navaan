@@ -1214,7 +1214,7 @@ def status(slug=None):
 def main(argv):
     if not argv: print(__doc__); return 0
     c, a = argv[0], argv[1:]
-    L.setup(stdout=(c in ("serve", "worker")))   # the command line keeps its own output readable; `serve` also writes the log to stdout for the container
+    L.setup(stdout=(c in ("serve", "worker", "slack")))   # the command line keeps its own output readable; `serve` also writes the log to stdout for the container
     if c == "init": return subprocess.call([PY, os.path.join(HERE, "setup_profile.py")] + a)
     if c == "new": return subprocess.call([PY, os.path.join(HERE, "new_song.py")] + a)
     if c == "account": return account_cmd(a[0] if a else "inspiration")
@@ -1275,6 +1275,8 @@ def main(argv):
         fire = lambda sl, sid: run(sl, step=sid)
         if "--loop" in a: print("scheduler running, checking every minute. Ctrl+C to stop.", flush=True); PS.loop(fire); return 0
         print(PS.tick(fire) or "nothing due"); return 0
+    if c == "slack":   # the Slack bridge, as its own process (compose.yml service `slack`, NAV-153): a Slack failure never stalls a pipeline
+        import slack_bridge; return slack_bridge.main(a)
     if c == "worker":   # the job runner and the schedule, as its own process (compose.yml service `worker`)
         import worker; return worker.main(a)
     if c == "serve":

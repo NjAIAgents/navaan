@@ -230,6 +230,7 @@ function LinkedInForm({ busy, save }: { busy: boolean; save: Save }) {
 function slackStatus(s?: SlackStatus): Status {
   if (!s || !s.connected) return { kind: "wn", text: s?.app_saved ? "Not connected" : "Not set up" };
   if (s.problem) return { kind: "bad", text: s.problem };
+  if (s.missing_scopes?.length) return { kind: "wn", text: "Reconnect for the new permissions" };
   return s.channel ? { kind: "ok", text: `#${s.channel} in ${s.team}` } : { kind: "wn", text: "Pick a channel" };
 }
 
@@ -246,6 +247,7 @@ function SlackForm({ s, save, busy }: { s: SlackStatus; save: Save; busy: boolea
           <li>At <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer">api.slack.com/apps</a>, Create New App, From scratch, in your workspace.</li>
           <li>OAuth and Permissions: Redirect URL <code>{s.setup.redirect_url || "(this studio has no https address)"}</code>; Bot Token Scopes: {s.setup.bot_scopes.map((x) => <code key={x}>{x} </code>)}</li>
           <li>Socket Mode: on. It makes an App-level token with the scope <code>{s.setup.app_token_scope}</code> (starts with xapp-).</li>
+          <li>Slash Commands: create <code>{s.setup.slash_command || "/navaan"}</code>. Interactivity and Shortcuts: on. Event Subscriptions: on, bot events {(s.setup.bot_events || []).map((x) => <code key={x}>{x} </code>)}(no URL is needed with Socket Mode).</li>
           <li>Basic Information: copy the Client ID, Client Secret and Signing Secret below.</li>
         </ol>
         <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (await run("slack_app", f)) setF({ client_id: "", client_secret: "", signing_secret: "", app_token: "" }); }}>
@@ -255,6 +257,7 @@ function SlackForm({ s, save, busy }: { s: SlackStatus; save: Save; busy: boolea
         </form>
       </details>
       {s.app_saved && <div className="row"><a className="btn p" href="/api/slack/connect">{s.connected ? "Reconnect Slack" : "Connect Slack"}</a>{!s.app_token && <span className="mu">The App-level token is still needed for Slack to talk back.</span>}</div>}
+      {s.connected && !!s.missing_scopes?.length && <p role="status">The studio now needs {s.missing_scopes.map((x) => <code key={x}>{x} </code>)}. Add them to the Slack app's Bot Token Scopes (and the bot events above), then press Reconnect Slack.</p>}
       {s.connected && <>
         <p className="mu">Connected to {s.team}{s.connected_at ? ` on ${new Date(s.connected_at).toLocaleString()}` : ""}. Only {s.owner_user_id ? <code>{s.owner_user_id}</code> : "the person who connected"} may approve or start anything from Slack.</p>
         <div className="row"><button className="btn" disabled={busy} onClick={() => void list()}>{chans ? "Look again" : "Choose the channel"}</button></div>
