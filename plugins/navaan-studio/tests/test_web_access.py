@@ -434,6 +434,24 @@ class Access(unittest.TestCase):
             self.assertEqual(save("lis-tok", "csrf-lis", auto=False, statement="x")[0], 403); self.assertTrue(licence_cfg.load()["auto"])   # a listener cannot change it
             self.assertEqual(save(auto=False, statement="")[0], 200); self.assertFalse(licence_cfg.load()["auto"])
 
+    def test_only_the_owner_connects_slack_and_slack_sends_the_browser_back_to_settings(self):   # NAV-151
+        import slack_cfg
+        with mock.patch.dict(os.environ, {"NAVAAN_CONF_DIR": os.path.join(self.tmp.name, "conf"), "NAVAAN_STUDIO_HOST": "studio.navaan.online"}):
+            self.assertEqual(self.call("/api/slack/connect", "lis-tok")[0], 403)
+            self.assertEqual(self.call("/api/settings/slack_app", "lis-tok", "csrf-lis", post=True, body={})[0], 403)
+            class NoRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, *a, **k): return None
+            op = urllib.request.build_opener(NoRedirect)
+            def loc(path):
+                try: op.open(urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", headers={"Cookie": f"{auth.COOKIE}=owner-tok", "Host": f"127.0.0.1:{self.port}"}), timeout=10)
+                except urllib.error.HTTPError as e: return e.code, e.headers.get("Location", "")
+            code, where = loc("/api/slack/connect"); self.assertEqual(code, 302); self.assertIn("/app/studio/settings?tab=accounts&open=slack&slack_error=", where)   # no app saved yet: said on Settings
+            code, body = self.call("/api/settings/slack_app", "owner-tok", "csrf-owner", post=True, body=dict(client_id="1234567.7654321", client_secret="a" * 32, signing_secret="b" * 32))
+            self.assertEqual(code, 200); self.assertTrue(json.loads(body)["app_saved"])
+            code, where = loc("/api/slack/connect"); self.assertEqual(code, 302); self.assertTrue(where.startswith("https://slack.com/oauth/v2/authorize?"))
+            code, where = loc("/api/slack/callback?state=forged&code=x"); self.assertIn("slack_error=", where)
+            self.assertIn("slack", json.loads(self.call("/api/settings", "owner-tok")[1]))   # the Settings page reads it
+
     def test_the_logo_and_mood_pictures_are_public_art_the_sign_in_page_uses(self):
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "moods")); os.makedirs(os.path.join(d, "brand"))
         open(os.path.join(d, "moods", "night-wide.webp"), "wb").write(b"RIFFxxxxWEBP"); open(os.path.join(d, "brand", "mark.png"), "wb").write(b"\x89PNG"); open(os.path.join(d, "index.html"), "w").write("<html>TOPSECRETAPP</html>")
