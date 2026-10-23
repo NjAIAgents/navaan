@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.59.2] - 2026-10-23
+
+### Fixed
+- Posting a blog post to dev.to no longer fails with "Main image is not a valid URL" (NAV-150). The images step runs in the worker, which did not know the public address, so it wrote the cover and the pictures as paths without a host (`/img/blog/...`) and dev.to refused them (and would have shown the pictures broken). The worker now has the public address, and when a post is sent to dev.to any blog image written without a host is completed with it, so a post whose images were already made (blog-001) posts without redoing the images step. If no public address is known it now says so in words and sends nothing.
+
 ## [0.59.1] - 2026-10-23
 
 ### Fixed
@@ -824,7 +829,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.59.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.59.2...HEAD
+[0.59.2]: https://github.com/NjAIAgents/navaan/compare/v0.59.1...v0.59.2
 [0.59.1]: https://github.com/NjAIAgents/navaan/compare/v0.59.0...v0.59.1
 [0.59.0]: https://github.com/NjAIAgents/navaan/compare/v0.58.6...v0.59.0
 [0.58.6]: https://github.com/NjAIAgents/navaan/compare/v0.58.5...v0.58.6
