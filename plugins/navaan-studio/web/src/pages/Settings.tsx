@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJSON, postJSON, type LoginState, type SettingsAccount, type SettingsData } from "../lib/api";
+import { getJSON, postJSON, type LoginState, type SettingsAccount, type SettingsData, type SlackStatus } from "../lib/api";
 import { RISKY, gateTitle } from "../lib/gates";
 import { errText } from "../lib/songs";
 
@@ -189,6 +189,7 @@ function overview(d: SettingsData): Item[] {
   for (const p of ["openai", "muse", "elevenlabs"] as const) items.push({ id: p, tab: "ai", name: KEY_NAMES[p], status: d.media.keys[p] ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
   items.push({ id: "devto", tab: "accounts", name: "Blog: dev.to", status: d.media.keys.devto ? { kind: "ok", text: "Key saved" } : { kind: "wn", text: "No key" } });
   items.push({ id: "linkedin", tab: "accounts", name: "Blog: LinkedIn", status: d.media.keys.linkedin ? { kind: "ok", text: "Token saved" } : { kind: "wn", text: "No token" } });
+  if (d.slack) items.push({ id: "slack", tab: "accounts", name: "Slack", status: slackStatus(d.slack) });
   items.push({ id: "cloud", tab: "storage", name: "Cloud storage", status: d.cloud.provider === "none" ? { kind: "wn", text: "Not set up" } : { kind: "ok", text: d.cloud.bucket || d.cloud.provider } });
   const rank = { bad: 0, wn: 1, ok: 2 };
   return items.map((x, i) => ({ x, i })).sort((a, b) => rank[a.x.status.kind] - rank[b.x.status.kind] || a.i - b.i).map(({ x }) => x);
@@ -225,6 +226,55 @@ function LinkedInForm({ busy, save }: { busy: boolean; save: Save }) {
   );
 }
 
+// Slack (NAV-151): the owner makes a Slack app once and saves its keys here; Connect Slack sends the browser to Slack and Slack sends it back. Then one channel is picked.
+function slackStatus(s?: SlackStatus): Status {
+  if (!s || !s.connected) return { kind: "wn", text: s?.app_saved ? "Not connected" : "Not set up" };
+  if (s.problem) return { kind: "bad", text: s.problem };
+  return s.channel ? { kind: "ok", text: `#${s.channel} in ${s.team}` } : { kind: "wn", text: "Pick a channel" };
+}
+
+function SlackForm({ s, save, busy }: { s: SlackStatus; save: Save; busy: boolean }) {
+  const [f, setF] = useState({ client_id: "", client_secret: "", signing_secret: "", app_token: "" }); const [res, setRes] = useState<Saved | null>(null);
+  const [chans, setChans] = useState<{ id: string; name: string; private: boolean; member: boolean }[] | null>(null); const [pick, setPick] = useState(s.channel_id); const [member, setMember] = useState(""); const [sure, setSure] = useState(false);
+  const run = async (act: string, body: Record<string, unknown>) => { setRes(null); const r = await save(act, body); setRes(r); return r.ok; };
+  const list = async () => { setRes(null); try { const r = await postJSON<{ channels: typeof chans }>("/api/settings/slack_channels", {}); setChans(r.channels); } catch (e) { setRes({ ok: false, message: errText(e) }); } };
+  const field = (k: keyof typeof f, label: string, secret = true) => <><label htmlFor={`sl-${k}`}>{label}</label><input id={`sl-${k}`} className="field" type={secret ? "password" : "text"} autoComplete="off" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></>;
+  return (
+    <div className="stack">
+      <details className="stack" open={!s.app_saved}><summary><b>{s.app_saved ? "The Slack app (saved)" : "1. Make the Slack app (once)"}</b></summary>
+        <ol>
+          <li>At <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer">api.slack.com/apps</a>, Create New App, From scratch, in your workspace.</li>
+          <li>OAuth and Permissions: Redirect URL <code>{s.setup.redirect_url || "(this studio has no https address)"}</code>; Bot Token Scopes: {s.setup.bot_scopes.map((x) => <code key={x}>{x} </code>)}</li>
+          <li>Socket Mode: on. It makes an App-level token with the scope <code>{s.setup.app_token_scope}</code> (starts with xapp-).</li>
+          <li>Basic Information: copy the Client ID, Client Secret and Signing Secret below.</li>
+        </ol>
+        <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (await run("slack_app", f)) setF({ client_id: "", client_secret: "", signing_secret: "", app_token: "" }); }}>
+          {field("client_id", "Client ID", false)}{field("client_secret", "Client Secret")}{field("signing_secret", "Signing Secret")}{field("app_token", "App-level token (xapp-…)")}
+          {s.app_saved && <p className="mu">Leave a box empty to keep what is saved.</p>}
+          <button className="btn" type="submit" disabled={busy || !Object.values(f).some((v) => v.trim())}>Save the Slack app</button>
+        </form>
+      </details>
+      {s.app_saved && <div className="row"><a className="btn p" href="/api/slack/connect">{s.connected ? "Reconnect Slack" : "Connect Slack"}</a>{!s.app_token && <span className="mu">The App-level token is still needed for Slack to talk back.</span>}</div>}
+      {s.connected && <>
+        <p className="mu">Connected to {s.team}{s.connected_at ? ` on ${new Date(s.connected_at).toLocaleString()}` : ""}. Only {s.owner_user_id ? <code>{s.owner_user_id}</code> : "the person who connected"} may approve or start anything from Slack.</p>
+        <div className="row"><button className="btn" disabled={busy} onClick={() => void list()}>{chans ? "Look again" : "Choose the channel"}</button></div>
+        {chans && <form className="stack" onSubmit={async (e) => { e.preventDefault(); await run("slack_channel", { channel: pick }); }}>
+          <label htmlFor="sl-ch">Channel</label>
+          <select id="sl-ch" className="field" value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Pick one</option>{chans.map((c) => <option key={c.id} value={c.id}>{c.private ? "🔒 " : "#"}{c.name}{c.member ? "" : " (bot not in it yet)"}</option>)}</select>
+          <button className="btn" type="submit" disabled={busy || !pick}>Use this channel</button>
+        </form>}
+        {!s.owner_user_id && <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (await run("slack_owner", { member })) setMember(""); }}>
+          <label htmlFor="sl-me">Slack did not say who you are. Your Slack member id</label><input id="sl-me" className="field" autoComplete="off" value={member} onChange={(e) => setMember(e.target.value)} />
+          <button className="btn" type="submit" disabled={busy || !member.trim()}>Save</button>
+        </form>}
+        {sure ? <div className="row" role="alertdialog" aria-label="Confirm disconnect"><span>Slack stops hearing from the studio. Disconnect?</span><button className="btn" disabled={busy} onClick={() => void run("slack_disconnect", {}).then(() => setSure(false))}>Yes, disconnect</button><button className="btn g" onClick={() => setSure(false)}>Keep it</button></div>
+          : <div className="row"><button className="btn g" disabled={busy} onClick={() => setSure(true)}>Disconnect Slack</button></div>}
+      </>}
+      {res && <p role={res.ok ? "status" : "alert"} className={res.ok ? "mu" : ""} style={res.ok ? undefined : { color: "var(--bad)" }}>{res.message}</p>}
+    </div>
+  );
+}
+
 function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; act: Do; save: Save; busy: boolean; open: string; toggle: (id: string) => void }) {
   return (
     <div className="stack">
@@ -256,6 +306,10 @@ function AccountsTab({ d, act, save, busy, open, toggle }: { d: SettingsData; ac
         </Row>
         <Row id="linkedin" name="LinkedIn" status={d.media.keys.linkedin ? { kind: "ok", text: "Token saved" } : { kind: "wn", text: "No token" }} open={open === "linkedin"} onToggle={() => toggle("linkedin")}><LinkedInForm busy={busy} save={save} /></Row>
       </section>
+      {d.slack && <section className="stack" aria-label="Slack">
+        <h3>Slack</h3>
+        <Row id="slack" name="Slack" status={slackStatus(d.slack)} action={d.slack.connected ? "Change" : "Set up"} open={open === "slack"} onToggle={() => toggle("slack")}><SlackForm s={d.slack} save={save} busy={busy} /></Row>
+      </section>}
       <section className="stack" aria-label="Advanced">
         <h3>Advanced</h3>
         <Row id="yt-app" name="YouTube app file" status={d.secret_present ? { kind: "ok", text: "Saved" } : { kind: "wn", text: "Not set" }} open={open === "yt-app"} onToggle={() => toggle("yt-app")}>
@@ -345,6 +399,13 @@ export default function Settings() {
   const [tab, setTab] = useState<Tab>("accounts"); const [open, setOpen] = useState("");
   const load = useCallback((fresh = false) => getJSON<SettingsData>(`/api/settings${fresh ? "?refresh=1" : ""}`).then((x) => { setD(x); setErr(""); }).catch((e) => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {   // Slack sends the browser back here: ?tab=accounts&open=slack&slack=connected or &slack_error=<words>
+    const q = new URLSearchParams(window.location.search); const t = q.get("tab") as Tab | null;
+    if (t && TABS.some(([k]) => k === t)) setTab(t);
+    if (q.get("open")) setOpen(q.get("open")!);
+    if (q.get("slack") === "connected") setOk("Slack is connected. Now choose the channel.");
+    if (q.get("slack_error")) setErr(q.get("slack_error")!);
+  }, []);
   useEffect(() => { if (open) document.getElementById(`row-${open}`)?.scrollIntoView?.({ block: "nearest" }); }, [open, tab]);
   const act: Do = async (path, body) => {
     setBusy(true); setOk("");

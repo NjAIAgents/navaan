@@ -11,7 +11,7 @@
       "name": "navaan-studio",
       "source": "./plugins/navaan-studio",
       "description": "Agentic music studio for the NAVAAN channel: lyrics, Suno song, Flow visuals, synced captions, YouTube and Instagram publish, and an analytics loop. One shared skill core with a multi agent workflow.",
-      "version": "0.59.2",
+      "version": "0.60.0",
       "category": "creative"
     }
   ]

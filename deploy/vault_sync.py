@@ -26,7 +26,7 @@ POLL, RETRY = 30, 15
 # Files that belong in Vault. Anything else in DIR (setup code, the status file) is never pushed.
 KNOWN = ["instagram.env", "instagram_inspiration.env", "youtube_token.json", "youtube_token_inspiration.json", "youtube_analytics_token.json",
          "youtube_token_inspiration_analytics.json", "youtube_client_secret.json", "claude.env", "openai.env", "muse.env", "elevenlabs.env", "media.json", "gates.json", "auth.json",
-         "licence.json", "devto.env", "linkedin.env"]   # licence.json: the standing licence statement (licence_cfg); it was lost at every restart because it was not listed (NAV-140)
+         "licence.json", "devto.env", "linkedin.env", "slack.env", "slack.json"]   # licence.json: the standing licence statement (licence_cfg); it was lost at every restart because it was not listed (NAV-140)
 GATE = "gate.htpasswd"
 # Each content type has its own login files (accounts.<type> in navaan.config.json), named after the type: they belong in Vault too,
 # or a new channel's sign-in stays in the one container that took it and is lost on the next restart.
