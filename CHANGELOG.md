@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.61.2] - 2026-10-26
+
+### Changed
+- The blog's fact-check loop now sends a statement with no source back to research, not straight to the writer (blog-003). Research looks for a primary source and adds it as a claim; the writer then keeps the sentence with that source or removes it, in both the dev.to post and the LinkedIn article. The outline is not redone, so only the failing sentences change. Two rounds at most, as before; the count now starts again only when you pick a new topic.
+
 ## [0.61.1] - 2026-10-26
 
 ### Fixed
@@ -849,7 +854,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.1...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.2...HEAD
+[0.61.2]: https://github.com/NjAIAgents/navaan/compare/v0.61.1...v0.61.2
 [0.61.1]: https://github.com/NjAIAgents/navaan/compare/v0.61.0...v0.61.1
 [0.61.0]: https://github.com/NjAIAgents/navaan/compare/v0.60.1...v0.61.0
 [0.60.1]: https://github.com/NjAIAgents/navaan/compare/v0.60.0...v0.60.1
