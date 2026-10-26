@@ -44,9 +44,15 @@ def claims_errors(data):
 def claims_ok(D): return not claims_errors(C.load_json(_p(D, "claims.json"), default=None))
 
 
+def owner_fixing(D):
+    """The fact check stopped for the owner (needs_you.txt) and a draft was edited since: that edit is checked again, not the old verdict re-read."""
+    ny = _p(D, "needs_you.txt")
+    return os.path.exists(ny) and open(ny, encoding="utf-8").read().startswith("The fact check") and max(_mt(D, n) for n in DRAFTS) > _mt(D, "factcheck.json")
+
+
 def checked(D):
-    """factcheck.json is about the writer's latest drafts."""
-    return all(os.path.exists(_p(D, n)) for n in (*DRAFTS, MARK)) and _mt(D, "factcheck.json") >= _mt(D, MARK)
+    """factcheck.json is about the writer's latest drafts, or about the owner's edit after the fact check stopped for them."""
+    return all(os.path.exists(_p(D, n)) for n in (*DRAFTS, MARK)) and _mt(D, "factcheck.json") >= _mt(D, MARK) and not owner_fixing(D)
 
 
 def passed(D):
