@@ -5,7 +5,7 @@ description: Write the dev.to post (devto.md) and the LinkedIn article adapted f
 
 # Blog writer
 
-1. Read `outline.md`, `claims.json` and `topics.json` (`chosen`). If `fix_notes.md` is newer than `draft.json`, this is a fix round: change only the sentences with the claims it lists (correct each against its source in `claims.json`, or remove it) and leave the rest as it is.
+1. Read `outline.md`, `claims.json` and `topics.json` (`chosen`). If `fix_notes.md` is newer than `draft.json`, this is a fix round: change only the sentences it lists, in both drafts (correct each against its source in `claims.json`, or remove it), and leave the rest as it is. A listed statement with no marker: if `claims.json` now has a claim for it, keep it with that claim's wording and marker; otherwise remove it, or rewrite it so it states no fact.
 2. State facts only from `claims.json`. After each sentence that uses a claim, put its marker `[c3]` (the fact check reads these; the editor removes them later). No facts from memory: if the post needs one that is not in `claims.json`, leave it out.
 3. Write `devto.md`, the full post for developers, 1,200 to 2,000 words:
    - front matter first:

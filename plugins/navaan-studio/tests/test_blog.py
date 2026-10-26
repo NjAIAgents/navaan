@@ -158,9 +158,29 @@ class Loop(unittest.TestCase):
         self.put("outline.md"); self.draft(); self.check("fail"); self.loop()
         self.draft(); self.check("pass"); self.assertEqual(self.loop(), 0); self.assertTrue(self.B.passed(self.D))
 
-    def test_a_new_outline_starts_the_count_again(self):
+    def test_a_new_topic_starts_the_count_again(self):
         self.put("outline.md"); self.draft(); self.check("fail"); self.loop(); self.assertEqual(self.B.rounds(self.D), 1)
-        self.put("outline.md"); self.assertEqual(self.B.rounds(self.D), 0)
+        self.put("outline.md"); self.assertEqual(self.B.rounds(self.D), 1)   # a loop back through research may not reset the cap
+        self.put("topics.json", {}); self.assertEqual(self.B.rounds(self.D), 0)
+
+    def test_an_unsourced_statement_goes_to_research_first_then_the_writer_without_a_new_outline(self):   # blog-003: the writer could only guess, twice
+        json.dump({"candidates": [{"title": "T"}], "chosen": {"title": "T", "index": 0}}, open(os.path.join(self.D, "topics.json"), "w")); os.utime(os.path.join(self.D, "topics.json"), (self.t, self.t))
+        json.dump({**json.load(open(os.path.join(self.D, "meta.json"))), "approvals": {"topic": {"by": "test"}}}, open(os.path.join(self.D, "meta.json"), "w"))
+        claims = {"claims": [{"id": "c1", "text": "A", "source_url": "https://a.dev", "evidence": "A", "primary": True}]}
+        self.put("trend_sources.json", {}); self.put("research.md", "r"); self.put("claims.json", claims); self.put("outline.md", "o"); self.draft()
+        self.put("factcheck.json", {"verdict": "fail", "claims": [{"id": None, "text": "Most teams never assign it.", "draft": "linkedin_article.md", "status": "unsourced", "note": "no marker"},
+                                                                  {"id": "c1", "text": "A", "status": "contradicted", "note": "the source says B"}]})
+        self.assertEqual(self.loop(), 0); self.t += 1; os.utime(os.path.join(self.D, "research_more.md"), (self.t - 1, self.t - 1))
+        ask = open(os.path.join(self.D, "research_more.md")).read(); self.assertIn("Most teams never assign it.", ask); self.assertNotIn("the source says B", ask)
+        notes = open(os.path.join(self.D, "fix_notes.md")).read(); self.assertIn("no marker: Most teams", notes); self.assertIn("both drafts", notes); self.assertNotIn("None:", notes)
+        self.assertEqual(self.due()["step"], "research")   # look for a source before the rewrite
+        self.put("claims.json", {"claims": claims["claims"] + [{"id": "c2", "text": "Most teams never assign it.", "source_url": "https://b.dev", "evidence": "B", "primary": True}]})
+        self.assertEqual(self.due()["step"], "write")      # the outline is not redone, the writer fixes
+        self.draft(); self.check("pass"); self.assertEqual(self.loop(), 0); self.assertEqual(self.due()["step"], "review")
+
+    def test_a_fail_with_only_wrong_claims_does_not_ask_research(self):
+        self.put("outline.md"); self.draft(); self.check("fail"); self.loop()
+        self.assertFalse(os.path.exists(os.path.join(self.D, "research_more.md"))); self.assertFalse(self.B.research_pending(self.D))
 
     def test_the_steps_run_in_order_and_the_editor_does_not_restart_the_fact_check(self):
         json.dump({"candidates": [{"title": "T"}], "chosen": {"title": "T", "index": 0}}, open(os.path.join(self.D, "topics.json"), "w")); os.utime(os.path.join(self.D, "topics.json"), (self.t, self.t))

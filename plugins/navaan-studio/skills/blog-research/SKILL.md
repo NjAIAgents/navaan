@@ -15,3 +15,10 @@ Everything later rests on this step: the writer may only state what is in `claim
    - `primary` is true only when the source is the original (the vendor, the project, the paper, the official body). A claim with only a secondary source keeps `primary: false`; a claim you could not source at all is left out.
    - Ids are unique (c1, c2, ...). Real URLs only, ones you opened.
 5. Print how many claims you saved and how many are primary, then stop.
+
+## A loop back from the fact check
+
+If `research_more.md` is newer than `claims.json`, the fact check found statements in the drafts with no claim behind them. Do only this:
+- For each statement, search for a primary source that says it. Found: add a claim to `claims.json` with the next free id, worded as the source says it (not stronger than the draft's sentence allows). Not found: add nothing.
+- Keep every existing claim and id as it is. Do not rewrite `research.md` (that would redo the outline).
+- Save `claims.json` even when you found nothing, then print which statements now have a claim and which do not.
