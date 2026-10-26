@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Author: Navjyot Nishant
 Created: 2026-10-19
-Last updated: 2026-10-19
-Description: the blog's claim checks (NAV-72) and the bounded fact-check loop back to the writer (NAV-73).
+Last updated: 2026-10-26
+Description: the blog's claim checks (NAV-72) and the bounded fact-check loop back to research and the writer (NAV-73).
 
   blog_loop.py factcheck <slug>
   blog_loop.py humanize-prep <slug>    keep the edited drafts in humanize_before/ before the humanizer rewrites them (NAV-74)
   blog_loop.py humanize-check <slug>   the humanizer may change how the drafts sound, not what they say (NAV-89): markers, numbers, links, code and front matter must be unchanged
 
 Reads factcheck.json (written by the blog-factcheck skill for the current drafts). A pass ends the loop. A fail writes fix_notes.md with the failing
-claims, which makes the writer step due again (its drafts are older than the notes), and counts the round in factcheck_rounds.json.
+claims, which makes the writer step due again (its drafts are older than the notes), and counts the round in factcheck_rounds.json. Statements with
+no source (unsourced) also go to research_more.md, which makes research due first: it looks for a source and adds a claim, or the writer drops them.
 After MAX_ROUNDS rewrites that still fail, it stops: needs_you.txt names the claims and the run waits for the owner (exit 5), so no third rewrite runs.
 """
 import os, sys, json, time, re, shutil
@@ -18,6 +19,7 @@ import navaan_common as C
 
 MAX_ROUNDS = 2   # rewrites the fact check may ask for before a person decides (owner, 2026-10-19)
 DRAFTS = ("devto.md", "linkedin_article.md")
+ASK = "research_more.md"   # unsourced statements research looks for a source for, before the writer's fix round
 MARK = "draft.json"   # written by the writer when it finishes; the editor and humanizer change the drafts but not this, so their edits do not restart the fact check
 
 
@@ -64,10 +66,15 @@ def fix_pending(D):
     return os.path.exists(_p(D, "fix_notes.md")) and _mt(D, "fix_notes.md") > _mt(D, MARK)
 
 
+def research_pending(D):
+    """Statements the fact check found unsourced, newer than claims.json: research looks for their sources again."""
+    return os.path.exists(_p(D, ASK)) and _mt(D, ASK) > _mt(D, "claims.json")
+
+
 def rounds(D):
-    """Rewrites asked for since the outline was last written (a new outline starts the count again)."""
+    """Rewrites asked for since the topic was picked (a new topic starts the count again; a loop back through research does not)."""
     r = C.load_json(_p(D, "factcheck_rounds.json"), default={}) or {}
-    return int(r.get("rounds", 0)) if _mt(D, "factcheck_rounds.json") >= _mt(D, "outline.md") else 0
+    return int(r.get("rounds", 0)) if _mt(D, "factcheck_rounds.json") >= _mt(D, "topics.json") else 0
 
 
 def failing(D):
@@ -82,15 +89,20 @@ def factcheck(slug):
         if os.path.exists(ny) and open(ny, encoding="utf-8").read().startswith("The fact check"): os.remove(ny)   # the owner's fix worked: no longer waiting
         print("fact check passed"); return 0
     bad = failing(D); n = rounds(D)
-    lines = [f"- {c.get('id', '?')}: {c.get('text', '')} ({c.get('status', 'unverified')}: {c.get('note', '')})" for c in bad] or ["- the fact check failed without naming a claim; read factcheck.json"]
+    lines = [f"- {c.get('id') or 'no marker'}: {c.get('text', '')} ({c.get('status', 'unverified')}: {c.get('note', '')})" for c in bad] or ["- the fact check failed without naming a claim; read factcheck.json"]
+    ask = [f"- {c.get('text', '')} ({c.get('draft') or 'the drafts'})" for c in bad if c.get("status") == "unsourced"]
     if n >= MAX_ROUNDS:
         msg = f"The fact check still fails after {MAX_ROUNDS} rewrites. Fix these claims in the drafts (or drop them), then press Run again:\n" + "\n".join(lines)
         with open(_p(D, "needs_you.txt"), "w", encoding="utf-8") as f: f.write(msg + "\n")
         print(msg); return 5
+    if ask:
+        with open(_p(D, ASK), "w", encoding="utf-8") as f:
+            f.write(f"# Find sources, round {n + 1} of {MAX_ROUNDS}\n\nThe fact check found these statements in the drafts with no claim behind them. Look for a primary source for each:\n\n" + "\n".join(ask) + "\n")
     with open(_p(D, "fix_notes.md"), "w", encoding="utf-8") as f:
-        f.write(f"# Fact check, round {n + 1} of {MAX_ROUNDS}\n\nThese claims could not be verified. Correct each against its source, or remove it:\n\n" + "\n".join(lines) + "\n")
+        f.write(f"# Fact check, round {n + 1} of {MAX_ROUNDS}\n\nThese claims could not be verified. Fix each in both drafts: correct it against its source, or remove it."
+                + (" Research looked again for the unsourced ones: where claims.json now has a claim for the statement, use it and its marker; otherwise remove the statement." if ask else "") + "\n\n" + "\n".join(lines) + "\n")
     with open(_p(D, "factcheck_rounds.json"), "w", encoding="utf-8") as f: json.dump({"rounds": n + 1, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, f)
-    print(f"fact check failed: {len(bad)} claim(s); the writer runs again (round {n + 1} of {MAX_ROUNDS})"); return 0
+    print(f"fact check failed: {len(bad)} claim(s); " + (f"research looks for sources for {len(ask)}, then " if ask else "") + f"the writer runs again (round {n + 1} of {MAX_ROUNDS})"); return 0
 
 
 BEFORE = "humanize_before"

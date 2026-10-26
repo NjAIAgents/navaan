@@ -448,15 +448,15 @@ def blog_steps(slug, D):
              done=lambda m: has(D, "topics.json"), after="topic"),
         # NAV-72: research the chosen topic from primary sources, then outline it; a new pick makes both due again
         dict(id="research", outputs=["research.md", "claims.json"], label="Research the topic from primary sources", kind="claude", skill="blog-research", chrome=False, tools=["WebSearch", "WebFetch"],
-             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["research.md", "claims.json"], ["topics.json"]) and BL.claims_ok(D)),
+             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["research.md", "claims.json"], ["topics.json"]) and BL.claims_ok(D) and not BL.research_pending(D)),
         dict(id="outline", outputs=["outline.md"], label="Outline the post", kind="claude", skill="blog-outline", chrome=False,
-             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["outline.md"], ["research.md", "claims.json"])),
-        # NAV-73: drafts, a fact check that sends failing claims back to the writer at most twice, then review notes and the edit
+             hint=BLOG_ABOUT, done=lambda m: fresh(D, ["outline.md"], ["research.md"])),   # claims research adds for the fact check do not redo the outline
+        # NAV-73: drafts, a fact check that sends failing claims back (unsourced ones to research first) to the writer at most twice, then review notes and the edit
         dict(id="write", outputs=[*BL.DRAFTS, BL.MARK], label="Write the dev.to post and the LinkedIn article", kind="claude", skill="blog-writer", chrome=False,
              hint=BLOG_ABOUT, done=lambda m: has(D, *BL.DRAFTS) and fresh(D, [BL.MARK], ["outline.md", "fix_notes.md"])),
         dict(id="factcheck", outputs=["factcheck.json"], label="Fact-check every claim against its source", kind="claude", skill="blog-factcheck", chrome=False, tools=["WebSearch", "WebFetch"],
              done=lambda m: BL.checked(D)),
-        dict(id="factcheck_loop", outputs=["fix_notes.md"], label="Send failing claims back to the writer (2 rounds at most)", kind="script",
+        dict(id="factcheck_loop", outputs=["fix_notes.md"], label="Send failing claims back to research and the writer (2 rounds at most)", kind="script",
              cmds=[sc("blog_loop.py", "factcheck", slug)], done=lambda m: BL.passed(D) or BL.fix_pending(D)),
         dict(id="review", outputs=["review_notes.md"], label="Review structure, clarity and depth (notes only)", kind="claude", skill="blog-reviewer", chrome=False,
              hint=BLOG_ABOUT, done=lambda m: fresh(D, ["review_notes.md"], ["factcheck.json"])),
