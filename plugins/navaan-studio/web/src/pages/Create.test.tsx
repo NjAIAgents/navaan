@@ -428,6 +428,15 @@ describe("the live pipeline page: a running step, the videos, the gate switch an
     expect(await screen.findByRole("heading", { name: "Do this on the Mac, then upload the result" })).toBeInTheDocument();
     expect(screen.getByText("export the stems from Logic and upload them")).toBeInTheDocument(); expect(screen.queryByText(/classic view/)).toBeNull();
   });
+  it("a blog post stopped by the fact check can be edited and run again", async () => {
+    const f = route(OWNER, { "/api/run": () => ({ started: true }), "/api/song/": () => detail({ slug: "blog-003", meta: { type: "blog", state: "draft", history: [] }, text: { "devto.md": "x" },
+      needs_you: "The fact check still fails after 2 rewrites. Fix these claims in the drafts (or drop them), then press Run again:\n- None: Most teams skip this." }) });
+    at("/studio/blog/blog-003");
+    expect(await screen.findByText(/Most teams skip this/)).toBeInTheDocument(); expect(screen.queryByText(/Flow tab/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Edit the posts" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run again" }));
+    await waitFor(() => expect(posts(f, "/api/run")).toEqual([{ slug: "blog-003", all: true }]));
+  });
   it("lets you skip Instagram for one song so the pipeline finishes without it, and turn it back on", async () => {
     const f = route(OWNER, { "/api/skip_lane": () => ({ ok: true }), "/api/song/": () => detail({ slug: "song-008", next: { type: "run", step: "publish_instagram" },
       lanes: { instagram: { type: "run", step: "publish_instagram" } }, steps: [step("publish_youtube", { done: true, status: "done", lane: "youtube" }), step("publish_instagram", { lane: "instagram" })] }) });

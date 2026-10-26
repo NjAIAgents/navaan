@@ -319,13 +319,16 @@ function SongAlerts({ d, done }: { d: SongDetail; done: () => void }) {
 }
 
 // A step stopped and left a note for you: an account to switch (in the Flow tab the agent opened), or something to do on the Mac.
-function NeedsYou({ text }: { text: string }) {
+function NeedsYou({ text, act, busy, posts }: { text: string; act: Act; busy: boolean; posts?: () => void }) {
   const kind = text.startsWith("ACCOUNT:") ? "account" : text.startsWith("MAC:") ? "mac" : "";
+  const facts = text.startsWith("The fact check"); const flow = /\bFlow\b/.test(text);
   return (
     <section className="card alert" role="status">
       <h2>{kind === "account" ? "Account setup needed" : kind === "mac" ? "Do this on the Mac, then upload the result" : "Waiting for you"}</h2>
       <p style={{ overflowWrap: "anywhere" }}>{text.replace(/^(ACCOUNT|MAC):\s*/, "")}</p>
-      {!kind && <p className="mu">Switch the account in the Flow tab the agent opened, not in a new tab. The agent checks every 30 seconds and carries on by itself; if it timed out, run the step again. If Flow keeps going back to the old account, sign out of that Google account in Chrome, or use a Chrome profile with only the account that has credits.</p>}
+      {facts && <p className="mu">Edit the posts in the Posts tab: drop each sentence above, or reword it so it no longer states a fact without a source. Then press Run again: the edited posts are fact-checked again.</p>}
+      <div className="row">{facts && posts && <button className="btn" onClick={posts}>Edit the posts</button>}<button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/run", { all: true })}>Run again</button></div>
+      {!kind && flow && <p className="mu">Switch the account in the Flow tab the agent opened, not in a new tab. The agent checks every 30 seconds and carries on by itself; if it timed out, run the step again. If Flow keeps going back to the old account, sign out of that Google account in Chrome, or use a Chrome profile with only the account that has credits.</p>}
     </section>
   );
 }
@@ -454,7 +457,7 @@ export default function Song() {
       </details>
     </section>
   ) : d.question ? <QuestionCard key={d.question.id} q={d.question} act={act} busy={busy} />
-  : d.needs_you ? <NeedsYou text={d.needs_you} />
+  : d.needs_you ? <NeedsYou text={d.needs_you} act={act} busy={busy} posts={blog ? () => setSp({ tab: "posts" }) : undefined} />
   : d.meta.source === "suno_import" && d.meta.suno?.auto_failed && !(d.files ?? {})["final.mp3"] ? <SunoUpload why={d.meta.suno.auto_failed} act={act} busy={busy} />
   : allSet ? <AllSet d={d} onChange={() => setSp({ tab: "publish" }, { replace: true })} />
   : hasLanes ? (running && !d.status_text?.startsWith("waiting for you") ? runCard : null)   // a run waiting at an approval shows that approval, not a spinner saying Running
