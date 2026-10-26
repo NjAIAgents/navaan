@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.61.1] - 2026-10-26
+
+### Fixed
+- A blog post stopped by the fact check can be finished (blog-003). After two rewrites the fact check waits for you, but the page offered no way on and showed advice about Flow accounts; and even after you edited the posts, Run read the old verdict again and stopped once more. Now the banner says to edit the posts (an Edit the posts button opens the Posts tab) and has Run again, and your edit is fact-checked again. Every other "waiting for you" banner has Run again too.
+
 ## [0.61.0] - 2026-10-23
 
 ### Added
@@ -844,7 +849,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.1...HEAD
+[0.61.1]: https://github.com/NjAIAgents/navaan/compare/v0.61.0...v0.61.1
 [0.61.0]: https://github.com/NjAIAgents/navaan/compare/v0.60.1...v0.61.0
 [0.60.1]: https://github.com/NjAIAgents/navaan/compare/v0.60.0...v0.60.1
 [0.60.0]: https://github.com/NjAIAgents/navaan/compare/v0.59.2...v0.60.0

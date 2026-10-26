@@ -146,6 +146,14 @@ class Loop(unittest.TestCase):
         self.assertIn("still fails after 2 rewrites", open(os.path.join(self.D, "needs_you.txt")).read())
         self.draft(); self.check("pass"); self.assertEqual(self.loop(), 0); self.assertFalse(os.path.exists(os.path.join(self.D, "needs_you.txt")))   # the owner's fix clears the wait
 
+    def test_after_the_stop_the_owners_own_edit_is_fact_checked_again(self):   # blog-003: Run re-read the old verdict and stopped again, forever
+        self.put("outline.md"); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail")
+        self.assertEqual(self.loop(), 5); self.assertTrue(self.B.checked(self.D))
+        self.assertEqual(self.loop(), 5)   # Run with nothing edited: still waiting, no rewrite asked for
+        self.put("devto.md", "fixed")      # the owner edits in the Posts tab: draft.json is untouched
+        self.assertFalse(self.B.checked(self.D)); self.assertFalse(next(r for r in self.N.plan("blog-001")[0] if r["id"] == "factcheck")["done"])   # so the fact check runs again on the edit
+        self.check("pass"); self.assertEqual(self.loop(), 0); self.assertFalse(os.path.exists(os.path.join(self.D, "needs_you.txt"))); self.assertTrue(self.B.passed(self.D))
+
     def test_a_pass_in_the_second_round_ends_the_loop(self):
         self.put("outline.md"); self.draft(); self.check("fail"); self.loop()
         self.draft(); self.check("pass"); self.assertEqual(self.loop(), 0); self.assertTrue(self.B.passed(self.D))
