@@ -149,10 +149,22 @@ class Loop(unittest.TestCase):
     def test_after_the_stop_the_owners_own_edit_is_fact_checked_again(self):   # blog-003: Run re-read the old verdict and stopped again, forever
         self.put("outline.md"); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail")
         self.assertEqual(self.loop(), 5); self.assertTrue(self.B.checked(self.D))
-        self.assertEqual(self.loop(), 5)   # Run with nothing edited: still waiting, no rewrite asked for
         self.put("devto.md", "fixed")      # the owner edits in the Posts tab: draft.json is untouched
         self.assertFalse(self.B.checked(self.D)); self.assertFalse(next(r for r in self.N.plan("blog-001")[0] if r["id"] == "factcheck")["done"])   # so the fact check runs again on the edit
         self.check("pass"); self.assertEqual(self.loop(), 0); self.assertFalse(os.path.exists(os.path.join(self.D, "needs_you.txt"))); self.assertTrue(self.B.passed(self.D))
+
+    def test_a_reset_count_starts_a_new_round_and_clears_the_old_stop(self):   # blog-003: the stop notice stayed up while the new loop ran
+        self.put("outline.md"); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail")
+        self.assertEqual(self.loop(), 5)
+        os.remove(os.path.join(self.D, "factcheck_rounds.json"))
+        self.assertEqual(self.loop(), 0); self.assertTrue(self.B.fix_pending(self.D)); self.assertFalse(os.path.exists(os.path.join(self.D, "needs_you.txt")))
+
+    def test_run_again_on_the_stop_without_an_edit_starts_two_more_rounds(self):   # blog-003: Run only stopped again with the same message
+        self.put("outline.md"); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail")
+        self.assertEqual(self.loop(), 5)
+        self.assertEqual(self.loop(), 0); self.assertEqual(self.B.rounds(self.D), 1); self.assertTrue(self.B.fix_pending(self.D))
+        self.assertFalse(os.path.exists(os.path.join(self.D, "needs_you.txt")))
+        self.draft(); self.check("fail"); self.loop(); self.draft(); self.check("fail"); self.assertEqual(self.loop(), 5)   # still bounded: two rounds per press
 
     def test_a_pass_in_the_second_round_ends_the_loop(self):
         self.put("outline.md"); self.draft(); self.check("fail"); self.loop()

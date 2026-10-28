@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.61.3] - 2026-10-28
+
+### Fixed
+- A blog post the fact check stopped can now fix itself (blog-003). Pressing Run again on the stop, without editing, gives research and the writer two more rounds instead of stopping at once with the same message. When the writer drops a statement that has no source, it also removes the code, script or example that still asserts it (the fact check reads code too). The old stop message no longer stays on the page while a new round runs.
+
 ## [0.61.2] - 2026-10-26
 
 ### Changed
@@ -854,7 +859,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.2...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.3...HEAD
+[0.61.3]: https://github.com/NjAIAgents/navaan/compare/v0.61.2...v0.61.3
 [0.61.2]: https://github.com/NjAIAgents/navaan/compare/v0.61.1...v0.61.2
 [0.61.1]: https://github.com/NjAIAgents/navaan/compare/v0.61.0...v0.61.1
 [0.61.0]: https://github.com/NjAIAgents/navaan/compare/v0.60.1...v0.61.0
