@@ -18,7 +18,8 @@ Everything later rests on this step: the writer may only state what is in `claim
 
 ## A loop back from the fact check
 
-If `research_more.md` is newer than `claims.json`, the fact check found statements in the drafts with no claim behind them. Do only this:
-- For each statement, search for a primary source that says it. Found: add a claim to `claims.json` with the next free id, worded as the source says it (not stronger than the draft's sentence allows). Not found: add nothing.
-- Keep every existing claim and id as it is. Do not rewrite `research.md` (that would redo the outline).
+If `research_more.md` is newer than `claims.json`, the fact check failed the statements it lists. Do only this, for each:
+- `unsourced` (no marker): search for a primary source that says it. Found: add a claim with the next free id, worded as the source says it (not stronger than the draft's sentence allows). Not found: add nothing.
+- `contradicted` or `unsupported` (it names its claim id): open the primary source and correct that claim (same id) to what the source actually says, or find a better primary source for it. If no source supports it, remove that claim.
+- Keep every other claim and id as it is. Do not rewrite `research.md` (that would redo the outline).
 - Save `claims.json` even when you found nothing, then print which statements now have a claim and which do not.

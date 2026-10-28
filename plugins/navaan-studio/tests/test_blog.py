@@ -96,10 +96,11 @@ class Loop(unittest.TestCase):
         self.C, self.N, self.B = C, N, B
         if hasattr(C, "_CFG"): C._CFG = None
         self.D = os.path.join(C.songs_root(), "blog-001"); os.makedirs(self.D); self.t = 1_800_000_000
+        self.cap = B.MAX_ROUNDS; B.MAX_ROUNDS = 2   # the loop's logic is tested with a short cap
         json.dump({"slug": "blog-001", "type": "blog", "state": "draft", "approvals": {}}, open(os.path.join(self.D, "meta.json"), "w"))
 
     def tearDown(self):
-        os.environ.pop("NAVAAN_ROOT", None); self.tmp.cleanup()
+        os.environ.pop("NAVAAN_ROOT", None); self.tmp.cleanup(); self.B.MAX_ROUNDS = self.cap
 
     def put(self, name, body=""):
         """Write a file one second after the previous one, so the order of steps is the order of mtimes."""
@@ -109,7 +110,7 @@ class Loop(unittest.TestCase):
 
     def loop(self):
         """Run the loop step, then move what it just wrote onto the test's clock, as if it ran right after the last file."""
-        names = ("fix_notes.md", "factcheck_rounds.json", "needs_you.txt"); mt = lambda n: os.path.getmtime(os.path.join(self.D, n)) if os.path.exists(os.path.join(self.D, n)) else None
+        names = ("fix_notes.md", "factcheck_rounds.json", "needs_you.txt", "research_more.md"); mt = lambda n: os.path.getmtime(os.path.join(self.D, n)) if os.path.exists(os.path.join(self.D, n)) else None
         before = {n: mt(n) for n in names}; rc = self.B.factcheck("blog-001"); self.t += 1
         for n in names:
             if mt(n) is not None and mt(n) != before[n]: os.utime(os.path.join(self.D, n), (self.t, self.t))
@@ -143,7 +144,7 @@ class Loop(unittest.TestCase):
         self.draft(); self.check("fail"); notes = os.path.getmtime(os.path.join(self.D, "fix_notes.md"))
         self.assertEqual(self.loop(), 5)   # a third rewrite is not asked for
         self.assertEqual(os.path.getmtime(os.path.join(self.D, "fix_notes.md")), notes); self.assertFalse(self.B.fix_pending(self.D))
-        self.assertIn("still fails after 2 rewrites", open(os.path.join(self.D, "needs_you.txt")).read())
+        self.assertIn("still fails after 2 rounds", open(os.path.join(self.D, "needs_you.txt")).read())
         self.draft(); self.check("pass"); self.assertEqual(self.loop(), 0); self.assertFalse(os.path.exists(os.path.join(self.D, "needs_you.txt")))   # the owner's fix clears the wait
 
     def test_after_the_stop_the_owners_own_edit_is_fact_checked_again(self):   # blog-003: Run re-read the old verdict and stopped again, forever
@@ -183,16 +184,20 @@ class Loop(unittest.TestCase):
         self.put("factcheck.json", {"verdict": "fail", "claims": [{"id": None, "text": "Most teams never assign it.", "draft": "linkedin_article.md", "status": "unsourced", "note": "no marker"},
                                                                   {"id": "c1", "text": "A", "status": "contradicted", "note": "the source says B"}]})
         self.assertEqual(self.loop(), 0); self.t += 1; os.utime(os.path.join(self.D, "research_more.md"), (self.t - 1, self.t - 1))
-        ask = open(os.path.join(self.D, "research_more.md")).read(); self.assertIn("Most teams never assign it.", ask); self.assertNotIn("the source says B", ask)
+        ask = open(os.path.join(self.D, "research_more.md")).read(); self.assertIn("Most teams never assign it.", ask); self.assertIn("c1 (contradicted): A", ask)   # a wrong claim goes to research too
         notes = open(os.path.join(self.D, "fix_notes.md")).read(); self.assertIn("no marker: Most teams", notes); self.assertIn("both drafts", notes); self.assertNotIn("None:", notes)
         self.assertEqual(self.due()["step"], "research")   # look for a source before the rewrite
         self.put("claims.json", {"claims": claims["claims"] + [{"id": "c2", "text": "Most teams never assign it.", "source_url": "https://b.dev", "evidence": "B", "primary": True}]})
         self.assertEqual(self.due()["step"], "write")      # the outline is not redone, the writer fixes
         self.draft(); self.check("pass"); self.assertEqual(self.loop(), 0); self.assertEqual(self.due()["step"], "review")
 
-    def test_a_fail_with_only_wrong_claims_does_not_ask_research(self):
-        self.put("outline.md"); self.draft(); self.check("fail"); self.loop()
-        self.assertFalse(os.path.exists(os.path.join(self.D, "research_more.md"))); self.assertFalse(self.B.research_pending(self.D))
+    def test_a_wrong_claim_goes_back_to_research_too(self):   # owner, 2026-10-28: whatever the fact check finds goes to research first
+        self.put("claims.json", {}); self.put("outline.md"); self.draft(); self.check("fail"); self.loop()
+        ask = open(os.path.join(self.D, "research_more.md")).read(); self.assertIn("c2 (contradicted): X is 40% faster", ask); self.assertIn("the source says 14%", ask)
+        self.assertTrue(self.B.research_pending(self.D))
+
+    def test_the_cap_is_five_rounds(self):
+        self.assertEqual(self.cap, 5)
 
     def test_the_steps_run_in_order_and_the_editor_does_not_restart_the_fact_check(self):
         json.dump({"candidates": [{"title": "T"}], "chosen": {"title": "T", "index": 0}}, open(os.path.join(self.D, "topics.json"), "w")); os.utime(os.path.join(self.D, "topics.json"), (self.t, self.t))
@@ -203,6 +208,7 @@ class Loop(unittest.TestCase):
         self.assertEqual(self.due()["step"], "write"); self.draft()
         self.assertEqual(self.due()["step"], "factcheck"); self.check("fail")
         self.assertEqual(self.due()["step"], "factcheck_loop"); self.loop()
+        self.assertEqual(self.due()["step"], "research"); self.put("claims.json", {"claims": [{"id": "c1", "text": "A", "source_url": "https://a.dev", "evidence": "A", "primary": True}]})   # research looks again first
         self.assertEqual(self.due()["step"], "write"); self.draft(); self.check("pass")
         self.assertEqual(self.due()["step"], "review"); self.put("review_notes.md", "n")
         self.assertEqual(self.due()["step"], "edit"); self.put("devto.md", "edited"); self.put("linkedin_article.md", "edited"); self.put("edit.json", {})
