@@ -8,17 +8,17 @@ Description: the blog's claim checks (NAV-72) and the bounded fact-check loop ba
   blog_loop.py humanize-prep <slug>    keep the edited drafts in humanize_before/ before the humanizer rewrites them (NAV-74)
   blog_loop.py humanize-check <slug>   the humanizer may change how the drafts sound, not what they say (NAV-89): markers, numbers, links, code and front matter must be unchanged
 
-Reads factcheck.json (written by the blog-factcheck skill for the current drafts). A pass ends the loop. A fail writes fix_notes.md with the failing
-claims, which makes the writer step due again (its drafts are older than the notes), and counts the round in factcheck_rounds.json. Statements with
-no source (unsourced) also go to research_more.md, which makes research due first: it looks for a source and adds a claim, or the writer drops them.
-After MAX_ROUNDS rewrites that still fail, it stops: needs_you.txt names the claims and the run waits for the owner (exit 5), so no third rewrite runs by itself.
-The owner pressing Run on that stop, without editing, starts two more rounds.
+Reads factcheck.json (written by the blog-factcheck skill for the current drafts). A pass ends the loop. A fail sends every failing claim back to
+research first (research_more.md makes research due: it finds the primary source and adds or corrects the claim), then to the writer (fix_notes.md
+makes the writer due: it keeps the sentence as the claim now says, or drops it), then the fact check runs again. Rounds count in factcheck_rounds.json.
+After MAX_ROUNDS rounds that still fail, it stops: needs_you.txt names the claims and the run waits for the owner (exit 5).
+The owner pressing Run on that stop, without editing, starts MAX_ROUNDS more rounds.
 """
 import os, sys, json, time, re, shutil
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navaan_common as C
 
-MAX_ROUNDS = 2   # rewrites the fact check may ask for before a person decides (owner, 2026-10-19)
+MAX_ROUNDS = 5   # rounds the fact check may ask for before a person decides (owner, 2026-10-28; was 2)
 DRAFTS = ("devto.md", "linkedin_article.md")
 ASK = "research_more.md"   # unsourced statements research looks for a source for, before the writer's fix round
 MARK = "draft.json"   # written by the writer when it finishes; the editor and humanizer change the drafts but not this, so their edits do not restart the fact check
@@ -91,23 +91,22 @@ def factcheck(slug):
         print("fact check passed"); return 0
     bad = failing(D); n = rounds(D)
     lines = [f"- {c.get('id') or 'no marker'}: {c.get('text', '')} ({c.get('status', 'unverified')}: {c.get('note', '')})" for c in bad] or ["- the fact check failed without naming a claim; read factcheck.json"]
-    ask = [f"- {c.get('text', '')} ({c.get('draft') or 'the drafts'})" for c in bad if c.get("status") == "unsourced"]
+    ask = [f"- {c.get('id') or 'no marker'} ({c.get('status', 'unverified')}): {c.get('text', '')} ({c.get('draft') or 'the drafts'}). {c.get('note', '')}".rstrip() for c in bad]
     ny = _p(D, "needs_you.txt")
     if n >= MAX_ROUNDS and os.path.exists(ny) and open(ny, encoding="utf-8").read().startswith("The fact check") and _mt(D, "needs_you.txt") >= _mt(D, "factcheck.json"):
-        n = 0   # the owner pressed Run again on the stop without editing: two more rounds (the pipeline never re-runs a stop by itself, so each press is the owner's)
+        n = 0   # the owner pressed Run again on the stop without editing: MAX_ROUNDS more rounds (the pipeline never re-runs a stop by itself, so each press is the owner's)
     if n >= MAX_ROUNDS:
-        msg = f"The fact check still fails after {MAX_ROUNDS} rewrites. Press Run again to let research and the writer try two more rounds, or fix these claims in the drafts yourself (or drop them) first:\n" + "\n".join(lines)
+        msg = f"The fact check still fails after {MAX_ROUNDS} rounds. Press Run again to let research and the writer try {MAX_ROUNDS} more rounds, or fix these claims in the drafts yourself (or drop them) first:\n" + "\n".join(lines)
         with open(_p(D, "needs_you.txt"), "w", encoding="utf-8") as f: f.write(msg + "\n")
         print(msg); return 5
     if os.path.exists(ny) and open(ny, encoding="utf-8").read().startswith("The fact check"): os.remove(ny)   # a new round runs (the count was reset): the old stop no longer stands
     if ask:
         with open(_p(D, ASK), "w", encoding="utf-8") as f:
-            f.write(f"# Find sources, round {n + 1} of {MAX_ROUNDS}\n\nThe fact check found these statements in the drafts with no claim behind them. Look for a primary source for each:\n\n" + "\n".join(ask) + "\n")
+            f.write(f"# Find sources, round {n + 1} of {MAX_ROUNDS}\n\nThe fact check failed these statements in the drafts. For each, find the primary source and add or correct its claim:\n\n" + "\n".join(ask) + "\n")
     with open(_p(D, "fix_notes.md"), "w", encoding="utf-8") as f:
-        f.write(f"# Fact check, round {n + 1} of {MAX_ROUNDS}\n\nThese claims could not be verified. Fix each in both drafts: correct it against its source, or remove it."
-                + (" Research looked again for the unsourced ones: where claims.json now has a claim for the statement, use it and its marker; otherwise remove the statement." if ask else "") + "\n\n" + "\n".join(lines) + "\n")
+        f.write(f"# Fact check, round {n + 1} of {MAX_ROUNDS}\n\nThese claims could not be verified. Research has looked at each again. Fix each in both drafts: where claims.json now has a claim for it, use that claim's wording and marker; otherwise remove the statement." + "\n\n" + "\n".join(lines) + "\n")
     with open(_p(D, "factcheck_rounds.json"), "w", encoding="utf-8") as f: json.dump({"rounds": n + 1, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, f)
-    print(f"fact check failed: {len(bad)} claim(s); " + (f"research looks for sources for {len(ask)}, then " if ask else "") + f"the writer runs again (round {n + 1} of {MAX_ROUNDS})"); return 0
+    print(f"fact check failed: {len(bad)} claim(s); " + f"research looks again at {len(ask)}, then " + f"the writer runs again (round {n + 1} of {MAX_ROUNDS})"); return 0
 
 
 BEFORE = "humanize_before"

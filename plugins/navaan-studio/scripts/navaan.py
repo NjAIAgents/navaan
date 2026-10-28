@@ -456,7 +456,7 @@ def blog_steps(slug, D):
              hint=BLOG_ABOUT, done=lambda m: has(D, *BL.DRAFTS) and fresh(D, [BL.MARK], ["outline.md", "fix_notes.md"])),
         dict(id="factcheck", outputs=["factcheck.json"], label="Fact-check every claim against its source", kind="claude", skill="blog-factcheck", chrome=False, tools=["WebSearch", "WebFetch"],
              done=lambda m: BL.checked(D)),
-        dict(id="factcheck_loop", outputs=["fix_notes.md"], label="Send failing claims back to research and the writer (2 rounds at most)", kind="script",
+        dict(id="factcheck_loop", outputs=["fix_notes.md"], label=f"Send failing claims back to research and the writer ({BL.MAX_ROUNDS} rounds at most)", kind="script",
              cmds=[sc("blog_loop.py", "factcheck", slug)], done=lambda m: BL.passed(D) or BL.fix_pending(D)),
         dict(id="review", outputs=["review_notes.md"], label="Review structure, clarity and depth (notes only)", kind="claude", skill="blog-reviewer", chrome=False,
              hint=BLOG_ABOUT, done=lambda m: fresh(D, ["review_notes.md"], ["factcheck.json"])),
