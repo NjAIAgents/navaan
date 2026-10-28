@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Author: Navjyot Nishant
 Created: 2026-10-19
-Last updated: 2026-10-26
+Last updated: 2026-10-27
 Description: the blog's claim checks (NAV-72) and the bounded fact-check loop back to research and the writer (NAV-73).
 
   blog_loop.py factcheck <slug>
@@ -11,7 +11,8 @@ Description: the blog's claim checks (NAV-72) and the bounded fact-check loop ba
 Reads factcheck.json (written by the blog-factcheck skill for the current drafts). A pass ends the loop. A fail writes fix_notes.md with the failing
 claims, which makes the writer step due again (its drafts are older than the notes), and counts the round in factcheck_rounds.json. Statements with
 no source (unsourced) also go to research_more.md, which makes research due first: it looks for a source and adds a claim, or the writer drops them.
-After MAX_ROUNDS rewrites that still fail, it stops: needs_you.txt names the claims and the run waits for the owner (exit 5), so no third rewrite runs.
+After MAX_ROUNDS rewrites that still fail, it stops: needs_you.txt names the claims and the run waits for the owner (exit 5), so no third rewrite runs by itself.
+The owner pressing Run on that stop, without editing, starts two more rounds.
 """
 import os, sys, json, time, re, shutil
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -91,10 +92,14 @@ def factcheck(slug):
     bad = failing(D); n = rounds(D)
     lines = [f"- {c.get('id') or 'no marker'}: {c.get('text', '')} ({c.get('status', 'unverified')}: {c.get('note', '')})" for c in bad] or ["- the fact check failed without naming a claim; read factcheck.json"]
     ask = [f"- {c.get('text', '')} ({c.get('draft') or 'the drafts'})" for c in bad if c.get("status") == "unsourced"]
+    ny = _p(D, "needs_you.txt")
+    if n >= MAX_ROUNDS and os.path.exists(ny) and open(ny, encoding="utf-8").read().startswith("The fact check") and _mt(D, "needs_you.txt") >= _mt(D, "factcheck.json"):
+        n = 0   # the owner pressed Run again on the stop without editing: two more rounds (the pipeline never re-runs a stop by itself, so each press is the owner's)
     if n >= MAX_ROUNDS:
-        msg = f"The fact check still fails after {MAX_ROUNDS} rewrites. Fix these claims in the drafts (or drop them), then press Run again:\n" + "\n".join(lines)
+        msg = f"The fact check still fails after {MAX_ROUNDS} rewrites. Press Run again to let research and the writer try two more rounds, or fix these claims in the drafts yourself (or drop them) first:\n" + "\n".join(lines)
         with open(_p(D, "needs_you.txt"), "w", encoding="utf-8") as f: f.write(msg + "\n")
         print(msg); return 5
+    if os.path.exists(ny) and open(ny, encoding="utf-8").read().startswith("The fact check"): os.remove(ny)   # a new round runs (the count was reset): the old stop no longer stands
     if ask:
         with open(_p(D, ASK), "w", encoding="utf-8") as f:
             f.write(f"# Find sources, round {n + 1} of {MAX_ROUNDS}\n\nThe fact check found these statements in the drafts with no claim behind them. Look for a primary source for each:\n\n" + "\n".join(ask) + "\n")
