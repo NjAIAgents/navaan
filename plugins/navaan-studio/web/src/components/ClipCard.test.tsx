@@ -45,12 +45,13 @@ describe("ClipCard", () => {
   });
   it("keeps Share off, and says why, until the clip has been fetched; if the fetch fails it shares the link", async () => {
     const share = vi.fn(() => Promise.resolve()); Object.defineProperty(navigator, "share", { configurable: true, value: share }); Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
-    let fail: () => void = () => {};
+    let fail: (() => void) | null = null;
     vi.stubGlobal("fetch", vi.fn((u: string) => (u === "/api/clip" ? Promise.resolve(json({ token: "t", url: "/c/t.mp4", page: "https://navaan.online/c/t" })) : new Promise((_, rej) => { fail = () => rej(new Error("offline")); }))));
     render(<ClipCard slug="song-001" title="Tere Hone Se" position={null} duration={0} />);
     fireEvent.click(screen.getByRole("button", { name: "Make the clip" }));
     const btn = await screen.findByRole("button", { name: "Share the clip" }); expect(btn).toBeDisabled(); expect(screen.getByText(/Getting the clip ready/)).toBeInTheDocument();
-    fail(); await waitFor(() => expect(btn).toBeEnabled()); fireEvent.click(btn);
+    await waitFor(() => expect(fail).not.toBeNull());   // the clip fetch must have started before it can fail (it was a race on slow runners)
+    (fail as unknown as () => void)(); await waitFor(() => expect(btn).toBeEnabled()); fireEvent.click(btn);
     expect(share).toHaveBeenCalledTimes(1); expect((share.mock.calls[0] as unknown as [{ url?: string; files?: File[] }])[0]).toMatchObject({ url: "https://navaan.online/c/t" });   // no file: the link goes
   });
   it("tells the person why when the clip cannot be made", async () => {
