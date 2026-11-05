@@ -142,7 +142,7 @@ services:
     volumes: ["pgadmin:/pgadmin", "pgapp:/pgapp"]
 
   postgres:
-    image: postgres:17-alpine
+    image: navaan-postgres:17-alpine-pgvector0.8.1   # pgvector built in, see deploy/postgres/Dockerfile
     container_name: navaan-postgres
     restart: unless-stopped
     depends_on:
