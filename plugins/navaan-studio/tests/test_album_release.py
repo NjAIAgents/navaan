@@ -43,7 +43,8 @@ class Hold(Base):
         seen = []
         with mock.patch.object(self.N, "plan", lambda s: ([], {"type": "run", "step": "go_public"})), mock.patch.object(self.N, "account_problem", lambda s, sid: None), \
              mock.patch.object(self.N, "gate_ok", lambda *a, **k: True), mock.patch("builtins.print", lambda *a, **k: seen.append(" ".join(map(str, a)))):
-            self.assertEqual(self.N._run("song-001", step="go_public", retries=0), 7)
+            import contextvars
+            self.assertEqual(contextvars.copy_context().run(self.N._run, "song-001", step="go_public", retries=0), 7)   # _run binds the step to the log context: keep it out of the other tests
         self.assertTrue(any("Waiting for album release: First Light" in x for x in seen))
 
     def test_the_plan_shows_the_hold_and_lets_instagram_go_on(self):
