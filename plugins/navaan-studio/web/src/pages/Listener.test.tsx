@@ -272,16 +272,61 @@ describe("Albums", () => {
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     await waitFor(() => expect(posts(f, "/api/share")).toEqual([{ album: "first-light" }])); expect(await screen.findByDisplayValue("https://navaan.online/s/tok")).toBeInTheDocument();
   });
-  it("reorders, adds and removes songs, saves details, and shows why an album cannot be published", async () => {
-    const f = route(OWNER, { "/api/albums/save": () => json({ error: "every song in a published album must be published; not yet: song-002" }, 400), "/api/albums/reorder": () => ({ tracks: [] }), "/api/albums/delete": () => ({ deleted: true }), "/api/albums": () => [album()], "/api/catalog/tracks": () => tracks });
+  it("reorders, adds and removes songs, saves details, and shows the server's answer", async () => {
+    const f = route(OWNER, { "/api/albums/save": () => json({ error: "an album is scheduled or released with Release, not by setting its status" }, 400), "/api/albums/reorder": () => ({ tracks: [] }), "/api/albums/delete": () => ({ deleted: true }), "/api/albums": () => [album()], "/api/catalog/tracks": () => tracks });
     at("/albums/first-light"); await screen.findByRole("heading", { name: "First Light", level: 1 });
     fireEvent.click(screen.getByRole("button", { name: "Move One down" })); await waitFor(() => expect(posts(f, "/api/albums/reorder")).toHaveLength(1)); expect(posts(f, "/api/albums/reorder")[0]).toEqual({ album: "first-light", tracks: ["song-002", "song-001"] });
     fireEvent.click(screen.getByRole("button", { name: "Add song" })); await waitFor(() => expect(posts(f, "/api/albums/reorder")).toHaveLength(2)); expect(posts(f, "/api/albums/reorder")[1].tracks).toEqual(["song-001", "song-002", "song-003"]);
     fireEvent.click(screen.getByRole("button", { name: "Remove Two" })); await waitFor(() => expect(posts(f, "/api/albums/reorder")).toHaveLength(3)); expect(posts(f, "/api/albums/reorder")[2].tracks).toEqual(["song-001"]);
     expect(screen.getByRole("button", { name: "Move One up" })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "published" } }); fireEvent.click(screen.getByRole("button", { name: "Save details" }));
-    expect(await screen.findByText(/every song in a published album must be published/)).toBeInTheDocument(); expect(posts(f, "/api/albums/save")[0]).toMatchObject({ slug: "first-light", status: "published", release_date: null });
+    expect(screen.queryByLabelText("Status")).toBeNull();   // an album is released with Release, not by a status field (spec 003)
+    fireEvent.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByText(/released with Release/)).toBeInTheDocument(); expect(posts(f, "/api/albums/save")[0]).toMatchObject({ slug: "first-light", release_date: null }); expect(posts(f, "/api/albums/save")[0]).not.toHaveProperty("status");
     fireEvent.click(screen.getByRole("button", { name: "Delete album" })); expect(posts(f, "/api/albums/delete")).toHaveLength(0); fireEvent.click(screen.getByRole("button", { name: "Yes, delete" })); await waitFor(() => expect(posts(f, "/api/albums/delete")).toHaveLength(1));
+  });
+  describe("release", () => {
+  const rel = (o: object = {}) => ({ album: "first-light", title: "First Light", status: "draft", release_at: null, ready: true, blocked: null, songs: [
+    { slug: "song-001", title: "One", ready: true, reason: null, youtube: "private", site: "unlisted", attempts: 0, error: "" },
+    { slug: "song-002", title: "Two", ready: true, reason: null, youtube: "private", site: "unlisted", attempts: 0, error: "" }], ...o });
+  const base = { "/api/albums": () => [album()], "/api/catalog/tracks": () => tracks };
+  it("lists what each song still needs and offers no release until every song is ready", async () => {
+    route(OWNER, { ...base, "/api/albums/release": () => rel({ ready: false, songs: [{ ...rel().songs[0] }, { ...rel().songs[1], ready: false, reason: "gate media not approved" }] }) });
+    at("/albums/first-light"); expect(await screen.findByText("gate media not approved")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Release…" })).toBeDisabled();
+  });
+  it("confirms with every song listed, then releases the album with that list", async () => {
+    const f = route(OWNER, { ...base, "/api/albums/release": (init?: RequestInit) => init?.method === "POST" ? rel({ status: "published", ready: false, songs: rel().songs.map((x) => ({ ...x, site: "listed" })) }) : rel() });
+    at("/albums/first-light"); fireEvent.click(await screen.findByRole("button", { name: "Release…" }));
+    const d = await screen.findByRole("dialog", { name: "Release First Light" }); expect(d).toHaveTextContent("One"); expect(d).toHaveTextContent("Two"); expect(d).toHaveTextContent(/hard to undo/);
+    fireEvent.click(screen.getByRole("button", { name: "Release now" }));
+    await waitFor(() => expect(posts(f, "/api/albums/release")).toEqual([{ album: "first-light", songs: ["song-001", "song-002"], at: null }]));
+    expect(await screen.findAllByText("Site: listed")).toHaveLength(2);
+  });
+  it("shows an announced album as coming soon, with its teasers and no songs", async () => {
+    route(LISTENER, { "/api/catalog/album/first-light": () => ({ slug: "first-light", title: "First Light", kind: "album", description: "", release_at: "2099-12-01T12:30:00Z", art: null, artist: "NAVAAN", coming_soon: true,
+      teasers: [{ platform: "youtube_short", url: "https://youtube.com/shorts/s" }, { platform: "instagram", url: "https://www.instagram.com/reel/r/" }] }) });
+    at("/album/first-light"); expect(await screen.findByText("Coming soon")).toBeInTheDocument(); expect(screen.getByRole("status")).toHaveTextContent(/^Out .* in \d+ days/);
+    expect(screen.getByRole("link", { name: "Watch on Instagram" })).toHaveAttribute("href", "https://www.instagram.com/reel/r/"); expect(screen.queryByRole("button", { name: "Play" })).toBeNull(); expect(screen.queryByText("Songs")).toBeNull();
+  });
+  it("turns the coming-soon page on from the release card", async () => {
+    const f = route(OWNER, { ...base, "/api/albums/save": () => ({ slug: "first-light" }), "/api/albums/release": () => rel() });
+    at("/albums/first-light"); fireEvent.click(await screen.findByLabelText(/coming-soon page/));
+    await waitFor(() => expect(posts(f, "/api/albums/save")).toHaveLength(1)); expect(posts(f, "/api/albums/save")[0]).toMatchObject({ slug: "first-light", announced: true });
+  });
+  it("schedules with a time, shows it, and can cancel it", async () => {
+    const f = route(OWNER, { ...base, "/api/albums/release/cancel": () => rel(), "/api/albums/release": (init?: RequestInit) => init?.method === "POST" ? rel({ status: "scheduled", release_at: "2026-12-01T12:30:00Z" }) : rel() });
+    at("/albums/first-light"); fireEvent.click(await screen.findByRole("button", { name: "Release…" }));
+    fireEvent.change(screen.getByLabelText(/Release at/), { target: { value: "2026-12-01T18:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Schedule the release" }));
+    await waitFor(() => expect(posts(f, "/api/albums/release")).toHaveLength(1)); expect(posts(f, "/api/albums/release")[0].at).toBe(new Date("2026-12-01T18:00").toISOString().replace(/\.\d{3}Z$/, "Z"));
+    expect(await screen.findByText(/Scheduled for/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel the release" })); await waitFor(() => expect(posts(f, "/api/albums/release/cancel")).toEqual([{ album: "first-light" }]));
+  });
+  it("offers another try for a song whose video failed to go public", async () => {
+    const f = route(OWNER, { ...base, "/api/albums/release": () => rel({ status: "published", ready: false, songs: [{ ...rel().songs[0], youtube: "failed", error: "quota" }, { ...rel().songs[1], youtube: "public", site: "listed" }] }), "/api/albums/release/retry": () => rel({ status: "published" }) });
+    at("/albums/first-light"); fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(posts(f, "/api/albums/release/retry")).toEqual([{ album: "first-light", song: "song-001" }]));
+  });
   });
 });
 

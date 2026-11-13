@@ -38,7 +38,7 @@ class Base(unittest.TestCase):
         for i in range(1, n + 1):
             slug = f"song-{i:03d}"; D = os.path.join(self.C.songs_root(), slug); os.makedirs(D)
             open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write(f"Song {i}\n")
-            json.dump({"slug": slug, "type": "music", "state": "published" if published else "drafted"}, open(os.path.join(D, "meta.json"), "w")); self.K.sync_item(slug)
+            json.dump({"slug": slug, "type": "music", "state": "published" if published else "drafted", **({"release": {"legacy": True}} if published else {})}, open(os.path.join(D, "meta.json"), "w")); self.K.sync_item(slug)
 
     def person(self, role="listener"): return {"user_id": str(uuid.uuid4()), "roles": [role]}
 
@@ -126,7 +126,7 @@ class Playlists(Base):
 class Keeping(Base):
     def test_saved_songs_albums_and_follows(self):
         self.songs(2); u = self.person()["user_id"]
-        D = os.path.join(self.C.songs_root(), "song-001"); m = json.load(open(os.path.join(D, "meta.json"))); m["album"] = "First Light"; json.dump(m, open(os.path.join(D, "meta.json"), "w")); self.K.sync_item("song-001")
+        D = os.path.join(self.C.songs_root(), "song-001"); m = json.load(open(os.path.join(D, "meta.json"))); m["album"] = "First Light"; json.dump(m, open(os.path.join(D, "meta.json"), "w")); self.K.sync_item("song-001"); _pgenv.publish_album(self.K, "first-light")   # released
         self.L.save(u, "track", "song-002"); self.L.save(u, "track", "song-002"); self.L.save(u, "album", "first-light"); self.L.follow(u)
         lib = self.L.library(u); self.assertEqual([t["slug"] for t in lib["tracks"]], ["song-002"]); self.assertEqual([a["slug"] for a in lib["albums"]], ["first-light"]); self.assertTrue(lib["following"])
         self.L.save(u, "track", "song-002", on=False); self.L.follow(u, False); lib = self.L.library(u); self.assertEqual((lib["tracks"], lib["following"]), ([], False))

@@ -6,7 +6,7 @@
   update <slug> <videoId> [--meta youtube.json] [--thumbnail thumb_16x9.jpg] [--yes]   fix metadata of an uploaded video
   thumb <slug> <videoId> [--file thumb_16x9.jpg]   set the thumbnail alone (channel needs phone verification at youtube.com/verify)
   privacy <slug> <videoId> <private|unlisted|public> --yes
-  go-public <slug> --yes   last publishing step: full video and Short to public (needs the go_public gate)
+  go-public <slug> --yes [--only full|short]   full video and Short to public (go_public gate); --only short is the teaser (publish_short gate), --only full the album release
   stats <videoId> [<videoId> ...]
 
 Safety: a real send needs --yes AND a human approval gate (navaan.py approve <slug> publish_youtube). Without --yes nothing is sent, the script only prints what it would do. Default privacy is private,
@@ -23,7 +23,7 @@ Shorts need no special flag: a vertical video of 60 seconds or less is treated a
 """
 import os, sys, json, argparse, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from navaan_common import song_dir, cfg, load_json, require_approval, item_load, item_update, item_exists, write_published, with_site_link
+from navaan_common import is_short_item, youtube_split, song_dir, cfg, load_json, require_approval, item_load, item_update, item_exists, write_published, with_site_link
 import navaan_log as L
 LOG = L.get("publish_youtube")
 
@@ -120,7 +120,7 @@ def upload(a):
     if "_cap" not in os.path.basename(f) and cfg("captions.enabled", False):
         print("warning: file name has no _cap, captions may be missing. Check before publishing.")
     itype = (item_load(a.slug, {}) or {}).get("type", "music")
-    meta["description"] = with_site_link(meta.get("description"), a.slug if itype == "music" else None, itype=itype)   # every NAVAAN upload points to the site
+    meta["description"] = with_site_link(meta.get("description"), a.slug if itype == "music" else None, itype=itype, teaser=is_short_item({"file": f}))   # every NAVAAN upload points to the site; a song's Short before release, to its album
     body = body_from(meta, a.privacy)
     if a.publish_at:
         if a.privacy != "private": sys.exit("navaan: --publish-at needs --privacy private (YouTube schedules private videos)")
@@ -191,9 +191,10 @@ def privacy(a):
 
 def go_public(a):
     """Last publishing step: set every YouTube video of the song (the full video and the Short) to public and record it in meta.json."""
-    m = item_load(a.slug, {}); pub = m.get("published", {})
-    items = [("full video", i) for i in pub.get("youtube_items", [])] + ([("Short", pub["youtube_short"])] if pub.get("youtube_short", {}).get("id") else [])
-    if not items: sys.exit("navaan: nothing is uploaded to YouTube yet")
+    m = item_load(a.slug, {}); full, shorts = youtube_split(m)
+    items = ([] if a.only == "short" else [("full video", i) for i in full]) + ([] if a.only == "full" else [("Short", i) for i in shorts])
+    if not items: sys.exit("navaan: nothing is uploaded to YouTube yet" + (f" ({a.only})" if a.only else ""))
+    gate = "publish_short" if a.only == "short" else "go_public"   # the Short alone is a teaser (spec 003): its own upload gate covers it; the full video needs go_public
     yt = service()
     live = {v["id"]: v["status"]["privacyStatus"] for v in yt.videos().list(part="status", id=",".join(i["id"] for _, i in items)).execute().get("items", [])}
     for _, i in items:
@@ -209,8 +210,8 @@ def go_public(a):
             cur.setdefault("history", []).append(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} {note}")
         item_update(a.slug, edit)
     if not todo: save("youtube public check: all already public"); write_published(a.slug); print("nothing to change"); return
-    if not a.yes: print("\nDRY RUN. Nothing changed. Re-run with --yes after you approve the go_public gate."); return
-    require_approval(a.slug, "go_public")
+    if not a.yes: print(f"\nDRY RUN. Nothing changed. Re-run with --yes after you approve the {gate} gate."); return
+    require_approval(a.slug, gate)
     for n, i in todo:
         yt.videos().update(part="status", body={"id": i["id"], "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": bool(cfg("publish.made_for_kids", False)),
                                                                           "containsSyntheticMedia": bool(cfg("publish.ai_disclosure", True))}}).execute()
@@ -231,7 +232,7 @@ if __name__ == "__main__":
     u.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"]); u.add_argument("--thumbnail"); u.add_argument("--playlist"); u.add_argument("--publish-at", help="RFC 3339 time such as 2026-10-20T15:00:00Z, schedules a private upload"); u.add_argument("--yes", action="store_true"); u.set_defaults(fn=upload)
     up = sp.add_parser("update"); up.add_argument("slug"); up.add_argument("video_id"); up.add_argument("--meta", default="youtube.json"); up.add_argument("--thumbnail"); up.add_argument("--playlist"); up.add_argument("--yes", action="store_true"); up.set_defaults(fn=update)
     th = sp.add_parser("thumb"); th.add_argument("slug"); th.add_argument("video_id"); th.add_argument("--file"); th.set_defaults(fn=thumb)
-    gp = sp.add_parser("go-public"); gp.add_argument("slug"); gp.add_argument("--yes", action="store_true"); gp.set_defaults(fn=go_public)
+    gp = sp.add_parser("go-public"); gp.add_argument("slug"); gp.add_argument("--yes", action="store_true"); gp.add_argument("--only", choices=["full", "short"], help="only the full video, or only the Short (a teaser before the album is released); both when left out"); gp.set_defaults(fn=go_public)
     p = sp.add_parser("privacy"); p.add_argument("slug"); p.add_argument("video_id"); p.add_argument("status", choices=["private", "unlisted", "public"]); p.add_argument("--yes", action="store_true"); p.set_defaults(fn=privacy)
     au = sp.add_parser("auth", help="sign in once and save the token (uses NAVAAN_YT_TOKEN and NAVAAN_YT_CLIENT_SECRETS)"); au.set_defaults(fn=auth)
     s = sp.add_parser("stats"); s.add_argument("video_ids", nargs="+"); s.set_defaults(fn=stats)

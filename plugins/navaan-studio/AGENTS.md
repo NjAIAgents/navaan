@@ -28,6 +28,7 @@ lyricist, suno-operator, visual-director, caption-aligner, publisher, analyst, d
 ## Safety rules
 
 - Gates (lyrics, listen, credits, media, publish_youtube, publish_short, instagram_caption, publish_instagram, cloud_upload, local_cleanup, go_public) are approved only by the user, through the web UI or `navaan.py approve`. Agents never write approvals.
+- Album release (spec 003): a song's full version goes public only with its album. A music item's `go_public` is held (rc 7, "Waiting for album release") until `album_release` releases the album; the owner's one confirm of the album is the recorded `go_public` approval of each song. The Short has its own step `short_public` (gate `publish_short`), a teaser before the release. Never release or make a song public any other way.
 - Publishing, deleting public content, spending Suno or Flow credits, and sending messages each also need an explicit yes in chat.
 - Publish scripts dry run by default and need `--yes` plus the recorded gate.
 - Never store passwords, cookies, tokens or API keys in the project. Credentials live in the user's environment or `~/.config/navaan/`.

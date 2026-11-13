@@ -23,7 +23,8 @@ class Lanes(unittest.TestCase):
         if media: ap["media"] = {"at": "x"}
         m = {"approvals": ap, "published": published or {}}
         with mock.patch.object(N, "steps", lambda slug, D: st), mock.patch.object(N, "meta", lambda s: m), mock.patch.object(N, "song_dir", lambda s: "/nowhere"), \
-             mock.patch.object(N, "gate_ok", lambda D, ap_, g, published=False: g in ap_), mock.patch.object(N.PS, "when", lambda m_, sid: None), mock.patch.object(N, "ig_enabled", lambda m_: True):
+             mock.patch.object(N, "gate_ok", lambda D, ap_, g, published=False: g in ap_), mock.patch.object(N.PS, "when", lambda m_, sid: None), mock.patch.object(N, "ig_enabled", lambda m_: True), \
+             mock.patch.object(N, "album_hold", lambda s_: None):   # released: the album hold is tested in test_album_release
             return N.plan_lanes("s")
 
     def status(self, rows): return {r["id"]: r["status"] for r in rows}

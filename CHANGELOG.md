@@ -6,6 +6,17 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-11-13
+
+### Added
+- Album release. A song now goes public only with its album: a finished song waits at "Waiting for album release" with its full YouTube video private and off navaan.online, and the album page in Studio has a Release card. It lists what each song still needs; one confirm, naming every song, lists the album and all its songs on navaan.online at once and makes each full video public on YouTube (3 tries, 10 minutes apart, with Try again per song). A single is an album of kind single. Also `navaan.py album-status` and `album-release`.
+- Scheduled album release: pick a date and time in the same confirm, or `navaan.py album-release <album> --at "…" --yes`. If a song is not ready at the time, the album waits and says why, up to 12 hours, then is marked missed and shows as an alert. Changing the songs of a scheduled album takes it back to a draft until you confirm again; Cancel does the same.
+- Coming-soon page: an album you announce (a switch on the Release card, or `navaan.py album-announce <album> on`) gets a public page with its cover, release date, a countdown and its teaser clips, but no songs. At release the same address becomes the album.
+
+### Changed
+- The Short now goes public on its own step, as a teaser before the album is out; the full video waits for the release. Teaser Shorts and Reels of an unreleased song carry "Out <date> · <album>" (or "Coming soon") and the album's page instead of the song's, and must be 30 to 60 seconds and shorter than the song.
+- An album's status is no longer set by hand: the Status field is gone and only Release schedules or releases an album. A song joining an album no longer publishes the album. Songs already on navaan.online stay there.
+
 ## [0.61.4] - 2026-10-28
 
 ### Changed
@@ -864,7 +875,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.61.4...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.62.0...HEAD
+[0.62.0]: https://github.com/NjAIAgents/navaan/compare/v0.61.4...v0.62.0
 [0.61.4]: https://github.com/NjAIAgents/navaan/compare/v0.61.3...v0.61.4
 [0.61.3]: https://github.com/NjAIAgents/navaan/compare/v0.61.2...v0.61.3
 [0.61.2]: https://github.com/NjAIAgents/navaan/compare/v0.61.1...v0.61.2

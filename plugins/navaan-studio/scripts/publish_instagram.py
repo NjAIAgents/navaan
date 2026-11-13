@@ -59,7 +59,7 @@ def publish(a):
     if "link in bio" in cap.lower():   # the bio has no link; the caption gets the site address below
         print("WARNING: the caption says 'link in bio', but the bio has no link. The site address is added to the caption; rewrite it with: navaan.py caption " + a.slug + " --feedback \"no link in bio\"", file=sys.stderr)
     itype = (item_load(a.slug, {}) or {}).get("type", "music")
-    cap = with_site_link(cap, a.slug if itype == "music" else None, plain=True, itype=itype)   # every NAVAAN Reel names the site
+    cap = with_site_link(cap, a.slug if itype == "music" else None, plain=True, itype=itype, teaser=True)   # every NAVAAN Reel names the site; a song's Reel before release, its album
     plan = {"video_url": a.video_url[:80] + "...", "caption": cap, "share_to_feed": a.share_to_feed, "cover_url": a.cover_url}
     print(json.dumps(plan, ensure_ascii=False, indent=2))
     if not a.yes: print("\nDRY RUN. Nothing sent. Re-run with --yes after the user approves this exact reel."); return

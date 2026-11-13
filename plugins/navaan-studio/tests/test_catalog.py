@@ -23,10 +23,11 @@ class Base(unittest.TestCase):
         import navaan_common as C, catalog_store as K
         self.C, self.K = C, K; K._LOCAL.conn = None; self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
 
-    def song(self, slug, title, state="published", album=None, cloud=True, extra=None):
+    def song(self, slug, title, state="published", album=None, cloud=True, extra=None, released=None):   # released: None = released when published (as before albums gated it)
         D = os.path.join(self.C.songs_root(), slug); os.makedirs(D)
         open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write(title + "\n"); open(os.path.join(D, "lyrics.txt"), "w", encoding="utf-8").write("line one\nline two\n")
         m = {"slug": slug, "type": "music", "state": state, "suno_model": "v6", **({"album": album} if album else {}), **(extra or {})}
+        if released or (released is None and state == "published"): m["release"] = {"legacy": True}
         if cloud: m["cloud"] = {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": f"navaan/songs/{slug}/", "objects": {"final.mp3": {"size": 100}, "cover_1x1.png": {"size": 50}, "brief.md": {"size": 1}}}
         json.dump(m, open(os.path.join(D, "meta.json"), "w")); return D
 
@@ -53,12 +54,12 @@ class Catalog(Base):
         self.song("song-001", "One", album="First Light"); self.song("song-002", "Two", album="First Light")
         self.assertEqual(self.K.sync_all(), ["song-001", "song-002"]); self.K.sync_all()
         a = self.K.albums()[0]
-        self.assertEqual((a["slug"], a["title"], a["status"]), ("first-light", "First Light", "published")); self.assertEqual([(t["slug"], t["position"]) for t in a["tracks"]], [("song-001", 1), ("song-002", 2)])
+        self.assertEqual((a["slug"], a["title"], a["status"]), ("first-light", "First Light", "draft")); self.assertEqual([(t["slug"], t["position"]) for t in a["tracks"]], [("song-001", 1), ("song-002", 2)])   # only a release publishes an album (spec 003)
 
     def test_listeners_see_published_albums_with_only_the_songs_they_may_hear(self):
         self.song("song-001", "One", album="First Light"); self.song("song-002", "Two", album="First Light"); self.song("song-003", "Three", album="Hidden", state="drafted")
         self.K.sync_all(); self.K.set_license("song-001", "confirmed", "owner", "test")
-        a = next(x for x in self.K.albums() if x["slug"] == "first-light"); self.K.save_album(a["slug"], a["title"], a["kind"], "published", a["release_date"], a["description"])
+        c = self.K._conn(); c.execute("UPDATE albums SET status = 'published' WHERE slug = 'first-light'"); c.commit()   # released (album_release is tested in test_album_release)
         listener = self.K.public_albums(False); self.assertEqual([a["slug"] for a in listener], ["first-light"]); self.assertEqual([t["slug"] for t in listener[0]["tracks"]], ["song-001"])   # song-002 has no confirmed licence
         self.assertEqual([t["slug"] for t in self.K.public_albums(True)[0]["tracks"]], ["song-001", "song-002"])   # the studio sees both
         self.assertNotIn("hidden", [a["slug"] for a in self.K.public_albums(True)])   # a draft album is not offered
@@ -117,17 +118,28 @@ class Catalog(Base):
         b, c, t, _ = versions(); self.assertEqual((b, c, t), (777, 777, 777)); self.assertEqual(self.K.albums()[0]["tracks"][0]["art"]["v"], 777)
         self.assertEqual(self.K.browse(True)[0]["art"]["colour"], None, "the colour is measured again on the next resize")
 
-    def test_a_published_album_holds_only_published_songs_and_albums_report_each_songs_cover(self):
-        self.song("song-001", "One"); self.song("song-002", "Two", state="drafted", cloud=False); self.K.sync_item("song-001"); self.K.sync_item("song-002")
-        slug = self.K.save_album("", "My Album", "album", "draft")
-        c = self.K._conn(); aid = c.execute("SELECT id FROM albums WHERE slug = ?", (slug,)).fetchone()["id"]
-        for sl in ("song-001", "song-002"): c.execute("INSERT INTO album_tracks (album_id, track_id, position) SELECT ?::uuid, id, (SELECT count(*) + 1 FROM album_tracks WHERE album_id = ?::uuid) FROM tracks WHERE slug = ?", (str(aid), str(aid), sl))
-        c.commit()
-        with self.assertRaises(ValueError) as cm: self.K.save_album(slug, "My Album", "album", "published")
-        self.assertIn("song-002", str(cm.exception))
-        self.K.reorder(slug, ["song-001"]); self.assertEqual(self.K.save_album(slug, "My Album", "album", "published"), slug)
-        a = self.K.albums()[0]; self.assertEqual((a["status"], [(t["slug"], t["status"], t["art"] is not None) for t in a["tracks"]]), ("published", [("song-001", "published", True)]))   # the cover comes from the song
-        empty = self.K.save_album("", "Empty"); self.assertRaises(ValueError, self.K.save_album, empty, "Empty", "album", "published")
+    def test_an_albums_status_is_set_only_by_a_release_and_albums_report_each_songs_cover(self):
+        self.song("song-001", "One"); self.K.sync_item("song-001")
+        slug = self.K.save_album("", "My Album", "album", "draft"); self.K.reorder(slug, ["song-001"])
+        for st in ("published", "scheduled"): self.assertRaises(ValueError, self.K.save_album, slug, "My Album", "album", st)
+        self.assertRaises(ValueError, self.K.save_album, "", "New", "album", "published")
+        self.assertEqual(self.K.save_album(slug, "My Album", "album", "draft"), slug); self.assertEqual(self.K.save_album(slug, "Renamed"), slug)   # its own status, or none, is fine
+        a = self.K.albums()[0]; self.assertEqual((a["title"], a["status"], [(t["slug"], t["status"], t["art"] is not None) for t in a["tracks"]]), ("Renamed", "draft", [("song-001", "published", True)]))   # the cover comes from the song
+
+    def test_an_unreleased_song_is_not_listed_and_a_song_joining_an_album_never_publishes_it(self):
+        self.song("song-001", "One", album="First Light", released=False); self.song("song-002", "Two", album="First Light")
+        self.K.sync_all(); c = self.K._conn()
+        st = {r["slug"]: r["status"] for r in c.execute("SELECT slug, status FROM tracks").fetchall()}
+        self.assertEqual(st, {"song-001": "draft", "song-002": "published"})   # archived but not released / released before albums (legacy)
+        self.assertEqual(c.execute("SELECT count(*) AS n FROM search_documents WHERE kind = 'track'").fetchone()["n"], 1)
+        self.assertEqual(self.K.albums()[0]["status"], "draft"); self.assertEqual(self.K.public_albums(True), [])
+        self.assertEqual([a["slug"] for a in self.K.albums_of("song-001")], ["first-light"])
+
+    def test_a_song_listed_before_album_releases_stays_listed_without_a_release(self):
+        self.song("song-001", "One", released=False); self.K.sync_item("song-001")
+        c = self.K._conn(); self.assertEqual(c.execute("SELECT status FROM tracks").fetchone()["status"], "draft")
+        c.execute("UPDATE tracks SET public_before_albums = true"); c.commit()   # what migration 0009 does for every track listed when it ran
+        self.K.sync_item("song-001"); self.assertEqual(c.execute("SELECT status FROM tracks").fetchone()["status"], "published")
 
     def test_a_songs_mood_goes_to_the_track_and_only_a_known_mood_counts(self):
         self.song("song-001", "One", extra={"mood": "dusk"}); self.K.sync_item("song-001")
@@ -198,6 +210,8 @@ class Search(Base):
     def test_a_published_album_is_found_too(self):
         import search as S
         self.song("song-001", "One", album="First Light"); self.K.sync_all()
+        self.assertEqual(S.search("first light", kinds=["album"]), [])   # a draft album is not found
+        c = self.K._conn(); a = c.execute("UPDATE albums SET status = 'published' RETURNING id").fetchone(); self.K._reindex_album(c, str(a["id"])); c.commit()   # released
         hit = S.search("first light", kinds=["album"])[0]; self.assertEqual((hit["kind"], hit["slug"]), ("album", "first-light")); self.assertEqual(S.search("first light", kinds=["track"]), [])
 
     def test_benchmark_on_10000_tracks(self):
