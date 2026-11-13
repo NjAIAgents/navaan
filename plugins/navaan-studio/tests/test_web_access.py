@@ -561,6 +561,16 @@ class Access(unittest.TestCase):
         if tok: h["Cookie"] = f"{auth.COOKIE}={tok}"
         c.request("GET", path, headers=h); r = c.getresponse(); b = r.read(); c.close(); return r.status, dict(r.getheaders()), b
 
+    def test_the_studio_downloads_a_song_under_its_title_and_a_listener_cannot(self):
+        import navaan_common as C
+        D = os.path.join(C.songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write("तेरे होने से: Tere\n")
+        open(os.path.join(D, "final.mp3"), "wb").write(b"ID3fake-audio"); json.dump({"type": "music", "state": "approved"}, open(os.path.join(D, "meta.json"), "w"))
+        code, h, b = self.raw("/media/song-001/final.mp3?dl=1", "owner-tok")
+        self.assertEqual((code, b), (200, b"ID3fake-audio")); cd = h.get("Content-Disposition", "")
+        self.assertTrue(cd.startswith('attachment; filename="'), cd); self.assertIn("filename*=UTF-8''%E0%A4%A4", cd); self.assertIn("Tere.mp3", cd)   # a colon is not allowed in a file name: replaced
+        self.assertNotIn("Content-Disposition", self.raw("/media/song-001/final.mp3", "owner-tok")[1])   # playing it stays inline
+        self.assertEqual(self.raw("/media/song-001/final.mp3?dl=1", "lis-tok")[0], 403); self.assertEqual(self.raw("/media/song-001/final.mp3?dl=1")[0], 401)   # never for a listener or a visitor
+
     def test_a_blog_image_is_public_cached_for_a_year_and_only_under_its_hashed_name(self):   # NAV-139
         import objstore
         png = b"\x89PNG\r\n\x1a\nfake"; name = "post_cover_devto-1a2b3c4d.png"; store = {"navaan/blog/blog-001/" + name: png}

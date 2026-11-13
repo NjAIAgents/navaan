@@ -796,7 +796,7 @@ class H(BaseHTTPRequestHandler):
             m = re.match(r"^/media/([^/]+)/([^/]+)$", p)
             if m and SLUG.match(m.group(1)):
                 q = re.search(r"[?&]w=(\d+)", self.path)
-                return self._media(m.group(1), m.group(2), int(q.group(1)) if q else 0)
+                return self._media(m.group(1), m.group(2), int(q.group(1)) if q else 0, download=bool(re.search(r"[?&]dl=1(&|$)", self.path)))   # dl=1: save it as "<title>.mp3" (studio only, like every /media file)
         except SystemExit as e: return self._send(404, {"error": str(e)})
         self._send(404, {"error": "not found"})
     def _thumb(self, f, w):
@@ -819,7 +819,7 @@ class H(BaseHTTPRequestHandler):
         f["kind"] = str(body.get("kind", "error"))[:20]
         L.event(L.get("client"), "error" if f["kind"] in ("error", "rejection", "api_network", "api_json") else "warning", "client_" + f["kind"], **{k: v for k, v in f.items() if v})
         return self._send(200, {"ok": True})
-    def _media(self, slug, name, w=0):
+    def _media(self, slug, name, w=0, download=False):
         D = C.song_dir(slug); sub = next((x for x in ("clips", "images", "scenes") if name.startswith(x + "~")), None)
         f = os.path.join(D, sub, os.path.basename(name[len(sub) + 1:])) if sub else os.path.join(D, os.path.basename(name))
         if os.path.splitext(f)[1].lower() in MEDIA_EXT and not os.path.isfile(f) and os.path.splitext(f)[1].lower() not in storage.VIDEO_EXT: storage.fetch_missing(f)  # cleaned after archiving: bring the picture or audio back from the bucket
@@ -836,6 +836,10 @@ class H(BaseHTTPRequestHandler):
             if not mm.group(1) and mm.group(2): start = max(0, size - int(mm.group(2))); end = size - 1
             code = 206
         self.send_response(code); self.send_header("Content-Type", ct); self.send_header("Accept-Ranges", "bytes")
+        if download:   # the browser saves it under the song's title instead of playing it
+            tp = os.path.join(D, "title.txt"); t = (open(tp, encoding="utf-8").read().strip() if os.path.isfile(tp) else "") or slug
+            fn = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", t).strip()[:120] + os.path.splitext(f)[1]
+            self.send_header("Content-Disposition", "attachment; filename=\"" + (fn.encode("ascii", "ignore").decode() or slug + os.path.splitext(f)[1]).replace('"', "") + "\"; filename*=UTF-8''" + quote(fn))
         self.send_header("ETag", etag); self.send_header("Cache-Control", "private, no-cache")
         self.send_header("Content-Length", str(end - start + 1))
         if code == 206: self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
