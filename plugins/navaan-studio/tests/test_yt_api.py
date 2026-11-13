@@ -11,6 +11,8 @@ import ig_reco as rc
 class Api(Base):
     def setUp(self):
         super().setUp()
+        from unittest import mock
+        p = mock.patch.object(api.time, "time", lambda: NOWDT.timestamp()); p.start(); self.addCleanup(p.stop)   # the data is dated around NOW: the "last N days" window must be too, not the real clock
         self.conn.commit()
         self.path = os.path.join(self.tmp.name, "t.db")
         self.run_ok()

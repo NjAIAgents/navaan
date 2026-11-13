@@ -273,6 +273,12 @@ def alerts():
         out.append({"id": "claude", "kind": "claude", "title": "Claude token " + ("expired" if cl["state"] == "expired" else "missing"),
                     "message": "Steps that use Claude (lyrics, captions text, recommendations) cannot run until a new token is saved.",
                     "command": "claude setup-token", "where": "on any computer where Claude Code is signed in with your account. Copy the token it prints (it starts with sk-ant-)."})
+    try:
+        import album_release
+        for a in album_release.missed():
+            out.append({"id": f"album_missed:{a['slug']}", "kind": "release", "title": f"The release of {a['title']} was missed",
+                        "message": "A song in it was not ready in time, so nothing was released. Open the album and release it again, now or at a new time.", "command": "", "where": ""})
+    except Exception: L.soft(LOG, "alerts_album_error")   # the other alerts still show
     try: d = status()
     except Exception as _e: L.soft(LOG, "alerts_error"); d = {"accounts": []}
     for a in d.get("accounts", []):

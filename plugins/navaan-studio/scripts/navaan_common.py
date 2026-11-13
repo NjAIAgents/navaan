@@ -163,23 +163,67 @@ def run(cmd):
 SITE = "https://navaan.online"
 
 
-def with_site_link(text, slug=None, plain=False, itype="music"):
+def released(m):
+    """True when the song's full version may be public: released with an album (meta.release), or its full video is public already (only a release, or a time before albums, does that). Spec 003."""
+    full, _ = youtube_split(m)
+    return bool((m or {}).get("release")) or (bool(full) and all(i.get("privacy") == "public" for i in full))
+
+
+def held_album(slug, m=None):
+    """The album an unreleased song waits for: {"slug", "title", "release_at"} (the one releasing first), or None when the song is in no album.
+    The catalog is the source; without a database (a Mac with no Postgres) the item's album label stands in, with no date."""
+    m = m if m is not None else item_load(slug, {})
+    try:
+        import catalog_store
+        a = [x for x in catalog_store.albums_of(slug) if x["status"] != "published"]
+        if a: return sorted(a, key=lambda x: (x["release_at"] is None, x["release_at"] or "", x["title"]))[0]
+    except Exception: L.soft(L.get("common"), "held_album_catalog_unreachable", item=slug)   # falls back to the album label below
+    lab = str(m.get("album") or "").strip()
+    if not lab: return None
+    import catalog_store
+    return {"slug": catalog_store.slugify(lab), "title": lab, "release_at": None}
+
+
+def with_site_link(text, slug=None, plain=False, itype="music", teaser=False):
     """A YouTube description or an Instagram caption with the site's address at the end, unless navaan.online is already in it. With a slug it is that song's page on the site
     (a song, which anyone can open once its licence is confirmed); without one, the site itself (an inspiration has no page of its own). plain drops https://, because Instagram does not link a caption.
-    Only a song gets "full song" wording; an aha short is its own channel and gets no NAVAAN line at all."""
+    Only a song gets "full song" wording; an aha short is its own channel and gets no NAVAAN line at all.
+    teaser: a Short or Reel of a song not released yet points at its album's page with "Out <date> · <album>" (spec 003), since the song's own page does not exist until then."""
     t = str(text or "").rstrip()
     if itype in ("aha", "blog") or "navaan.online" in t.lower(): return t
+    a = held_album(slug) if (teaser and slug and itype == "music" and not released(item_load(slug, {}))) else None
+    if a:
+        when = ""
+        if a.get("release_at"):
+            import datetime
+            d = datetime.datetime.fromisoformat(a["release_at"].replace("Z", "+00:00")).astimezone()
+            when = f"Out {d.day} {d:%b %Y}"
+        url = f"{SITE}/app/album/{a['slug']}"
+        line = f"{when or 'Coming soon'} · {a['title']}\n" + (url.replace("https://", "") if plain else url)
+        return (t + "\n\n" if t else "") + line
     url = f"{SITE}/app/song/{slug}" if slug else SITE
     line = ("Hear the full song free: " if itype == "music" else "More from NAVAAN: ") + (url.replace("https://", "") if plain else url)
     return (t + "\n\n" if t else "") + line
+
+
+def is_short_item(it):
+    """A YouTube upload that is the Short (the vertical clip), not the full video."""
+    f = os.path.basename(str((it or {}).get("file") or ""))
+    return f.startswith("final_reel") or "short" in f or "/shorts/" in str((it or {}).get("url") or "")
+
+
+def youtube_split(m):
+    """(full videos, Shorts) a song has on YouTube, from meta.published; the Short made in YouTube Studio (published.youtube_short) counts as a Short."""
+    p = (m or {}).get("published") or {}; its = list(p.get("youtube_items") or [])
+    shorts = [i for i in its if is_short_item(i)] + ([p["youtube_short"]] if isinstance(p.get("youtube_short"), dict) and p["youtube_short"].get("id") else [])
+    return [i for i in its if not is_short_item(i)], shorts
 
 
 def published_links(m):
     """Where an item is published, from its meta: [{"where", "url", "privacy", "step"}] for the YouTube video, the Short and the Instagram Reel. `step` is the pipeline step that made it."""
     pub = (m or {}).get("published") or {}; out = []
     for it in pub.get("youtube_items") or []:
-        f = os.path.basename(str(it.get("file") or ""))
-        short = f.startswith("final_reel") or "short" in f or "/shorts/" in str(it.get("url") or "")
+        short = is_short_item(it)
         out.append({"where": "YouTube Short" if short else "YouTube video", "url": it.get("url") or "", "privacy": it.get("privacy") or "", "step": "youtube_short" if short else "publish_youtube"})
     ys = pub.get("youtube_short")
     if isinstance(ys, dict) and ys.get("id"): out.append({"where": "YouTube Short", "url": ys.get("url") or f"https://youtube.com/shorts/{ys['id']}", "privacy": ys.get("privacy") or "", "step": "youtube_short"})

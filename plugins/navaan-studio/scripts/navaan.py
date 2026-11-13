@@ -48,11 +48,31 @@ def files(D, pat): return sorted(glob.glob(os.path.join(D, pat)))
 def has(D, *names): return all(os.path.exists(os.path.join(D, n)) for n in names)
 def yt_done(m): return bool(m.get("published", {}).get("youtube_items"))
 def public_done(m):
-    p = m.get("published", {}); its = list(p.get("youtube_items", [])) + ([p["youtube_short"]] if p.get("youtube_short", {}).get("id") else [])
+    """The go_public step is done: for a song the full video is public (its Short is a teaser with its own step, spec 003); for other types every upload is."""
+    full, shorts = C.youtube_split(m); its = full if C.item_type(m) == "music" else full + shorts
     return bool(its) and all(i.get("privacy") == "public" for i in its)
+def short_public_done(m):
+    _, shorts = C.youtube_split(m); return bool(shorts) and all(i.get("privacy") == "public" for i in shorts)
+TEASER_S = (30, 60)   # a teaser of a song not released yet: never the whole song (spec 003, FR-014)
+def teaser_problem(slug, clip):
+    """Why this clip may not go out as a teaser of an unreleased song, or None (a released song, or another type, is not checked)."""
+    m = meta(slug)
+    if C.item_type(m) != "music" or C.released(m): return None
+    d = C.duration(clip) if clip and os.path.exists(clip) else None
+    if d is None: return "The teaser clip is missing or unreadable, so its length cannot be checked."
+    full = next((C.duration(os.path.join(song_dir(slug), f)) for f in ("final.mp3", "final_16x9.mp4") if os.path.exists(os.path.join(song_dir(slug), f))), None)
+    if not TEASER_S[0] <= d <= TEASER_S[1] or (full and d >= full - 1):
+        return f"This song is not released yet, so its clip must be a teaser of {TEASER_S[0]} to {TEASER_S[1]} seconds and shorter than the song; {os.path.basename(clip)} is {d:.0f} s" + (f" (the song is {full:.0f} s)" if full else "") + ". Cut a shorter reel, or release the album first."
+    return None
+def album_hold(slug):
+    """Why a song's full video may not go public yet, or None. Only an album is released, and its songs with it (spec 003)."""
+    m = meta(slug)
+    if C.item_type(m) != "music" or C.released(m): return None
+    a = C.held_album(slug, m)
+    return f"Waiting for album release: {a['title']}. Release the album to make this song public." if a else "Add this song to an album to release it: a song is released only with its album."
 def ig_done(m): return bool(m.get("published", {}).get("instagram"))
 # After the video and the reel are made, YouTube and Instagram each have a lane of their own: neither waits for the other's approvals or for the other to be posted.
-LANES = {"youtube": ("youtube_meta", "publish_youtube", "youtube_short", "go_public"), "instagram": ("instagram_caption", "publish_instagram")}
+LANES = {"youtube": ("youtube_meta", "publish_youtube", "youtube_short", "short_public", "go_public"), "instagram": ("instagram_caption", "publish_instagram")}
 LANE_OF = {sid: lane for lane, ids in LANES.items() for sid in ids}
 LANE_NAME = {"youtube": "YouTube", "instagram": "Instagram"}
 SHA_FILES = {"instagram_caption": "instagram.txt", "quote": "quote.json", "shots": "shots.json", "edit_plan": "edl.json"}  # these approvals are tied to the file's hash, so an edit after approval needs a new approval
@@ -226,8 +246,10 @@ def music_steps(slug, D):
           if vmode == "own" else  # the Short is cut on the server from the song's own pictures and uploaded with the API, like the inspiration videos
           [dict(id="youtube_short", outputs=["published.json"], redo=False, label="Make the Short in YouTube Studio and download it", kind="claude", skill="youtube-short", chrome=True, before="publish_short",
                 done=lambda m: bool(m.get("published", {}).get("youtube_short")) and has(D, "short.mp4"))]),
-        dict(id="go_public", outputs=["published.json"], redo=False, label="Make the YouTube video and Short public", kind="script", before="go_public",
-             cmds=[sc("publish_youtube.py", "go-public", slug, "--yes")], done=lambda m: public_done(m)),
+        dict(id="short_public", outputs=["published.json"], redo=False, label="Make the Short public (a teaser: the full song waits for its album)", kind="script", before="publish_short",
+             cmds=[sc("publish_youtube.py", "go-public", slug, "--only", "short", "--yes")], done=lambda m: short_public_done(m)),
+        dict(id="go_public", outputs=["published.json"], redo=False, label="Make the full YouTube video public (when its album is released)", kind="script", before="go_public",
+             cmds=[sc("publish_youtube.py", "go-public", slug, "--only", "full", "--yes")], done=lambda m: public_done(m)),
         dict(id="instagram_caption", outputs=[], redo=False, label="Write the Instagram caption from the lyrics (you review and can edit it)", kind="claude", skill="instagram-caption", optional=True, after="instagram_caption",
              done=lambda m: has(D, "instagram.txt")),
         dict(id="publish_instagram", outputs=["published.json"], redo=False, label="Publish Reel to Instagram (API)", kind="script", before="publish_instagram", optional=True,
@@ -572,7 +594,7 @@ def plan(slug):
 def plan_lanes(slug):
     """(rows, next_action, lanes): the same walk, plus, once the videos are approved, the next step of each publishing lane ({"youtube": {...}, "instagram": {...}}, only the lanes that still have something to do).
     next_action is the first thing to run, else the first approval waiting, so a single run never stalls on one lane while the other can move."""
-    D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); rows = []; nxt = None; lane_nxt = {}; lanes_open = False
+    D = song_dir(slug); m = meta(slug); ap = m.get("approvals", {}); rows = []; nxt = None; lane_nxt = {}; lanes_open = False; held_next = None
     legacy = m.get("state") == "published" and any(a.get("via") == "legacy backfill" for a in ap.values())  # songs finished before navaan-studio
     cleaned = bool(m.get("cleanup"))  # local media was deleted after a verified archive, so earlier steps no longer have their files and must not look unfinished
     for s in steps(slug, D):
@@ -596,11 +618,14 @@ def plan_lanes(slug):
             lane = LANE_OF.get(s["id"]); own = lane_nxt.get(lane) if (lane and nxt is None) else nxt   # a lane step waits for its own lane, not for the other one
             row["status"] = "waiting for approval" if row["needs_gate"] else ("blocked" if (own and own["type"] == "gate") else ("blocked" if (not lane and lane_nxt) else "ready"))
         if notused: row["status"] = "done"; row["needs_gate"] = None; row["notused"] = True
+        held = album_hold(slug) if (s["id"] == "go_public" and not d and item_type(m) == "music") else None
+        if held: row["status"] = "waiting for album release"; row["needs_gate"] = None; row["held"] = held   # no approval here: the album's Release is the approval (spec 003)
         row["scheduled_for"] = PS.when(m, s["id"]) if not d else None
         lane = LANE_OF.get(s["id"])
         if lane: row["lane"] = lane
         rows.append(row)
-        want = {"type": "gate", "step": s["id"], "gate": row["needs_gate"]} if row["needs_gate"] else ({"type": "run", "step": s["id"]} if not d else None)
+        want = {"type": "gate", "step": s["id"], "gate": row["needs_gate"]} if row["needs_gate"] else ({"type": "run", "step": s["id"]} if not d and not held else None)
+        if held: held_next = {"type": "held", "step": s["id"], "why": held}
         if lane and nxt is None:   # the main line is clear (the videos are approved): this step belongs to a lane, and each lane keeps its own next step
             lanes_open = True
             if want and lane not in lane_nxt: lane_nxt[lane] = want
@@ -611,7 +636,7 @@ def plan_lanes(slug):
     if nxt is None and lane_nxt:   # work that can run goes first, then the approvals, YouTube before Instagram
         order = [l for l in LANES if l in lane_nxt]
         nxt = next((lane_nxt[l] for l in order if lane_nxt[l]["type"] == "run"), None) or lane_nxt[order[0]]
-    return rows, (nxt or {"type": "done"}), (dict(lane_nxt) if lanes_open else {})
+    return rows, (nxt or held_next or {"type": "done"}), (dict(lane_nxt) if lanes_open else {})
 
 LOG = L.get("pipeline")
 
@@ -858,6 +883,12 @@ def _run(slug, step=None, dry=False, retries=2):
     hw = PS.hold(meta(slug), sid) if not dry else None
     if hw and slug not in PS.FIRING:
         print(f"scheduled: step {sid} waits until {hw} (UTC). The portal, or navaan.py schedule-run, starts it then. Clear the schedule to publish now."); return 7
+    if sid == "short_public" and not dry:
+        tp = teaser_problem(slug, next((os.path.join(D, f) for f in ("final_reel_9x16.mp4", "short.mp4") if os.path.exists(os.path.join(D, f))), ""))
+        if tp: print(tp); return 4
+    if sid == "go_public" and not dry and slug not in PS.FIRING:
+        why = album_hold(slug)
+        if why: RUN[slug] = {"step": None, "failed": None, "log": None}; print(why); return 7   # held like a scheduled step: waiting, not failed
     if sid in ("publish_youtube", "go_public") and not dry and slug not in PS.FIRING and not PS.get(meta(slug)):  # a hint only, it never blocks or schedules
         try:
             sg = PS.suggest(slug)
@@ -869,6 +900,8 @@ def _run(slug, step=None, dry=False, retries=2):
         cands = ig_reel_candidates(slug)  # the captioned reel when it exists, then the tuned reel, the YouTube Studio clip as fallback
         rf = next((c for c in cands if os.path.exists(os.path.join(D, c))), None)
         if not rf: print("Instagram needs a vertical video. Run the youtube_short step (it downloads short.mp4), or set video.make_reel to true in the profile and redo the video step."); return 4
+        tp = teaser_problem(slug, os.path.join(D, rf))
+        if tp: print(tp); return 4
         if not gate_ok(D, meta(slug).get("approvals", {}), "instagram_caption"): show_gate(slug, "instagram_caption"); print("The Instagram caption is missing or changed since you approved it. Approve gate 'instagram_caption' again."); return 3
         cap = os.path.join(D, "publish"); os.makedirs(cap, exist_ok=True)
         oci = f'NAVAAN_BUCKET={shlex.quote(bucket)} bash {shlex.quote(os.path.join(HERE, "oci_public_url.sh"))}'
@@ -956,6 +989,8 @@ def _pipeline(slug, wait=False, poll=10, until=None, timeout=None, max_steps=40)
             STATUS[slug] = f"stopped after {until}"; print(STATUS[slug]); return 0
         if nxt["type"] == "done":
             STATUS[slug] = "all steps done"; print("all steps done"); return 0
+        if nxt["type"] == "held":   # everything else is done: the full video waits for its album's release (spec 003)
+            STATUS[slug] = nxt["why"]; print(nxt["why"], flush=True); return 7
         if nxt["type"] == "gate":
             g = nxt["gate"]; STATUS[slug] = f"waiting for you: approve gate {g}"
             print(f"waiting for your approval: gate '{g}' (before or after step {nxt['step']}). Approve in the web UI or run: navaan.py approve {slug} {g}", flush=True)
@@ -1265,6 +1300,35 @@ def main(argv):
         try: s = PS.set_schedule(a[0], utc(opt("--at")) if opt("--at") else None, utc(opt("--youtube-at")) if opt("--youtube-at") else None)
         except ValueError as e: L.ignored(LOG, "main: ValueError (optional or expected)", e); sys.exit(f"navaan: {e}")
         print("scheduled:", PS.status_text({"schedule": s}), "\nStill needed from you before then: approve go_public, instagram_caption and publish_instagram. Keep the portal or `navaan.py schedule-run --loop` running."); return 0
+    if c == "album-announce":   # the coming-soon page of an album not released yet (spec 003)
+        import catalog_store as K
+        if len(a) < 2 or a[1] not in ("on", "off"): sys.exit("usage: navaan.py album-announce <album> on|off")
+        al = next((x for x in K.albums() if x["slug"] == a[0]), None)
+        if not al: print(f"navaan: no such album: {a[0]}"); return 2
+        K.save_album(al["slug"], al["title"], al["kind"], None, al["release_date"], al["description"], a[1] == "on"); print(f"coming-soon page {a[1]}: {C.SITE}/app/album/{al['slug']}"); return 0
+    if c == "album-cancel":
+        import album_release as AR
+        if not a: sys.exit("usage: navaan.py album-cancel <album>")
+        try: AR.cancel(a[0], "owner (cli)"); print("cancelled: back to a draft"); return 0
+        except LookupError as e: print(f"navaan: {e}"); return 2
+        except ValueError as e: print(f"navaan: {e}"); return 9
+    if c in ("album-status", "album-release"):   # spec 003: only an album is released, and its songs with it
+        import album_release as AR
+        if not a: sys.exit(f"usage: navaan.py {c} <album>" + (' [--at "2026-12-01 18:00"] --yes' if c == "album-release" else ""))
+        try: st = AR.status(a[0])
+        except LookupError as e: print(f"navaan: {e}"); return 2
+        def show(st):
+            print(f"{st['title']}: {st['status']}" + (f", release {PS.parse(st['release_at']).astimezone():%a %b %d %H:%M}" if st.get("release_at") else ""))
+            for x in st["songs"]: print(f"  {x['slug']}  {x['title']}: " + (x["reason"] or "ready") + f"  (YouTube {x['youtube']}, site {x['site']})")
+            if st.get("blocked"): print("  " + st["blocked"])
+        if c == "album-status": show(st); return 0
+        at = a[a.index("--at") + 1] if "--at" in a and a.index("--at") + 1 < len(a) else None
+        show(st)
+        if "--yes" not in a: print("\nNothing released. Releasing makes every song above public on YouTube and navaan.online, and is hard to undo. Add --yes to release."); return 0
+        try: st = AR.confirm(a[0], [x["slug"] for x in st["songs"]], "owner (cli)", PS.iso(datetime.datetime.strptime(at.replace("T", " "), "%Y-%m-%d %H:%M").astimezone()) if at else None)
+        except AR.NotReady as e: print("not ready:"); show(e.state); return 4
+        except ValueError as e: print(f"navaan: {e}"); return 9
+        print("released:" if st["status"] == "published" else "scheduled:"); show(st); return 0
     if c == "schedule-clear": PS.clear(a[0]); print("cleared"); return 0
     if c == "schedules":
         for sl in sorted(os.path.basename(p) for p in glob.glob(f"{songs_root()}/*") if os.path.isdir(p) and not os.path.basename(p).startswith("_")):

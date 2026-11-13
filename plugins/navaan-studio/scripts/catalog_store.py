@@ -7,7 +7,7 @@ Description: NAV-6 stage 1. What listeners will find and play, built from the st
 
 Rules
   sync_item(slug) makes the catalog row of one studio item match the item (idempotent, safe to run at any time); sync_all() does every item, auto() runs at portal start
-  a track is published when the studio says so (state published, or public on YouTube); drafts are stored but never indexed for search
+  a track is published when it was released with its album (meta.release, spec 003) or listed before that rule (public_before_albums), and the studio says so (state published, or public on YouTube); drafts are stored but never indexed for search
   assets point at object storage (storage_key = cloud prefix + file name) and only for files the cloud record says were verified there: the bucket, not the local folder, is the source
   license_status is never changed by a sync: new tracks start 'unconfirmed' and only the owner confirms (NAV-11, FR-017); offerable() is the one question "may this be put behind a plan?"
   the item's album label becomes an album with the song in it (FR-008); after that the catalog's album is canonical (order, cover, date, kind), the label is only an input
@@ -102,13 +102,15 @@ def _sync_item(slug):
     language = (str(info.get("language") or "").strip() or None); genre = (str(info.get("genre") or "").strip()[:120] or None)
     tags = [str(t).lstrip("#") for t in raw][:20] if isinstance(raw, list) else ([genre] if genre else [])
     pub = m.get("published", {}); cloud = m.get("cloud", {})
-    published = m.get("state") == "published" or bool(pub.get("youtube_items") and all(i.get("privacy") == "public" for i in pub["youtube_items"]))
+    studio_says = m.get("state") == "published" or bool(pub.get("youtube_items") and all(i.get("privacy") == "public" for i in pub["youtube_items"]))
     origin = "suno" if (m.get("suno_url") or m.get("suno_model")) else "unknown"
     mood = str(m.get("mood") or "").strip().lower(); mood = mood if mood in MOODS else None
     detail = {k: m[k] for k in ("suno_model", "suno_plan") if m.get(k)}
 
     def go(c):
         aid = _artist(c)
+        was = c.execute("SELECT public_before_albums FROM tracks WHERE slug = ?", (slug,)).fetchone()
+        published = studio_says and (C.released(m) or bool(was and was["public_before_albums"]))   # listed only once released with its album (spec 003), or listed before albums gated it
         t = c.execute("INSERT INTO tracks (artist_id, slug, studio_slug, title, lyrics_text, status, published_at, origin, origin_detail, language, mood) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                       "ON CONFLICT (slug) DO UPDATE SET mood = excluded.mood, title = excluded.title, lyrics_text = excluded.lyrics_text, status = excluded.status, language = COALESCE(excluded.language, tracks.language), "
                       "published_at = COALESCE(tracks.published_at, excluded.published_at), origin = excluded.origin, origin_detail = tracks.origin_detail || excluded.origin_detail, updated_at = now() "
@@ -127,8 +129,8 @@ def _sync_item(slug):
                                    (tid, role[0], (cloud.get("prefix") or "") + name, role[1], (o or {}).get("size")))
         album = (m.get("album") or "").strip()
         if album:
-            a = c.execute("INSERT INTO albums (artist_id, slug, title, status) VALUES (?, ?, ?, ?) ON CONFLICT (slug) DO UPDATE SET "
-                          "status = CASE WHEN albums.status = 'draft' AND ? THEN 'published' ELSE albums.status END RETURNING id, title", (aid, slugify(album), album, "published" if published else "draft", published)).fetchone()
+            # a new album starts as a draft; only album_release publishes one (a song joining never does, spec 003)
+            a = c.execute("INSERT INTO albums (artist_id, slug, title, status) VALUES (?, ?, ?, 'draft') ON CONFLICT (slug) DO UPDATE SET title = albums.title RETURNING id, title", (aid, slugify(album), album)).fetchone()
             c.execute("INSERT INTO album_tracks (album_id, track_id, position) SELECT ?::uuid, ?::uuid, COALESCE(MAX(position), 0) + 1 FROM album_tracks WHERE album_id = ?::uuid ON CONFLICT (album_id, track_id) DO NOTHING",
                       (str(a["id"]), tid, str(a["id"])))
             _reindex_album(c, str(a["id"]))
@@ -194,9 +196,10 @@ def offerable(track_slug):
 # ---- albums (the owner's API; the screens come in NAV-16) ---------------------------------------------------------------------------
 
 def _album_rows(c, where="", params=()):
-    rows = c.execute(f"SELECT id, slug, title, kind, status, release_date, description FROM albums {where} ORDER BY release_date DESC NULLS LAST, title", params).fetchall()
+    rows = c.execute(f"SELECT id, slug, title, kind, status, release_date, description, release_at, announced FROM albums {where} ORDER BY release_date DESC NULLS LAST, title", params).fetchall()
     for r in rows:
         r["id"] = str(r["id"]); r["release_date"] = r["release_date"].isoformat() if r["release_date"] else None
+        r["release_at"] = r["release_at"].astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if r["release_at"] else None
         r["tracks"] = [{"slug": x["slug"], "title": x["title"], "position": x["position"], "status": x["status"], "licence": x["licence"], "art": {"colour": x["colour"], "v": x["cover_bytes"]} if x["has_cover"] else None} for x in c.execute(
             "SELECT t.slug, t.title, t.status, t.license_status AS licence, at.position, "
             "EXISTS (SELECT 1 FROM assets a WHERE a.owner_id = t.id AND a.owner_kind = 'track' AND a.role = 'cover') AS has_cover, "
@@ -223,29 +226,52 @@ def public_albums(all_licences=False):
     return out
 
 
-def save_album(slug, title, kind="album", status="draft", release_date=None, description=""):
-    """Create (slug empty) or update an album. Returns its slug."""
+def albums_of(track_slug):
+    """The albums a track is in: [{"slug", "title", "status", "release_at"}], release_at as ISO UTC or None."""
+    rows = _tx(lambda c: c.execute("SELECT al.slug, al.title, al.status, al.release_at FROM albums al JOIN album_tracks at ON at.album_id = al.id JOIN tracks t ON t.id = at.track_id "
+                                   "WHERE t.slug = ? ORDER BY al.title", (track_slug,)).fetchall())
+    return [{**r, "release_at": r["release_at"].astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if r["release_at"] else None} for r in rows]
+
+
+def album_page(slug, all_licences=False):
+    """An album's page for the people who listen: a released album as public_albums gives it; an announced one not released yet as "coming soon"
+    (cover, title, date, teaser clips) with no songs in it (spec 003, FR-016); anything else None."""
+    a = next((x for x in public_albums(all_licences) if x["slug"] == slug), None)
+    if a: return a
+    r = _tx(lambda c: _album_rows(c, "WHERE slug = ? AND announced AND status <> 'published'", (slug,)))
+    if not r: return None
+    r = r[0]; teasers = []
+    for t in r.pop("tracks"):
+        m = C.item_load(t["slug"], {}) or {}
+        _, shorts = C.youtube_split(m)
+        teasers += [{"platform": "youtube_short", "url": i["url"]} for i in shorts if i.get("privacy") == "public" and i.get("url")]
+        ig = (m.get("published") or {}).get("instagram")
+        ig = ig.get("permalink") or ig.get("url") if isinstance(ig, dict) else ig
+        if isinstance(ig, str) and ig.startswith("https://"): teasers.append({"platform": "instagram", "url": ig})
+    return {k: r[k] for k in ("slug", "title", "kind", "description", "release_at", "art", "artist")} | {"coming_soon": True, "teasers": teasers}
+
+
+def save_album(slug, title, kind="album", status=None, release_date=None, description="", announced=None):
+    """Create (slug empty) or update an album. Returns its slug. announced (None keeps it) shows a coming-soon page before the release. The status is not set here: an album starts as a draft and only album_release
+    schedules or releases it (spec 003), so a status that differs from the album's own is refused rather than ignored."""
     title = (title or "").strip()
     if not title: raise ValueError("an album needs a title")
     if kind not in ("album", "ep", "single"): raise ValueError("kind is album, ep or single")
-    if status not in ("draft", "scheduled", "published"): raise ValueError("status is draft, scheduled or published")
     try: rd = datetime.date.fromisoformat(release_date) if release_date else None
     except ValueError: raise ValueError("release date is YYYY-MM-DD") from None
     def go(c):
         out = slug
         if out:
-            r = c.execute("UPDATE albums SET title = ?, kind = ?, status = ?, release_date = ?, description = ?, updated_at = now() WHERE slug = ? RETURNING id", (title, kind, status, rd, description or "", out)).fetchone()
-            if not r: raise LookupError("no such album")
+            cur = c.execute("SELECT status FROM albums WHERE slug = ?", (out,)).fetchone()
+            if not cur: raise LookupError("no such album")
+            if status and status != cur["status"]: raise ValueError("an album is scheduled or released with Release, not by setting its status")
+            r = c.execute("UPDATE albums SET title = ?, kind = ?, release_date = ?, description = ?, announced = COALESCE(?, announced), updated_at = now() WHERE slug = ? RETURNING id", (title, kind, rd, description or "", announced, out)).fetchone()
         else:
+            if status and status != "draft": raise ValueError("a new album is a draft; release it with Release")
             s = base = slugify(title); n = 2
             while c.execute("SELECT 1 FROM albums WHERE slug = ?", (s,)).fetchone(): s = f"{base}-{n}"; n += 1
-            r = c.execute("INSERT INTO albums (artist_id, slug, title, kind, status, release_date, description) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, slug", (_artist(c), s, title, kind, status, rd, description or "")).fetchone()
+            r = c.execute("INSERT INTO albums (artist_id, slug, title, kind, status, release_date, description, announced) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?) RETURNING id, slug", (_artist(c), s, title, kind, rd, description or "", bool(announced))).fetchone()
             out = r["slug"]
-        if status == "published":   # a published album follows the song rules: nothing unpublished in it (the cover is its first song's cover)
-            bad = c.execute("SELECT t.slug FROM album_tracks at JOIN tracks t ON t.id = at.track_id WHERE at.album_id = ?::uuid AND t.status <> 'published'", (str(r["id"]),)).fetchall()
-            n = c.execute("SELECT count(*) AS n FROM album_tracks WHERE album_id = ?::uuid", (str(r["id"]),)).fetchone()["n"]
-            if bad: raise ValueError("every song in a published album must be published; not yet: " + ", ".join(b["slug"] for b in bad))
-            if not n: raise ValueError("a published album needs at least one song")
         _reindex_album(c, str(r["id"])); return out
     return _tx(go)
 

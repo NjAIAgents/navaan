@@ -468,6 +468,10 @@ export default function Song() {
       {ranBefore(d.next.step ?? "") && <p className="mu">It ran before ({ranBefore(d.next.step ?? "")}). Something it depends on changed, so it will run again.</p>}
       <div className="row"><button className="btn p" disabled={busy} aria-busy={busy} onClick={() => void act("/api/run", { all: true })}>Run to the next approval</button><button className="btn" disabled={busy} onClick={() => void act("/api/run", { all: false })}>Run one step</button></div>
     </section>
+  ) : d.next.type === "held" ? (
+    <section className="card stack"><StepStatus kind="next" /><h2>Waiting for album release</h2><p className="mu">{d.next.why}</p>
+      <div className="row"><Link className="btn" to="/albums">Open albums</Link></div>
+    </section>
   ) : d.next.type === "done" ? <section className="card"><h2>All steps are done</h2></section> : null;
 
   const hasPosts = blog && ["devto.md", "linkedin_article.md", "linkedin_post.md"].some((f) => d.text[f]);   // the finished posts, one tab per place they go (NAV-134)

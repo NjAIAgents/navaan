@@ -18,3 +18,10 @@ Pick a time and the pipeline publishes then, from approvals you already gave. Sc
 ## Implement a recommendation
 
 Open recommendations have an Implement button. Timing opens the schedule picker. Hashtags refreshes `hashtags.json`. Anything else is saved as a standing rule in `standing_rules.json` (next to the songs folder), which the caption, YouTube text and shot list skills apply to every new item. Reopen or dismiss the recommendation to remove its rule.
+
+## Album release (spec 003)
+A song goes public only with its album. Its full YouTube video waits at `go_public` ("Waiting for album release") and it is not on navaan.online; its Short (`short_public`) and Reel may go out before, as teasers that point at the album's page.
+- Release now: the album page, Release card, or `navaan.py album-release <album> --yes`. One confirm lists every song; the album and its songs are listed on the site in one transaction, then each full video is handed to this scheduler at once (`youtube_at` = now), with its retries.
+- Release at a time: the same confirm with a time, or `--at "2026-12-01 18:00"`. The scheduler's minute checks albums first: a due album is released when every song is ready; otherwise it waits and says why, up to 12 hours, then it is missed (an alert says so). Changing its songs, or Cancel (`navaan.py album-cancel <album>`), takes it back to a draft and takes back the approvals the confirm gave.
+- Coming soon: `navaan.py album-announce <album> on` (or the switch on the Release card) shows the cover, date, countdown and teasers at the album's address before the release.
+
