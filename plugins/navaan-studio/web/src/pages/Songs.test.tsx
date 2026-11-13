@@ -50,6 +50,14 @@ describe("Studio > Songs", () => {
 });
 
 describe("Studio > song", () => {
+  it("offers the finished song as a download, tagged first, and none before there is one", async () => {
+    mock({ "/api/song/": () => detail({ files: { "final.mp3": 100, "final_tagged.mp3": 120 } }) }); at("/studio/songs/song-001");
+    expect(await screen.findByRole("link", { name: "Download the song" })).toHaveAttribute("href", "/media/song-001/final_tagged.mp3?dl=1");
+    cleanup(); mock({ "/api/song/": () => detail({ files: {} }) }); at("/studio/songs/song-001");
+    await screen.findByRole("heading", { level: 1 }); expect(screen.queryByRole("link", { name: "Download the song" })).toBeNull();
+    cleanup(); mock({ "/api/song/": () => detail({ files: {}, meta: { state: "published", cloud: { uploaded_at: "2026-10-01T10:00:00Z" } } }) }); at("/studio/songs/song-001");
+    expect(await screen.findByRole("link", { name: "Download the song" })).toHaveAttribute("href", "/media/song-001/final.mp3?dl=1");   // archived and cleaned up: it comes back from the bucket
+  });
   it("shows the gate with what is approved, and Approve posts and reloads", async () => {
     let approved = false;
     const f = mock({ "/api/song/": () => (approved ? detail({ next: { type: "run", step: "suno" }, meta: { state: "approved", history: ["2026-10-16T02:00:00Z gate lyrics approved via ui:owner"] } }) : detail()), "/api/approve": () => { approved = true; return { ok: true }; } });
