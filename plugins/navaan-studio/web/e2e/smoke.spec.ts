@@ -100,7 +100,8 @@ test("an album can be made, filled, put in order, and keeps its order after a re
   expect((await order()).map((t) => t.replace(/^\d+\.\s*/, ""))).toEqual(["Tere Hone Se", "Pata Hi Na Chala"]);
   await page.getByRole("button", { name: "Move Tere Hone Se down" }).click(); await expect.poll(async () => (await order())[0]).toContain("Pata Hi Na Chala");
   await page.reload(); await expect.poll(async () => (await order())[0]).toContain("Pata Hi Na Chala");   // the order persisted
-  await page.getByLabel("Status").selectOption("published"); await page.getByRole("button", { name: "Save details" }).click(); await expect(page.getByText("Saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Save details" }).click(); await expect(page.getByText("Saved.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Release", level: 2 })).toBeVisible();   // an album is released with Release, never by a status field (spec 003)
   await page.getByRole("button", { name: "Delete album" }).click(); await page.getByRole("button", { name: "Yes, delete" }).click(); await expect(page.getByRole("heading", { name: "Albums", level: 1 }).first()).toBeVisible();
 });
 
