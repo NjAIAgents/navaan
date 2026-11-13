@@ -229,6 +229,8 @@ def tick(fire, skip=None, at=None):
 
 def loop(fire, skip=None, every=60):
     while True:
+        try: import album_release; album_release.tick()   # first: a released album hands its songs' videos to the tick below (spec 003)
+        except Exception: L.exc(LOG, "album_tick_failed")   # albums must never stop the songs' own schedule
         try: tick(fire, skip)
         except Exception as e: print("scheduler error:", e, flush=True)
         time.sleep(every)

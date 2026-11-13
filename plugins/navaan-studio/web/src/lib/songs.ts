@@ -8,6 +8,7 @@ export const errText = (e: unknown) => { const x = e as Error & { requestId?: st
 export function nextAction(s: Pick<SongRow, "status" | "next" | "published">): string {
   const n = s.next;
   if (n?.type === "gate" && n.gate) return `Waiting for you: ${gateTitle(n.gate)}`;
+  if (n?.type === "held") return "Waiting for album release";
   if (s.status === "done") return s.published ? "Published" : "Done";
   if (n?.step) return `Next: ${stepLabel(n.step)}`;
   return "In production";

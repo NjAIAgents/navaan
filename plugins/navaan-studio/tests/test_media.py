@@ -33,7 +33,7 @@ class Base(unittest.TestCase):
         open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write("Tere Hone Se\n")
         pre = f"navaan/songs/{slug}/"; cover = png(); audio = b"ID3audio" * 100
         self.bucket[pre + "cover_1x1.png"] = cover; self.bucket[pre + "final.mp3"] = audio
-        json.dump({"slug": slug, "type": "music", "state": status, "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": pre, "objects": {"cover_1x1.png": {"size": len(cover)}, "final.mp3": {"size": len(audio)}}}}, open(os.path.join(D, "meta.json"), "w"))
+        json.dump({"slug": slug, "type": "music", "state": status, **({"release": {"legacy": True}} if status == "published" else {}), "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": pre, "objects": {"cover_1x1.png": {"size": len(cover)}, "final.mp3": {"size": len(audio)}}}}, open(os.path.join(D, "meta.json"), "w"))
         self.K.sync_item(slug)
         if licence: self.K.set_license(slug, licence, "owner", "test")
         return slug

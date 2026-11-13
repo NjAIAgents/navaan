@@ -87,7 +87,7 @@ class Albums(Base):
         a = next(x for x in self.K.albums() if x["slug"] == self.slug)
         self.assertEqual(a["art"]["v"], len(self.bucket[key])); self.assertTrue(self.A.cover_state(self.slug)["published"])
         self.assertIsNone(self.M2.variant(self.slug, 320, "webp", "album"))   # a draft album's cover is not for listeners
-        self.K.save_album(self.slug, "Raat Ke Baad", "album", "published")
+        _pgenv.publish_album(self.K, self.slug)
         data, _, mime = self.M2.variant(self.slug, 320, "webp", "album")
         self.assertEqual(mime, "image/webp"); self.assertLessEqual(max(Image.open(io.BytesIO(data)).size), 320)
         self.assertEqual(self.K.album_cover_asset(self.slug)["dominant_colour"], next(x for x in self.K.albums() if x["slug"] == self.slug)["art"]["colour"])   # the first resize recorded the colour
@@ -95,7 +95,7 @@ class Albums(Base):
 
     def test_a_new_picture_replaces_the_published_one_and_a_failed_publish_keeps_the_cover(self):
         self.A.use_picture(self.slug, png(800, 600)); first = self.K.album_cover_asset
-        self.K.save_album(self.slug, "Raat Ke Baad", "album", "published"); old = first(self.slug)
+        _pgenv.publish_album(self.K, self.slug); old = first(self.slug)
         self.A.typeset(self.slug, style="brush"); new = first(self.slug)
         self.assertNotEqual(old["id"], new["id"])   # a new row, so the sizes cut from the old picture are not served for the new one
         def boom(key, data, ct="x"): raise RuntimeError("bucket down")
@@ -114,7 +114,7 @@ class Albums(Base):
     def test_an_album_is_shared_only_when_published_with_a_song_a_listener_may_hear_and_the_link_lists_only_those(self):
         K = self.K
         with self.assertRaises(LookupError): K.create_album_share(self.slug, "owner")   # a draft album has no link
-        K.save_album(self.slug, "Raat Ke Baad", "album", "published")
+        _pgenv.publish_album(K, self.slug)
         with self.assertRaises(ValueError): K.create_album_share(self.slug, "owner")   # published, but no song has a confirmed licence yet
         with self.assertRaises(LookupError): K.create_album_share("no-such-album", "owner")
         K.set_license("song-001", "confirmed", "owner", "paid plan")
@@ -125,7 +125,7 @@ class Albums(Base):
         K.set_license("song-002", "confirmed", "owner", "paid plan"); self.assertEqual([t["slug"] for t in K.open_album_share(tok)["tracks"]], ["song-001", "song-002"])
         self.assertEqual(K._conn().execute("SELECT opens FROM share_links WHERE token = ?", (tok,)).fetchone()["opens"], 1)
         self.assertTrue(K.revoke_share(tok, "owner")); self.assertIsNone(K.open_album_share(tok))
-        tok = K.create_album_share(self.slug, "owner"); K.save_album(self.slug, "Raat Ke Baad", "album", "draft"); self.assertIsNone(K.open_album_share(tok))   # unpublished again: the link stops
+        tok = K.create_album_share(self.slug, "owner"); K._tx(lambda c: c.execute("UPDATE albums SET status = 'draft' WHERE slug = ?", (self.slug,))); self.assertIsNone(K.open_album_share(tok))   # unpublished again (by hand; Release never undoes): the link stops
 
     def test_the_album_page_names_the_artist_lists_the_songs_with_players_and_escapes_everything(self):
         import share_page

@@ -115,6 +115,7 @@ def song_row(s):
     ig_on = navaan.ig_enabled(m)
     if n.get("type") == "gate": status = "approval"
     elif n.get("type") == "done": status = "done"
+    elif n.get("type") == "held": status = "held"   # the full song waits for its album's release (spec 003); n["why"] says which album
     else: status = "production"
     tp = os.path.join(D, "title.txt")
     return {"slug": s, "type": C.item_type(m), "state": m.get("state"), "next": n, "title": open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "",
@@ -477,7 +478,7 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/catalog/albums": return self._send(200, catalog_store.public_albums(studio))
         m = re.match(r"^/api/catalog/album/([A-Za-z0-9][A-Za-z0-9_-]{0,80})$", p)
         if m:
-            a = next((x for x in catalog_store.public_albums(studio) if x["slug"] == m.group(1)), None)
+            a = catalog_store.album_page(m.group(1), studio)   # released, or announced and coming soon (no songs in it)
             return self._send(200, a) if a else self._send(404, {"error": "no such album"})
         m = re.match(r"^/api/catalog/track/([A-Za-z0-9][A-Za-z0-9_-]{0,40})$", p)
         if m:
@@ -760,6 +761,10 @@ class H(BaseHTTPRequestHandler):
                     out += PS.entries(sl, navaan.meta(sl), open(tp, encoding="utf-8").read().strip() if os.path.exists(tp) else "")
                 return self._send(200, sorted(out, key=lambda e: e["at"]))
             if p == "/api/albums": return self._send(200, catalog_store.albums())
+            if p == "/api/albums/release":   # readiness and per-song progress of an album's release (spec 003); changes nothing
+                import album_release
+                try: return self._send(200, album_release.status((parse_qs(urlparse(self.path).query).get("album") or [""])[0]))
+                except LookupError as e: return self._send(404, {"error": str(e)})
             if p == "/api/albums/cover":   # the cover's prompt, cost and whether it exists (no spend)
                 al = (parse_qs(urlparse(self.path).query).get("album") or [""])[0]
                 try: return self._send(200, {**ALB.cover_state(al), **ALBUM_COVER.get(al, {})})
@@ -1013,10 +1018,26 @@ class H(BaseHTTPRequestHandler):
                     ALBUM_COVER[al] = {"running": False, "error": err}
                 threading.Thread(target=aw, daemon=True).start()
                 return self._send(200, {"ok": True})
+            if p in ("/api/albums/release", "/api/albums/release/retry", "/api/albums/release/cancel"):   # the owner releases an album, now or at a time: every song in it goes public with it (spec 003)
+                if not auth.can(sess, "studio.settings"): return self._send(403, {"error": "only the owner releases an album"})
+                import album_release
+                al = str(body.get("album") or ""); who = sess.get("user") or "owner"
+                try:
+                    if p.endswith("/retry"): st = album_release.retry(al, str(body.get("song") or ""))
+                    elif p.endswith("/cancel"): st = album_release.cancel(al, who)
+                    else: st = album_release.confirm(al, [str(x) for x in body.get("songs") or []], who, body.get("at") or None)
+                except album_release.NotReady as e: return self._send(409, {"error": str(e), **e.state})
+                except LookupError as e: return self._send(404, {"error": str(e)})
+                except ValueError as e: return self._send(409, {"error": str(e)})
+                auth._audit("album_release" + ("_" + p.rsplit("/", 1)[1] if p.count("/") > 3 else ""), user=who, ip=self._ip(), album=al, at=body.get("at"), song=body.get("song"))
+                return self._send(200, st)
             if p in ("/api/albums/save", "/api/albums/reorder", "/api/albums/delete"):   # the owner's album editor API (the screens come in NAV-16)
                 try:
-                    if p.endswith("/save"): return self._send(200, {"slug": catalog_store.save_album(str(body.get("slug") or ""), body.get("title"), body.get("kind") or "album", body.get("status") or "draft", body.get("release_date"), body.get("description") or "")})
-                    if p.endswith("/reorder"): return self._send(200, {"tracks": catalog_store.reorder(str(body.get("album") or ""), [str(x) for x in body.get("tracks") or []])})
+                    if p.endswith("/save"): return self._send(200, {"slug": catalog_store.save_album(str(body.get("slug") or ""), body.get("title"), body.get("kind") or "album", body.get("status") or None, body.get("release_date"), body.get("description") or "", body.get("announced") if isinstance(body.get("announced"), bool) else None)})
+                    if p.endswith("/reorder"):
+                        import album_release
+                        al = str(body.get("album") or ""); t = catalog_store.reorder(al, [str(x) for x in body.get("tracks") or []])
+                        return self._send(200, {"tracks": t, "disarmed": album_release.disarm(al)})   # a scheduled release whose songs changed waits for a new confirm (FR-012)
                     return self._send(200, {"deleted": catalog_store.delete_album(str(body.get("slug") or ""))})
                 except ValueError as e: return self._send(400, {"error": str(e)})
                 except LookupError as e: return self._send(404, {"error": str(e)})

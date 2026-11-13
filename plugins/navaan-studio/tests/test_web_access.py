@@ -177,7 +177,7 @@ class Access(unittest.TestCase):
     def test_a_visitor_makes_a_clip_of_a_song_and_anyone_with_the_link_can_play_it_with_range_support(self):
         import catalog_store as K, clip_share
         D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("Tere <Hone> Se")
-        json.dump({"type": "music", "state": "published", "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": "navaan/songs/song-001/", "objects": {"final.mp3": {"size": 10}}}}, open(os.path.join(D, "meta.json"), "w"))
+        json.dump({"type": "music", "state": "published", "release": {"legacy": True}, "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": "navaan/songs/song-001/", "objects": {"final.mp3": {"size": 10}}}}, open(os.path.join(D, "meta.json"), "w"))
         K.sync_item("song-001"); self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close()); K.set_license("song-001", "confirmed", "owner", "paid plan")
         mp4 = os.path.join(self.tmp.name, "clip.mp4"); open(mp4, "wb").write(bytes(range(256)) * 4)   # 1024 bytes stand in for the video
         made = []
@@ -540,7 +540,7 @@ class Access(unittest.TestCase):
 
     def test_only_the_owner_sets_a_licence_and_it_is_audited(self):
         import catalog_store as K, navaan_common as C
-        D = os.path.join(C.songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "published"}, open(os.path.join(D, "meta.json"), "w")); K.sync_item("song-001")
+        D = os.path.join(C.songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("One"); json.dump({"type": "music", "state": "published", "release": {"legacy": True}}, open(os.path.join(D, "meta.json"), "w")); K.sync_item("song-001")
         self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
         ed = CS.ensure_user("editor1", role="editor"); CS.create_session(auth.skey("ed-tok"), ed["id"], "csrf-ed", "3.3.3.3", None, 3600)
         post = lambda tok, csrf, **b: self.call("/api/catalog/license", tok, csrf, post=True, body=b)
@@ -578,7 +578,7 @@ class Access(unittest.TestCase):
         from test_media import png
         D = os.path.join(__import__("navaan_common").songs_root(), "song-001"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write("Tere <Hone> Se")
         cover = png(); pre = "navaan/songs/song-001/"
-        json.dump({"type": "music", "state": "published", "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": pre, "objects": {"cover_1x1.png": {"size": len(cover)}, "final.mp3": {"size": 10}}}}, open(os.path.join(D, "meta.json"), "w"))
+        json.dump({"type": "music", "state": "published", "release": {"legacy": True}, "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": pre, "objects": {"cover_1x1.png": {"size": len(cover)}, "final.mp3": {"size": 10}}}}, open(os.path.join(D, "meta.json"), "w"))
         K.sync_item("song-001"); self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
         for p in (mock.patch.object(objstore, "get", lambda k: cover), mock.patch.object(objstore, "par_url", lambda k, s=300: "https://bucket.example/" + k), mock.patch.object(media, "ensure_preview", lambda sl: pre + "derived/preview-30s.mp3"),
                   mock.patch.dict(os.environ, {"NAVAAN_CACHE_DIR": os.path.join(self.tmp.name, "cache")})):
@@ -603,7 +603,7 @@ class Access(unittest.TestCase):
         self.assertEqual(self.raw("/img/ghost/poster-320.webp")[0], 404)
         al = K.save_album("", "Raat Ke Baad", "album"); K.reorder(al, ["song-001"]); K.set_album_cover(al, "navaan/albums/" + al + "/cover_1x1.png", len(cover))
         self.assertEqual(self.raw(f"/img/album/{al}/320.webp")[0], 404)   # a draft album's cover is not public
-        K.save_album(al, "Raat Ke Baad", "album", "published")
+        _pgenv.publish_album(K, al)
         st, h, b = self.raw(f"/img/album/{al}/320.webp"); self.assertEqual((st, h["Content-Type"]), (200, "image/webp")); self.assertIn("immutable", h["Cache-Control"])
         self.assertEqual(self.raw(f"/img/album/{al}/poster-320.webp")[0], 404); self.assertEqual(self.raw("/img/album/ghost/320.webp")[0], 404)   # an album has a cover, no poster
         self.assertEqual(self.raw("/img/" + al + "/320.webp")[0], 404)   # and the album's name is not a song's
@@ -632,7 +632,7 @@ class Access(unittest.TestCase):
         import catalog_store as K, entitlements as E, library_store as L, navaan_common as C
         for i in (1, 2):
             D = os.path.join(C.songs_root(), f"song-00{i}"); os.makedirs(D); open(os.path.join(D, "title.txt"), "w").write(f"Song {i}")
-            json.dump({"type": "music", "state": "published"}, open(os.path.join(D, "meta.json"), "w")); K.sync_item(f"song-00{i}")
+            json.dump({"type": "music", "state": "published", "release": {"legacy": True}}, open(os.path.join(D, "meta.json"), "w")); K.sync_item(f"song-00{i}")
         for m in (K, E, L): self.addCleanup(lambda m=m: hasattr(getattr(m, "_tx", None), "close") and m._tx.close())
         self.addCleanup(lambda: getattr(K._LOCAL, "conn", None) and K._LOCAL.conn.close())
         post = lambda tok, csrf, path, **b: self.call(path, tok, csrf, post=True, body=b)
@@ -659,7 +659,7 @@ class Access(unittest.TestCase):
         self.assertTrue(json.loads(self.call("/api/plans", "owner-tok")[1])["mine"]["unlimited"])
         # playing needs the plan's audio.play; a play is recorded
         with mock.patch("objstore.par_url", lambda k, s=300: "https://bucket.example/" + k):
-            json.dump({"type": "music", "state": "published", "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": "n/s1/", "objects": {"final.mp3": {"size": 5}}}}, open(os.path.join(C.songs_root(), "song-001", "meta.json"), "w")); K.sync_item("song-001")
+            json.dump({"type": "music", "state": "published", "release": {"legacy": True}, "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": "n/s1/", "objects": {"final.mp3": {"size": 5}}}}, open(os.path.join(C.songs_root(), "song-001", "meta.json"), "w")); K.sync_item("song-001")
             self.assertEqual(self.raw("/api/play?slug=song-001", "lis-tok")[0], 404)                          # a listener only gets confirmed songs
             self.assertEqual(self.raw("/api/play?slug=song-001", "owner-tok")[0], 200); K.set_license("song-001", "confirmed", "owner", "paid plan"); L._tx(lambda c: c.execute("DELETE FROM play_events"))
             self.assertEqual(self.raw("/api/play?slug=song-001", "lis-tok")[0], 200)
@@ -687,9 +687,10 @@ class Access(unittest.TestCase):
         for slug, title, lang, genre, album in specs:
             D = os.path.join(C.songs_root(), slug); os.makedirs(D); open(os.path.join(D, "title.txt"), "w", encoding="utf-8").write(title)
             open(os.path.join(D, "lyrics.txt"), "w", encoding="utf-8").write("line one\nline two"); json.dump({"genre": genre, "language": lang}, open(os.path.join(D, "tags.json"), "w"))
-            json.dump({"type": "music", "state": "published", **({"album": album} if album else {}), "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": f"n/{slug}/", "objects": {"final.mp3": {"size": 5}, "caption_timing.json": {"size": 40}}}}, open(os.path.join(D, "meta.json"), "w")); K.sync_item(slug)
+            json.dump({"type": "music", "state": "published", "release": {"legacy": True}, **({"album": album} if album else {}), "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": f"n/{slug}/", "objects": {"final.mp3": {"size": 5}, "caption_timing.json": {"size": 40}}}}, open(os.path.join(D, "meta.json"), "w")); K.sync_item(slug)
         os.makedirs(os.path.join(bucket, "n", "song-001")); open(os.path.join(bucket, "n", "song-001", "caption_timing.json"), "w").write('[[2.5, "line one"], [7, "line two"]]'); open(os.path.join(bucket, "n", "song-001", "final.mp3"), "wb").write(bytes(range(100)))
         for sl in ("song-001", "song-003"): K.set_license(sl, "confirmed", "owner", "paid plan")   # song-002 stays unconfirmed
+        _pgenv.publish_album(K, "first-light")   # released
         slugs = lambda tok, q="": [t["slug"] for t in json.loads(self.call("/api/catalog/tracks" + q, tok)[1])]
         self.assertEqual(sorted(slugs("lis-tok")), ["song-001", "song-003"]); self.assertEqual(sorted(slugs("owner-tok")), ["song-001", "song-002", "song-003"])   # a listener never sees an unconfirmed song
         self.assertEqual(slugs("owner-tok", "?language=English"), ["song-003"]); self.assertEqual(slugs("owner-tok", "?genre=Indie"), ["song-002"]); self.assertEqual(slugs("owner-tok", "?album=first-light"), ["song-001"]); self.assertEqual(slugs("owner-tok", "?language=Hindi&genre=Indie"), ["song-002"])

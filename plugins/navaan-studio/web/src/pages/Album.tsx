@@ -11,14 +11,15 @@ import { coverOf } from "./Albums";
 import { Loading } from "../components/Loading";
 import { AlbumCoverCard } from "../components/AlbumCoverCard";
 import { ShareCard } from "../components/ShareCard";
+import { AlbumReleaseCard } from "../components/AlbumReleaseCard";
 
-// One album: the hero with its cover, title, kind and status; the details; the songs in order (up, down, remove) and a way to add more. A published album may only hold published songs: the server says so.
+// One album: the hero with its cover, title, kind and status; the details; the songs in order (up, down, remove) and a way to add more. Its songs go public only when the album is released (the Release card).
 export default function Album() {
   const { slug = "" } = useParams();
   const go = useNavigate();
   const [a, setA] = useState<AlbumRow | null>(null);
   const [all, setAll] = useState<TrackRow[]>([]);
-  const [form, setForm] = useState({ title: "", kind: "album", status: "draft", release_date: "", description: "" });
+  const [form, setForm] = useState({ title: "", kind: "album", release_date: "", description: "" });
   const [pick, setPick] = useState("");
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
@@ -28,7 +29,7 @@ export default function Album() {
     try {
       const [rows, tracks] = await Promise.all([getJSON<AlbumRow[]>("/api/albums"), getJSON<TrackRow[]>("/api/catalog/tracks")]);
       const x = rows.find((r) => r.slug === slug); if (!x) throw new Error("No such album");
-      setA(x); setAll(tracks); setForm({ title: x.title, kind: x.kind, status: x.status, release_date: x.release_date ?? "", description: x.description }); setErr("");
+      setA(x); setAll(tracks); setForm({ title: x.title, kind: x.kind, release_date: x.release_date ?? "", description: x.description }); setErr("");
     } catch (e) { setErr(errText(e)); }
   }, [slug]);
   useEffect(() => { void load(); }, [load]);
@@ -57,12 +58,12 @@ export default function Album() {
         <label htmlFor="a-title">Title</label><input id="a-title" className="field" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} />
         <div className="row">
           <div><label htmlFor="a-kind">Kind</label><br /><select id="a-kind" className="field sel" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}><option value="album">Album</option><option value="ep">EP</option><option value="single">Single</option></select></div>
-          <div><label htmlFor="a-status">Status</label><br /><select id="a-status" className="field sel" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="draft">Draft</option><option value="scheduled">Scheduled</option><option value="published">Published</option></select></div>
           <div><label htmlFor="a-date">Release date</label><br /><input id="a-date" type="date" className="field sel" value={form.release_date} onChange={(e) => setForm({ ...form, release_date: e.target.value })} /></div>
         </div>
         <label htmlFor="a-desc">Description</label><textarea id="a-desc" className="field" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         <div className="row"><button className="btn p" type="submit" disabled={busy || !form.title.trim()}>Save details</button></div>
       </form>
+      <AlbumReleaseCard slug={slug} onChange={() => void load()} onAnnounce={(on) => postJSON("/api/albums/save", { slug, ...form, release_date: form.release_date || null, announced: on })} />
       <AlbumCoverCard slug={slug} />
       {a.status === "published" && <ShareCard kind="album" slug={slug} title={a.title} />}
       <section className="sec" aria-labelledby="tl-h">
