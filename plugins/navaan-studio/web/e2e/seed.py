@@ -1,6 +1,6 @@
 """Author: Navjyot Nishant
 Created: 2026-10-16
-Last updated: 2026-10-16
+Last updated: 2026-11-13
 Description: seed a throwaway songs folder for the browser checks (NAV-20): songs waiting at the lyrics gate, an inspiration item at the quote gate, and a schedule with a missed and a blocked publish in the current month.
 
   python3 seed.py <root>      the folder is emptied first, so every run starts the same
@@ -62,11 +62,13 @@ for slug, title, lang, genre, album, _ok in LIVE:
     with open(os.path.join(bucket, pre, "final.mp3"), "wb") as f: f.write(mp3)
     with open(os.path.join(bucket, pre, "caption_timing.json"), "w", encoding="utf-8") as f: json.dump([[1, f"{title}, line one"], [6, f"{title}, line two"], [11, f"{title}, line three"]], f, ensure_ascii=False)
     sizes = {n: os.path.getsize(os.path.join(bucket, pre, n)) for n in ("cover_1x1.png", "final.mp3", "caption_timing.json")}
-    item(slug, title, {"type": "music", "state": "published", **({"album": album} if album else {}), "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": pre, "objects": {n: {"size": z} for n, z in sizes.items()}}},
+    rel = {"album": "first-light", "at": "2026-10-01T10:00:00Z", "by": "e2e"} if album else {"legacy": True}   # released (spec 003): with its album, or public before albums gated songs
+    item(slug, title, {"type": "music", "state": "published", "release": rel, **({"album": album} if album else {}), "cloud": {"verified": True, "uploaded_at": "2026-10-01T10:00:00Z", "prefix": pre, "objects": {n: {"size": z} for n, z in sizes.items()}}},
          [("lyrics.txt", f"{title}, line one\n{title}, line two\n{title}, line three\n"), ("tags.json", json.dumps({"genre": genre, "language": lang}))])
 import catalog_store as K
 for slug, *_rest, ok in LIVE:
     K.sync_item(slug)
     if ok: K.set_license(slug, "confirmed", "e2e", "seeded for the browser checks", plan="paid")
+K._tx(lambda c: K._reindex_album(c, str(c.execute("UPDATE albums SET status = 'published', release_at = now() WHERE slug = 'first-light' RETURNING id").fetchone()["id"])))   # First Light is released
 open(os.path.join(root, ".seeded"), "w").close()   # the second portal waits for this
 print("seeded", sorted(os.listdir(songs)))
