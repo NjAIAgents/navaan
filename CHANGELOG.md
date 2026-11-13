@@ -6,6 +6,11 @@ Release steps are in `deploy/README.md` (Releasing). Only changes a person using
 
 ## [Unreleased]
 
+## [0.62.1] - 2026-11-13
+
+### Added
+- Download the song from the studio: a song's page has a Download the song button that saves the finished MP3 (the tagged one when it exists) under the song's title. It works for an archived song too (it is fetched back from the bucket). Studio only: a listener or a visitor cannot download.
+
 ## [0.62.0] - 2026-11-13
 
 ### Added
@@ -875,7 +880,8 @@ Point-in-time recovery, error tracking and the uptime check, and the security re
 ### Added
 - The studio plugin: lyrics, Suno song, visuals, synced captions, YouTube and Instagram publishing behind human approval gates, an analytics loop with recommendations, and a local web portal.
 
-[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.62.0...HEAD
+[Unreleased]: https://github.com/NjAIAgents/navaan/compare/v0.62.1...HEAD
+[0.62.1]: https://github.com/NjAIAgents/navaan/compare/v0.62.0...v0.62.1
 [0.62.0]: https://github.com/NjAIAgents/navaan/compare/v0.61.4...v0.62.0
 [0.61.4]: https://github.com/NjAIAgents/navaan/compare/v0.61.3...v0.61.4
 [0.61.3]: https://github.com/NjAIAgents/navaan/compare/v0.61.2...v0.61.3

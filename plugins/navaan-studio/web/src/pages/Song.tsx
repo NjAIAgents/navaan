@@ -478,6 +478,8 @@ export default function Song() {
   const TABS: readonly (readonly [string, string])[] = [["pipeline", "Pipeline"], ...(hasPosts ? [["posts", "Posts"] as const] : []), ["content", "Content"], ["media", "Media"], ["publish", "Publish"], ["activity", "Activity"]];
   type Tab = string;
   const postsReady = hasPosts && !!d.steps.find((x) => x.id === "edit")?.done;   // the edit is the last writing step: from then on the posts are what you came for
+  // The finished song as a file, for the studio only (/media is a studio route): the tagged MP3 when it exists, else the mix; an archived song comes back from the bucket.
+  const song = (d.meta.type ?? "music") !== "music" ? "" : (d.files ?? {})["final_tagged.mp3"] ? "final_tagged.mp3" : (d.files ?? {})["final.mp3"] || (d.meta as { cloud?: { uploaded_at?: string } }).cloud?.uploaded_at ? "final.mp3" : "";
   const asked = sp.get("tab"); const tab: Tab = TABS.some(([k]) => k === asked) ? (asked as Tab) : postsReady && d.next.type !== "gate" ? "posts" : "pipeline";
   return (
     <>
@@ -489,6 +491,7 @@ export default function Song() {
           <p>{STATE_WORDS[d.meta.state ?? ""] ?? "New"} · {nextAction({ status: gate ? "approval" : d.next.type === "done" ? "done" : "production", next: d.next, published: false })} · <span className="mu">{slug}</span></p>
         </div>
         <GoesOut d={d} onChange={() => setSp({ tab: "publish" }, { replace: true })} />
+        {song && <a className="btn" href={`/media/${slug}/${song}?dl=1`} download>Download the song</a>}
       </div>
       {notice && <div className="toast" role="status" aria-live="polite">{/…$/.test(notice) && <span className="spin" aria-hidden="true" />}<span>{notice}</span></div>}
       {err && <div className="card" role="alert"><h2>That did not work</h2><p className="mu">{err}</p></div>}
